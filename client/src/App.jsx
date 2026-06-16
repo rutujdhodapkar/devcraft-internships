@@ -22,6 +22,8 @@ import {
   isReferralCodeMatched,
   savePermanentReferralCode,
   fetchSelfReferralCode,
+  checkUserBan,
+  fetchAdminMessages,
 } from "./services/data";
 import { auth, googleProvider, isFirebaseConfigured } from "./firebase";
 import { onAuthStateChanged, signOut, signInWithPopup } from "firebase/auth";
@@ -135,6 +137,9 @@ export default function App() {
   const [idCardLoading, setIdCardLoading] = useState(false);
 
   const [showEarnModal, setShowEarnModal] = useState(false);
+  const [userBan, setUserBan] = useState(null); // null | { banType, reason }
+  const [adminMessages, setAdminMessages] = useState([]);
+  const [dismissedMessages, setDismissedMessages] = useState(new Set());
 
   // Listen to Firebase Auth state
   useEffect(() => {
@@ -185,6 +190,18 @@ export default function App() {
           }
         }
         setIsAdmin(isUserAdmin);
+
+        // Check if user is banned
+        try {
+          const ban = await checkUserBan(currentUser.email);
+          setUserBan(ban || null);
+        } catch {}
+
+        // Fetch admin messages for this user
+        try {
+          const msgs = await fetchAdminMessages(currentUser.email);
+          setAdminMessages(msgs || []);
+        } catch {}
 
         // Fetch / Sync profile details from RTDB
         try {
@@ -267,6 +284,8 @@ export default function App() {
         setIsAdmin(false);
         setUserProfile(null);
         setHasReferralCode(false);
+        setUserBan(null);
+        setAdminMessages([]);
       }
       setAuthLoading(false);
     });
@@ -302,6 +321,18 @@ export default function App() {
       setPendingEnrollmentDomain(domainObj);
       setAuthRedirectTarget("dashboard");
       setCurrentView("auth");
+      return;
+    }
+
+    // Block if banned from internship
+    if (
+      userBan &&
+      (userBan.banType === "both" || userBan.banType === "internship")
+    ) {
+      alert(
+        "Your account has been restricted from applying to internships." +
+          (userBan.reason ? " Reason: " + userBan.reason : ""),
+      );
       return;
     }
 
@@ -596,6 +627,7 @@ export default function App() {
               user={user}
               userProfile={userProfile}
               onLoginClick={handleLoginClick}
+              userBan={userBan}
             />
             <Footer />
           </>
@@ -621,6 +653,64 @@ export default function App() {
 
   return (
     <>
+      {/* Admin Messages Banner */}
+      {adminMessages
+        .filter((m) => !dismissedMessages.has(m.id))
+        .map((msg) => {
+          const typeStyles = {
+            warning: { bg: "#FFF8E1", border: "#FBBC05", color: "#7a5c00" },
+            success: { bg: "#E8F5E9", border: "#34A853", color: "#1a5c2e" },
+            info: { bg: "#E3F2FD", border: "#4285F4", color: "#1a3a6c" },
+          };
+          const ts = typeStyles[msg.type] || typeStyles.info;
+          return (
+            <div
+              key={msg.id}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 9999,
+                background: ts.bg,
+                borderBottom: `3px solid ${ts.border}`,
+                padding: "0.65rem 1.5rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+                flexWrap: "wrap",
+                fontSize: "0.88rem",
+                color: ts.color,
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                {msg.title && (
+                  <strong style={{ marginRight: "0.5rem" }}>
+                    {msg.title}:
+                  </strong>
+                )}
+                {msg.text}
+              </div>
+              <button
+                onClick={() =>
+                  setDismissedMessages((prev) => new Set([...prev, msg.id]))
+                }
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "1.2rem",
+                  color: ts.color,
+                  padding: "0 0.25rem",
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+
       {renderCurrentView()}
 
       {/* Collect Student Profile Details Modal */}
@@ -681,6 +771,7 @@ export default function App() {
               user={user}
               userProfile={userProfile}
               onLoginClick={handleLoginClick}
+              userBan={userBan}
             />
           </div>
         </div>

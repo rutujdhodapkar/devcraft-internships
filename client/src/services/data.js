@@ -1542,3 +1542,147 @@ export async function saveEarnSettings(settings) {
   }
   // fallback: no-op for non-Firebase setups
 }
+
+// ─── Earn Details (admin-editable content) ────────────────────────────────────
+export async function fetchEarnDetails() {
+  if (isFirebaseConfigured && rtdb) {
+    try {
+      const snap = await get(ref(rtdb, "siteSettings/earnDetails"));
+      if (snap.exists()) return snap.val();
+    } catch {}
+  }
+  return {
+    title: "How Refer & Earn Works",
+    description:
+      "Share your unique referral link with friends and classmates. When they complete their internship you get paid.",
+    items: [
+      {
+        title: "Apply Once",
+        description:
+          "Submit your UPI ID to get a unique referral code instantly.",
+        links: "",
+      },
+      {
+        title: "Share Your Link",
+        description: "Share anywhere — WhatsApp, LinkedIn, or social media.",
+        links: "",
+      },
+      {
+        title: "Track Progress",
+        description:
+          "See who enrolled using your link and track completions in real time.",
+        links: "",
+      },
+      {
+        title: "Get Paid",
+        description:
+          "Earn ₹20 per completion + ₹1,000 bonus at 50 completions directly to your UPI.",
+        links: "",
+      },
+    ],
+  };
+}
+
+export async function saveEarnDetails(details) {
+  if (isFirebaseConfigured && rtdb) {
+    await set(ref(rtdb, "siteSettings/earnDetails"), details);
+  }
+}
+
+// ─── Banned Users ──────────────────────────────────────────────────────────────
+export async function fetchBannedUsers() {
+  if (!isFirebaseConfigured || !rtdb) return [];
+  try {
+    const snap = await get(ref(rtdb, "bannedUsers"));
+    if (!snap.exists()) return [];
+    return Object.entries(snap.val()).map(([key, val]) => ({
+      ...val,
+      id: key,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function checkUserBan(email) {
+  if (!email || !isFirebaseConfigured || !rtdb) return null;
+  try {
+    const key = encodeEmail(email.toLowerCase().trim());
+    const snap = await get(ref(rtdb, `bannedUsers/${key}`));
+    if (snap.exists()) return snap.val();
+  } catch {}
+  return null;
+}
+
+export async function banUser(email, banType, reason, bannedBy) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  const key = encodeEmail(email.toLowerCase().trim());
+  await set(ref(rtdb, `bannedUsers/${key}`), {
+    email: email.toLowerCase().trim(),
+    banType: banType || "both", // 'internship' | 'earn' | 'both'
+    reason: reason || "",
+    bannedAt: new Date().toISOString(),
+    bannedBy: bannedBy || "",
+  });
+}
+
+export async function unbanUser(email) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  const key = encodeEmail(email.toLowerCase().trim());
+  await remove(ref(rtdb, `bannedUsers/${key}`));
+}
+
+// ─── Admin Messages ────────────────────────────────────────────────────────────
+export async function fetchAdminMessages(userEmail) {
+  if (!isFirebaseConfigured || !rtdb) return [];
+  try {
+    const snap = await get(ref(rtdb, "adminMessages"));
+    if (!snap.exists()) return [];
+    const now = new Date();
+    return Object.entries(snap.val())
+      .map(([id, msg]) => ({ ...msg, id }))
+      .filter((msg) => {
+        if (msg.expiresAt && new Date(msg.expiresAt) < now) return false;
+        if (msg.target === "all") return true;
+        if (
+          userEmail &&
+          msg.target &&
+          msg.target.toLowerCase() === userEmail.toLowerCase()
+        )
+          return true;
+        return false;
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAllAdminMessages() {
+  if (!isFirebaseConfigured || !rtdb) return [];
+  try {
+    const snap = await get(ref(rtdb, "adminMessages"));
+    if (!snap.exists()) return [];
+    return Object.entries(snap.val())
+      .map(([id, msg]) => ({ ...msg, id }))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  } catch {
+    return [];
+  }
+}
+
+export async function saveAdminMessage(message) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  const msgRef = push(ref(rtdb, "adminMessages"));
+  await set(msgRef, { ...message, createdAt: new Date().toISOString() });
+  return msgRef.key;
+}
+
+export async function deleteAdminMessage(id) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  await remove(ref(rtdb, `adminMessages/${id}`));
+}

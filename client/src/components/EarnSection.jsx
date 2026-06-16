@@ -17,7 +17,12 @@ const COUNTRY_NAMES = [
   "Other",
 ].sort();
 
-export default function EarnSection({ user, userProfile, onLoginClick }) {
+export default function EarnSection({
+  user,
+  userProfile,
+  onLoginClick,
+  userBan,
+}) {
   const [showForm, setShowForm] = useState(false);
   const [existingCode, setExistingCode] = useState(null);
   const [checkingCode, setCheckingCode] = useState(false);
@@ -33,6 +38,9 @@ export default function EarnSection({ user, userProfile, onLoginClick }) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
+  const [earnDetails, setEarnDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   // Check if user already has a referral code
   useEffect(() => {
@@ -48,6 +56,17 @@ export default function EarnSection({ user, userProfile, onLoginClick }) {
         .finally(() => setCheckingCode(false)),
     );
   }, [user]);
+
+  // Fetch admin-configured earn details
+  useEffect(() => {
+    setDetailsLoading(true);
+    import("../services/data").then(({ fetchEarnDetails }) =>
+      fetchEarnDetails()
+        .then((d) => setEarnDetails(d))
+        .catch(() => {})
+        .finally(() => setDetailsLoading(false)),
+    );
+  }, []);
 
   const inputStyle = {
     border: "2px solid #000",
@@ -98,6 +117,13 @@ export default function EarnSection({ user, userProfile, onLoginClick }) {
   const handleApplyClick = () => {
     if (!user) {
       onLoginClick();
+      return;
+    }
+    if (userBan && (userBan.banType === "both" || userBan.banType === "earn")) {
+      alert(
+        "Your account has been restricted from the Refer & Earn program." +
+          (userBan.reason ? " Reason: " + userBan.reason : ""),
+      );
       return;
     }
     setFormData({
@@ -259,6 +285,21 @@ export default function EarnSection({ user, userProfile, onLoginClick }) {
             plus the ₹1,000 milestone bonus —{" "}
             <strong>₹2,000 total per 50 completed interns</strong>.
           </p>
+          <div style={{ marginTop: "1rem", textAlign: "right" }}>
+            <button
+              onClick={() => setShowDetails(true)}
+              style={{
+                background: "none",
+                border: "2px solid #000",
+                padding: "0.4rem 1rem",
+                fontSize: "0.82rem",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              ℹ How It Works — Full Details
+            </button>
+          </div>
         </div>
 
         {/* Main action box */}
@@ -676,6 +717,183 @@ export default function EarnSection({ user, userProfile, onLoginClick }) {
           )}
         </div>
       </div>
+      {/* Details Modal */}
+      {showDetails && (
+        <div
+          onClick={() => setShowDetails(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.75)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "flex-start",
+            zIndex: 2000,
+            overflowY: "auto",
+            padding: "2rem 1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              border: "3px solid #000",
+              boxShadow: "10px 10px 0 #000",
+              width: "100%",
+              maxWidth: "640px",
+              position: "relative",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                background: "#000",
+                color: "#fff",
+                padding: "1.25rem 1.5rem",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 900,
+                  fontSize: "1.1rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                {detailsLoading
+                  ? "Loading…"
+                  : earnDetails?.title || "Refer & Earn — Details"}
+              </div>
+              <button
+                onClick={() => setShowDetails(false)}
+                style={{
+                  background: "none",
+                  border: "1.5px solid #555",
+                  color: "#fff",
+                  width: "28px",
+                  height: "28px",
+                  cursor: "pointer",
+                  fontSize: "1.1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: "1.5rem" }}>
+              {earnDetails?.description && (
+                <p
+                  style={{
+                    fontSize: "0.92rem",
+                    color: "#444",
+                    marginBottom: "1.5rem",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {earnDetails.description}
+                </p>
+              )}
+
+              {(earnDetails?.items || []).map((item, i) => (
+                <div
+                  key={i}
+                  style={{
+                    border: "1px solid #e0e0e0",
+                    padding: "1rem 1.25rem",
+                    marginBottom: "0.85rem",
+                    borderLeft: "4px solid #000",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 800,
+                      fontSize: "0.95rem",
+                      marginBottom: "0.35rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        background: "#000",
+                        color: "#fff",
+                        fontSize: "0.68rem",
+                        fontWeight: 900,
+                        padding: "0.1rem 0.45rem",
+                        marginRight: "0.5rem",
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    {item.title}
+                  </div>
+                  {item.description && (
+                    <p
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "#555",
+                        margin: "0 0 0.4rem",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {item.description}
+                    </p>
+                  )}
+                  {item.links && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        flexWrap: "wrap",
+                        marginTop: "0.4rem",
+                      }}
+                    >
+                      {item.links.split(",").map((l, li) => {
+                        const t = l.trim();
+                        if (!t) return null;
+                        return (
+                          <a
+                            key={li}
+                            href={t.startsWith("http") ? t : `https://${t}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              fontSize: "0.8rem",
+                              color: "#000",
+                              fontWeight: 700,
+                              textDecoration: "underline",
+                            }}
+                          >
+                            Link {li + 1} ↗
+                          </a>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {(!earnDetails?.items || earnDetails.items.length === 0) &&
+                !detailsLoading && (
+                  <p
+                    style={{
+                      color: "#888",
+                      textAlign: "center",
+                      padding: "1rem",
+                    }}
+                  >
+                    No details configured yet.
+                  </p>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

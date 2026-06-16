@@ -58,6 +58,8 @@ const TABS = [
   { id: "referral users", label: "Referral Users" },
   { id: "verify-ai", label: "Verify with AI" },
   { id: "earn-settings", label: "Earn Settings" },
+  { id: "banned-users", label: "Banned Users" },
+  { id: "messages", label: "Messages" },
   { id: "manage admins", label: "Admins" },
 ];
 
@@ -110,6 +112,35 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   });
   const [earnSettingsLoading, setEarnSettingsLoading] = useState(false);
   const [earnSettingsSaving, setEarnSettingsSaving] = useState(false);
+
+  // Earn Details state (admin-editable content for EarnSection Details modal)
+  const [earnDetails, setEarnDetails] = useState({
+    title: "",
+    description: "",
+    items: [],
+  });
+  const [earnDetailsLoading, setEarnDetailsLoading] = useState(false);
+  const [earnDetailsSaving, setEarnDetailsSaving] = useState(false);
+
+  // Banned Users state
+  const [bannedUsers, setBannedUsers] = useState([]);
+  const [bannedUsersLoading, setBannedUsersLoading] = useState(false);
+  const [banEmail, setBanEmail] = useState("");
+  const [banType, setBanType] = useState("both");
+  const [banReason, setBanReason] = useState("");
+  const [banActionLoading, setBanActionLoading] = useState(false);
+
+  // Admin Messages state
+  const [adminMessages, setAdminMessages] = useState([]);
+  const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesSaving, setMessagesSaving] = useState(false);
+  const [newMessage, setNewMessage] = useState({
+    title: "",
+    text: "",
+    type: "info",
+    target: "all",
+    expiresAt: "",
+  });
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   // Task feedback & certificate approval states
@@ -205,6 +236,33 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           })
           .catch(() => {})
           .finally(() => setEarnSettingsLoading(false)),
+      );
+      setEarnDetailsLoading(true);
+      import("../services/data").then(({ fetchEarnDetails }) =>
+        fetchEarnDetails()
+          .then((d) => {
+            if (d) setEarnDetails(d);
+          })
+          .catch(() => {})
+          .finally(() => setEarnDetailsLoading(false)),
+      );
+    }
+    if (activeTab === "banned-users") {
+      setBannedUsersLoading(true);
+      import("../services/data").then(({ fetchBannedUsers }) =>
+        fetchBannedUsers()
+          .then(setBannedUsers)
+          .catch(() => {})
+          .finally(() => setBannedUsersLoading(false)),
+      );
+    }
+    if (activeTab === "messages") {
+      setMessagesLoading(true);
+      import("../services/data").then(({ fetchAllAdminMessages }) =>
+        fetchAllAdminMessages()
+          .then(setAdminMessages)
+          .catch(() => {})
+          .finally(() => setMessagesLoading(false)),
       );
     }
   }, [activeTab]);
@@ -4348,6 +4406,810 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 </div>
               </div>
             )}
+            {/* Earn Details Editor */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: "1.5rem",
+                boxShadow: "3px 3px 0 #000",
+                marginTop: "1.5rem",
+              }}
+            >
+              <h4
+                style={{
+                  fontWeight: 800,
+                  fontSize: "1rem",
+                  textTransform: "uppercase",
+                  marginBottom: "1rem",
+                }}
+              >
+                Details Modal Content
+              </h4>
+              <p
+                style={{
+                  fontSize: "0.82rem",
+                  color: "#666",
+                  marginBottom: "1rem",
+                }}
+              >
+                This content appears in the "How It Works — Full Details" popup
+                on the Earn section.
+              </p>
+              {earnDetailsLoading ? (
+                <div style={{ color: "#888" }}>Loading…</div>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.85rem",
+                  }}
+                >
+                  <div>
+                    <label
+                      style={{
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        display: "block",
+                        marginBottom: "0.25rem",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Modal Title
+                    </label>
+                    <input
+                      type="text"
+                      value={earnDetails.title}
+                      onChange={(e) =>
+                        setEarnDetails((d) => ({ ...d, title: e.target.value }))
+                      }
+                      style={s}
+                      placeholder="How Refer & Earn Works"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        display: "block",
+                        marginBottom: "0.25rem",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Description
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={earnDetails.description}
+                      onChange={(e) =>
+                        setEarnDetails((d) => ({
+                          ...d,
+                          description: e.target.value,
+                        }))
+                      }
+                      style={{ ...s, resize: "vertical" }}
+                      placeholder="Short intro paragraph…"
+                    />
+                  </div>
+                  <div>
+                    <label
+                      style={{
+                        fontSize: "0.72rem",
+                        fontWeight: 700,
+                        display: "block",
+                        marginBottom: "0.5rem",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Steps / Items
+                    </label>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.75rem",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      {(earnDetails.items || []).map((item, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            border: "1px solid #ddd",
+                            padding: "0.75rem",
+                            background: "#fafafa",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              marginBottom: "0.5rem",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "0.72rem",
+                                fontWeight: 800,
+                                textTransform: "uppercase",
+                                color: "#555",
+                              }}
+                            >
+                              Step {i + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEarnDetails((d) => ({
+                                  ...d,
+                                  items: d.items.filter((_, j) => j !== i),
+                                }))
+                              }
+                              style={{
+                                border: "1px solid #EA4335",
+                                color: "#EA4335",
+                                background: "none",
+                                cursor: "pointer",
+                                fontSize: "0.72rem",
+                                padding: "0.1rem 0.4rem",
+                              }}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Title"
+                            value={item.title}
+                            onChange={(e) =>
+                              setEarnDetails((d) => {
+                                const items = [...d.items];
+                                items[i] = {
+                                  ...items[i],
+                                  title: e.target.value,
+                                };
+                                return { ...d, items };
+                              })
+                            }
+                            style={{ ...s, marginBottom: "0.4rem" }}
+                          />
+                          <textarea
+                            rows={2}
+                            placeholder="Description"
+                            value={item.description}
+                            onChange={(e) =>
+                              setEarnDetails((d) => {
+                                const items = [...d.items];
+                                items[i] = {
+                                  ...items[i],
+                                  description: e.target.value,
+                                };
+                                return { ...d, items };
+                              })
+                            }
+                            style={{
+                              ...s,
+                              resize: "vertical",
+                              marginBottom: "0.4rem",
+                            }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Links (comma-separated URLs)"
+                            value={item.links}
+                            onChange={(e) =>
+                              setEarnDetails((d) => {
+                                const items = [...d.items];
+                                items[i] = {
+                                  ...items[i],
+                                  links: e.target.value,
+                                };
+                                return { ...d, items };
+                              })
+                            }
+                            style={s}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEarnDetails((d) => ({
+                          ...d,
+                          items: [
+                            ...(d.items || []),
+                            { title: "", description: "", links: "" },
+                          ],
+                        }))
+                      }
+                      style={{
+                        border: "2px solid #000",
+                        background: "#fff",
+                        cursor: "pointer",
+                        padding: "0.35rem 0.9rem",
+                        fontSize: "0.8rem",
+                        fontWeight: 700,
+                      }}
+                    >
+                      + Add Step
+                    </button>
+                  </div>
+                  <button
+                    className="btn-sharp"
+                    disabled={earnDetailsSaving}
+                    onClick={async () => {
+                      setEarnDetailsSaving(true);
+                      try {
+                        const { saveEarnDetails } =
+                          await import("../services/data");
+                        await saveEarnDetails(earnDetails);
+                        setSuccessMsg("Earn details saved!");
+                        setTimeout(() => setSuccessMsg(""), 3000);
+                      } catch (err) {
+                        setError("Failed to save earn details: " + err.message);
+                      } finally {
+                        setEarnDetailsSaving(false);
+                      }
+                    }}
+                    style={{ padding: "0.7rem 2rem", alignSelf: "flex-start" }}
+                  >
+                    {earnDetailsSaving ? "Saving…" : "Save Details"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── BANNED USERS ── */}
+        {activeTab === "banned-users" && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1.5fr",
+              gap: "2rem",
+            }}
+          >
+            {/* Ban form */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: "1.75rem",
+                boxShadow: "4px 4px 0 #000",
+              }}
+            >
+              <h3 style={{ fontWeight: 800, marginBottom: "1rem" }}>
+                Ban User
+              </h3>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!banEmail.trim()) return;
+                  setBanActionLoading(true);
+                  try {
+                    const { banUser } = await import("../services/data");
+                    await banUser(
+                      banEmail.trim(),
+                      banType,
+                      banReason.trim(),
+                      user?.email || "",
+                    );
+                    setBanEmail("");
+                    setBanReason("");
+                    setBanType("both");
+                    setSuccessMsg("User banned successfully.");
+                    const { fetchBannedUsers } =
+                      await import("../services/data");
+                    setBannedUsers(await fetchBannedUsers());
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) {
+                    setError("Failed to ban user: " + err.message);
+                  } finally {
+                    setBanActionLoading(false);
+                  }
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "0.35rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  User Email *
+                </label>
+                <input
+                  type="email"
+                  placeholder="user@example.com"
+                  value={banEmail}
+                  onChange={(e) => setBanEmail(e.target.value)}
+                  style={{ ...s, marginBottom: "0.75rem" }}
+                  required
+                />
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "0.35rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Ban Type
+                </label>
+                <select
+                  value={banType}
+                  onChange={(e) => setBanType(e.target.value)}
+                  style={{ ...s, marginBottom: "0.75rem", cursor: "pointer" }}
+                >
+                  <option value="both">Both (Internship + Earn)</option>
+                  <option value="internship">Internship Only</option>
+                  <option value="earn">Earn Only</option>
+                </select>
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "0.35rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Reason (optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Reason for ban…"
+                  value={banReason}
+                  onChange={(e) => setBanReason(e.target.value)}
+                  style={{ ...s, marginBottom: "1rem" }}
+                />
+                <button
+                  type="submit"
+                  className="btn-sharp"
+                  style={{
+                    width: "100%",
+                    backgroundColor: "#EA4335",
+                    borderColor: "#EA4335",
+                  }}
+                  disabled={banActionLoading}
+                >
+                  {banActionLoading ? "Banning…" : "Ban User"}
+                </button>
+              </form>
+            </div>
+
+            {/* Banned list */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: "1.75rem",
+                boxShadow: "4px 4px 0 #000",
+              }}
+            >
+              <h3 style={{ fontWeight: 800, marginBottom: "1rem" }}>
+                Banned Users ({bannedUsers.length})
+              </h3>
+              {bannedUsersLoading ? (
+                <div style={{ color: "#888" }}>Loading…</div>
+              ) : bannedUsers.length === 0 ? (
+                <EmptyBox msg="No banned users." />
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.75rem",
+                  }}
+                >
+                  {bannedUsers.map((bu) => (
+                    <div
+                      key={bu.id}
+                      style={{
+                        border: "2px solid #EA4335",
+                        padding: "0.85rem 1rem",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "0.5rem",
+                        background: "#FFF5F5",
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: "0.9rem" }}>
+                          {bu.email}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            color: "#EA4335",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            marginTop: "0.15rem",
+                          }}
+                        >
+                          {bu.banType === "both"
+                            ? "Internship + Earn"
+                            : bu.banType === "internship"
+                              ? "Internship"
+                              : "Earn"}{" "}
+                          banned
+                        </div>
+                        {bu.reason && (
+                          <div
+                            style={{
+                              fontSize: "0.78rem",
+                              color: "#555",
+                              marginTop: "0.2rem",
+                            }}
+                          >
+                            Reason: {bu.reason}
+                          </div>
+                        )}
+                        <div
+                          style={{
+                            fontSize: "0.7rem",
+                            color: "#888",
+                            marginTop: "0.15rem",
+                          }}
+                        >
+                          {new Date(bu.bannedAt).toLocaleString()}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={banActionLoading}
+                        onClick={async () => {
+                          setBanActionLoading(true);
+                          try {
+                            const { unbanUser, fetchBannedUsers } =
+                              await import("../services/data");
+                            await unbanUser(bu.email);
+                            setBannedUsers(await fetchBannedUsers());
+                            setSuccessMsg("User unbanned.");
+                            setTimeout(() => setSuccessMsg(""), 3000);
+                          } catch (err) {
+                            setError("Failed to unban: " + err.message);
+                          } finally {
+                            setBanActionLoading(false);
+                          }
+                        }}
+                        style={{
+                          padding: "0.3rem 0.8rem",
+                          border: "2px solid #34A853",
+                          background: "#fff",
+                          color: "#34A853",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontSize: "0.78rem",
+                        }}
+                      >
+                        Unban
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── MESSAGES ── */}
+        {activeTab === "messages" && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1.5fr",
+              gap: "2rem",
+            }}
+          >
+            {/* Compose */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: "1.75rem",
+                boxShadow: "4px 4px 0 #000",
+              }}
+            >
+              <h3 style={{ fontWeight: 800, marginBottom: "0.5rem" }}>
+                Send Message
+              </h3>
+              <p
+                style={{
+                  fontSize: "0.82rem",
+                  color: "#666",
+                  marginBottom: "1rem",
+                }}
+              >
+                Messages appear as banners on the student dashboard. Set an
+                expiry — after that they disappear automatically.
+              </p>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newMessage.text.trim()) return;
+                  setMessagesSaving(true);
+                  try {
+                    const { saveAdminMessage, fetchAllAdminMessages } =
+                      await import("../services/data");
+                    await saveAdminMessage({
+                      ...newMessage,
+                      createdBy: user?.email || "",
+                    });
+                    setNewMessage({
+                      title: "",
+                      text: "",
+                      type: "info",
+                      target: "all",
+                      expiresAt: "",
+                    });
+                    setAdminMessages(await fetchAllAdminMessages());
+                    setSuccessMsg("Message sent!");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) {
+                    setError("Failed to send message: " + err.message);
+                  } finally {
+                    setMessagesSaving(false);
+                  }
+                }}
+              >
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "0.35rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Title (optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Message title…"
+                  value={newMessage.title}
+                  onChange={(e) =>
+                    setNewMessage((m) => ({ ...m, title: e.target.value }))
+                  }
+                  style={{ ...s, marginBottom: "0.75rem" }}
+                />
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "0.35rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Message *
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Write your message…"
+                  value={newMessage.text}
+                  onChange={(e) =>
+                    setNewMessage((m) => ({ ...m, text: e.target.value }))
+                  }
+                  style={{ ...s, resize: "vertical", marginBottom: "0.75rem" }}
+                  required
+                />
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "0.35rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Type
+                </label>
+                <select
+                  value={newMessage.type}
+                  onChange={(e) =>
+                    setNewMessage((m) => ({ ...m, type: e.target.value }))
+                  }
+                  style={{ ...s, marginBottom: "0.75rem", cursor: "pointer" }}
+                >
+                  <option value="info">ℹ Info</option>
+                  <option value="warning">⚠ Warning</option>
+                  <option value="success">✓ Success</option>
+                </select>
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "0.35rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Send To
+                </label>
+                <input
+                  type="text"
+                  placeholder="all — or type a specific email"
+                  value={newMessage.target}
+                  onChange={(e) =>
+                    setNewMessage((m) => ({ ...m, target: e.target.value }))
+                  }
+                  style={{ ...s, marginBottom: "0.75rem" }}
+                />
+                <label
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 700,
+                    display: "block",
+                    marginBottom: "0.35rem",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Expires At (date &amp; time)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={newMessage.expiresAt}
+                  onChange={(e) =>
+                    setNewMessage((m) => ({ ...m, expiresAt: e.target.value }))
+                  }
+                  style={{ ...s, marginBottom: "1rem" }}
+                />
+                <button
+                  type="submit"
+                  className="btn-sharp"
+                  style={{ width: "100%" }}
+                  disabled={messagesSaving}
+                >
+                  {messagesSaving ? "Sending…" : "Send Message"}
+                </button>
+              </form>
+            </div>
+
+            {/* All messages */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: "1.75rem",
+                boxShadow: "4px 4px 0 #000",
+              }}
+            >
+              <h3 style={{ fontWeight: 800, marginBottom: "1rem" }}>
+                All Messages ({adminMessages.length})
+              </h3>
+              {messagesLoading ? (
+                <div style={{ color: "#888" }}>Loading…</div>
+              ) : adminMessages.length === 0 ? (
+                <EmptyBox msg="No messages yet." />
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.85rem",
+                    maxHeight: "520px",
+                    overflowY: "auto",
+                  }}
+                >
+                  {adminMessages.map((msg) => {
+                    const isExpired =
+                      msg.expiresAt && new Date(msg.expiresAt) < new Date();
+                    const typeColor =
+                      msg.type === "warning"
+                        ? "#FBBC05"
+                        : msg.type === "success"
+                          ? "#34A853"
+                          : "#4285F4";
+                    return (
+                      <div
+                        key={msg.id}
+                        style={{
+                          border: `2px solid ${typeColor}`,
+                          padding: "0.85rem 1rem",
+                          background: isExpired ? "#f5f5f5" : "#fff",
+                          opacity: isExpired ? 0.6 : 1,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            gap: "0.5rem",
+                            marginBottom: "0.35rem",
+                          }}
+                        >
+                          <div>
+                            {msg.title && (
+                              <div
+                                style={{ fontWeight: 800, fontSize: "0.9rem" }}
+                              >
+                                {msg.title}
+                              </div>
+                            )}
+                            <div
+                              style={{
+                                fontSize: "0.85rem",
+                                color: "#333",
+                                marginTop: msg.title ? "0.2rem" : 0,
+                              }}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const {
+                                  deleteAdminMessage,
+                                  fetchAllAdminMessages,
+                                } = await import("../services/data");
+                                await deleteAdminMessage(msg.id);
+                                setAdminMessages(await fetchAllAdminMessages());
+                              } catch (err) {
+                                setError("Failed to delete: " + err.message);
+                              }
+                            }}
+                            style={{
+                              border: "1px solid #EA4335",
+                              color: "#EA4335",
+                              background: "none",
+                              cursor: "pointer",
+                              padding: "0.1rem 0.4rem",
+                              fontSize: "0.75rem",
+                              flexShrink: 0,
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "1rem",
+                            flexWrap: "wrap",
+                            fontSize: "0.72rem",
+                            color: "#888",
+                            marginTop: "0.4rem",
+                          }}
+                        >
+                          <span>
+                            To:{" "}
+                            <strong>
+                              {msg.target === "all" ? "Everyone" : msg.target}
+                            </strong>
+                          </span>
+                          <span>
+                            Type:{" "}
+                            <strong style={{ color: typeColor }}>
+                              {msg.type}
+                            </strong>
+                          </span>
+                          {msg.expiresAt && (
+                            <span
+                              style={{ color: isExpired ? "#EA4335" : "#888" }}
+                            >
+                              Expires:{" "}
+                              {new Date(msg.expiresAt).toLocaleString()}{" "}
+                              {isExpired ? "(expired)" : ""}
+                            </span>
+                          )}
+                          <span>
+                            Sent: {new Date(msg.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
