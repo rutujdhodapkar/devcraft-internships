@@ -8,6 +8,7 @@ import {
   submitTransactionId,
   isReferralCodeMatched,
   fetchUserReferralStat,
+  fetchReferralDashboardData,
   PAYMENT_QR_DEFAULT,
   PAYMENT_QR_REFERRAL,
 } from "../services/data";
@@ -56,6 +57,8 @@ export default function StudentDashboard({
 
   const [activeTab, setActiveTab] = useState("internships");
   const [referralStat, setReferralStat] = useState(null);
+  const [referralDashData, setReferralDashData] = useState(null);
+  const [referralDashLoading, setReferralDashLoading] = useState(false);
 
   const handleSubmitTransactionId = async (enrollmentId) => {
     const txnId = (txnInputs[enrollmentId] || "").trim();
@@ -80,6 +83,25 @@ export default function StudentDashboard({
       loadAll();
     }
   }, [user]);
+
+  // Load full referral dashboard data when referral tab opens and user has a code
+  useEffect(() => {
+    if (
+      activeTab === "referral" &&
+      user &&
+      referralStat &&
+      !referralDashData &&
+      !referralDashLoading
+    ) {
+      setReferralDashLoading(true);
+      fetchReferralDashboardData(user.uid)
+        .then((data) => {
+          if (data) setReferralDashData(data);
+        })
+        .catch(() => {})
+        .finally(() => setReferralDashLoading(false));
+    }
+  }, [activeTab, user, referralStat]);
 
   // Pre-fill submission input with previous text if resubmission is requested
   useEffect(() => {
@@ -369,11 +391,462 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "referral" ? (
           <div>
-            <EarnSection
-              user={user}
-              userProfile={userProfile}
-              onLoginClick={() => {}}
-            />
+            {/* If user already has a referral code, show dashboard. Otherwise show sign-up form */}
+            {referralStat ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1.5rem",
+                }}
+              >
+                {/* Share card */}
+                <div
+                  style={{
+                    border: "2px solid #000",
+                    background: "#fff",
+                    boxShadow: "6px 6px 0 #000",
+                    padding: "1.5rem 2rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "1rem",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          color: "#888",
+                          marginBottom: "0.3rem",
+                        }}
+                      >
+                        Your Referral Code
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "2rem",
+                          fontWeight: 900,
+                          letterSpacing: "4px",
+                          color: "#000",
+                        }}
+                      >
+                        {referralStat.code}
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          color: "#888",
+                          marginBottom: "0.3rem",
+                        }}
+                      >
+                        Share Link
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "0.5rem",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <code
+                          style={{
+                            fontSize: "0.82rem",
+                            background: "#f5f5f5",
+                            padding: "0.4rem 0.7rem",
+                            border: "1px solid #ddd",
+                            userSelect: "all",
+                            wordBreak: "break-all",
+                          }}
+                        >
+                          {window.location.origin}/?ref={referralStat.code}
+                        </code>
+                        <button
+                          className="btn-sharp"
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              `${window.location.origin}/?ref=${referralStat.code}`,
+                            );
+                            alert("Referral link copied!");
+                          }}
+                          style={{
+                            padding: "0.4rem 1rem",
+                            fontSize: "0.8rem",
+                            flexShrink: 0,
+                          }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Earnings banner */}
+                <div
+                  style={{
+                    border: "2px solid #000",
+                    background: "#EBFCEF",
+                    padding: "1rem 1.25rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.88rem",
+                      lineHeight: 1.6,
+                      color: "#333",
+                    }}
+                  >
+                    Earn <strong>₹20</strong> per referred intern who completes
+                    their internship, plus a <strong>₹1,000</strong> bonus at 50
+                    completions.
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "1rem",
+                      fontWeight: 900,
+                      marginTop: "0.4rem",
+                      color: "#34A853",
+                    }}
+                  >
+                    Estimated earnings: ₹
+                    {(referralDashData?.completedInterns ??
+                      referralStat.completedInterns ??
+                      0) *
+                      20 +
+                      Math.floor(
+                        (referralDashData?.completedInterns ??
+                          referralStat.completedInterns ??
+                          0) / 50,
+                      ) *
+                        1000}
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                    gap: "1rem",
+                  }}
+                >
+                  {[
+                    {
+                      label: "Link Visits",
+                      value:
+                        referralDashData?.totalVisits ??
+                        referralStat.visited ??
+                        0,
+                      color: "#FBBC05",
+                    },
+                    {
+                      label: "Total Logins",
+                      value: referralDashData?.totalLogins ?? 0,
+                      color: "#4285F4",
+                    },
+                    {
+                      label: "Enrolled Interns",
+                      value:
+                        referralDashData?.totalEnrolled ??
+                        referralStat.assignedInternships ??
+                        0,
+                      color: "#4285F4",
+                    },
+                    {
+                      label: "Completed",
+                      value:
+                        referralDashData?.completedInterns ??
+                        referralStat.completedInterns ??
+                        0,
+                      color: "#34A853",
+                    },
+                  ].map((s) => (
+                    <div
+                      key={s.label}
+                      style={{
+                        border: "2px solid #000",
+                        padding: "1.25rem 1.5rem",
+                        background: "#fff",
+                        boxShadow: "3px 3px 0 #000",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          textTransform: "uppercase",
+                          fontWeight: 700,
+                          color: "#888",
+                          marginBottom: "0.3rem",
+                        }}
+                      >
+                        {s.label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "2rem",
+                          fontWeight: 900,
+                          color: s.color,
+                        }}
+                      >
+                        {s.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Loading state for full data */}
+                {referralDashLoading && (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      color: "#888",
+                      fontSize: "0.85rem",
+                      padding: "0.5rem",
+                    }}
+                  >
+                    Loading full details…
+                  </div>
+                )}
+
+                {/* Enrolled Interns table */}
+                {referralDashData?.enrolledInterns?.length > 0 && (
+                  <div>
+                    <h3
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        marginBottom: "1rem",
+                      }}
+                    >
+                      Enrolled Interns ({referralDashData.totalEnrolled})
+                    </h3>
+                    <div
+                      style={{
+                        overflowX: "auto",
+                        border: "2px solid #000",
+                        boxShadow: "3px 3px 0 #000",
+                      }}
+                    >
+                      <table
+                        style={{
+                          width: "100%",
+                          borderCollapse: "collapse",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        <thead>
+                          <tr style={{ background: "#000", color: "#fff" }}>
+                            {[
+                              "Name",
+                              "Email",
+                              "Domain",
+                              "College",
+                              "Status",
+                              "Intern ID",
+                            ].map((h) => (
+                              <th
+                                key={h}
+                                style={{
+                                  padding: "0.6rem 0.85rem",
+                                  textAlign: "left",
+                                  fontWeight: 700,
+                                  fontSize: "0.75rem",
+                                  textTransform: "uppercase",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {referralDashData.enrolledInterns.map((e, i) => (
+                            <tr
+                              key={e.id}
+                              style={{
+                                borderBottom: "1px solid #e0e0e0",
+                                background: i % 2 === 0 ? "#fafafa" : "#fff",
+                              }}
+                            >
+                              <td
+                                style={{
+                                  padding: "0.6rem 0.85rem",
+                                  fontSize: "0.85rem",
+                                }}
+                              >
+                                <strong>{e.name}</strong>
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.6rem 0.85rem",
+                                  fontSize: "0.82rem",
+                                }}
+                              >
+                                {e.email}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.6rem 0.85rem",
+                                  fontSize: "0.82rem",
+                                }}
+                              >
+                                {e.domain}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.6rem 0.85rem",
+                                  fontSize: "0.82rem",
+                                }}
+                              >
+                                {e.college || "-"}
+                              </td>
+                              <td style={{ padding: "0.6rem 0.85rem" }}>
+                                <span
+                                  style={{
+                                    padding: "0.15rem 0.5rem",
+                                    fontSize: "0.7rem",
+                                    fontWeight: 800,
+                                    background:
+                                      e.status === "Completed"
+                                        ? "#34A853"
+                                        : e.status === "Archived"
+                                          ? "#555"
+                                          : "#FBBC05",
+                                    color: "#fff",
+                                    textTransform: "uppercase",
+                                  }}
+                                >
+                                  {e.status}
+                                </span>
+                              </td>
+                              <td style={{ padding: "0.6rem 0.85rem" }}>
+                                <code style={{ fontSize: "0.78rem" }}>
+                                  {e.internId || e.id?.slice(0, 8)}
+                                </code>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent visits */}
+                {referralDashData?.visits?.length > 0 && (
+                  <div>
+                    <h3
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        marginBottom: "1rem",
+                      }}
+                    >
+                      Recent Link Visits
+                    </h3>
+                    <div
+                      style={{
+                        overflowX: "auto",
+                        border: "2px solid #000",
+                        boxShadow: "3px 3px 0 #000",
+                      }}
+                    >
+                      <table
+                        style={{
+                          width: "100%",
+                          borderCollapse: "collapse",
+                          fontSize: "0.82rem",
+                        }}
+                      >
+                        <thead>
+                          <tr style={{ background: "#000", color: "#fff" }}>
+                            {["Date", "Country", "City", "Device"].map((h) => (
+                              <th
+                                key={h}
+                                style={{
+                                  padding: "0.55rem 0.85rem",
+                                  textAlign: "left",
+                                  fontWeight: 700,
+                                  fontSize: "0.75rem",
+                                  textTransform: "uppercase",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {referralDashData.visits.slice(0, 15).map((v, i) => (
+                            <tr
+                              key={v.id || i}
+                              style={{
+                                borderBottom: "1px solid #e0e0e0",
+                                background: i % 2 === 0 ? "#fafafa" : "#fff",
+                              }}
+                            >
+                              <td style={{ padding: "0.55rem 0.85rem" }}>
+                                {new Date(v.visitedAt).toLocaleString()}
+                              </td>
+                              <td style={{ padding: "0.55rem 0.85rem" }}>
+                                {v.country || "-"}
+                              </td>
+                              <td style={{ padding: "0.55rem 0.85rem" }}>
+                                {v.city || "-"}
+                              </td>
+                              <td style={{ padding: "0.55rem 0.85rem" }}>
+                                {v.device || v.os || "-"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {!referralDashLoading &&
+                  referralDashData &&
+                  referralDashData.enrolledInterns?.length === 0 &&
+                  referralDashData.visits?.length === 0 && (
+                    <div
+                      style={{
+                        border: "2px dashed #ccc",
+                        padding: "2.5rem",
+                        textAlign: "center",
+                        color: "#aaa",
+                        fontSize: "0.95rem",
+                      }}
+                    >
+                      No activity yet. Share your referral link to get started!
+                    </div>
+                  )}
+              </div>
+            ) : (
+              /* No code yet → show sign-up form */
+              <EarnSection
+                user={user}
+                userProfile={userProfile}
+                onLoginClick={() => {}}
+              />
+            )}
           </div>
         ) : enrollments.length === 0 ? (
           <div
