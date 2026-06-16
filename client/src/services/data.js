@@ -376,29 +376,19 @@ export async function enrollStudent(uid, profile, domainObj) {
       return duplicate;
     }
 
-    if (profile.email) {
-      const referralsSnap = await get(ref(rtdb, 'referrals'));
-      let hasReferral = false;
-      if (referralsSnap.exists()) {
-        const allRefs = snapToArray(referralsSnap.val());
-        hasReferral = allRefs.some(r => r.email === profile.email);
-      }
-      if (!hasReferral) {
-        await createReferral({
-          name: profile.name || profile.displayName || '',
-          email: profile.email,
-          phone: profile.phone || '',
-          city: profile.city || ''
-        });
-      }
-    }
-
     const newRef = push(ref(rtdb, 'enrollments'));
     const enrollmentId = newRef.key;
 
-    // Check localStorage for referral code (only set if matched)
-    const refCode = localStorage.getItem('detected_referral_code') || '';
+    // Check referral code from: localStorage (immediate), then permanent profile (persistent)
+    let refCode = localStorage.getItem('detected_referral_code') || '';
     if (refCode) localStorage.removeItem('detected_referral_code');
+
+    if (!refCode) {
+      try {
+        const permanentCode = await fetchPermanentReferralCode(uid);
+        if (permanentCode) refCode = permanentCode;
+      } catch {}
+    }
 
     // Generate a human-readable intern ID
     const internId = generateInternId(uid);
@@ -594,13 +584,12 @@ export async function verifyProject(enrollmentId, projectIndex) {
 
 export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) {
   if (isFirebaseConfigured && rtdb) {
-    const now = new Date().toISOString();
     await update(ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`), {
       feedback,
-      feedbackAt: now,
+      feedbackAt: new Date().toISOString(),
     });
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
-      updatedAt: now,
+      updatedAt: new Date().toISOString(),
     });
     return;
   }
@@ -944,96 +933,6 @@ export async function markReferralContacted(referralCode) {
   await apiFetch(`/api/referrals/${code}/contacted`, { method: 'POST' });
 }
 
-// ─── Admin Referral Users with Interns ────────────────────────────────────────
-export async function fetchAdminReferralUsersWithInterns() {
-  if (isFirebaseConfigured && rtdb) {
-    const [referralsSnap, enrollmentsSnap] = await Promise.all([
-      get(ref(rtdb, 'referrals')),
-      get(ref(rtdb, 'enrollments')),
-    ]);
-    
-    if (!referralsSnap.exists() || !enrollmentsSnap.exists()) {
-      return [];
-    }
-    
-    const allReferrals = snapToArray(referralsSnap.val());
-    const allEnrollments = snapToArray(enrollmentsSnap.val());
-    
-    return allReferrals.map(referral => {
-      const code = String(referral.code || referral.id || '').toUpperCase();
-      const relatedEnrollments = allEnrollments.filter(e => String(e.referralCode || '').toUpperCase() === code);
-      
-      return {
-        ...referral,
-        code,
-        internCount: relatedEnrollments.length,
-        internIds: relatedEnrollments.map(e => e.internId || e.id).filter(Boolean),
-        lastActivityAt: referral.updatedAt || referral.createdAt,
-        interns: relatedEnrollments.map(enrollment => ({
-          id: enrollment.id,
-          internId: enrollment.internId,
-          name: enrollment.name,
-          email: enrollment.email,
-          domain: enrollment.domain,
-          status: enrollment.status,
-          appliedAt: enrollment.appliedAt || enrollment.createdAt,
-          completedAt: enrollment.completedAt,
-          paymentDate: enrollment.paymentDate,
-          hasMatchedReferral: !!enrollment.referralCode,
-          transactionId: enrollment.transactionId,
-          upiId: enrollment.upiId,
-        }))
-      };
-    });
-  }
-  
-  return [];
-}
-
-// ─── User Referral Stats ────────────────────────────────────────────────────────
-export async function fetchUserReferralStat(email) {
-  if (!email) return null;
-  const cleanEmail = email.toLowerCase().trim();
-
-  if (isFirebaseConfigured && rtdb) {
-    const referralsSnap = await get(ref(rtdb, 'referrals'));
-    let userReferral = null;
-    if (referralsSnap.exists()) {
-      const allRefs = snapToArray(referralsSnap.val());
-      userReferral = allRefs.find(r => r.email?.toLowerCase().trim() === cleanEmail);
-    }
-    if (!userReferral) return null;
-
-    const code = String(userReferral.code || userReferral.id || '').toUpperCase();
-    
-    const enrollmentsSnap = await get(ref(rtdb, 'enrollments'));
-    let assignedCount = 0;
-    let completedCount = 0;
-
-    if (enrollmentsSnap.exists()) {
-      const allEnrollments = snapToArray(enrollmentsSnap.val());
-      const relatedEnrollments = allEnrollments.filter(e => String(e.referralCode || '').toUpperCase() === code);
-      
-      assignedCount = relatedEnrollments.length;
-      completedCount = relatedEnrollments.filter(e => {
-        const projects = Array.isArray(e.projects) ? e.projects : [];
-        const submissions = e.submissions || {};
-        const verifiedCount = projects.filter((_, i) => submissions[i]?.verified).length;
-        return projects.length > 0 && verifiedCount === projects.length;
-      }).length;
-    }
-
-    return {
-      ...userReferral,
-      code,
-      visited: Number(userReferral.visited || 0),
-      assignedInternships: assignedCount,
-      completedInterns: completedCount,
-    };
-  }
-  return null;
-}
-
 // ─── Admin Management ──────────────────────────────────────────────────────────
 export async function checkAdminStatus(email) {
   if (!email) return { isAdmin: false };
@@ -1099,4 +998,123 @@ function getDeviceType() {
   if (/Mobi|Android/i.test(navigator.userAgent) || width < 768) return 'Mobile';
   if (/Tablet|iPad/i.test(navigator.userAgent) || width < 1100) return 'Tablet';
   return 'Desktop';
+}
+
+// ─── Self-Referral (Earn Section) ─────────────────────────────────────────────
+export async function createSelfReferral(details, uid) {
+  if (!uid) throw new Error('You must be logged in to create a referral code.');
+  const name = (details.name || '').trim();
+  if (!name) throw new Error('Name is required.');
+
+  const prefix = name.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const code = `${prefix}-${suffix}`;
+
+  const payload = {
+    code,
+    ...details,
+    createdBy: uid,
+    isSelfReferral: true,
+    visited: 0,
+    selected: 0,
+    loggedIn: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (isFirebaseConfigured && rtdb) {
+    await set(ref(rtdb, `referrals/${code}`), payload);
+    await set(ref(rtdb, `selfReferralOwners/${uid}`), { code, createdAt: payload.createdAt });
+    await update(ref(rtdb, `users/${uid}`), { selfReferralCode: code });
+    return payload;
+  }
+  throw new Error('Firebase RTDB is not configured.');
+}
+
+export async function fetchSelfReferralCode(uid) {
+  if (!uid) return null;
+  if (isFirebaseConfigured && rtdb) {
+    try {
+      const snap = await get(ref(rtdb, `selfReferralOwners/${uid}`));
+      if (snap.exists()) return snap.val().code;
+    } catch {}
+    try {
+      const userSnap = await get(ref(rtdb, `users/${uid}/selfReferralCode`));
+      if (userSnap.exists()) return userSnap.val();
+    } catch {}
+  }
+  return null;
+}
+
+export async function fetchReferralDashboardData(uid) {
+  if (!uid) return null;
+  if (isFirebaseConfigured && rtdb) {
+    const code = await fetchSelfReferralCode(uid);
+    if (!code) return null;
+
+    const codeUpper = code.toUpperCase();
+    const [referralSnap, allEnrollmentsSnap, visitsSnap, referralUsersSnap] = await Promise.all([
+      get(ref(rtdb, `referrals/${codeUpper}`)),
+      get(ref(rtdb, 'enrollments')),
+      get(ref(rtdb, 'referralVisits')),
+      get(ref(rtdb, `referralUsers/${codeUpper}`)),
+    ]);
+
+    const referral = referralSnap.exists() ? referralSnap.val() : null;
+    const allEnrollments = snapToArray(allEnrollmentsSnap.val() || {});
+    const visits = snapToArray(visitsSnap.val() || {});
+    const referralUsers = referralUsersSnap.exists() ? referralUsersSnap.val() : {};
+
+    const relatedEnrollments = allEnrollments.filter(e => String(e.referralCode || '').toUpperCase() === codeUpper);
+    const relatedVisits = visits.filter(v => String(v.referralCode || '').toUpperCase() === codeUpper);
+    const loginUsers = Object.values(referralUsers || {});
+
+    const completionInfo = (enrollment) => {
+      const projects = Array.isArray(enrollment.projects) ? enrollment.projects : [];
+      const submissions = enrollment.submissions || {};
+      const verifiedCount = projects.filter((_, i) => submissions[i]?.verified).length;
+      return { total: projects.length, verified: verifiedCount, completed: projects.length > 0 && verifiedCount === projects.length };
+    };
+
+    const completedInterns = relatedEnrollments.filter(e => completionInfo(e).completed);
+
+    return {
+      code: codeUpper,
+      referral,
+      visits: relatedVisits.sort((a, b) => new Date(b.visitedAt) - new Date(a.visitedAt)).slice(0, 50),
+      totalVisits: relatedVisits.length,
+      totalLogins: loginUsers.length,
+      enrolledInterns: relatedEnrollments,
+      totalEnrolled: relatedEnrollments.length,
+      completedInterns: completedInterns.length,
+      completedInternIds: completedInterns.map(e => e.internId || e.id),
+    };
+  }
+  return null;
+}
+
+export async function savePermanentReferralCode(uid, code) {
+  if (!uid || !code) return;
+  if (isFirebaseConfigured && rtdb) {
+    try {
+      const userSnap = await get(ref(rtdb, `users/${uid}/permanentReferralCode`));
+      if (!userSnap.exists()) {
+        await update(ref(rtdb, `users/${uid}`), {
+          permanentReferralCode: code.toUpperCase(),
+          permanentReferralDetectedAt: new Date().toISOString(),
+        });
+      }
+    } catch {}
+  }
+}
+
+export async function fetchPermanentReferralCode(uid) {
+  if (!uid) return null;
+  if (isFirebaseConfigured && rtdb) {
+    try {
+      const snap = await get(ref(rtdb, `users/${uid}/permanentReferralCode`));
+      if (snap.exists()) return snap.val();
+    } catch {}
+  }
+  return null;
 }

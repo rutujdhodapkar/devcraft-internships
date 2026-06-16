@@ -10,6 +10,8 @@ export default function Navbar({
   onLoginClick,
   onHomeClick,
   onDashboardClick,
+  onReferralDashboardClick,
+  hasReferralCode,
 }) {
   const [verifyId, setVerifyId] = useState('');
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -68,7 +70,26 @@ export default function Navbar({
                 Dashboard
               </button>
             )}
+            {user && hasReferralCode && onReferralDashboardClick && (
+              <button
+                onClick={onReferralDashboardClick}
+                className="nav-link nav-btn-link"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, color: '#34A853' }}
+              >
+                Referral
+              </button>
+            )}
 
+            <button
+              onClick={() => {
+                const el = document.getElementById('earn');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="nav-link nav-btn-link"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+            >
+              Earn
+            </button>
             <button
               onClick={() => setShowAboutModal(true)}
               className="nav-link nav-btn-link"

@@ -16,11 +16,18 @@ export default function AuthPage({ onAuthSuccess, onBackToSite }) {
     setError('');
 
     try {
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, googleProvider);
       onAuthSuccess();
     } catch (err) {
-      console.error('Google Sign In failed:', err);
-      setError(err.message);
+      if (err.code === 'auth/popup-blocked') {
+        setError('Popup was blocked. Please allow popups for this site and try again.');
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        // User closed popup - do nothing
+      } else {
+        console.error('Google Sign In failed:', err);
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }

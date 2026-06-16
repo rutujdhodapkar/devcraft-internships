@@ -8,6 +8,8 @@ import AuthPage from './components/AuthPage';
 import StudentDashboard from './components/StudentDashboard';
 import Footer from './components/Footer';
 import AdminPanel from './components/AdminPanel';
+import EarnSection from './components/EarnSection';
+import ReferralDashboard from './components/ReferralDashboard';
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -16,10 +18,12 @@ import {
   enrollStudent,
   fetchUserEnrollments,
   recordReferralLogin,
-  isReferralCodeMatched
+  isReferralCodeMatched,
+  savePermanentReferralCode,
+  fetchSelfReferralCode
 } from './services/data';
-import { auth, isFirebaseConfigured } from './firebase';
-import { onAuthStateChanged, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth, googleProvider, isFirebaseConfigured } from './firebase';
+import { onAuthStateChanged, signOut, signInWithPopup } from 'firebase/auth';
 
 async function sha256(message) {
   const msgBuffer = new TextEncoder().encode(message);
@@ -104,6 +108,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+  const [hasReferralCode, setHasReferralCode] = useState(false);
 
   // Profile Prompt States
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
@@ -137,12 +142,19 @@ export default function App() {
         const storedReferral = matched ? urlCode : '';
         if (storedReferral) {
           setReferralCode(storedReferral);
+          // Save referral permanently to user's profile
+          savePermanentReferralCode(currentUser.uid, storedReferral).catch(() => {});
         }
         if (storedReferral) {
           recordReferralLogin(storedReferral, currentUser).catch((e) => {
             console.warn('Could not record referral login:', e.message);
           });
         }
+
+        // Check if user has a self-created referral code
+        fetchSelfReferralCode(currentUser.uid).then(code => {
+          setHasReferralCode(!!code);
+        }).catch(() => setHasReferralCode(false));
 
         // Check root admin hash
         const hash = await sha256(currentUser.email.toLowerCase());
@@ -218,6 +230,7 @@ export default function App() {
       } else {
         setIsAdmin(false);
         setUserProfile(null);
+        setHasReferralCode(false);
       }
       setAuthLoading(false);
     });
@@ -350,14 +363,19 @@ export default function App() {
   };
 
   const handleLoginClick = async () => {
-    if (isFirebaseConfigured && auth) {
+    if (isFirebaseConfigured && auth && googleProvider) {
       try {
         setAuthLoading(true);
-        const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
-        // Login handles redirection in state change callback
+        googleProvider.setCustomParameters({ prompt: 'select_account' });
+        await signInWithPopup(auth, googleProvider);
       } catch (err) {
-        console.error('Google Sign In failed:', err);
+        if (err.code === 'auth/popup-blocked') {
+          alert('Popup was blocked by your browser. Please allow popups for this site or try again.');
+        } else if (err.code === 'auth/popup-closed-by-user') {
+          // User closed popup - not an error
+        } else {
+          console.error('Google Sign In failed:', err);
+        }
       } finally {
         setAuthLoading(false);
       }
@@ -374,6 +392,7 @@ export default function App() {
     setUser(null);
     setUserProfile(null);
     setIsAdmin(false);
+    setHasReferralCode(false);
     setCurrentView('site');
   };
 
@@ -395,6 +414,8 @@ export default function App() {
               onLoginClick={handleLoginClick}
               onHomeClick={() => setCurrentView('site')}
               onDashboardClick={() => setCurrentView('dashboard')}
+              onReferralDashboardClick={() => setCurrentView('referralDashboard')}
+              hasReferralCode={hasReferralCode}
             />
             <StudentDashboard
               user={user}
@@ -404,6 +425,28 @@ export default function App() {
                   document.getElementById('domains')?.scrollIntoView({ behavior: 'smooth' });
                 }, 100);
               }}
+            />
+            <Footer />
+          </>
+        );
+      case 'referralDashboard':
+        return (
+          <>
+            <Navbar
+              onAdminClick={() => setCurrentView('admin')}
+              user={user}
+              isAdmin={isAdmin}
+              onLogout={handleLogout}
+              authLoading={authLoading}
+              onLoginClick={handleLoginClick}
+              onHomeClick={() => setCurrentView('site')}
+              onDashboardClick={() => setCurrentView('dashboard')}
+              onReferralDashboardClick={() => setCurrentView('referralDashboard')}
+              hasReferralCode={hasReferralCode}
+            />
+            <ReferralDashboard
+              user={user}
+              onBackClick={() => setCurrentView('site')}
             />
             <Footer />
           </>
@@ -421,6 +464,8 @@ export default function App() {
               onLoginClick={handleLoginClick}
               onHomeClick={() => setCurrentView('site')}
               onDashboardClick={() => setCurrentView('dashboard')}
+              onReferralDashboardClick={() => setCurrentView('referralDashboard')}
+              hasReferralCode={hasReferralCode}
             />
             <Hero
               onApplyClick={() => {
@@ -435,6 +480,7 @@ export default function App() {
             <CareerPaths onApplyDomain={handleApplyDomain} />
             <HowItWorks />
             <FAQ />
+            <EarnSection user={user} userProfile={userProfile} onLoginClick={handleLoginClick} />
             <Footer />
           </>
         );
