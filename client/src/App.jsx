@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import AdminPanel from './components/AdminPanel';
 import EarnSection from './components/EarnSection';
 import ReferralDashboard from './components/ReferralDashboard';
+import IDCardModal from './components/IDCardModal';
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -126,6 +127,11 @@ export default function App() {
 
   // Internship Enrollment Pipeline
   const [pendingEnrollmentDomain, setPendingEnrollmentDomain] = useState(null);
+
+  // ID Card Modal
+  const [showIdCard, setShowIdCard] = useState(false);
+  const [idCardEnrollment, setIdCardEnrollment] = useState(null);
+  const [idCardLoading, setIdCardLoading] = useState(false);
 
   // Listen to Firebase Auth state
   useEffect(() => {
@@ -385,6 +391,22 @@ export default function App() {
     }
   };
 
+  const handleShowIdCard = async () => {
+    if (!user) return;
+    setIdCardLoading(true);
+    try {
+      const enrollments = await fetchUserEnrollments(user.uid);
+      const activeEnrollment = enrollments.find(e => e.status !== 'Archived') || enrollments[0];
+      setIdCardEnrollment(activeEnrollment || null);
+      setShowIdCard(true);
+    } catch {
+      setIdCardEnrollment(null);
+      setShowIdCard(true);
+    } finally {
+      setIdCardLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     if (isFirebaseConfigured && auth) {
       await signOut(auth);
@@ -416,6 +438,7 @@ export default function App() {
               onDashboardClick={() => setCurrentView('dashboard')}
               onReferralDashboardClick={() => setCurrentView('referralDashboard')}
               hasReferralCode={hasReferralCode}
+              onShowIdCard={handleShowIdCard}
             />
             <StudentDashboard
               user={user}
@@ -443,6 +466,7 @@ export default function App() {
               onDashboardClick={() => setCurrentView('dashboard')}
               onReferralDashboardClick={() => setCurrentView('referralDashboard')}
               hasReferralCode={hasReferralCode}
+              onShowIdCard={handleShowIdCard}
             />
             <ReferralDashboard
               user={user}
@@ -466,6 +490,7 @@ export default function App() {
               onDashboardClick={() => setCurrentView('dashboard')}
               onReferralDashboardClick={() => setCurrentView('referralDashboard')}
               hasReferralCode={hasReferralCode}
+              onShowIdCard={handleShowIdCard}
             />
             <Hero
               onApplyClick={() => {
@@ -503,6 +528,15 @@ export default function App() {
       {renderCurrentView()}
 
       {/* Collect Student Profile Details Modal */}
+      {/* ID Card Modal */}
+      {showIdCard && (
+        <IDCardModal
+          user={user}
+          enrollment={idCardEnrollment}
+          onClose={() => { setShowIdCard(false); setIdCardEnrollment(null); }}
+        />
+      )}
+
       {showProfilePrompt && (
         <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1100 }}>
           <div className="modal-content card-sharp" style={{ backgroundColor: '#fff', padding: '2.5rem', width: '90%', maxWidth: '500px', border: '3px solid #000', boxShadow: '8px 8px 0 #000', position: 'relative', maxHeight: '92vh', overflowY: 'auto' }}>

@@ -12,6 +12,7 @@ export default function Navbar({
   onDashboardClick,
   onReferralDashboardClick,
   hasReferralCode,
+  onShowIdCard,
 }) {
   const [verifyId, setVerifyId] = useState('');
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -128,6 +129,14 @@ export default function Navbar({
                         Admin Panel
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={onShowIdCard}
+                      className="btn-sharp-outline"
+                      style={{ padding: '0.3rem 0.8rem', fontSize: '0.78rem', fontWeight: 700 }}
+                    >
+                      ID Card
+                    </button>
                     <button type="button" className="nav-link nav-button-link nav-logout-btn" onClick={onLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem' }}>
                       Logout
                     </button>
