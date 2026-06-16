@@ -303,18 +303,24 @@ export default function App() {
       return;
     }
 
-    // Check if user profile has all details (UPI required for enrollment)
-    if (
-      !userProfile ||
-      !userProfile.phone ||
-      !userProfile.college ||
-      !userProfile.city ||
-      !userProfile.country ||
-      !userProfile.upiId
-    ) {
-      setPendingEnrollmentDomain(domainObj);
-      setShowProfilePrompt(true);
-      return;
+    // Ensure a minimal profile exists (don't block enrollment with a form)
+    let profile = userProfile;
+    if (!profile || !profile.name) {
+      profile = {
+        name: user.displayName || "Student",
+        email: user.email || "",
+        photoURL: user.photoURL || "",
+        countryCode: "+91",
+        phone: "",
+        college: "",
+        city: "",
+        country: "",
+        upiId: "",
+      };
+      try {
+        await saveUserProfile(user.uid, profile);
+        setUserProfile(profile);
+      } catch {}
     }
 
     try {
@@ -330,7 +336,7 @@ export default function App() {
         setCurrentView("dashboard");
         return;
       }
-      await enrollStudent(user.uid, userProfile, domainObj);
+      await enrollStudent(user.uid, profile, domainObj);
       setCurrentView("dashboard");
     } catch (err) {
       alert("Enrollment failed: " + err.message);
@@ -505,6 +511,14 @@ export default function App() {
               }
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
+              onEarnClick={() => {
+                setCurrentView("site");
+                setTimeout(() => {
+                  document
+                    .getElementById("earn")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }, 150);
+              }}
             />
             <StudentDashboard
               user={user}
@@ -537,6 +551,14 @@ export default function App() {
               }
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
+              onEarnClick={() => {
+                setCurrentView("site");
+                setTimeout(() => {
+                  document
+                    .getElementById("earn")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }, 150);
+              }}
             />
             <ReferralDashboard
               user={user}
@@ -563,6 +585,14 @@ export default function App() {
               }
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
+              onEarnClick={() => {
+                setCurrentView("site");
+                setTimeout(() => {
+                  document
+                    .getElementById("earn")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }, 150);
+              }}
             />
             <Hero
               onApplyClick={() => {

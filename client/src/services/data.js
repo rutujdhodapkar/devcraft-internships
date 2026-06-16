@@ -25,23 +25,23 @@ import {
   update,
   remove,
   increment,
-} from 'firebase/database';
-import { rtdb, isFirebaseConfigured } from '../firebase';
+} from "firebase/database";
+import { rtdb, isFirebaseConfigured } from "../firebase";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-const encodeEmail = (email) => email.toLowerCase().trim().replace(/\./g, ',');
-const decodeEmail = (key) => key.replace(/,/g, '.');
+const encodeEmail = (email) => email.toLowerCase().trim().replace(/\./g, ",");
+const decodeEmail = (key) => key.replace(/,/g, ".");
 
-const API_BASE = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_SERVER_URL || "";
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
   const data = await response.json();
   if (!response.ok || data.success === false) {
-    throw new Error(data.message || 'Request failed.');
+    throw new Error(data.message || "Request failed.");
   }
   return data;
 }
@@ -52,9 +52,9 @@ function snapToArray(val) {
 }
 
 /** Generate a stable readable intern ID per user like dev-craft-AB3X9ZKQ */
-function generateInternId(uid = '') {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const source = String(uid || 'anonymous-user');
+function generateInternId(uid = "") {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const source = String(uid || "anonymous-user");
   let hashA = 2166136261;
   let hashB = 0x9e3779b9;
   for (let i = 0; i < source.length; i++) {
@@ -65,7 +65,7 @@ function generateInternId(uid = '') {
     hashB = Math.imul(hashB, 1597334677);
   }
   let value = (BigInt(hashA >>> 0) << 32n) | BigInt(hashB >>> 0);
-  let result = '';
+  let result = "";
   for (let i = 0; i < 8; i++) {
     result += chars[Number(value % BigInt(chars.length))];
     value /= BigInt(chars.length);
@@ -76,45 +76,118 @@ function generateInternId(uid = '') {
 // ─── Default Career Paths ──────────────────────────────────────────────────────
 const DEFAULT_CAREER_PATHS = [
   {
-    id: 'path_python',
-    title: 'Python Development',
-    duration: '4 Weeks',
-    description: 'Gain hands-on software development experience with Python scripting, data structures, and backends.',
-    features: ['Basic Python syntax & scripting', 'OOP & Data structures', 'Flask & Django web development', 'Final capstone project'],
-    projects: ['Personal Portfolio Website', 'Weather Web App', 'Task Manager API'],
+    id: "path_python",
+    title: "Python Development",
+    duration: "4 Weeks",
+    description:
+      "Gain hands-on software development experience with Python scripting, data structures, and backends.",
+    features: [
+      "Basic Python syntax & scripting",
+      "OOP & Data structures",
+      "Flask & Django web development",
+      "Final capstone project",
+    ],
+    projects: [
+      "Personal Portfolio Website",
+      "Weather Web App",
+      "Task Manager API",
+    ],
   },
   {
-    id: 'path_java',
-    title: 'Java Development',
-    duration: '4 Weeks',
-    description: 'Build enterprise-ready applications using Java Core, Spring Boot microservices, and databases.',
-    features: ['Java Core & JVM concepts', 'OOP & Interface Design', 'Spring Boot microservices', 'Database integration & SQL'],
-    projects: ['Library Management System', 'REST API Backend', 'Student Registry Platform'],
+    id: "path_java",
+    title: "Java Development",
+    duration: "4 Weeks",
+    description:
+      "Build enterprise-ready applications using Java Core, Spring Boot microservices, and databases.",
+    features: [
+      "Java Core & JVM concepts",
+      "OOP & Interface Design",
+      "Spring Boot microservices",
+      "Database integration & SQL",
+    ],
+    projects: [
+      "Library Management System",
+      "REST API Backend",
+      "Student Registry Platform",
+    ],
   },
   {
-    id: 'path_web',
-    title: 'Web Development',
-    duration: '4 Weeks',
-    description: 'Learn to design and deploy modern, responsive frontend user interfaces using React.js and CSS.',
-    features: ['HTML5 & CSS3 layout systems', 'JavaScript ES6+ fundamentals', 'React.js frontend frameworks', 'State management & deployment'],
-    projects: ['Responsive Portfolio', 'Interactive Quiz App', 'Admin Dashboard UI'],
-  }
+    id: "path_web",
+    title: "Web Development",
+    duration: "4 Weeks",
+    description:
+      "Learn to design and deploy modern, responsive frontend user interfaces using React.js and CSS.",
+    features: [
+      "HTML5 & CSS3 layout systems",
+      "JavaScript ES6+ fundamentals",
+      "React.js frontend frameworks",
+      "State management & deployment",
+    ],
+    projects: [
+      "Responsive Portfolio",
+      "Interactive Quiz App",
+      "Admin Dashboard UI",
+    ],
+  },
 ];
 
 // ─── Default How It Works steps ─────────────────────────────────────────────────
 const DEFAULT_HOW_IT_WORKS = [
-  { id: 'step_1', step: 1, title: 'Select Domain', description: 'Browse our available career paths and select your preferred domain.' },
-  { id: 'step_2', step: 2, title: 'Instant Offer Letter', description: 'Log in with Google, fill in your profile, and receive your official offer letter instantly.' },
-  { id: 'step_3', step: 3, title: 'Complete Projects', description: 'Work through structured real-world tasks and submit them.' },
-  { id: 'step_4', step: 4, title: 'Get Certified', description: 'Once verified, download your industry-ready internship completion certificate.' }
+  {
+    id: "step_1",
+    step: 1,
+    title: "Select Domain",
+    description:
+      "Browse our available career paths and select your preferred domain.",
+  },
+  {
+    id: "step_2",
+    step: 2,
+    title: "Instant Offer Letter",
+    description:
+      "Log in with Google, fill in your profile, and receive your official offer letter instantly.",
+  },
+  {
+    id: "step_3",
+    step: 3,
+    title: "Complete Projects",
+    description: "Work through structured real-world tasks and submit them.",
+  },
+  {
+    id: "step_4",
+    step: 4,
+    title: "Get Certified",
+    description:
+      "Once verified, download your industry-ready internship completion certificate.",
+  },
 ];
 
 // ─── Default FAQs ────────────────────────────────────────────────────────────────
 const DEFAULT_FAQS = [
-  { id: 'faq_1', question: 'Are the internships really 100% free?', answer: 'Yes, all our virtual internships are 100% free of cost. There are no hidden fees or charges for learning and certification.' },
-  { id: 'faq_2', question: 'Who is eligible to apply?', answer: 'Any college student or self-taught learner looking to gain practical software development and coding experience is welcome to apply.' },
-  { id: 'faq_3', question: 'How will my internship progress be tracked?', answer: 'You will work on self-paced projects. Once you complete the projects, you submit them through the student area, and the team will verify your completion.' },
-  { id: 'faq_4', question: 'Is the certificate verified?', answer: 'Yes, every certificate has a unique ID and can be verified publicly on our website through the verify button.' }
+  {
+    id: "faq_1",
+    question: "Are the internships really 100% free?",
+    answer:
+      "Yes, all our virtual internships are 100% free of cost. There are no hidden fees or charges for learning and certification.",
+  },
+  {
+    id: "faq_2",
+    question: "Who is eligible to apply?",
+    answer:
+      "Any college student or self-taught learner looking to gain practical software development and coding experience is welcome to apply.",
+  },
+  {
+    id: "faq_3",
+    question: "How will my internship progress be tracked?",
+    answer:
+      "You will work on self-paced projects. Once you complete the projects, you submit them through the student area, and the team will verify your completion.",
+  },
+  {
+    id: "faq_4",
+    question: "Is the certificate verified?",
+    answer:
+      "Yes, every certificate has a unique ID and can be verified publicly on our website through the verify button.",
+  },
 ];
 
 // ─── Default HTML Templates ──────────────────────────────────────────────────────
@@ -178,15 +251,15 @@ const DEFAULT_CERTIFICATE_TEMPLATE = `<!DOCTYPE html>
   <div class="cert-container">
     <div class="header">CERTIFICATE OF COMPLETION</div>
     <div class="subtitle">DEVCRAFT VIRTUAL INTERNSHIP PROGRAM</div>
-    
+
     <div class="presented-to">This is proudly presented to</div>
     <div class="student-name">{{name}}</div>
-    
+
     <div class="cert-text">
-      for successfully completing the 4-week virtual internship in <span class="domain-highlight">{{domain}}</span>. 
+      for successfully completing the 4-week virtual internship in <span class="domain-highlight">{{domain}}</span>.
       During this tenure, the candidate demonstrated outstanding commitment, built industry-grade projects, and met all program criteria.
     </div>
-    
+
     <div class="meta-row">
       <div class="meta-col">
         <div class="sig-line">Date of Issue</div>
@@ -201,7 +274,7 @@ const DEFAULT_CERTIFICATE_TEMPLATE = `<!DOCTYPE html>
         <div>{{internId}}</div>
       </div>
     </div>
-    
+
     <div class="footer">
       DevCraft © 2026. Credential ID: {{id}} | Verify at devcraft.internship
     </div>
@@ -215,12 +288,12 @@ export { DEFAULT_CAREER_PATHS, DEFAULT_HOW_IT_WORKS, DEFAULT_FAQS };
 export async function fetchCareerPaths() {
   if (isFirebaseConfigured && rtdb) {
     try {
-      const snap = await get(ref(rtdb, 'careerPaths'));
+      const snap = await get(ref(rtdb, "careerPaths"));
       if (snap.exists()) {
         return snapToArray(snap.val());
       }
     } catch (err) {
-      console.warn('Could not fetch career paths from RTDB:', err.message);
+      console.warn("Could not fetch career paths from RTDB:", err.message);
     }
   }
   return DEFAULT_CAREER_PATHS;
@@ -229,26 +302,28 @@ export async function fetchCareerPaths() {
 export async function saveCareerPaths(paths) {
   if (isFirebaseConfigured && rtdb) {
     const dataMap = {};
-    paths.forEach(p => {
-      const id = p.id || push(ref(rtdb, 'careerPaths')).key;
+    paths.forEach((p) => {
+      const id = p.id || push(ref(rtdb, "careerPaths")).key;
       dataMap[id] = { ...p, id };
     });
-    await set(ref(rtdb, 'careerPaths'), dataMap);
+    await set(ref(rtdb, "careerPaths"), dataMap);
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 // ─── Fetch / Save How It Works ─────────────────────────────────────────────────
 export async function fetchHowItWorks() {
   if (isFirebaseConfigured && rtdb) {
     try {
-      const snap = await get(ref(rtdb, 'howItWorks'));
+      const snap = await get(ref(rtdb, "howItWorks"));
       if (snap.exists()) {
-        return snapToArray(snap.val()).sort((a, b) => (a.step || 0) - (b.step || 0));
+        return snapToArray(snap.val()).sort(
+          (a, b) => (a.step || 0) - (b.step || 0),
+        );
       }
     } catch (err) {
-      console.warn('Could not fetch howItWorks from RTDB:', err.message);
+      console.warn("Could not fetch howItWorks from RTDB:", err.message);
     }
   }
   return DEFAULT_HOW_IT_WORKS;
@@ -261,22 +336,22 @@ export async function saveHowItWorks(steps) {
       const id = step.id || `step_${idx + 1}`;
       dataMap[id] = { ...step, id, step: Number(step.step) || idx + 1 };
     });
-    await set(ref(rtdb, 'howItWorks'), dataMap);
+    await set(ref(rtdb, "howItWorks"), dataMap);
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 // ─── Fetch / Save FAQs ─────────────────────────────────────────────────────────
 export async function fetchFAQs() {
   if (isFirebaseConfigured && rtdb) {
     try {
-      const snap = await get(ref(rtdb, 'faqs'));
+      const snap = await get(ref(rtdb, "faqs"));
       if (snap.exists()) {
         return snapToArray(snap.val());
       }
     } catch (err) {
-      console.warn('Could not fetch FAQs from RTDB:', err.message);
+      console.warn("Could not fetch FAQs from RTDB:", err.message);
     }
   }
   return DEFAULT_FAQS;
@@ -289,50 +364,50 @@ export async function saveFAQs(faqs) {
       const id = f.id || `faq_${idx + 1}`;
       dataMap[id] = { ...f, id };
     });
-    await set(ref(rtdb, 'faqs'), dataMap);
+    await set(ref(rtdb, "faqs"), dataMap);
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 // ─── Fetch / Save HTML Templates ────────────────────────────────────────────────
 export async function fetchTemplates() {
   if (isFirebaseConfigured && rtdb) {
     try {
-      const snap = await get(ref(rtdb, 'config/templates'));
+      const snap = await get(ref(rtdb, "config/templates"));
       if (snap.exists()) {
         const data = snap.val();
         return {
           offer_letter: data.offer_letter || DEFAULT_OFFER_LETTER_TEMPLATE,
-          certificate: data.certificate || DEFAULT_CERTIFICATE_TEMPLATE
+          certificate: data.certificate || DEFAULT_CERTIFICATE_TEMPLATE,
         };
       }
     } catch (err) {
-      console.warn('Could not fetch templates from RTDB:', err.message);
+      console.warn("Could not fetch templates from RTDB:", err.message);
     }
   }
   return {
     offer_letter: DEFAULT_OFFER_LETTER_TEMPLATE,
-    certificate: DEFAULT_CERTIFICATE_TEMPLATE
+    certificate: DEFAULT_CERTIFICATE_TEMPLATE,
   };
 }
 
 export async function saveTemplates(templates) {
   if (isFirebaseConfigured && rtdb) {
-    await set(ref(rtdb, 'config/templates'), templates);
+    await set(ref(rtdb, "config/templates"), templates);
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 // ─── Fetch / Save About Content ─────────────────────────────────────────────────
 export async function fetchAboutText() {
   if (isFirebaseConfigured && rtdb) {
     try {
-      const snap = await get(ref(rtdb, 'config/aboutText'));
+      const snap = await get(ref(rtdb, "config/aboutText"));
       if (snap.exists()) return snap.val();
     } catch (err) {
-      console.warn('Could not fetch aboutText:', err.message);
+      console.warn("Could not fetch aboutText:", err.message);
     }
   }
   return "DevCraft provides top-tier 100% free virtual internships for university and college students. Gain verified work experience, finish structured programming projects, and receive certified validation for your software engineering credentials.";
@@ -340,10 +415,10 @@ export async function fetchAboutText() {
 
 export async function saveAboutText(text) {
   if (isFirebaseConfigured && rtdb) {
-    await set(ref(rtdb, 'config/aboutText'), text);
+    await set(ref(rtdb, "config/aboutText"), text);
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 // ─── User Profile ───────────────────────────────────────────────────────────────
@@ -368,20 +443,22 @@ export async function saveUserProfile(uid, profile) {
 export async function enrollStudent(uid, profile, domainObj) {
   if (isFirebaseConfigured && rtdb) {
     const existing = await fetchUserEnrollments(uid);
-    const duplicate = existing.find((e) => (
-      e.domainId === domainObj.id ||
-      (e.domain || '').toLowerCase() === (domainObj.title || '').toLowerCase()
-    ));
+    const duplicate = existing.find(
+      (e) =>
+        e.domainId === domainObj.id ||
+        (e.domain || "").toLowerCase() ===
+          (domainObj.title || "").toLowerCase(),
+    );
     if (duplicate) {
       return duplicate;
     }
 
-    const newRef = push(ref(rtdb, 'enrollments'));
+    const newRef = push(ref(rtdb, "enrollments"));
     const enrollmentId = newRef.key;
 
     // Check referral code from: localStorage (immediate), then permanent profile (persistent)
-    let refCode = localStorage.getItem('detected_referral_code') || '';
-    if (refCode) localStorage.removeItem('detected_referral_code');
+    let refCode = localStorage.getItem("detected_referral_code") || "";
+    if (refCode) localStorage.removeItem("detected_referral_code");
 
     if (!refCode) {
       try {
@@ -397,21 +474,21 @@ export async function enrollStudent(uid, profile, domainObj) {
       id: enrollmentId,
       internId,
       uid,
-      name: profile.name || profile.displayName || '',
-      email: profile.email || '',
-      phone: profile.phone || '',
-      college: profile.college || '',
-      city: profile.city || '',
-      country: profile.country || '',
+      name: profile.name || profile.displayName || "",
+      email: profile.email || "",
+      phone: profile.phone || "",
+      college: profile.college || "",
+      city: profile.city || "",
+      country: profile.country || "",
       domainId: domainObj.id,
       domain: domainObj.title,
-      duration: domainObj.duration || '4 Weeks',
+      duration: domainObj.duration || "4 Weeks",
       projects: domainObj.projects || [],
-      status: 'Active', // 'Active', 'Completed'
-      submissions: {},   // { [projectIndex]: { text, submittedAt, verified, verifiedAt } }
+      status: "Active", // 'Active', 'Completed'
+      submissions: {}, // { [projectIndex]: { text, submittedAt, verified, verifiedAt } }
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      referralCode: refCode
+      referralCode: refCode,
     };
 
     // Save enrollment
@@ -431,18 +508,21 @@ export async function enrollStudent(uid, profile, domainObj) {
           });
         }
       } catch (err) {
-        console.warn('Could not update referral enrollment statistics:', err.message);
+        console.warn(
+          "Could not update referral enrollment statistics:",
+          err.message,
+        );
       }
     }
 
     return enrollment;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 export async function fetchEnrollments() {
   if (isFirebaseConfigured && rtdb) {
-    const snap = await get(ref(rtdb, 'enrollments'));
+    const snap = await get(ref(rtdb, "enrollments"));
     return snap.exists() ? snapToArray(snap.val()) : [];
   }
   return [];
@@ -451,16 +531,19 @@ export async function fetchEnrollments() {
 export async function fetchUserEnrollments(uid) {
   if (isFirebaseConfigured && rtdb) {
     const all = await fetchEnrollments();
-    const userEnrollments = all.filter(e => e.uid === uid);
+    const userEnrollments = all.filter((e) => e.uid === uid);
     const stableInternId = generateInternId(uid);
-    await Promise.all(userEnrollments
-      .filter(e => e.internId !== stableInternId)
-      .map(e => update(ref(rtdb, `enrollments/${e.id}`), {
-        internId: stableInternId,
-        updatedAt: new Date().toISOString(),
-      }).catch(() => null))
+    await Promise.all(
+      userEnrollments
+        .filter((e) => e.internId !== stableInternId)
+        .map((e) =>
+          update(ref(rtdb, `enrollments/${e.id}`), {
+            internId: stableInternId,
+            updatedAt: new Date().toISOString(),
+          }).catch(() => null),
+        ),
     );
-    return userEnrollments.map(e => ({ ...e, internId: stableInternId }));
+    return userEnrollments.map((e) => ({ ...e, internId: stableInternId }));
   }
   return [];
 }
@@ -469,7 +552,7 @@ export async function updateEnrollmentStatus(enrollmentId, status) {
   if (isFirebaseConfigured && rtdb) {
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       status,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
   }
 }
@@ -478,7 +561,7 @@ export async function submitTransactionId(enrollmentId, transactionId) {
   if (isFirebaseConfigured && rtdb) {
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       transactionId,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
   }
 }
@@ -496,17 +579,22 @@ export async function recordReferralLogin(referralCode, user) {
     const loginSnap = await get(loginRef);
     const payload = {
       uid: user.uid,
-      name: user.displayName || '',
-      email: user.email || '',
-      photoURL: user.photoURL || '',
+      name: user.displayName || "",
+      email: user.email || "",
+      photoURL: user.photoURL || "",
       referralCode: code,
       lastLoginAt: new Date().toISOString(),
     };
 
-    await set(loginRef, loginSnap.exists() ? { ...loginSnap.val(), ...payload } : {
-      ...payload,
-      firstLoginAt: new Date().toISOString(),
-    });
+    await set(
+      loginRef,
+      loginSnap.exists()
+        ? { ...loginSnap.val(), ...payload }
+        : {
+            ...payload,
+            firstLoginAt: new Date().toISOString(),
+          },
+    );
 
     if (!loginSnap.exists()) {
       await update(referralRef, {
@@ -522,7 +610,7 @@ export async function allowCertificate(enrollmentId, allowed) {
   if (isFirebaseConfigured && rtdb) {
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       allowedCertificate: allowed, // 'yes' or 'no'
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     });
   }
 }
@@ -534,7 +622,7 @@ export async function verifyInternship(enrollmentId) {
       return snap.val();
     }
     const all = await fetchEnrollments();
-    return all.find(e => e.internId === enrollmentId) || null;
+    return all.find((e) => e.internId === enrollmentId) || null;
   }
   return null;
 }
@@ -546,21 +634,28 @@ export async function verifyInternship(enrollmentId) {
  * @param {number} projectIndex — 0-based index of the project
  * @param {string} submissionText — link or text the intern submits
  */
-export async function submitProject(enrollmentId, projectIndex, submissionText) {
+export async function submitProject(
+  enrollmentId,
+  projectIndex,
+  submissionText,
+) {
   if (isFirebaseConfigured && rtdb) {
-    await update(ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`), {
-      text: submissionText,
-      submittedAt: new Date().toISOString(),
-      verified: false,
-      verifiedAt: null,
-      resubmit: false, // clear resubmit flag
-    });
+    await update(
+      ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),
+      {
+        text: submissionText,
+        submittedAt: new Date().toISOString(),
+        verified: false,
+        verifiedAt: null,
+        resubmit: false, // clear resubmit flag
+      },
+    );
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       updatedAt: new Date().toISOString(),
     });
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 /**
@@ -570,47 +665,60 @@ export async function submitProject(enrollmentId, projectIndex, submissionText) 
  */
 export async function verifyProject(enrollmentId, projectIndex) {
   if (isFirebaseConfigured && rtdb) {
-    await update(ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`), {
-      verified: true,
-      verifiedAt: new Date().toISOString(),
-    });
+    await update(
+      ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),
+      {
+        verified: true,
+        verifiedAt: new Date().toISOString(),
+      },
+    );
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       updatedAt: new Date().toISOString(),
     });
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
-export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) {
+export async function saveProjectFeedback(
+  enrollmentId,
+  projectIndex,
+  feedback,
+) {
   if (isFirebaseConfigured && rtdb) {
-    await update(ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`), {
-      feedback,
-      feedbackAt: new Date().toISOString(),
-    });
+    await update(
+      ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),
+      {
+        feedback,
+        feedbackAt: new Date().toISOString(),
+      },
+    );
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       updatedAt: new Date().toISOString(),
     });
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 export async function rejectProject(enrollmentId, projectIndex, feedback) {
   if (isFirebaseConfigured && rtdb) {
-    await update(ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`), {
-      verified: false,
-      resubmit: true,
-      feedback,
-      rejectedAt: new Date().toISOString(),
-      submittedAt: null, // clear submittedAt so they can submit again
-    });
+    await update(
+      ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),
+      {
+        verified: false,
+        resubmit: true,
+        feedback,
+        rejectedAt: new Date().toISOString(),
+        submittedAt: null, // clear submittedAt so they can submit again
+      },
+    );
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       updatedAt: new Date().toISOString(),
     });
     return;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 /**
@@ -627,21 +735,26 @@ export async function fetchEnrollmentById(enrollmentId) {
 // ─── Admin Data ────────────────────────────────────────────────────────────────
 export async function fetchAdminData() {
   if (isFirebaseConfigured && rtdb) {
-    const [referralsSnap, visitsSnap, enrollmentsSnap, referralUsersSnap] = await Promise.all([
-      get(ref(rtdb, 'referrals')),
-      get(ref(rtdb, 'referralVisits')),
-      get(ref(rtdb, 'enrollments')),
-      get(ref(rtdb, 'referralUsers')),
-    ]);
+    const [referralsSnap, visitsSnap, enrollmentsSnap, referralUsersSnap] =
+      await Promise.all([
+        get(ref(rtdb, "referrals")),
+        get(ref(rtdb, "referralVisits")),
+        get(ref(rtdb, "enrollments")),
+        get(ref(rtdb, "referralUsers")),
+      ]);
 
     const enrollments = snapToArray(enrollmentsSnap.val()).sort((a, b) =>
-      (b.createdAt || '').localeCompare(a.createdAt || '')
+      (b.createdAt || "").localeCompare(a.createdAt || ""),
     );
     const referralUsers = referralUsersSnap.val() || {};
     const completionInfo = (enrollment) => {
-      const projects = Array.isArray(enrollment.projects) ? enrollment.projects : [];
+      const projects = Array.isArray(enrollment.projects)
+        ? enrollment.projects
+        : [];
       const submissions = enrollment.submissions || {};
-      const verifiedCount = projects.filter((_, i) => submissions[i]?.verified).length;
+      const verifiedCount = projects.filter(
+        (_, i) => submissions[i]?.verified,
+      ).length;
       return {
         total: projects.length,
         verified: verifiedCount,
@@ -649,75 +762,92 @@ export async function fetchAdminData() {
       };
     };
 
-    const referrals = snapToArray(referralsSnap.val()).map((referral) => {
-      const code = String(referral.code || referral.id || '').toUpperCase();
-      const loginUsers = Object.values(referralUsers[code] || {});
-      const relatedEnrollments = enrollments.filter(e => String(e.referralCode || '').toUpperCase() === code);
-      const loginUidSet = new Set(loginUsers.map(u => u.uid).filter(Boolean));
-      relatedEnrollments.forEach(e => {
-        if (e.uid) loginUidSet.add(e.uid);
-      });
-      const assigned = relatedEnrollments;
-      const completed = relatedEnrollments.filter(e => {
-        const info = completionInfo(e);
-        return info.completed;
-      });
-      const completedNotPaid = relatedEnrollments.filter(e => {
-        const info = completionInfo(e);
-        return info.completed && e.allowedCertificate !== 'yes';
-      });
-      const completedAndPaid = relatedEnrollments.filter(e => e.allowedCertificate === 'yes');
-      const internIds = (rows) => rows.map(e => e.internId || e.id).filter(Boolean);
+    const referrals = snapToArray(referralsSnap.val())
+      .map((referral) => {
+        const code = String(referral.code || referral.id || "").toUpperCase();
+        const loginUsers = Object.values(referralUsers[code] || {});
+        const relatedEnrollments = enrollments.filter(
+          (e) => String(e.referralCode || "").toUpperCase() === code,
+        );
+        const loginUidSet = new Set(
+          loginUsers.map((u) => u.uid).filter(Boolean),
+        );
+        relatedEnrollments.forEach((e) => {
+          if (e.uid) loginUidSet.add(e.uid);
+        });
+        const assigned = relatedEnrollments;
+        const completed = relatedEnrollments.filter((e) => {
+          const info = completionInfo(e);
+          return info.completed;
+        });
+        const completedNotPaid = relatedEnrollments.filter((e) => {
+          const info = completionInfo(e);
+          return info.completed && e.allowedCertificate !== "yes";
+        });
+        const completedAndPaid = relatedEnrollments.filter(
+          (e) => e.allowedCertificate === "yes",
+        );
+        const internIds = (rows) =>
+          rows.map((e) => e.internId || e.id).filter(Boolean);
 
-      return {
-        ...referral,
-        code,
-        totalLogined: loginUidSet.size,
-        visited: Number(referral.visited || 0),
-        assignedInternships: assigned.length,
-        completedInterns: completed.length,
-        completedInternIds: internIds(completed),
-        completedNotPaidInterns: completedNotPaid.length,
-        completedNotPaidInternIds: internIds(completedNotPaid),
-        completedAndPaidInterns: completedAndPaid.length,
-        completedAndPaidInternIds: internIds(completedAndPaid),
-        loggedInUsers: loginUsers,
-        assignedInternIds: internIds(assigned),
-      };
-    }).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        return {
+          ...referral,
+          code,
+          totalLogined: loginUidSet.size,
+          visited: Number(referral.visited || 0),
+          assignedInternships: assigned.length,
+          completedInterns: completed.length,
+          completedInternIds: internIds(completed),
+          completedNotPaidInterns: completedNotPaid.length,
+          completedNotPaidInternIds: internIds(completedNotPaid),
+          completedAndPaidInterns: completedAndPaid.length,
+          completedAndPaidInternIds: internIds(completedAndPaid),
+          loggedInUsers: loginUsers,
+          assignedInternIds: internIds(assigned),
+        };
+      })
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
 
     const visits = snapToArray(visitsSnap.val())
-      .sort((a, b) => (b.visitedAt || '').localeCompare(a.visitedAt || ''))
+      .sort((a, b) => (b.visitedAt || "").localeCompare(a.visitedAt || ""))
       .slice(0, 200)
       .map((visit) => ({
         ...visit,
         id: visit.visitId || visit.id,
-        referralCode: visit.referralCode || '-',
-        device: visit.device || 'Unknown',
-        country: visit.country || 'Unknown',
-        city: visit.city || 'Unknown',
-        link: visit.link || '-',
+        referralCode: visit.referralCode || "-",
+        device: visit.device || "Unknown",
+        country: visit.country || "Unknown",
+        city: visit.city || "Unknown",
+        link: visit.link || "-",
         matched: visit.matched === true,
         visitedAt: visit.visitedAt
           ? new Date(visit.visitedAt).toLocaleString()
-          : '-',
+          : "-",
       }));
 
     return { requests: enrollments, referrals, visits };
   }
 
-  const data = await apiFetch('/api/admin-data');
+  const data = await apiFetch("/api/admin-data");
   const visits = (data.data.visits || []).map((visit) => ({
     ...visit,
     matched: visit.matched === true,
-    visitedAt: visit.visitedAt ? new Date(visit.visitedAt).toLocaleString() : '-',
+    visitedAt: visit.visitedAt
+      ? new Date(visit.visitedAt).toLocaleString()
+      : "-",
   }));
-  return { requests: data.data.requests || [], referrals: data.data.referrals || [], visits };
+  return {
+    requests: data.data.requests || [],
+    referrals: data.data.referrals || [],
+    visits,
+  };
 }
 
 // ─── Referral Creation ─────────────────────────────────────────────────────────
 export async function isReferralCodeMatched(referralCode) {
-  const code = String(referralCode || '').trim().toUpperCase();
+  const code = String(referralCode || "")
+    .trim()
+    .toUpperCase();
   if (!code) return false;
 
   if (isFirebaseConfigured && rtdb) {
@@ -726,36 +856,42 @@ export async function isReferralCodeMatched(referralCode) {
   }
 
   try {
-    const data = await apiFetch('/api/admin-data');
+    const data = await apiFetch("/api/admin-data");
     const referrals = data.data?.referrals || [];
-    return referrals.some((item) => String(item.code || item.id || '').toUpperCase() === code);
+    return referrals.some(
+      (item) => String(item.code || item.id || "").toUpperCase() === code,
+    );
   } catch {
     return false;
   }
 }
 
-export const PAYMENT_QR_DEFAULT = 'https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png';
-export const PAYMENT_QR_REFERRAL = 'https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR(1).png';
+export const PAYMENT_QR_DEFAULT =
+  "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png";
+export const PAYMENT_QR_REFERRAL =
+  "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR(1).png";
 
 // ─── Referral / Enrollment Deletion ──────────────────────────────────────────
 export async function deleteReferral(code) {
-  if (!code) throw new Error('Referral code is required.');
+  if (!code) throw new Error("Referral code is required.");
   const normalizedCode = code.toUpperCase();
 
   if (isFirebaseConfigured && rtdb) {
     await remove(ref(rtdb, `referrals/${normalizedCode}`));
     // Clean up related data
-    try { await remove(ref(rtdb, `referralUsers/${normalizedCode}`)); } catch {}
+    try {
+      await remove(ref(rtdb, `referralUsers/${normalizedCode}`));
+    } catch {}
     return;
   }
 
   await apiFetch(`/api/referrals/${encodeURIComponent(normalizedCode)}`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 }
 
 export async function deleteEnrollment(enrollmentId) {
-  if (!enrollmentId) throw new Error('Enrollment ID is required.');
+  if (!enrollmentId) throw new Error("Enrollment ID is required.");
 
   if (isFirebaseConfigured && rtdb) {
     await remove(ref(rtdb, `enrollments/${enrollmentId}`));
@@ -763,7 +899,7 @@ export async function deleteEnrollment(enrollmentId) {
   }
 
   await apiFetch(`/api/inquiries/${encodeURIComponent(enrollmentId)}`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 }
 
@@ -784,8 +920,8 @@ export async function createReferral(details) {
     return payload;
   }
 
-  const data = await apiFetch('/api/referrals', {
-    method: 'POST',
+  const data = await apiFetch("/api/referrals", {
+    method: "POST",
     body: JSON.stringify(payload),
   });
   return data.data;
@@ -796,21 +932,23 @@ export async function trackReferralVisit(referralCode) {
   if (!referralCode) return null;
 
   const ua = navigator.userAgent;
-  let os = 'Unknown OS';
-  if (ua.indexOf('Windows') !== -1) os = 'Windows';
-  else if (ua.indexOf('Macintosh') !== -1) os = 'MacOS';
-  else if (ua.indexOf('Linux') !== -1) os = 'Linux';
-  else if (ua.indexOf('Android') !== -1) os = 'Android';
-  else if (ua.indexOf('iPhone') !== -1 || ua.indexOf('iPad') !== -1) os = 'iOS';
+  let os = "Unknown OS";
+  if (ua.indexOf("Windows") !== -1) os = "Windows";
+  else if (ua.indexOf("Macintosh") !== -1) os = "MacOS";
+  else if (ua.indexOf("Linux") !== -1) os = "Linux";
+  else if (ua.indexOf("Android") !== -1) os = "Android";
+  else if (ua.indexOf("iPhone") !== -1 || ua.indexOf("iPad") !== -1) os = "iOS";
 
-  const cores = navigator.hardwareConcurrency || 'Unknown';
-  const memory = navigator.deviceMemory || 'Unknown';
+  const cores = navigator.hardwareConcurrency || "Unknown";
+  const memory = navigator.deviceMemory || "Unknown";
 
-  let connectionType = 'Unknown', downlink = 'Unknown', rtt = 'Unknown';
+  let connectionType = "Unknown",
+    downlink = "Unknown",
+    rtt = "Unknown";
   if (navigator.connection) {
-    connectionType = navigator.connection.effectiveType || 'Unknown';
-    downlink = navigator.connection.downlink || 'Unknown';
-    rtt = navigator.connection.rtt || 'Unknown';
+    connectionType = navigator.connection.effectiveType || "Unknown";
+    downlink = navigator.connection.downlink || "Unknown";
+    rtt = navigator.connection.rtt || "Unknown";
   }
 
   const normalizedCode = referralCode.toUpperCase();
@@ -827,12 +965,12 @@ export async function trackReferralVisit(referralCode) {
     language: navigator.language,
     link: window.location.href,
     visitedAt: new Date().toISOString(),
-    ip: 'Unknown',
-    country: 'Unknown',
-    city: 'Unknown',
-    region: 'Unknown',
-    isp: 'Unknown',
-    action: 'visited',
+    ip: "Unknown",
+    country: "Unknown",
+    city: "Unknown",
+    region: "Unknown",
+    isp: "Unknown",
+    action: "visited",
     matched: false,
   };
 
@@ -842,11 +980,12 @@ export async function trackReferralVisit(referralCode) {
     let referralSnap = await get(referralRef);
 
     if (!referralSnap.exists()) {
-      const allReferralsSnap = await get(ref(rtdb, 'referrals'));
+      const allReferralsSnap = await get(ref(rtdb, "referrals"));
       if (allReferralsSnap.exists()) {
         const entries = Object.entries(allReferralsSnap.val());
-        const matchedEntry = entries.find(([, data]) =>
-          String(data.code || '').toUpperCase() === normalizedCode
+        const matchedEntry = entries.find(
+          ([, data]) =>
+            String(data.code || "").toUpperCase() === normalizedCode,
         );
         if (matchedEntry) {
           referralRef = ref(rtdb, `referrals/${matchedEntry[0]}`);
@@ -855,7 +994,7 @@ export async function trackReferralVisit(referralCode) {
       }
     }
 
-    const visitRef = push(ref(rtdb, 'referralVisits'));
+    const visitRef = push(ref(rtdb, "referralVisits"));
     visitBase.visitId = visitRef.key;
     visitBase.referralCode = normalizedCode;
 
@@ -876,22 +1015,44 @@ export async function trackReferralVisit(referralCode) {
     const patchGeo = async () => {
       let geo = {};
       try {
-        const geoRes = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+        const geoRes = await fetch("https://ipapi.co/json/", {
+          signal: AbortSignal.timeout(4000),
+        });
         if (geoRes.ok) {
           const g = await geoRes.json();
-          geo = { ip: g.ip || 'Unknown', country: g.country_name || g.country || 'Unknown', city: g.city || 'Unknown', region: g.region || 'Unknown', isp: g.org || 'Unknown' };
+          geo = {
+            ip: g.ip || "Unknown",
+            country: g.country_name || g.country || "Unknown",
+            city: g.city || "Unknown",
+            region: g.region || "Unknown",
+            isp: g.org || "Unknown",
+          };
         }
       } catch {
         try {
-          const geoRes2 = await fetch('https://ip-api.com/json/', { signal: AbortSignal.timeout(4000) });
+          const geoRes2 = await fetch("https://ip-api.com/json/", {
+            signal: AbortSignal.timeout(4000),
+          });
           if (geoRes2.ok) {
             const g2 = await geoRes2.json();
-            geo = { ip: g2.query || 'Unknown', country: g2.country || 'Unknown', city: g2.city || 'Unknown', region: g2.regionName || 'Unknown', isp: g2.isp || 'Unknown' };
+            geo = {
+              ip: g2.query || "Unknown",
+              country: g2.country || "Unknown",
+              city: g2.city || "Unknown",
+              region: g2.regionName || "Unknown",
+              isp: g2.isp || "Unknown",
+            };
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
       if (Object.keys(geo).length > 0) {
-        try { await update(visitRef, geo); } catch { /* ignore */ }
+        try {
+          await update(visitRef, geo);
+        } catch {
+          /* ignore */
+        }
       }
     };
 
@@ -901,19 +1062,23 @@ export async function trackReferralVisit(referralCode) {
   }
 
   try {
-    const geoRes = await fetch('https://ipapi.co/json/', { signal: AbortSignal.timeout(4000) });
+    const geoRes = await fetch("https://ipapi.co/json/", {
+      signal: AbortSignal.timeout(4000),
+    });
     if (geoRes.ok) {
       const g = await geoRes.json();
-      visitBase.ip = g.ip || 'Unknown';
-      visitBase.country = g.country_name || g.country || 'Unknown';
-      visitBase.city = g.city || 'Unknown';
-      visitBase.region = g.region || 'Unknown';
-      visitBase.isp = g.org || 'Unknown';
+      visitBase.ip = g.ip || "Unknown";
+      visitBase.country = g.country_name || g.country || "Unknown";
+      visitBase.city = g.city || "Unknown";
+      visitBase.region = g.region || "Unknown";
+      visitBase.isp = g.org || "Unknown";
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
-  const data = await apiFetch('/api/referral-visits', {
-    method: 'POST',
+  const data = await apiFetch("/api/referral-visits", {
+    method: "POST",
     body: JSON.stringify(visitBase),
   });
   return data.data;
@@ -925,23 +1090,25 @@ export async function trackReferralVisit(referralCode) {
  */
 export async function processReferralFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  const code = (params.get('ref') || '').trim().toUpperCase();
+  const code = (params.get("ref") || "").trim().toUpperCase();
   if (!code) {
-    localStorage.removeItem('detected_referral_code');
-    return { code: '', matched: false };
+    localStorage.removeItem("detected_referral_code");
+    return { code: "", matched: false };
   }
 
   // Track the visit (deduplicated via sessionStorage)
   try {
     await trackReferralVisit(code);
-  } catch { /* silent */ }
+  } catch {
+    /* silent */
+  }
 
   // Independently check if this referral code matches an existing referral
   const matched = await isReferralCodeMatched(code);
   if (matched) {
-    localStorage.setItem('detected_referral_code', code);
+    localStorage.setItem("detected_referral_code", code);
   } else {
-    localStorage.removeItem('detected_referral_code');
+    localStorage.removeItem("detected_referral_code");
   }
   return { code, matched };
 }
@@ -963,13 +1130,13 @@ export async function markReferralContacted(referralCode) {
     return;
   }
 
-  await apiFetch(`/api/referrals/${code}/contacted`, { method: 'POST' });
+  await apiFetch(`/api/referrals/${code}/contacted`, { method: "POST" });
 }
 
 // ─── Admin Management ──────────────────────────────────────────────────────────
 export async function checkAdminStatus(email) {
   if (!email) return { isAdmin: false };
-  const root = 'rutujdhodapkar@gmail.com';
+  const root = "rutujdhodapkar@gmail.com";
   if (email.toLowerCase().trim() === root) return { isAdmin: true };
 
   if (isFirebaseConfigured && rtdb) {
@@ -981,20 +1148,20 @@ export async function checkAdminStatus(email) {
     }
   }
 
-  return await apiFetch('/api/check-admin', {
-    method: 'POST',
+  return await apiFetch("/api/check-admin", {
+    method: "POST",
     body: JSON.stringify({ email }),
   });
 }
 
 export async function fetchAdmins() {
   if (isFirebaseConfigured && rtdb) {
-    const snap = await get(ref(rtdb, 'admins'));
+    const snap = await get(ref(rtdb, "admins"));
     if (!snap.exists()) return [];
     return Object.keys(snap.val()).map(decodeEmail);
   }
 
-  const res = await apiFetch('/api/admins');
+  const res = await apiFetch("/api/admins");
   return res.data;
 }
 
@@ -1008,8 +1175,8 @@ export async function addAdmin(email) {
     return;
   }
 
-  await apiFetch('/api/admins', {
-    method: 'POST',
+  await apiFetch("/api/admins", {
+    method: "POST",
     body: JSON.stringify({ email: cleanEmail }),
   });
 }
@@ -1022,32 +1189,37 @@ export async function removeAdmin(email) {
   }
 
   await apiFetch(`/api/admins/${encodeURIComponent(cleanEmail)}`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 }
 
 function getDeviceType() {
   const width = window.innerWidth;
-  if (/Mobi|Android/i.test(navigator.userAgent) || width < 768) return 'Mobile';
-  if (/Tablet|iPad/i.test(navigator.userAgent) || width < 1100) return 'Tablet';
-  return 'Desktop';
+  if (/Mobi|Android/i.test(navigator.userAgent) || width < 768) return "Mobile";
+  if (/Tablet|iPad/i.test(navigator.userAgent) || width < 1100) return "Tablet";
+  return "Desktop";
 }
 
 // ─── Self-Referral (Earn Section) ─────────────────────────────────────────────
 export async function createSelfReferral(details, uid) {
-  if (!uid) throw new Error('You must be logged in to create a referral code.');
-  const name = (details.name || '').trim();
-  const email = (details.email || '').trim();
-  const phone = (details.phone || '').trim();
-  const college = (details.college || '').trim();
-  const city = (details.city || '').trim();
-  const country = (details.country || '').trim();
-  const upiId = (details.upiId || '').trim();
+  if (!uid) throw new Error("You must be logged in to create a referral code.");
+  const name = (details.name || "").trim();
+  const email = (details.email || "").trim();
+  const phone = (details.phone || "").trim();
+  const college = (details.college || "").trim();
+  const city = (details.city || "").trim();
+  const country = (details.country || "").trim();
+  const upiId = (details.upiId || "").trim();
   if (!name || !email || !phone || !college || !city || !country || !upiId) {
-    throw new Error('Name, email, phone, college, city, country, and UPI ID are required.');
+    throw new Error(
+      "Name, email, phone, college, city, country, and UPI ID are required.",
+    );
   }
 
-  const prefix = name.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+  const prefix = name
+    .replace(/[^a-zA-Z]/g, "")
+    .slice(0, 5)
+    .toUpperCase();
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
   const code = `${prefix}-${suffix}`;
 
@@ -1071,11 +1243,14 @@ export async function createSelfReferral(details, uid) {
 
   if (isFirebaseConfigured && rtdb) {
     await set(ref(rtdb, `referrals/${code}`), payload);
-    await set(ref(rtdb, `selfReferralOwners/${uid}`), { code, createdAt: payload.createdAt });
+    await set(ref(rtdb, `selfReferralOwners/${uid}`), {
+      code,
+      createdAt: payload.createdAt,
+    });
     await update(ref(rtdb, `users/${uid}`), { selfReferralCode: code });
     return payload;
   }
-  throw new Error('Firebase RTDB is not configured.');
+  throw new Error("Firebase RTDB is not configured.");
 }
 
 export async function fetchSelfReferralCode(uid) {
@@ -1100,41 +1275,60 @@ export async function fetchReferralDashboardData(uid) {
     if (!code) return null;
 
     const codeUpper = code.toUpperCase();
-    const [referralSnap, allEnrollmentsSnap, visitsSnap, referralUsersSnap] = await Promise.all([
-      get(ref(rtdb, `referrals/${codeUpper}`)),
-      get(ref(rtdb, 'enrollments')),
-      get(ref(rtdb, 'referralVisits')),
-      get(ref(rtdb, `referralUsers/${codeUpper}`)),
-    ]);
+    const [referralSnap, allEnrollmentsSnap, visitsSnap, referralUsersSnap] =
+      await Promise.all([
+        get(ref(rtdb, `referrals/${codeUpper}`)),
+        get(ref(rtdb, "enrollments")),
+        get(ref(rtdb, "referralVisits")),
+        get(ref(rtdb, `referralUsers/${codeUpper}`)),
+      ]);
 
     const referral = referralSnap.exists() ? referralSnap.val() : null;
     const allEnrollments = snapToArray(allEnrollmentsSnap.val() || {});
     const visits = snapToArray(visitsSnap.val() || {});
-    const referralUsers = referralUsersSnap.exists() ? referralUsersSnap.val() : {};
+    const referralUsers = referralUsersSnap.exists()
+      ? referralUsersSnap.val()
+      : {};
 
-    const relatedEnrollments = allEnrollments.filter(e => String(e.referralCode || '').toUpperCase() === codeUpper);
-    const relatedVisits = visits.filter(v => String(v.referralCode || '').toUpperCase() === codeUpper);
+    const relatedEnrollments = allEnrollments.filter(
+      (e) => String(e.referralCode || "").toUpperCase() === codeUpper,
+    );
+    const relatedVisits = visits.filter(
+      (v) => String(v.referralCode || "").toUpperCase() === codeUpper,
+    );
     const loginUsers = Object.values(referralUsers || {});
 
     const completionInfo = (enrollment) => {
-      const projects = Array.isArray(enrollment.projects) ? enrollment.projects : [];
+      const projects = Array.isArray(enrollment.projects)
+        ? enrollment.projects
+        : [];
       const submissions = enrollment.submissions || {};
-      const verifiedCount = projects.filter((_, i) => submissions[i]?.verified).length;
-      return { total: projects.length, verified: verifiedCount, completed: projects.length > 0 && verifiedCount === projects.length };
+      const verifiedCount = projects.filter(
+        (_, i) => submissions[i]?.verified,
+      ).length;
+      return {
+        total: projects.length,
+        verified: verifiedCount,
+        completed: projects.length > 0 && verifiedCount === projects.length,
+      };
     };
 
-    const completedInterns = relatedEnrollments.filter(e => completionInfo(e).completed);
+    const completedInterns = relatedEnrollments.filter(
+      (e) => completionInfo(e).completed,
+    );
 
     return {
       code: codeUpper,
       referral,
-      visits: relatedVisits.sort((a, b) => new Date(b.visitedAt) - new Date(a.visitedAt)).slice(0, 50),
+      visits: relatedVisits
+        .sort((a, b) => new Date(b.visitedAt) - new Date(a.visitedAt))
+        .slice(0, 50),
       totalVisits: relatedVisits.length,
       totalLogins: loginUsers.length,
       enrolledInterns: relatedEnrollments,
       totalEnrolled: relatedEnrollments.length,
       completedInterns: completedInterns.length,
-      completedInternIds: completedInterns.map(e => e.internId || e.id),
+      completedInternIds: completedInterns.map((e) => e.internId || e.id),
     };
   }
   return null;
@@ -1146,24 +1340,31 @@ export async function fetchUserReferralStat(email) {
 
   if (isFirebaseConfigured && rtdb) {
     try {
-      const referralsSnap = await get(ref(rtdb, 'referrals'));
+      const referralsSnap = await get(ref(rtdb, "referrals"));
       if (!referralsSnap.exists()) return null;
 
       const referrals = referralsSnap.val();
       const matchedKey = Object.keys(referrals).find(
-        k => String(referrals[k].email || '').toLowerCase().trim() === emailLower
+        (k) =>
+          String(referrals[k].email || "")
+            .toLowerCase()
+            .trim() === emailLower,
       );
       if (!matchedKey) return null;
 
       const referral = referrals[matchedKey];
-      const enrollmentsSnap = await get(ref(rtdb, 'enrollments'));
+      const enrollmentsSnap = await get(ref(rtdb, "enrollments"));
       const allEnrollments = snapToArray(enrollmentsSnap.val() || {});
-      const related = allEnrollments.filter(e => String(e.referralCode || '').toUpperCase() === matchedKey);
+      const related = allEnrollments.filter(
+        (e) => String(e.referralCode || "").toUpperCase() === matchedKey,
+      );
 
-      const verifiedCount = related.filter(e => {
+      const verifiedCount = related.filter((e) => {
         const subs = e.submissions || {};
         const projects = Array.isArray(e.projects) ? e.projects : [];
-        return projects.length > 0 && projects.every((_, i) => subs[i]?.verified);
+        return (
+          projects.length > 0 && projects.every((_, i) => subs[i]?.verified)
+        );
       }).length;
 
       return {
@@ -1173,15 +1374,20 @@ export async function fetchUserReferralStat(email) {
         completedInterns: verifiedCount,
       };
     } catch (err) {
-      console.warn('Error in fetchUserReferralStat:', err.message);
+      console.warn("Error in fetchUserReferralStat:", err.message);
       return null;
     }
   }
 
   try {
-    const data = await apiFetch('/api/admin-data');
+    const data = await apiFetch("/api/admin-data");
     const referrals = data.data?.referrals || [];
-    const matched = referrals.find(r => String(r.email || '').toLowerCase().trim() === emailLower);
+    const matched = referrals.find(
+      (r) =>
+        String(r.email || "")
+          .toLowerCase()
+          .trim() === emailLower,
+    );
     if (!matched) return null;
     return {
       code: matched.code || matched.id,
@@ -1198,8 +1404,8 @@ export async function fetchAdminReferralUsersWithInterns() {
   if (isFirebaseConfigured && rtdb) {
     try {
       const [referralsSnap, enrollmentsSnap] = await Promise.all([
-        get(ref(rtdb, 'referrals')),
-        get(ref(rtdb, 'enrollments')),
+        get(ref(rtdb, "referrals")),
+        get(ref(rtdb, "enrollments")),
       ]);
 
       const referrals = referralsSnap.exists() ? referralsSnap.val() : {};
@@ -1207,25 +1413,26 @@ export async function fetchAdminReferralUsersWithInterns() {
 
       return Object.entries(referrals).map(([code, refData]) => {
         const relatedEnrollments = allEnrollments.filter(
-          e => String(e.referralCode || '').toUpperCase() === code
+          (e) => String(e.referralCode || "").toUpperCase() === code,
         );
         return {
           code,
-          name: refData.name || '',
-          email: refData.email || '',
-          phone: refData.phone || '',
-          city: refData.city || '',
-          upiId: refData.upiId || '',
-          lastActivityAt: refData.lastActivityAt || refData.updatedAt || refData.createdAt,
+          name: refData.name || "",
+          email: refData.email || "",
+          phone: refData.phone || "",
+          city: refData.city || "",
+          upiId: refData.upiId || "",
+          lastActivityAt:
+            refData.lastActivityAt || refData.updatedAt || refData.createdAt,
           createdAt: refData.createdAt,
           internCount: relatedEnrollments.length,
-          internIds: relatedEnrollments.map(e => e.internId || e.id),
-          interns: relatedEnrollments.map(e => ({
+          internIds: relatedEnrollments.map((e) => e.internId || e.id),
+          interns: relatedEnrollments.map((e) => ({
             id: e.id,
             internId: e.internId || e.id,
-            name: e.name || '',
-            email: e.email || '',
-            status: e.status || 'Active',
+            name: e.name || "",
+            email: e.email || "",
+            status: e.status || "Active",
             appliedAt: e.createdAt || e.appliedAt,
             completedAt: e.completedAt,
             paymentDate: e.paymentDate,
@@ -1233,21 +1440,21 @@ export async function fetchAdminReferralUsersWithInterns() {
         };
       });
     } catch (err) {
-      console.warn('Error in fetchAdminReferralUsersWithInterns:', err.message);
+      console.warn("Error in fetchAdminReferralUsersWithInterns:", err.message);
       return [];
     }
   }
 
   try {
-    const data = await apiFetch('/api/admin-data');
+    const data = await apiFetch("/api/admin-data");
     const referrals = data.data?.referrals || [];
-    return referrals.map(r => ({
+    return referrals.map((r) => ({
       code: r.code || r.id,
-      name: r.name || '',
-      email: r.email || '',
-      phone: r.phone || '',
-      city: r.city || '',
-      upiId: r.upiId || '',
+      name: r.name || "",
+      email: r.email || "",
+      phone: r.phone || "",
+      city: r.city || "",
+      upiId: r.upiId || "",
       lastActivityAt: r.lastActivityAt || r.updatedAt || r.createdAt,
       createdAt: r.createdAt,
       internCount: Number(r.assignedInternships || 0),
@@ -1263,7 +1470,9 @@ export async function savePermanentReferralCode(uid, code) {
   if (!uid || !code) return;
   if (isFirebaseConfigured && rtdb) {
     try {
-      const userSnap = await get(ref(rtdb, `users/${uid}/permanentReferralCode`));
+      const userSnap = await get(
+        ref(rtdb, `users/${uid}/permanentReferralCode`),
+      );
       if (!userSnap.exists()) {
         await update(ref(rtdb, `users/${uid}`), {
           permanentReferralCode: code.toUpperCase(),
@@ -1286,9 +1495,39 @@ export async function fetchPermanentReferralCode(uid) {
 }
 
 // ─── AI Task Verification ──────────────────────────────────────────────────────
-export async function verifyTaskWithAI({ taskTitle, taskDescription, submissionText, submissionUrl, internName }) {
-  return await apiFetch('/api/ai/verify-task', {
-    method: 'POST',
-    body: JSON.stringify({ taskTitle, taskDescription, submissionText, submissionUrl, internName }),
+export async function verifyTaskWithAI({
+  taskTitle,
+  taskDescription,
+  submissionText,
+  submissionUrl,
+  internName,
+}) {
+  return await apiFetch("/api/ai/verify-task", {
+    method: "POST",
+    body: JSON.stringify({
+      taskTitle,
+      taskDescription,
+      submissionText,
+      submissionUrl,
+      internName,
+    }),
   });
+}
+
+export async function fetchEarnSettings() {
+  if (isFirebaseConfigured && rtdb) {
+    try {
+      const snap = await get(ref(rtdb, "siteSettings/earn"));
+      if (snap.exists()) return snap.val();
+    } catch {}
+  }
+  return { rewardPerCompletion: 20, milestoneCount: 50, milestoneBonus: 1000 };
+}
+
+export async function saveEarnSettings(settings) {
+  if (isFirebaseConfigured && rtdb) {
+    await set(ref(rtdb, "siteSettings/earn"), settings);
+    return;
+  }
+  // fallback: no-op for non-Firebase setups
 }

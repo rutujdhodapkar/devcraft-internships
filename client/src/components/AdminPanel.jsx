@@ -57,6 +57,7 @@ const TABS = [
   { id: "visits", label: "Visits" },
   { id: "referral users", label: "Referral Users" },
   { id: "verify-ai", label: "Verify with AI" },
+  { id: "earn-settings", label: "Earn Settings" },
   { id: "manage admins", label: "Admins" },
 ];
 
@@ -95,6 +96,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [aiError, setAiError] = useState("");
   const [verifyingAll, setVerifyingAll] = useState(false);
   const [pushingAll, setPushingAll] = useState(false);
+
+  // Earn Settings state
+  const [earnSettings, setEarnSettings] = useState({
+    rewardPerCompletion: 20,
+    milestoneCount: 50,
+    milestoneBonus: 1000,
+  });
+  const [earnSettingsLoading, setEarnSettingsLoading] = useState(false);
+  const [earnSettingsSaving, setEarnSettingsSaving] = useState(false);
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   // Task feedback & certificate approval states
@@ -179,6 +189,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     loadData();
     loadAdmins();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === "earn-settings") {
+      setEarnSettingsLoading(true);
+      import("../services/data").then(({ fetchEarnSettings }) =>
+        fetchEarnSettings()
+          .then((s) => {
+            if (s) setEarnSettings(s);
+          })
+          .catch(() => {})
+          .finally(() => setEarnSettingsLoading(false)),
+      );
+    }
+  }, [activeTab]);
 
   const loadData = async () => {
     setDataLoading(true);
@@ -3975,6 +3999,137 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 </div>
               );
             })()}
+          </div>
+        )}
+
+        {/* ── Earn Settings ── */}
+        {activeTab === "earn-settings" && (
+          <div style={{ maxWidth: "600px" }}>
+            <h3
+              style={{
+                fontSize: "1.2rem",
+                fontWeight: 800,
+                textTransform: "uppercase",
+                marginBottom: "0.5rem",
+              }}
+            >
+              Earn Section Settings
+            </h3>
+            <p
+              style={{
+                color: "#666",
+                fontSize: "0.85rem",
+                marginBottom: "1.5rem",
+              }}
+            >
+              Configure the reward amounts displayed in the public Refer &amp;
+              Earn section.
+            </p>
+            {earnSettingsLoading ? (
+              <div style={{ color: "#888" }}>Loading…</div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1.25rem",
+                }}
+              >
+                <div
+                  style={{
+                    border: "2px solid #000",
+                    padding: "1.5rem",
+                    boxShadow: "3px 3px 0 #000",
+                  }}
+                >
+                  {[
+                    {
+                      key: "rewardPerCompletion",
+                      label: "Reward per Completion (₹)",
+                      type: "number",
+                      min: 1,
+                    },
+                    {
+                      key: "milestoneCount",
+                      label: "Milestone Count (interns)",
+                      type: "number",
+                      min: 1,
+                    },
+                    {
+                      key: "milestoneBonus",
+                      label: "Milestone Bonus (₹)",
+                      type: "number",
+                      min: 0,
+                    },
+                  ].map(({ key, label, type, min }) => (
+                    <div key={key} style={{ marginBottom: "1rem" }}>
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          display: "block",
+                          marginBottom: "0.35rem",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {label}
+                      </label>
+                      <input
+                        type={type}
+                        min={min}
+                        value={earnSettings[key]}
+                        onChange={(e) =>
+                          setEarnSettings((prev) => ({
+                            ...prev,
+                            [key]: Number(e.target.value),
+                          }))
+                        }
+                        style={s}
+                      />
+                    </div>
+                  ))}
+                  <div
+                    style={{
+                      background: "#f5f5f5",
+                      border: "1px solid #ddd",
+                      padding: "0.85rem 1rem",
+                      fontSize: "0.85rem",
+                      marginBottom: "1rem",
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    <strong>Preview:</strong> Earn{" "}
+                    <strong>₹{earnSettings.rewardPerCompletion}</strong> per
+                    referred intern who completes. Bonus of{" "}
+                    <strong>₹{earnSettings.milestoneBonus}</strong> when{" "}
+                    {earnSettings.milestoneCount} interns complete.
+                  </div>
+                  <button
+                    className="btn-sharp"
+                    disabled={earnSettingsSaving}
+                    onClick={async () => {
+                      setEarnSettingsSaving(true);
+                      try {
+                        const { saveEarnSettings } =
+                          await import("../services/data");
+                        await saveEarnSettings(earnSettings);
+                        setSuccessMsg("Earn settings saved!");
+                        setTimeout(() => setSuccessMsg(""), 3000);
+                      } catch (err) {
+                        setError(
+                          "Failed to save earn settings: " + err.message,
+                        );
+                      } finally {
+                        setEarnSettingsSaving(false);
+                      }
+                    }}
+                    style={{ padding: "0.7rem 2rem" }}
+                  >
+                    {earnSettingsSaving ? "Saving…" : "Save Settings"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
