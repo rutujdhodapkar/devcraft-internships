@@ -1,5 +1,5 @@
 import React from 'react';
-import Beams from './Beams';
+import Lanyard from './Lanyard';
 
 export default function Footer() {
   return (
@@ -7,33 +7,24 @@ export default function Footer() {
       borderTop: '2px solid #000',
       position: 'relative',
       overflow: 'hidden',
-      minHeight: '600px',
+      minHeight: '560px',
+      background: '#fafafa',
     }}>
-      {/* Beams Background */}
       <div style={{
         position: 'absolute',
         inset: 0,
         width: '100%',
-        height: '100%',
-        opacity: 0.15,
+        height: '280px',
+        pointerEvents: 'none',
       }}>
-        <Beams
-          beamWidth={3}
-          beamHeight={30}
-          beamNumber={20}
-          lightColor="#ffffff"
-          speed={2}
-          noiseIntensity={1.75}
-          scale={0.2}
-          rotation={30}
-        />
+        <Lanyard position={[0, 0, 20]} gravity={[0, -40, 0]} />
       </div>
 
       {/* Footer Content */}
       <div style={{
         position: 'relative',
         zIndex: 1,
-        padding: '4rem 0',
+        padding: '18rem 0 4rem',
       }}>
         <div className="container">
           <div style={{

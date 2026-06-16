@@ -1,6 +1,5 @@
 import React, { Suspense, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 function generateCardTexture({ name, internId, college, city, appliedDate, photoURL }) {
@@ -84,43 +83,74 @@ function generateCardTexture({ name, internId, college, city, appliedDate, photo
   return texture;
 }
 
-function Card3D({ frontTexture }) {
+function Card3D({ frontTexture, backTexture, offset = [0, 0], gravity = [0, -40, 0] }) {
   const meshRef = useRef();
+  const gravityPull = Math.max(10, Math.abs(gravity?.[1] || -40));
 
   useFrame((state) => {
     if (!meshRef.current) return;
-    meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.4) * 0.15;
-    meshRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.25) * 0.06;
-    meshRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.08;
+    const swing = Math.min(0.25, 14 / gravityPull);
+    meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.6) * swing;
+    meshRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.3) * swing * 0.45;
+    meshRef.current.position.y = offset[1] + 0.5 + Math.sin(state.clock.elapsedTime * 0.4) * 0.08;
   });
 
-  const material = useMemo(() => new THREE.MeshStandardMaterial({
+  const frontMaterial = useMemo(() => new THREE.MeshStandardMaterial({
     map: frontTexture,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     roughness: 0.3,
     metalness: 0.05,
   }), [frontTexture]);
 
+  const backMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    map: backTexture || frontTexture,
+    side: THREE.BackSide,
+    roughness: 0.3,
+    metalness: 0.05,
+  }), [backTexture, frontTexture]);
+
+  const edgeMaterial = useMemo(() => new THREE.MeshStandardMaterial({
+    color: '#f2f2f2',
+    roughness: 0.35,
+    metalness: 0.02,
+  }), []);
+
   return (
-    <mesh ref={meshRef} position={[0, 0.5, 0]}>
+    <mesh ref={meshRef} position={[offset[0], offset[1] + 0.5, 0]}>
       <boxGeometry args={[3.2, 4.8, 0.12]} />
-      <primitive object={material} />
+      <primitive object={edgeMaterial} attach="material-0" />
+      <primitive object={edgeMaterial} attach="material-1" />
+      <primitive object={edgeMaterial} attach="material-2" />
+      <primitive object={edgeMaterial} attach="material-3" />
+      <primitive object={frontMaterial} attach="material-4" />
+      <primitive object={backMaterial} attach="material-5" />
     </mesh>
   );
 }
 
-function LanyardBand() {
+function LanyardBand({ width = 0.04, imageTexture = null, offset = [0, 0] }) {
+  const bandMaterial = useMemo(() => {
+    if (imageTexture) {
+      imageTexture.wrapS = THREE.RepeatWrapping;
+      imageTexture.wrapT = THREE.RepeatWrapping;
+      imageTexture.repeat.set(1, 4);
+      imageTexture.needsUpdate = true;
+      return new THREE.MeshStandardMaterial({ map: imageTexture });
+    }
+    return new THREE.MeshStandardMaterial({ color: '#222' });
+  }, [imageTexture]);
+
   return (
-    <group>
+    <group position={[offset[0], offset[1], 0]}>
       {/* Left side of band */}
       <mesh position={[-0.55, 3.5, 0]} rotation={[0, 0, 0.15]}>
-        <boxGeometry args={[0.04, 2, 0.02]} />
-        <meshStandardMaterial color="#222" />
+        <boxGeometry args={[width, 2, 0.02]} />
+        <primitive object={bandMaterial} />
       </mesh>
       {/* Right side of band */}
       <mesh position={[0.55, 3.5, 0]} rotation={[0, 0, -0.15]}>
-        <boxGeometry args={[0.04, 2, 0.02]} />
-        <meshStandardMaterial color="#222" />
+        <boxGeometry args={[width, 2, 0.02]} />
+        <primitive object={bandMaterial} />
       </mesh>
       {/* Clip ring */}
       <mesh position={[0, 2.8, 0]}>
@@ -138,17 +168,63 @@ export default function Lanyard({
   city,
   appliedDate,
   photoURL,
-  position = [0, 0, 22],
+  position = [0, 0, 20],
   gravity = [0, -40, 0],
+  frontImage,
+  backImage,
+  imageFit = 'cover',
+  lanyardImage,
+  lanyardWidth = 1,
 }) {
-  const texture = useMemo(() => generateCardTexture({
+  const generatedTexture = useMemo(() => generateCardTexture({
     name, internId, college, city, appliedDate, photoURL,
   }), [name, internId, college, city, appliedDate, photoURL]);
+
+  const textureLoader = useMemo(() => new THREE.TextureLoader(), []);
+  const frontImageTexture = useMemo(() => {
+    if (!frontImage) return null;
+    const t = textureLoader.load(frontImage);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
+    return t;
+  }, [frontImage, textureLoader]);
+  const backImageTexture = useMemo(() => {
+    if (!backImage) return null;
+    const t = textureLoader.load(backImage);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
+    return t;
+  }, [backImage, textureLoader]);
+  const lanyardTexture = useMemo(() => {
+    if (!lanyardImage) return null;
+    const t = textureLoader.load(lanyardImage);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.needsUpdate = true;
+    return t;
+  }, [lanyardImage, textureLoader]);
+
+  const hasFrontImage = Boolean(frontImage);
+  const hasBackImage = Boolean(backImage);
+  const hasLanyardImage = Boolean(lanyardImage);
+
+  const frontTexture = hasFrontImage ? frontImageTexture : generatedTexture;
+  const backTexture = hasBackImage ? backImageTexture : generatedTexture;
+  const bandWidth = 0.04 * Math.max(1, Number(lanyardWidth) || 1);
+
+  if (imageFit === 'contain') {
+    frontTexture.wrapS = THREE.ClampToEdgeWrapping;
+    frontTexture.wrapT = THREE.ClampToEdgeWrapping;
+    backTexture.wrapS = THREE.ClampToEdgeWrapping;
+    backTexture.wrapT = THREE.ClampToEdgeWrapping;
+  }
+
+  const cameraZ = Math.max(8, Number(position?.[2]) || 20);
+  const cardOffset = [Number(position?.[0]) || 0, Number(position?.[1]) || 0];
 
   return (
     <div style={{ width: '100%', height: '100%', minHeight: '400px' }}>
       <Canvas
-        camera={{ position: [0, 0, 10], fov: 28 }}
+        camera={{ position: [0, 0, cameraZ], fov: 28 }}
         style={{ background: 'transparent' }}
         gl={{ antialias: true, alpha: true }}
       >
@@ -156,8 +232,8 @@ export default function Lanyard({
         <directionalLight position={[5, 8, 6]} intensity={0.8} />
         <directionalLight position={[-3, 2, 4]} intensity={0.3} />
         <Suspense fallback={null}>
-          <Card3D frontTexture={texture} />
-          <LanyardBand />
+          <Card3D frontTexture={frontTexture} backTexture={backTexture} offset={cardOffset} gravity={gravity} />
+          <LanyardBand width={bandWidth} imageTexture={hasLanyardImage ? lanyardTexture : null} offset={cardOffset} />
         </Suspense>
       </Canvas>
     </div>

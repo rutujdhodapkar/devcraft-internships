@@ -6,6 +6,28 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+async function loadEnvFile() {
+  try {
+    const envPath = path.join(__dirname, '.env');
+    const content = await fs.readFile(envPath, 'utf-8');
+    content.split('\n').forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) return;
+      const key = trimmed.slice(0, eq).trim();
+      const value = trimmed.slice(eq + 1).trim();
+      if (key && process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    });
+  } catch {
+    // .env is optional in local development
+  }
+}
+
+await loadEnvFile();
 const INQUIRIES_FILE = path.join(__dirname, 'inquiries.json');
 const REFERRALS_FILE = path.join(__dirname, 'referrals.json');
 const VISITS_FILE = path.join(__dirname, 'referral-visits.json');

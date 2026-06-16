@@ -91,6 +91,15 @@ export default function ReferralDashboard({ user, onBackClick }) {
             </div>
 
             {/* Stats */}
+            <div style={{ border: '2px solid #000', background: '#EBFCEF', padding: '1rem 1.25rem', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.85rem', lineHeight: 1.6, color: '#333' }}>
+                Earn <strong>₹20</strong> for each referred intern who completes their internship, plus a <strong>₹1,000</strong> bonus at 50 completions.
+                {' '}<a href="/#referral-rewards" style={{ color: '#000', fontWeight: 800 }}>See how you can earn ₹2,000 per 50 completed interns →</a>
+              </div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 800, marginTop: '0.5rem', color: '#34A853' }}>
+                Estimated earnings: ₹{(data.completedInterns || 0) * 20 + Math.floor((data.completedInterns || 0) / 50) * 1000}
+              </div>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
               <StatBox label="Link Visits" value={data.totalVisits} />
               <StatBox label="Total Logins" value={data.totalLogins} />

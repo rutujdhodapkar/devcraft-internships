@@ -1,99 +1,244 @@
-import React from 'react';
-import Lanyard from './Lanyard';
+import React from "react";
 
-export default function IDCardModal({ user, enrollment, onClose }) {
-  if (!enrollment) return null;
+function InfoField({ label, value, fullWidth }) {
+  return (
+    <div style={fullWidth ? { gridColumn: "1 / -1" } : {}}>
+      <div
+        style={{
+          fontSize: "0.6rem",
+          fontWeight: 800,
+          textTransform: "uppercase",
+          color: "#888",
+          letterSpacing: "0.1em",
+          marginBottom: "0.18rem",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "0.88rem",
+          fontWeight: 700,
+          color: "#000",
+          wordBreak: "break-all",
+          lineHeight: 1.3,
+        }}
+      >
+        {value || "—"}
+      </div>
+    </div>
+  );
+}
 
-  const internId = enrollment.internId || enrollment.id || '—';
-  const appliedDate = new Date(enrollment.createdAt).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
+export default function IDCardModal({
+  user,
+  userProfile,
+  enrollment,
+  onClose,
+}) {
+  const name =
+    enrollment?.name || userProfile?.name || user?.displayName || "Student";
+  const internId = enrollment?.internId || enrollment?.id || "Pending";
+  const email = user?.email || enrollment?.email || userProfile?.email || "";
+  const phone = userProfile?.phone || enrollment?.phone || "";
+  const city = userProfile?.city || enrollment?.city || "";
+  const internship = enrollment?.domain || "Not enrolled yet";
+  const initial = name.charAt(0).toUpperCase();
 
   return (
     <div
       onClick={onClose}
       style={{
-        position: 'fixed',
+        position: "fixed",
         inset: 0,
-        background: 'rgba(0,0,0,0.85)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
+        background: "rgba(0,0,0,0.82)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
         zIndex: 2000,
-        padding: '2rem',
+        padding: "1.5rem",
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: '#fff',
-          border: '3px solid #000',
-          boxShadow: '12px 12px 0 #000',
-          width: '100%',
-          maxWidth: '520px',
-          position: 'relative',
-          padding: '2rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
+          background: "#fff",
+          border: "3px solid #000",
+          boxShadow: "10px 10px 0 #000",
+          width: "100%",
+          maxWidth: "380px",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        {/* Close button */}
-        <button
-          onClick={onClose}
+        {/* Header */}
+        <div
           style={{
-            position: 'absolute',
-            top: '0.75rem',
-            right: '1rem',
-            background: 'none',
-            border: 'none',
-            fontSize: '1.8rem',
-            cursor: 'pointer',
-            fontWeight: 900,
-            color: '#000',
-            lineHeight: 1,
+            background: "#000",
+            color: "#fff",
+            padding: "1.1rem 1.4rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          &times;
-        </button>
-
-        {/* 3D Lanyard Card */}
-        <div style={{ width: '300px', height: '420px', marginBottom: '0.5rem' }}>
-          <Lanyard
-            name={user?.displayName || enrollment.name || 'Student'}
-            internId={internId}
-            college={enrollment.college || ''}
-            city={enrollment.city || ''}
-            appliedDate={appliedDate}
-            photoURL={user?.photoURL || ''}
-          />
+          <div>
+            <div
+              style={{
+                fontSize: "1.15rem",
+                fontWeight: 900,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              DevCraft
+            </div>
+            <div
+              style={{
+                fontSize: "0.62rem",
+                color: "#bbb",
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                marginTop: "0.1rem",
+              }}
+            >
+              Intern Identity Card
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "1.5px solid #555",
+              color: "#fff",
+              width: "26px",
+              height: "26px",
+              cursor: "pointer",
+              fontSize: "1rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
         </div>
 
-        {/* Info footer */}
-        <div style={{
-          borderTop: '2px solid #000',
-          paddingTop: '1rem',
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '2rem',
-          flexWrap: 'wrap',
-          fontSize: '0.8rem',
-          color: '#555',
-        }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontWeight: 800, color: '#000' }}>{enrollment.domain || '—'}</div>
-            <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: '#888' }}>Domain</div>
+        {/* Photo + Name strip */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+            padding: "1.25rem 1.4rem 1rem",
+            borderBottom: "2px solid #000",
+          }}
+        >
+          {user?.photoURL ? (
+            <img
+              src={user.photoURL}
+              alt={name}
+              style={{
+                width: "58px",
+                height: "58px",
+                border: "2.5px solid #000",
+                borderRadius: "50%",
+                objectFit: "cover",
+                flexShrink: 0,
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "58px",
+                height: "58px",
+                border: "2.5px solid #000",
+                background: "#000",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.5rem",
+                fontWeight: 900,
+                flexShrink: 0,
+              }}
+            >
+              {initial}
+            </div>
+          )}
+          <div>
+            <div
+              style={{
+                fontWeight: 900,
+                fontSize: "1.15rem",
+                color: "#000",
+                lineHeight: 1.2,
+              }}
+            >
+              {name}
+            </div>
+            <div
+              style={{
+                display: "inline-block",
+                marginTop: "0.35rem",
+                background: "#000",
+                color: "#fff",
+                fontSize: "0.6rem",
+                fontWeight: 800,
+                padding: "0.15rem 0.55rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              Intern
+            </div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontWeight: 800, color: '#000' }}>{enrollment.status || 'Active'}</div>
-            <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: '#888' }}>Status</div>
+        </div>
+
+        {/* Info grid */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "1.1rem",
+            padding: "1.25rem 1.4rem",
+          }}
+        >
+          <InfoField label="Intern ID" value={internId} />
+          <InfoField label="City" value={city} />
+          <InfoField label="Phone" value={phone} />
+          <InfoField label="Internship" value={internship} />
+          <InfoField label="Email" value={email} fullWidth />
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            background: "#f5f5f5",
+            borderTop: "2px solid #000",
+            padding: "0.7rem 1.4rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ fontSize: "0.65rem", color: "#888", fontWeight: 600 }}>
+            DevCraft Internship Program
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontWeight: 800, color: '#000', fontSize: '0.75rem' }}>{internId}</div>
-            <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', color: '#888' }}>Intern ID</div>
+          <div
+            style={{
+              background: "#000",
+              color: "#fff",
+              fontSize: "0.6rem",
+              fontWeight: 800,
+              padding: "0.18rem 0.55rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            Official
           </div>
         </div>
       </div>

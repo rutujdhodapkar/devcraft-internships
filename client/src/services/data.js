@@ -688,13 +688,31 @@ export async function fetchAdminData() {
 
     const visits = snapToArray(visitsSnap.val())
       .sort((a, b) => (b.visitedAt || '').localeCompare(a.visitedAt || ''))
-      .slice(0, 200);
+      .slice(0, 200)
+      .map((visit) => ({
+        ...visit,
+        id: visit.visitId || visit.id,
+        referralCode: visit.referralCode || '-',
+        device: visit.device || 'Unknown',
+        country: visit.country || 'Unknown',
+        city: visit.city || 'Unknown',
+        link: visit.link || '-',
+        matched: visit.matched === true,
+        visitedAt: visit.visitedAt
+          ? new Date(visit.visitedAt).toLocaleString()
+          : '-',
+      }));
 
     return { requests: enrollments, referrals, visits };
   }
 
   const data = await apiFetch('/api/admin-data');
-  return { requests: data.data.requests || [], referrals: data.data.referrals || [], visits: data.data.visits || [] };
+  const visits = (data.data.visits || []).map((visit) => ({
+    ...visit,
+    matched: visit.matched === true,
+    visitedAt: visit.visitedAt ? new Date(visit.visitedAt).toLocaleString() : '-',
+  }));
+  return { requests: data.data.requests || [], referrals: data.data.referrals || [], visits };
 }
 
 // ─── Referral Creation ─────────────────────────────────────────────────────────
@@ -819,14 +837,29 @@ export async function trackReferralVisit(referralCode) {
   };
 
   if (isFirebaseConfigured && rtdb) {
-    const referralRef = ref(rtdb, `referrals/${normalizedCode}`);
+    const normalizedCode = referralCode.toUpperCase();
+    let referralRef = ref(rtdb, `referrals/${normalizedCode}`);
+    let referralSnap = await get(referralRef);
+
+    if (!referralSnap.exists()) {
+      const allReferralsSnap = await get(ref(rtdb, 'referrals'));
+      if (allReferralsSnap.exists()) {
+        const entries = Object.entries(allReferralsSnap.val());
+        const matchedEntry = entries.find(([, data]) =>
+          String(data.code || '').toUpperCase() === normalizedCode
+        );
+        if (matchedEntry) {
+          referralRef = ref(rtdb, `referrals/${matchedEntry[0]}`);
+          referralSnap = await get(referralRef);
+        }
+      }
+    }
+
     const visitRef = push(ref(rtdb, 'referralVisits'));
     visitBase.visitId = visitRef.key;
+    visitBase.referralCode = normalizedCode;
 
-    const [referralSnap] = await Promise.all([
-      get(referralRef),
-      set(visitRef, visitBase),
-    ]);
+    await set(visitRef, visitBase);
 
     const matched = referralSnap.exists();
     visitBase.matched = matched;
@@ -1004,7 +1037,15 @@ function getDeviceType() {
 export async function createSelfReferral(details, uid) {
   if (!uid) throw new Error('You must be logged in to create a referral code.');
   const name = (details.name || '').trim();
-  if (!name) throw new Error('Name is required.');
+  const email = (details.email || '').trim();
+  const phone = (details.phone || '').trim();
+  const college = (details.college || '').trim();
+  const city = (details.city || '').trim();
+  const country = (details.country || '').trim();
+  const upiId = (details.upiId || '').trim();
+  if (!name || !email || !phone || !college || !city || !country || !upiId) {
+    throw new Error('Name, email, phone, college, city, country, and UPI ID are required.');
+  }
 
   const prefix = name.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
   const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
@@ -1012,7 +1053,13 @@ export async function createSelfReferral(details, uid) {
 
   const payload = {
     code,
-    ...details,
+    name,
+    email,
+    phone,
+    college,
+    city,
+    country,
+    upiId,
     createdBy: uid,
     isSelfReferral: true,
     visited: 0,
@@ -1091,6 +1138,125 @@ export async function fetchReferralDashboardData(uid) {
     };
   }
   return null;
+}
+
+export async function fetchUserReferralStat(email) {
+  if (!email) return null;
+  const emailLower = email.toLowerCase().trim();
+
+  if (isFirebaseConfigured && rtdb) {
+    try {
+      const referralsSnap = await get(ref(rtdb, 'referrals'));
+      if (!referralsSnap.exists()) return null;
+
+      const referrals = referralsSnap.val();
+      const matchedKey = Object.keys(referrals).find(
+        k => String(referrals[k].email || '').toLowerCase().trim() === emailLower
+      );
+      if (!matchedKey) return null;
+
+      const referral = referrals[matchedKey];
+      const enrollmentsSnap = await get(ref(rtdb, 'enrollments'));
+      const allEnrollments = snapToArray(enrollmentsSnap.val() || {});
+      const related = allEnrollments.filter(e => String(e.referralCode || '').toUpperCase() === matchedKey);
+
+      const verifiedCount = related.filter(e => {
+        const subs = e.submissions || {};
+        const projects = Array.isArray(e.projects) ? e.projects : [];
+        return projects.length > 0 && projects.every((_, i) => subs[i]?.verified);
+      }).length;
+
+      return {
+        code: matchedKey,
+        visited: Number(referral.visited || 0),
+        assignedInternships: related.length,
+        completedInterns: verifiedCount,
+      };
+    } catch (err) {
+      console.warn('Error in fetchUserReferralStat:', err.message);
+      return null;
+    }
+  }
+
+  try {
+    const data = await apiFetch('/api/admin-data');
+    const referrals = data.data?.referrals || [];
+    const matched = referrals.find(r => String(r.email || '').toLowerCase().trim() === emailLower);
+    if (!matched) return null;
+    return {
+      code: matched.code || matched.id,
+      visited: Number(matched.visited || 0),
+      assignedInternships: Number(matched.assignedInternships || 0),
+      completedInterns: 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchAdminReferralUsersWithInterns() {
+  if (isFirebaseConfigured && rtdb) {
+    try {
+      const [referralsSnap, enrollmentsSnap] = await Promise.all([
+        get(ref(rtdb, 'referrals')),
+        get(ref(rtdb, 'enrollments')),
+      ]);
+
+      const referrals = referralsSnap.exists() ? referralsSnap.val() : {};
+      const allEnrollments = snapToArray(enrollmentsSnap.val() || {});
+
+      return Object.entries(referrals).map(([code, refData]) => {
+        const relatedEnrollments = allEnrollments.filter(
+          e => String(e.referralCode || '').toUpperCase() === code
+        );
+        return {
+          code,
+          name: refData.name || '',
+          email: refData.email || '',
+          phone: refData.phone || '',
+          city: refData.city || '',
+          upiId: refData.upiId || '',
+          lastActivityAt: refData.lastActivityAt || refData.updatedAt || refData.createdAt,
+          createdAt: refData.createdAt,
+          internCount: relatedEnrollments.length,
+          internIds: relatedEnrollments.map(e => e.internId || e.id),
+          interns: relatedEnrollments.map(e => ({
+            id: e.id,
+            internId: e.internId || e.id,
+            name: e.name || '',
+            email: e.email || '',
+            status: e.status || 'Active',
+            appliedAt: e.createdAt || e.appliedAt,
+            completedAt: e.completedAt,
+            paymentDate: e.paymentDate,
+          })),
+        };
+      });
+    } catch (err) {
+      console.warn('Error in fetchAdminReferralUsersWithInterns:', err.message);
+      return [];
+    }
+  }
+
+  try {
+    const data = await apiFetch('/api/admin-data');
+    const referrals = data.data?.referrals || [];
+    return referrals.map(r => ({
+      code: r.code || r.id,
+      name: r.name || '',
+      email: r.email || '',
+      phone: r.phone || '',
+      city: r.city || '',
+      upiId: r.upiId || '',
+      lastActivityAt: r.lastActivityAt || r.updatedAt || r.createdAt,
+      createdAt: r.createdAt,
+      internCount: Number(r.assignedInternships || 0),
+      internIds: [],
+      interns: [],
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function savePermanentReferralCode(uid, code) {
