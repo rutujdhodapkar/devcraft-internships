@@ -7,6 +7,7 @@ import {
   fetchCareerPaths,
   submitTransactionId,
   isReferralCodeMatched,
+  fetchUserReferralStat,
   PAYMENT_QR_DEFAULT,
   PAYMENT_QR_REFERRAL,
 } from '../services/data';
@@ -47,6 +48,9 @@ export default function StudentDashboard({ user, onExploreClick }) {
   const [txnInputs, setTxnInputs] = useState({});
   const [txnSubmitting, setTxnSubmitting] = useState({});
   const [referralMatchedMap, setReferralMatchedMap] = useState({});
+
+  const [activeTab, setActiveTab] = useState('internships');
+  const [referralStat, setReferralStat] = useState(null);
 
   const handleSubmitTransactionId = async (enrollmentId) => {
     const txnId = (txnInputs[enrollmentId] || '').trim();
@@ -92,15 +96,17 @@ export default function StudentDashboard({ user, onExploreClick }) {
     setLoading(true);
     setError('');
     try {
-      const [data, tmpl, paths] = await Promise.all([
+      const [data, tmpl, paths, refStat] = await Promise.all([
         fetchUserEnrollments(user.uid),
         fetchTemplates(),
         fetchCareerPaths(),
+        fetchUserReferralStat(user.email)
       ]);
       const activeEnrollments = data.filter(e => e.status !== 'Archived');
       setEnrollments(activeEnrollments);
       setTemplates(tmpl);
       setCareerPaths(paths);
+      setReferralStat(refStat);
 
       const matchResults = {};
       await Promise.all(activeEnrollments.map(async (enrollment) => {
@@ -210,23 +216,61 @@ export default function StudentDashboard({ user, onExploreClick }) {
 
         {/* Header */}
         <div style={{ marginBottom: '2.5rem' }}>
-          <span style={{
-            display: 'inline-block',
-            backgroundColor: '#000',
-            color: '#fff',
-            fontSize: '0.7rem',
-            fontWeight: 900,
-            letterSpacing: '2px',
-            padding: '0.3rem 0.75rem',
-            marginBottom: '0.75rem',
-            textTransform: 'uppercase',
-          }}>INTERN DASHBOARD</span>
-          <h2 style={{ fontSize: '2rem', fontWeight: 900, textTransform: 'uppercase', margin: '0 0 0.5rem' }}>
-            Welcome, {user.displayName?.split(' ')[0] || 'Intern'} 👋
-          </h2>
-          <p style={{ color: '#666', fontSize: '0.93rem' }}>
-            Manage your active internships, submit your projects, and download your credentials.
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+            <div>
+              <span style={{
+                display: 'inline-block',
+                backgroundColor: '#000',
+                color: '#fff',
+                fontSize: '0.7rem',
+                fontWeight: 900,
+                letterSpacing: '2px',
+                padding: '0.3rem 0.75rem',
+                marginBottom: '0.75rem',
+                textTransform: 'uppercase',
+              }}>INTERN DASHBOARD</span>
+              <h2 style={{ fontSize: '2rem', fontWeight: 900, textTransform: 'uppercase', margin: '0 0 0.5rem' }}>
+                Welcome, {user.displayName?.split(' ')[0] || 'Intern'} 👋
+              </h2>
+              <p style={{ color: '#666', fontSize: '0.93rem' }}>
+                Manage your active internships, submit your projects, and download your credentials.
+              </p>
+            </div>
+            
+            {/* Tabs for Internships & Referrals */}
+            <div style={{ display: 'flex', gap: '0.5rem', background: '#e0e0e0', padding: '0.3rem', border: '2px solid #000' }}>
+              <button
+                onClick={() => setActiveTab('internships')}
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  border: 'none',
+                  background: activeTab === 'internships' ? '#000' : 'transparent',
+                  color: activeTab === 'internships' ? '#fff' : '#555',
+                  cursor: 'pointer',
+                }}
+              >
+                My Internships
+              </button>
+              <button
+                onClick={() => setActiveTab('referral')}
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 800,
+                  textTransform: 'uppercase',
+                  border: 'none',
+                  background: activeTab === 'referral' ? '#34A853' : 'transparent',
+                  color: activeTab === 'referral' ? '#fff' : '#555',
+                  cursor: 'pointer',
+                }}
+              >
+                Refer & Earn
+              </button>
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -238,6 +282,75 @@ export default function StudentDashboard({ user, onExploreClick }) {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '4rem', color: '#888', fontSize: '1.1rem' }}>
             Loading your internship data…
+          </div>
+        ) : activeTab === 'referral' ? (
+          <div style={{ background: '#fff', border: '2px solid #000', boxShadow: '6px 6px 0 #000', padding: '2rem' }}>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '1rem', color: '#000' }}>
+              Refer & Earn Dashboard
+            </h3>
+            
+            {referralStat ? (
+              <div>
+                <p style={{ fontSize: '0.95rem', color: '#555', marginBottom: '2rem', lineHeight: '1.5' }}>
+                  Share your unique referral link with your friends. When they enroll using your link, it will be tracked here.
+                </p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div style={{ background: '#f8f8f8', border: '2px solid #000', padding: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#666', marginBottom: '0.25rem' }}>
+                        Your Referral Code
+                      </div>
+                      <code style={{ fontSize: '1.25rem', fontWeight: 900, color: '#000' }}>
+                        {referralStat.code}
+                      </code>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#666', marginBottom: '0.25rem' }}>
+                        Shareable Link
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input 
+                          type="text" 
+                          readOnly 
+                          value={`${window.location.origin}/?ref=${referralStat.code}`} 
+                          style={{ padding: '0.5rem', fontSize: '0.85rem', width: '250px', border: '1px solid #ccc', outline: 'none' }}
+                        />
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/?ref=${referralStat.code}`);
+                            alert('Referral link copied!');
+                          }}
+                          className="btn-sharp"
+                          style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', borderRadius: 0 }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+                    <div style={{ border: '2px solid #000', padding: '1.5rem', textAlign: 'center', background: '#fffbea' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 900, color: '#FBBC05' }}>{referralStat.visited || 0}</div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginTop: '0.5rem' }}>Link Visits</div>
+                    </div>
+                    <div style={{ border: '2px solid #000', padding: '1.5rem', textAlign: 'center', background: '#e8f0fe' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 900, color: '#4285F4' }}>{referralStat.assignedInternships || 0}</div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginTop: '0.5rem' }}>Assigned Interns</div>
+                    </div>
+                    <div style={{ border: '2px solid #000', padding: '1.5rem', textAlign: 'center', background: '#e6f4ea' }}>
+                      <div style={{ fontSize: '2rem', fontWeight: 900, color: '#34A853' }}>{referralStat.completedInterns || 0}</div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginTop: '0.5rem' }}>Completed Interns</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: '2rem', textAlign: 'center', background: '#f5f5f5', border: '1px dashed #ccc' }}>
+                <p style={{ color: '#666', fontSize: '0.95rem' }}>You don't have a referral code generated yet. It usually generates automatically upon your first enrollment.</p>
+              </div>
+            )}
           </div>
         ) : enrollments.length === 0 ? (
           <div style={{ background: '#fff', border: '2px solid #000', padding: '3rem', textAlign: 'center', boxShadow: '4px 4px 0 #000' }}>

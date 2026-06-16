@@ -376,6 +376,23 @@ export async function enrollStudent(uid, profile, domainObj) {
       return duplicate;
     }
 
+    if (profile.email) {
+      const referralsSnap = await get(ref(rtdb, 'referrals'));
+      let hasReferral = false;
+      if (referralsSnap.exists()) {
+        const allRefs = snapToArray(referralsSnap.val());
+        hasReferral = allRefs.some(r => r.email === profile.email);
+      }
+      if (!hasReferral) {
+        await createReferral({
+          name: profile.name || profile.displayName || '',
+          email: profile.email,
+          phone: profile.phone || '',
+          city: profile.city || ''
+        });
+      }
+    }
+
     const newRef = push(ref(rtdb, 'enrollments'));
     const enrollmentId = newRef.key;
 
@@ -924,6 +941,50 @@ export async function markReferralContacted(referralCode) {
   }
 
   await apiFetch(`/api/referrals/${code}/contacted`, { method: 'POST' });
+}
+
+// ─── User Referral Stats ────────────────────────────────────────────────────────
+export async function fetchUserReferralStat(email) {
+  if (!email) return null;
+  const cleanEmail = email.toLowerCase().trim();
+
+  if (isFirebaseConfigured && rtdb) {
+    const referralsSnap = await get(ref(rtdb, 'referrals'));
+    let userReferral = null;
+    if (referralsSnap.exists()) {
+      const allRefs = snapToArray(referralsSnap.val());
+      userReferral = allRefs.find(r => r.email?.toLowerCase().trim() === cleanEmail);
+    }
+    if (!userReferral) return null;
+
+    const code = String(userReferral.code || userReferral.id || '').toUpperCase();
+    
+    const enrollmentsSnap = await get(ref(rtdb, 'enrollments'));
+    let assignedCount = 0;
+    let completedCount = 0;
+
+    if (enrollmentsSnap.exists()) {
+      const allEnrollments = snapToArray(enrollmentsSnap.val());
+      const relatedEnrollments = allEnrollments.filter(e => String(e.referralCode || '').toUpperCase() === code);
+      
+      assignedCount = relatedEnrollments.length;
+      completedCount = relatedEnrollments.filter(e => {
+        const projects = Array.isArray(e.projects) ? e.projects : [];
+        const submissions = e.submissions || {};
+        const verifiedCount = projects.filter((_, i) => submissions[i]?.verified).length;
+        return projects.length > 0 && verifiedCount === projects.length;
+      }).length;
+    }
+
+    return {
+      ...userReferral,
+      code,
+      visited: Number(userReferral.visited || 0),
+      assignedInternships: assignedCount,
+      completedInterns: completedCount,
+    };
+  }
+  return null;
 }
 
 // ─── Admin Management ──────────────────────────────────────────────────────────
