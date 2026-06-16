@@ -594,12 +594,13 @@ export async function verifyProject(enrollmentId, projectIndex) {
 
 export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) {
   if (isFirebaseConfigured && rtdb) {
+    const now = new Date().toISOString();
     await update(ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`), {
       feedback,
-      feedbackAt: new Date().toISOString(),
+      feedbackAt: now,
     });
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     });
     return;
   }
@@ -941,6 +942,52 @@ export async function markReferralContacted(referralCode) {
   }
 
   await apiFetch(`/api/referrals/${code}/contacted`, { method: 'POST' });
+}
+
+// ─── Admin Referral Users with Interns ────────────────────────────────────────
+export async function fetchAdminReferralUsersWithInterns() {
+  if (isFirebaseConfigured && rtdb) {
+    const [referralsSnap, enrollmentsSnap] = await Promise.all([
+      get(ref(rtdb, 'referrals')),
+      get(ref(rtdb, 'enrollments')),
+    ]);
+    
+    if (!referralsSnap.exists() || !enrollmentsSnap.exists()) {
+      return [];
+    }
+    
+    const allReferrals = snapToArray(referralsSnap.val());
+    const allEnrollments = snapToArray(enrollmentsSnap.val());
+    
+    return allReferrals.map(referral => {
+      const code = String(referral.code || referral.id || '').toUpperCase();
+      const relatedEnrollments = allEnrollments.filter(e => String(e.referralCode || '').toUpperCase() === code);
+      
+      return {
+        ...referral,
+        code,
+        internCount: relatedEnrollments.length,
+        internIds: relatedEnrollments.map(e => e.internId || e.id).filter(Boolean),
+        lastActivityAt: referral.updatedAt || referral.createdAt,
+        interns: relatedEnrollments.map(enrollment => ({
+          id: enrollment.id,
+          internId: enrollment.internId,
+          name: enrollment.name,
+          email: enrollment.email,
+          domain: enrollment.domain,
+          status: enrollment.status,
+          appliedAt: enrollment.appliedAt || enrollment.createdAt,
+          completedAt: enrollment.completedAt,
+          paymentDate: enrollment.paymentDate,
+          hasMatchedReferral: !!enrollment.referralCode,
+          transactionId: enrollment.transactionId,
+          upiId: enrollment.upiId,
+        }))
+      };
+    });
+  }
+  
+  return [];
 }
 
 // ─── User Referral Stats ────────────────────────────────────────────────────────

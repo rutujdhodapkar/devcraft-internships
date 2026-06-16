@@ -4,6 +4,7 @@ import {
   deleteReferral,
   deleteEnrollment,
   fetchAdminData,
+  fetchAdminReferralUsersWithInterns,
   fetchAdmins,
   addAdmin,
   removeAdmin,
@@ -50,6 +51,8 @@ const TABS = [
   { id: 'referrals', label: 'Referrals' },
   { id: 'add referral', label: '+ Add Referral' },
   { id: 'visits', label: 'Visits' },
+  { id: 'referral users', label: 'Referral Users' },
+  { id: 'verify ai', label: 'Verify with AI' },
   { id: 'manage admins', label: 'Admins' },
 ];
 
@@ -63,6 +66,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [adminActionLoading, setAdminActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [referralUsersData, setReferralUsersData] = useState([]);
+  const [referralDataLoading, setReferralDataLoading] = useState(false);
 
   const [referralForm, setReferralForm] = useState({ name: '', email: '', city: '', phone: '', upiId: '' });
   const [newCode, setNewCode] = useState('');
@@ -90,6 +95,17 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setFeedbackInputs(prev => ({ ...prev, ...inputs }));
     }
   }, [selectedIntern]);
+
+  // Load referral users data when tab is active
+  useEffect(() => {
+    if (activeTab === 'referral users') {
+      setReferralDataLoading(true);
+      fetchAdminReferralUsersWithInterns()
+        .then(setReferralUsersData)
+        .catch(err => console.warn('Failed to load referral users:', err.message))
+        .finally(() => setReferralDataLoading(false));
+    }
+  }, [activeTab]);
 
   const handleSaveFeedback = async (enrollmentId, projectIdx) => {
     const key = `${enrollmentId}_${projectIdx}`;
@@ -1234,7 +1250,140 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           />
         )}
 
-        {/* ── 11. MANAGE ADMINS ── */}
+        {/* ── 11. REFERRAL USERS ── */}
+        {activeTab === 'referral users' && (
+          <div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1.5rem' }}>Referral Users & Their Interns ({referralUsersData.length})</h3>
+            {referralDataLoading ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>Loading referral users…</div>
+            ) : referralUsersData.length === 0 ? (
+              <EmptyBox msg="No referral users found." />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                {referralUsersData.map(referral => (
+                  <div key={referral.code} style={{ border: '2px solid #000', padding: '1.5rem', boxShadow: '4px 4px 0 #000', background: '#fff' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+                      <div>
+                        <div style={{ fontSize: '0.72rem', fontWeight: 900, color: '#888', textTransform: 'uppercase' }}>Referral User</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 900, color: '#000', marginTop: '0.25rem' }}>{referral.name || '-'}</div>
+                        <div style={{ fontSize: '0.82rem', color: '#555', marginTop: '0.35rem', lineHeight: 1.6 }}>
+                          <div><strong>Code:</strong> {referral.code}</div>
+                          <div><strong>Email:</strong> {referral.email || '-'}</div>
+                          <div><strong>Phone:</strong> {referral.phone || '-'}</div>
+                          <div><strong>City:</strong> {referral.city || '-'}</div>
+                          <div><strong>UPI ID:</strong> {referral.upiId || '-'}</div>
+                          <div><strong>Last Activity:</strong> {new Date(referral.lastActivityAt || referral.createdAt).toLocaleString()}</div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.8rem', color: '#888', marginBottom: '0.25rem' }}>Interns</div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#000' }}>{referral.internCount}</div>
+                      </div>
+                    </div>
+                    
+                    {referral.internCount > 0 ? (
+                      <div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', color: '#555', marginBottom: '0.75rem' }}>
+                          Assigned Interns ({referral.internIds.length} {referral.internIds.length === 1 ? 'Intern' : 'Interns'})
+                        </div>
+                        {referral.internCount <= 5 ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '0.75rem' }}>
+                            {referral.interns.map(intern => (
+                              <div 
+                                key={intern.id} 
+                                style={{ 
+                                  border: '1px solid #ddd', 
+                                  padding: '1rem', 
+                                  background: '#fafafa', 
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                  ':hover': { borderColor: '#34A853', boxShadow: '2px 2px 0 #34A853' }
+                                }}
+                                onClick={() => setSelectedIntern(intern)}
+                              >
+                                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#000', marginBottom: '0.5rem' }}>{intern.internId || intern.id}</div>
+                                <div style={{ fontSize: '0.8rem', color: '#555', marginBottom: '0.25rem' }}>{intern.name}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#555', marginBottom: '0.5rem' }}>{intern.email}</div>
+                                <div style={{ fontSize: '0.7rem', color: intern.status === 'Completed' ? '#34A853' : intern.status === 'Active' ? '#FBBC05' : '#888' }}>{intern.status}</div>
+                                <div style={{ fontSize: '0.7rem', color: '#888' }}>{intern.appliedAt ? `Applied: ${new Date(intern.appliedAt).toLocaleDateString()}` : ''}</div>
+                                {intern.completedAt && (
+                                  <div style={{ fontSize: '0.7rem', color: '#34A853', marginTop: '0.25rem' }}>Completed: {new Date(intern.completedAt).toLocaleDateString()}</div>
+                                )}
+                                {intern.paymentDate && (
+                                  <div style={{ fontSize: '0.7rem', color: '#34A853', marginTop: '0.25rem' }}>Paid: {new Date(intern.paymentDate).toLocaleDateString()}</div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ border: '1px solid #ddd', borderRadius: '6px', overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: '#f5f5f5', borderBottom: '1px solid #ddd' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#000' }}>Interns (showing first 5 of {referral.internCount})</span>
+                              <span style={{ fontSize: '0.75rem', color: '#888' }}>{referral.interns.length} displayed</span>
+                            </div>
+                            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: '0.75rem', padding: '0.75rem' }}>
+                                {referral.interns.slice(0, 5).map(intern => (
+                                  <div 
+                                    key={intern.id} 
+                                    style={{ 
+                                      border: '1px solid #ddd', 
+                                      padding: '1rem', 
+                                      background: '#fafafa', 
+                                      cursor: 'pointer'
+                                    }}
+                                    onClick={() => setSelectedIntern(intern)}
+                                  >
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#000', marginBottom: '0.5rem' }}>{intern.internId || intern.id}</div>
+                                    <div style={{ fontSize: '0.8rem', color: '#555', marginBottom: '0.25rem' }}>{intern.name}</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#555', marginBottom: '0.5rem' }}>{intern.email}</div>
+                                    <div style={{ fontSize: '0.7rem', color: intern.status === 'Completed' ? '#34A853' : intern.status === 'Active' ? '#FBBC05' : '#888' }}>{intern.status}</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '1rem', background: '#f8f8f8', border: '1px dashed #ccc', textAlign: 'center', color: '#888' }}>
+                        No interns assigned yet.
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── 12. VERIFY WITH AI ── */}
+        {activeTab === 'verify ai' && (
+          <div style={{ background: '#fff', border: '2px solid #000', boxShadow: '6px 6px 0 #000', padding: '2rem' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1.5rem' }}>Verify with AI</h3>
+            <div style={{ border: '2px dashed #ddd', padding: '3rem', textAlign: 'center', background: '#f9f9f9' }}>
+              <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', color: '#555' }}>AI Code Verification</h4>
+              <p style={{ color: '#666', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+                This feature uses NVIDIA's AI models to automatically verify internship task submissions.
+              </p>
+              <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                <strong>API Key:</strong> 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
+              </p>
+              <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
+                <strong>Model:</strong> meta/llama-3.3-70b-instruct
+              </p>
+              <button
+                className="btn-sharp"
+                style={{ padding: '0.8rem 2rem', marginTop: '1rem' }}
+                onClick={() => alert('AI Verification module would be implemented here')}
+              >
+                Configure & Test AI Verification
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── 13. MANAGE ADMINS ── */}
         {activeTab === 'manage admins' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '2rem' }}>
             <div style={{ border: '2px solid #000', padding: '1.75rem', boxShadow: '4px 4px 0 #000' }}>
