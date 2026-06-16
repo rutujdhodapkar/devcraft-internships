@@ -134,6 +134,8 @@ export default function App() {
   const [idCardEnrollment, setIdCardEnrollment] = useState(null);
   const [idCardLoading, setIdCardLoading] = useState(false);
 
+  const [showEarnModal, setShowEarnModal] = useState(false);
+
   // Listen to Firebase Auth state
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -511,17 +513,11 @@ export default function App() {
               }
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
-              onEarnClick={() => {
-                setCurrentView("site");
-                setTimeout(() => {
-                  document
-                    .getElementById("earn")
-                    ?.scrollIntoView({ behavior: "smooth" });
-                }, 150);
-              }}
+              onEarnClick={() => setShowEarnModal(true)}
             />
             <StudentDashboard
               user={user}
+              userProfile={userProfile}
               onExploreClick={() => {
                 setCurrentView("site");
                 setTimeout(() => {
@@ -551,14 +547,7 @@ export default function App() {
               }
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
-              onEarnClick={() => {
-                setCurrentView("site");
-                setTimeout(() => {
-                  document
-                    .getElementById("earn")
-                    ?.scrollIntoView({ behavior: "smooth" });
-                }, 150);
-              }}
+              onEarnClick={() => setShowEarnModal(true)}
             />
             <ReferralDashboard
               user={user}
@@ -586,12 +575,8 @@ export default function App() {
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => {
-                setCurrentView("site");
-                setTimeout(() => {
-                  document
-                    .getElementById("earn")
-                    ?.scrollIntoView({ behavior: "smooth" });
-                }, 150);
+                const el = document.getElementById("earn");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
             />
             <Hero
@@ -650,6 +635,55 @@ export default function App() {
             setIdCardEnrollment(null);
           }}
         />
+      )}
+
+      {showEarnModal && (
+        <div
+          onClick={() => setShowEarnModal(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "flex-start",
+            zIndex: 1500,
+            overflowY: "auto",
+            padding: "2rem 1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: "820px", position: "relative" }}
+          >
+            <button
+              onClick={() => setShowEarnModal(false)}
+              style={{
+                position: "absolute",
+                top: "0.5rem",
+                right: "0.5rem",
+                zIndex: 10,
+                background: "#000",
+                border: "none",
+                color: "#fff",
+                width: "32px",
+                height: "32px",
+                cursor: "pointer",
+                fontSize: "1.2rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              ×
+            </button>
+            <EarnSection
+              user={user}
+              userProfile={userProfile}
+              onLoginClick={handleLoginClick}
+            />
+          </div>
+        </div>
       )}
 
       {showProfilePrompt && (

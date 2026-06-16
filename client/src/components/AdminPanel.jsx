@@ -97,6 +97,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [verifyingAll, setVerifyingAll] = useState(false);
   const [pushingAll, setPushingAll] = useState(false);
 
+  // Referrals tab state
+  const [referralDateFrom, setReferralDateFrom] = useState("");
+  const [referralDateTo, setReferralDateTo] = useState("");
+  const [doneReferralCodes, setDoneReferralCodes] = useState(new Set());
+
   // Earn Settings state
   const [earnSettings, setEarnSettings] = useState({
     rewardPerCompletion: 20,
@@ -2738,24 +2743,127 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 link: <code>/?ref={newCode}</code>
               </div>
             )}
+
+            {/* Filters */}
+            <div
+              style={{
+                display: "flex",
+                gap: "1rem",
+                flexWrap: "wrap",
+                alignItems: "flex-end",
+                marginBottom: "1.5rem",
+                padding: "1rem",
+                border: "2px solid #000",
+                background: "#fafafa",
+              }}
+            >
+              <div>
+                <label
+                  style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    display: "block",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  value={referralDateFrom}
+                  onChange={(e) => setReferralDateFrom(e.target.value)}
+                  style={s}
+                />
+              </div>
+              <div>
+                <label
+                  style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    display: "block",
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  value={referralDateTo}
+                  onChange={(e) => setReferralDateTo(e.target.value)}
+                  style={s}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setReferralDateFrom("");
+                  setReferralDateTo("");
+                }}
+                style={{
+                  padding: "0.4rem 0.9rem",
+                  border: "2px solid #000",
+                  background: "#fff",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                }}
+              >
+                Clear Filter
+              </button>
+              <div
+                style={{
+                  marginLeft: "auto",
+                  fontSize: "0.82rem",
+                  color: "#555",
+                }}
+              >
+                Sorted by most referred on top
+              </div>
+            </div>
+
             {data.referrals.length === 0 ? (
               <EmptyBox msg="No referral users yet." />
             ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "1rem",
-                }}
-              >
-                {data.referrals.map((referral) => (
+              (() => {
+                // Apply date filter
+                const filtered = data.referrals.filter((r) => {
+                  if (!referralDateFrom && !referralDateTo) return true;
+                  const created = new Date(r.createdAt || 0);
+                  if (referralDateFrom && created < new Date(referralDateFrom))
+                    return false;
+                  if (
+                    referralDateTo &&
+                    created > new Date(referralDateTo + "T23:59:59")
+                  )
+                    return false;
+                  return true;
+                });
+
+                // Sort by most assigned internships (most referred) on top
+                const sorted = [...filtered].sort(
+                  (a, b) =>
+                    (Number(b.assignedInternships) || 0) -
+                    (Number(a.assignedInternships) || 0),
+                );
+
+                const active = sorted.filter(
+                  (r) => !doneReferralCodes.has(r.code),
+                );
+                const done = sorted.filter((r) =>
+                  doneReferralCodes.has(r.code),
+                );
+
+                const renderReferralCard = (referral, isDone) => (
                   <div
                     key={referral.code || referral.id}
                     style={{
-                      border: "2px solid #000",
+                      border: isDone ? "2px solid #aaa" : "2px solid #000",
                       padding: "1.25rem",
-                      background: "#fff",
-                      boxShadow: "3px 3px 0 #000",
+                      background: isDone ? "#f5f5f5" : "#fff",
+                      boxShadow: isDone ? "none" : "3px 3px 0 #000",
+                      opacity: isDone ? 0.7 : 1,
                     }}
                   >
                     <div
@@ -2810,6 +2918,14 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           <div>
                             <strong>UPI ID:</strong> {referral.upiId || "-"}
                           </div>
+                          {referral.createdAt && (
+                            <div>
+                              <strong>Added:</strong>{" "}
+                              {new Date(
+                                referral.createdAt,
+                              ).toLocaleDateString()}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div
@@ -2830,21 +2946,73 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         >
                           /?ref={referral.code}
                         </code>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteReferral(referral.code)}
+                        <div
                           style={{
-                            padding: "0.25rem 0.6rem",
-                            fontSize: "0.72rem",
-                            fontWeight: 700,
-                            border: "2px solid #EA4335",
-                            background: "#fff",
-                            color: "#EA4335",
-                            cursor: "pointer",
+                            display: "flex",
+                            gap: "0.4rem",
+                            flexWrap: "wrap",
+                            justifyContent: "flex-end",
                           }}
                         >
-                          Delete
-                        </button>
+                          {!isDone ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDoneReferralCodes(
+                                  (prev) => new Set([...prev, referral.code]),
+                                )
+                              }
+                              style={{
+                                padding: "0.25rem 0.75rem",
+                                fontSize: "0.72rem",
+                                fontWeight: 700,
+                                border: "2px solid #34A853",
+                                background: "#34A853",
+                                color: "#fff",
+                                cursor: "pointer",
+                              }}
+                            >
+                              ✓ Done
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDoneReferralCodes((prev) => {
+                                  const s = new Set(prev);
+                                  s.delete(referral.code);
+                                  return s;
+                                })
+                              }
+                              style={{
+                                padding: "0.25rem 0.75rem",
+                                fontSize: "0.72rem",
+                                fontWeight: 700,
+                                border: "2px solid #888",
+                                background: "#fff",
+                                color: "#888",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Undo
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteReferral(referral.code)}
+                            style={{
+                              padding: "0.25rem 0.6rem",
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                              border: "2px solid #EA4335",
+                              background: "#fff",
+                              color: "#EA4335",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -2862,13 +3030,14 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         value={referral.visited || 0}
                       />
                       <ReferralStat
-                        label="Assigned Internships"
+                        label="Assigned"
                         value={referral.assignedInternships || 0}
+                        color="#4285F4"
                       />
                       <ReferralStat
                         label="Completed"
                         value={referral.completedInterns || 0}
-                        color="#4285F4"
+                        color="#34A853"
                       />
                       <ReferralStat
                         label="Completed & Paid"
@@ -2876,7 +3045,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         color="#34A853"
                       />
                       <ReferralStat
-                        label="Completed (Not Paid)"
+                        label="Not Paid"
                         value={referral.completedNotPaidInterns || 0}
                         color="#FBBC05"
                       />
@@ -2895,25 +3064,74 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       }}
                     >
                       <InternIdList
-                        title="Assigned Intern IDs"
+                        title="Assigned IDs"
                         ids={referral.assignedInternIds}
                       />
                       <InternIdList
-                        title="Completed Intern IDs"
+                        title="Completed IDs"
                         ids={referral.completedInternIds}
                       />
                       <InternIdList
-                        title="Completed & Paid IDs"
+                        title="Paid IDs"
                         ids={referral.completedAndPaidInternIds}
                       />
                       <InternIdList
-                        title="Completed (Not Paid) IDs"
+                        title="Not Paid IDs"
                         ids={referral.completedNotPaidInternIds}
                       />
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+
+                return (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "1rem",
+                    }}
+                  >
+                    {active.length === 0 && done.length === 0 && (
+                      <EmptyBox msg="No referrals match the selected date range." />
+                    )}
+                    {active.map((r) => renderReferralCard(r, false))}
+
+                    {done.length > 0 && (
+                      <>
+                        <div
+                          style={{
+                            borderTop: "2px dashed #ccc",
+                            paddingTop: "1.5rem",
+                            marginTop: "0.5rem",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: 800,
+                              color: "#888",
+                              textTransform: "uppercase",
+                              marginBottom: "1rem",
+                              letterSpacing: "0.05em",
+                            }}
+                          >
+                            ✓ Done ({done.length})
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "0.75rem",
+                            }}
+                          >
+                            {done.map((r) => renderReferralCard(r, true))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()
             )}
           </>
         )}

@@ -39,7 +39,18 @@ async function apiFetch(path, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
   });
-  const data = await response.json();
+  const text = await response.text();
+  if (!text || !text.trim()) {
+    throw new Error(
+      "Server returned an empty response. Make sure the server is running.",
+    );
+  }
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Server returned invalid JSON: " + text.slice(0, 150));
+  }
   if (!response.ok || data.success === false) {
     throw new Error(data.message || "Request failed.");
   }
