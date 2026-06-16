@@ -199,7 +199,7 @@ export default function App() {
               // If they already have applied internships, direct open their dashboard
               try {
                 const userEnrs = await fetchUserEnrollments(currentUser.uid);
-                if (currentView !== 'admin' && userEnrs.length > 0) {
+                if (currentView !== 'admin' && currentView !== 'site' && userEnrs.length > 0) {
                   setCurrentView('dashboard');
                 } else if (pendingEnrollmentDomain) {
                   await enrollStudent(currentUser.uid, profile, pendingEnrollmentDomain);
