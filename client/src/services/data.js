@@ -1118,3 +1118,11 @@ export async function fetchPermanentReferralCode(uid) {
   }
   return null;
 }
+
+// ─── AI Task Verification ──────────────────────────────────────────────────────
+export async function verifyTaskWithAI({ taskTitle, taskDescription, submissionText, submissionUrl, internName }) {
+  return await apiFetch('/api/ai/verify-task', {
+    method: 'POST',
+    body: JSON.stringify({ taskTitle, taskDescription, submissionText, submissionUrl, internName }),
+  });
+}

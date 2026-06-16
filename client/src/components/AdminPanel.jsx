@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   createReferral,
   deleteReferral,
@@ -22,6 +22,7 @@ import {
   saveProjectFeedback,
   rejectProject,
   fetchEnrollmentById,
+  verifyTaskWithAI,
 } from '../services/data';
 import { openCertificatePdf } from '../utils/certificatePdf';
 
@@ -76,6 +77,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [rejectingProject, setRejectingProject] = useState({}); // { key: bool }
   const [showRejectInput, setShowRejectInput] = useState({}); // { key: bool }
   const [rejectFeedback, setRejectFeedback] = useState({}); // { key: string }
+
+  // AI Verification state
+  const [aiVerifying, setAiVerifying] = useState({}); // { [subKey]: bool }
+  const [aiResults, setAiResults] = useState({}); // { [subKey]: { verified, reason, message, confidence } }
+  const [aiError, setAiError] = useState('');
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   // Task feedback & certificate approval states
@@ -240,6 +246,24 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     } finally {
       setVerifyingProject(prev => ({ ...prev, [key]: false }));
     }
+  };
+
+  const noticeTimers = useRef({});
+  const [noticeSaving, setNoticeSaving] = useState({});
+
+  const autoSaveNotice = (pathIdx, pIdx, notice) => {
+    const key = `${pathIdx}_${pIdx}`;
+    if (noticeTimers.current[key]) clearTimeout(noticeTimers.current[key]);
+    noticeTimers.current[key] = setTimeout(async () => {
+      setNoticeSaving(prev => ({ ...prev, [key]: true }));
+      try {
+        await saveCareerPaths(careerPaths);
+        setNoticeSaving(prev => ({ ...prev, [key]: false }));
+      } catch (err) {
+        setNoticeSaving(prev => ({ ...prev, [key]: false }));
+        setError('Failed to save notice: ' + err.message);
+      }
+    }, 800);
   };
 
   const handleRejectProject = async (enrollmentId, projectIdx) => {
@@ -1016,6 +1040,22 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     style={s}
                                   />
                                 </div>
+                                <div style={{ marginTop: '0.5rem' }}>
+                                  <label style={{ fontSize: '0.7rem', fontWeight: 700, display: 'block', marginBottom: '0.2rem' }}>
+                                    Notice to Intern {noticeSaving[`${idx}_${pIdx}`] ? '(saving…)' : ''}
+                                  </label>
+                                  <textarea
+                                    className="input-sharp"
+                                    rows={2}
+                                    value={proj.notice || ''}
+                                    onChange={e => {
+                                      updateProj('notice', e.target.value);
+                                      autoSaveNotice(idx, pIdx, e.target.value);
+                                    }}
+                                    placeholder="Optional notice or instructions displayed to the intern for this task…"
+                                    style={{ ...s, resize: 'vertical', borderColor: proj.notice ? '#FBBC05' : '#000' }}
+                                  />
+                                </div>
                               </div>
                             );
                           })}
@@ -1361,25 +1401,201 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === 'verify ai' && (
           <div style={{ background: '#fff', border: '2px solid #000', boxShadow: '6px 6px 0 #000', padding: '2rem' }}>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1.5rem' }}>Verify with AI</h3>
-            <div style={{ border: '2px dashed #ddd', padding: '3rem', textAlign: 'center', background: '#f9f9f9' }}>
-              <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', color: '#555' }}>AI Code Verification</h4>
-              <p style={{ color: '#666', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-                This feature uses NVIDIA's AI models to automatically verify internship task submissions.
-              </p>
-              <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                <strong>API Key:</strong> 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
-              </p>
-              <p style={{ color: '#888', fontSize: '0.85rem', marginBottom: '0.5rem' }}>
-                <strong>Model:</strong> meta/llama-3.3-70b-instruct
-              </p>
-              <button
-                className="btn-sharp"
-                style={{ padding: '0.8rem 2rem', marginTop: '1rem' }}
-                onClick={() => alert('AI Verification module would be implemented here')}
-              >
-                Configure & Test AI Verification
-              </button>
-            </div>
+            <p style={{ color: '#666', marginBottom: '1rem', fontSize: '0.85rem' }}>
+              Uses NVIDIA LLM to automatically evaluate intern task submissions. The AI reads the task description, reviews the submission, and returns a verified/rejected result with feedback.
+            </p>
+
+            {(() => {
+              // Collect all unverified submissions across all enrollments
+              const unverifiedList = [];
+              const activeEnrollments = data.requests.filter(e => e.status !== 'Archived');
+              activeEnrollments.forEach(enrollment => {
+                const projects = getProjectsForEnrollment(enrollment);
+                const submissions = getSubmissions(enrollment);
+                projects.forEach((proj, pIdx) => {
+                  const sub = submissions[pIdx];
+                  if (sub && sub.submittedAt && sub.verified !== true && !sub.resubmit) {
+                    const projTitle = typeof proj === 'object' ? (proj.title || '') : proj;
+                    const projDesc = typeof proj === 'object' ? (proj.description || '') : '';
+                    unverifiedList.push({
+                      key: `${enrollment.id}_${pIdx}`,
+                      enrollmentId: enrollment.id,
+                      projectIndex: pIdx,
+                      projectTitle: projTitle,
+                      projectDescription: projDesc,
+                      internName: enrollment.name,
+                      internEmail: enrollment.email,
+                      domain: enrollment.domain,
+                      submissionText: sub.text || '',
+                      submittedAt: sub.submittedAt,
+                    });
+                  }
+                });
+              });
+
+              if (unverifiedList.length === 0) {
+                return (
+                  <div style={{ border: '2px dashed #ddd', padding: '3rem', textAlign: 'center', background: '#f9f9f9' }}>
+                    <h4 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem', color: '#555' }}>No Pending Submissions</h4>
+                    <p style={{ color: '#888' }}>All submissions have been verified. Check back when interns submit new work.</p>
+                  </div>
+                );
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#555', marginBottom: '0.5rem' }}>
+                    <strong>{unverifiedList.length}</strong> submission{unverifiedList.length !== 1 ? 's' : ''} pending AI review
+                  </div>
+                  {unverifiedList.map(item => {
+                    const subKey = item.key;
+                    const isVerifying = aiVerifying[subKey];
+                    const result = aiResults[subKey];
+
+                    return (
+                      <div key={subKey} style={{ border: '2px solid #000', padding: '1.25rem', background: '#fafafa' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div>
+                            <strong style={{ fontSize: '0.9rem' }}>{item.internName}</strong>
+                            <span style={{ color: '#888', fontSize: '0.78rem', marginLeft: '0.5rem' }}>{item.internEmail}</span>
+                          </div>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#555', background: '#eee', padding: '0.2rem 0.5rem' }}>{item.domain}</span>
+                        </div>
+
+                        <div style={{ marginBottom: '0.5rem' }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', color: '#888' }}>Task #{item.projectIndex + 1}:</span>
+                          <span style={{ fontWeight: 700, marginLeft: '0.4rem' }}>{item.projectTitle}</span>
+                        </div>
+                        {item.projectDescription && (
+                          <div style={{ fontSize: '0.82rem', color: '#555', marginBottom: '0.5rem' }}>{item.projectDescription}</div>
+                        )}
+
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', color: '#888', marginBottom: '0.25rem' }}>Submission:</div>
+                          <div style={{ background: '#fff', border: '1px solid #ddd', padding: '0.6rem', fontSize: '0.82rem', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '120px', overflow: 'auto' }}>
+                            {item.submissionText || <span style={{ color: '#999', fontStyle: 'italic' }}>No submission text</span>}
+                          </div>
+                        </div>
+
+                        {result && (
+                          <div style={{
+                            border: `2px solid ${result.verified ? '#34A853' : '#EA4335'}`,
+                            background: result.verified ? '#EBFCEF' : '#FFF5F5',
+                            padding: '0.75rem',
+                            marginBottom: '0.75rem',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                              <span style={{
+                                fontSize: '0.72rem', fontWeight: 900, textTransform: 'uppercase',
+                                color: result.verified ? '#34A853' : '#EA4335',
+                              }}>
+                                {result.verified ? 'VERIFIED' : 'REJECTED'}
+                              </span>
+                              <span style={{ fontSize: '0.72rem', color: '#888' }}>Confidence: {result.confidence}%</span>
+                            </div>
+                            <div style={{ fontSize: '0.82rem', color: '#333', marginBottom: '0.3rem' }}><strong>Reason:</strong> {result.reason}</div>
+                            <div style={{ fontSize: '0.82rem', color: '#555' }}><strong>Message for intern:</strong> {result.message}</div>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {!result && (
+                            <button
+                              className="btn-sharp"
+                              disabled={isVerifying}
+                              onClick={async () => {
+                                setAiVerifying(prev => ({ ...prev, [subKey]: true }));
+                                setAiError('');
+                                try {
+                                  const res = await verifyTaskWithAI({
+                                    taskTitle: item.projectTitle,
+                                    taskDescription: item.projectDescription,
+                                    submissionText: item.submissionText,
+                                    internName: item.internName,
+                                  });
+                                  if (res.success && res.data) {
+                                    setAiResults(prev => ({ ...prev, [subKey]: res.data }));
+                                  }
+                                } catch (err) {
+                                  setAiError(err.message);
+                                } finally {
+                                  setAiVerifying(prev => ({ ...prev, [subKey]: false }));
+                                }
+                              }}
+                              style={{ padding: '0.5rem 1.2rem', fontSize: '0.82rem' }}
+                            >
+                              {isVerifying ? '⟳ Running AI…' : 'Verify with AI'}
+                            </button>
+                          )}
+
+                          {result && result.verified && (
+                            <button
+                              className="btn-sharp"
+                              style={{ background: '#34A853', borderColor: '#34A853', color: '#fff', padding: '0.5rem 1.2rem', fontSize: '0.82rem' }}
+                              onClick={async () => {
+                                try {
+                                  await verifyProject(item.enrollmentId, item.projectIndex);
+                                  setAiResults(prev => {
+                                    const next = { ...prev };
+                                    delete next[subKey];
+                                    return next;
+                                  });
+                                  await loadData();
+                                  setSuccessMsg(`${item.internName}'s Task #${item.projectIndex + 1} verified by AI!`);
+                                } catch (err) {
+                                  setError('Failed to mark as verified: ' + err.message);
+                                }
+                              }}
+                            >
+                              ✓ Accept & Mark Verified
+                            </button>
+                          )}
+
+                          {result && !result.verified && (
+                            <button
+                              className="btn-sharp-outline"
+                              style={{ borderColor: '#EA4335', color: '#EA4335', padding: '0.5rem 1.2rem', fontSize: '0.82rem' }}
+                              onClick={async () => {
+                                try {
+                                  await rejectProject(item.enrollmentId, item.projectIndex, result.message || result.reason);
+                                  setAiResults(prev => {
+                                    const next = { ...prev };
+                                    delete next[subKey];
+                                    return next;
+                                  });
+                                  await loadData();
+                                  setSuccessMsg(`Resubmission requested for ${item.internName}'s Task #${item.projectIndex + 1} with AI feedback.`);
+                                } catch (err) {
+                                  setError('Failed to send rejection: ' + err.message);
+                                }
+                              }}
+                            >
+                              ✗ Reject & Send Feedback
+                            </button>
+                          )}
+
+                          {result && (
+                            <button
+                              style={{ border: '1px solid #888', color: '#888', background: 'none', cursor: 'pointer', padding: '0.5rem 1.2rem', fontSize: '0.82rem' }}
+                              onClick={() => {
+                                setAiResults(prev => {
+                                  const next = { ...prev };
+                                  delete next[subKey];
+                                  return next;
+                                });
+                              }}
+                            >
+                              Dismiss
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {aiError && <div style={{ border: '2px solid #EA4335', padding: '0.7rem', color: '#EA4335', background: '#FFF5F5', fontSize: '0.85rem' }}>{aiError}</div>}
+                </div>
+              );
+            })()}
           </div>
         )}
 

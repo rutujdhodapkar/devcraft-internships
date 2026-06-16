@@ -273,6 +273,89 @@ app.delete('/api/admins/:email', async (req, res) => {
   return res.json({ success: true, data: updated });
 });
 
+// ─── AI Task Verification (NVIDIA API) ─────────────────────────────────────────
+app.post('/api/ai/verify-task', async (req, res) => {
+  const { taskTitle, taskDescription, submissionText, submissionUrl, internName } = req.body;
+
+  if (!taskTitle || !submissionText) {
+    return res.status(400).json({ success: false, message: 'Task title and submission text are required.' });
+  }
+
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ success: false, message: 'NVIDIA API key not configured on server.' });
+  }
+
+  try {
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'meta/llama-3.3-70b-instruct',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an AI internship task verifier. Evaluate the student's project submission against the task requirements.
+
+Respond ONLY with a valid JSON object (no markdown, no extra text):
+{
+  "verified": boolean,
+  "confidence": number (0-100),
+  "reason": "brief explanation of your decision",
+  "message": "constructive feedback for the student; if rejected explain what is missing or wrong, if verified give positive confirmation"
+}`
+          },
+          {
+            role: 'user',
+            content: `Task Title: ${taskTitle}
+Task Description: ${taskDescription || 'No description provided'}
+Student Name: ${internName || 'Unknown'}
+Student's Submission: ${submissionText}
+${submissionUrl ? `Submission URL: ${submissionUrl}` : ''}
+
+Evaluate this submission and respond with JSON only.`
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 600,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`NVIDIA API error ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    let result;
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON in response');
+      }
+    } catch (parseErr) {
+      result = {
+        verified: false,
+        confidence: 0,
+        reason: 'AI response could not be parsed',
+        message: 'AI verification failed to produce a clear result. Please review manually.',
+      };
+    }
+
+    return res.json({ success: true, data: { ...result, rawResponse: content } });
+  } catch (error) {
+    console.error('AI verification error:', error.message);
+    return res.status(500).json({ success: false, message: 'AI verification failed: ' + error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });
