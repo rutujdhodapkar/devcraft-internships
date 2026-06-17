@@ -986,6 +986,20 @@ th {
   .grid-2, .grid-3, .grid-4 {
     grid-template-columns: 1fr;
   }
+  .career-paths-grid {
+    display: flex !important;
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    gap: 1.5rem;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 0.5rem;
+  }
+  .career-paths-grid .card-sharp {
+    flex: 0 0 auto;
+    width: 80vw;
+    scroll-snap-align: start;
+  }
   .container {
     padding: 0 1.5rem;
   }
