@@ -103,6 +103,8 @@ const DEFAULT_CAREER_PATHS = [
       "Weather Web App",
       "Task Manager API",
     ],
+    paymentQr:
+      "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png",
   },
   {
     id: "path_java",
@@ -121,6 +123,8 @@ const DEFAULT_CAREER_PATHS = [
       "REST API Backend",
       "Student Registry Platform",
     ],
+    paymentQr:
+      "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png",
   },
   {
     id: "path_web",
@@ -139,6 +143,8 @@ const DEFAULT_CAREER_PATHS = [
       "Interactive Quiz App",
       "Admin Dashboard UI",
     ],
+    paymentQr:
+      "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png",
   },
 ];
 
@@ -658,13 +664,43 @@ export async function submitProject(
         submittedAt: new Date().toISOString(),
         verified: false,
         verifiedAt: null,
-        resubmit: false, // clear resubmit flag
+        resubmit: false,
       },
     );
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       updatedAt: new Date().toISOString(),
     });
     return;
+  }
+  throw new Error("Firebase RTDB is not configured.");
+}
+
+export async function submitQuizAnswer(enrollmentId, projectIndex, answer, project) {
+  if (isFirebaseConfigured && rtdb) {
+    const userAnswer = String(answer || "").trim().toLowerCase();
+    const correctAnswer = String(project.quizAnswer || "").trim().toLowerCase();
+    const correct = userAnswer === correctAnswer;
+    const score = correct ? 100 : 0;
+    const passingGrade = Number(project.passingGrade) || 100;
+    const passed = score >= passingGrade;
+
+    await update(
+      ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),
+      {
+        text: answer,
+        submittedAt: new Date().toISOString(),
+        verified: passed,
+        verifiedAt: passed ? new Date().toISOString() : null,
+        resubmit: !passed,
+        quizCorrect: correct,
+        quizScore: score,
+        quizPassed: passed,
+      },
+    );
+    await update(ref(rtdb, `enrollments/${enrollmentId}`), {
+      updatedAt: new Date().toISOString(),
+    });
+    return { correct, score, passed };
   }
   throw new Error("Firebase RTDB is not configured.");
 }

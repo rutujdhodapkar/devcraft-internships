@@ -1333,14 +1333,29 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     {enrollment.domain}
                                   </div>
                                   <div
-                                    style={{
-                                      marginTop: "0.35rem",
-                                      fontWeight: 800,
-                                      color: "#000",
-                                    }}
-                                  >
-                                    Task {idx + 1}: {title}
-                                  </div>
+                                      style={{
+                                        marginTop: "0.35rem",
+                                        fontWeight: 800,
+                                        color: "#000",
+                                      }}
+                                    >
+                                      Task {idx + 1}: {title}
+                                      {(project?.type || "text") === "quiz" && (
+                                        <span
+                                          style={{
+                                            marginLeft: "0.5rem",
+                                            background: "#FBBC05",
+                                            color: "#5a4000",
+                                            fontSize: "0.6rem",
+                                            fontWeight: 900,
+                                            padding: "0.15rem 0.4rem",
+                                            textTransform: "uppercase",
+                                          }}
+                                        >
+                                          Quiz
+                                        </span>
+                                      )}
+                                    </div>
                                 </div>
                                 <div
                                   style={{
@@ -1421,6 +1436,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                               >
                                 {submission.text}
                               </div>
+                              {submission.quizScore !== undefined && (
+                                <div
+                                  style={{
+                                    fontSize: "0.82rem",
+                                    fontWeight: 700,
+                                    color: submission.quizPassed
+                                      ? "#34A853"
+                                      : "#EA4335",
+                                  }}
+                                >
+                                  Quiz Score: {submission.quizScore}% —{" "}
+                                  {submission.quizPassed ? "PASSED" : "FAILED"}
+                                </div>
+                              )}
                               <div
                                 style={{ fontSize: "0.72rem", color: "#777" }}
                               >
@@ -2197,8 +2226,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       description: "Brief description.",
                       features: ["Feature 1"],
                       projects: [
-                        { title: "Project 1", description: "", links: "" },
+                        { title: "Project 1", description: "", links: [] },
                       ],
+                      paymentQr: "",
                     },
                   ])
                 }
@@ -2330,6 +2360,44 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         style={{ ...s, resize: "vertical" }}
                       />
                     </div>
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          display: "block",
+                          marginBottom: "0.25rem",
+                        }}
+                      >
+                        Payment QR Code URL
+                      </label>
+                      <input
+                        className="input-sharp"
+                        value={path.paymentQr || ""}
+                        onChange={(e) => {
+                          const u = [...careerPaths];
+                          u[idx].paymentQr = e.target.value;
+                          setCareerPaths(u);
+                        }}
+                        placeholder="https://example.com/qr.png"
+                        style={s}
+                      />
+                      {path.paymentQr && (
+                        <div style={{ marginTop: "0.5rem" }}>
+                          <img
+                            src={path.paymentQr}
+                            alt="Payment QR Preview"
+                            style={{
+                              width: "100px",
+                              border: "1px solid #ccc",
+                            }}
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
                     <div
                       style={{
                         display: "grid",
@@ -2394,7 +2462,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 ? proj.description || ""
                                 : "";
                             const links =
-                              typeof proj === "object" ? proj.links || "" : "";
+                              typeof proj === "object"
+                                ? Array.isArray(proj.links)
+                                  ? proj.links
+                                  : typeof proj.links === "string" && proj.links.trim()
+                                    ? proj.links.split(",").map((u) => ({ text: "Resource", url: u.trim() })).filter((l) => l.url)
+                                    : []
+                                : [];
                             const updateProj = (field, val) => {
                               const u = JSON.parse(JSON.stringify(careerPaths));
                               const current = u[idx].projects[pIdx];
@@ -2404,7 +2478,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   : {
                                       title: current,
                                       description: "",
-                                      links: "",
+                                      links: [],
                                     };
                               obj[field] = val;
                               u[idx].projects[pIdx] = obj;
@@ -2513,18 +2587,233 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                       marginBottom: "0.2rem",
                                     }}
                                   >
-                                    Reference Links (comma-separated)
+                                    Reference Links
                                   </label>
-                                  <input
-                                    className="input-sharp"
-                                    value={links}
-                                    onChange={(e) =>
-                                      updateProj("links", e.target.value)
-                                    }
-                                    placeholder="https://example.com, https://docs.example.com"
-                                    style={s}
-                                  />
+                                  {links.map((link, li) => (
+                                    <div
+                                      key={li}
+                                      style={{
+                                        display: "flex",
+                                        gap: "0.4rem",
+                                        marginBottom: "0.35rem",
+                                        alignItems: "center",
+                                      }}
+                                    >
+                                      <input
+                                        className="input-sharp"
+                                        value={link.text || ""}
+                                        onChange={(e) => {
+                                          const updated = [...links];
+                                          updated[li] = { ...updated[li], text: e.target.value };
+                                          updateProj("links", updated);
+                                        }}
+                                        placeholder="Link label"
+                                        style={{ ...s, width: "120px", flexShrink: 0 }}
+                                      />
+                                      <input
+                                        className="input-sharp"
+                                        value={link.url || ""}
+                                        onChange={(e) => {
+                                          const updated = [...links];
+                                          updated[li] = { ...updated[li], url: e.target.value };
+                                          updateProj("links", updated);
+                                        }}
+                                        placeholder="https://example.com"
+                                        style={{ ...s, flex: 1 }}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          updateProj("links", links.filter((_, i) => i !== li));
+                                        }}
+                                        style={{
+                                          border: "2px solid #EA4335",
+                                          color: "#EA4335",
+                                          background: "#fff",
+                                          cursor: "pointer",
+                                          padding: "0.2rem 0.5rem",
+                                          fontSize: "0.7rem",
+                                          fontWeight: 700,
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateProj("links", [...links, { text: "", url: "" }]);
+                                    }}
+                                    style={{
+                                      border: "2px solid #000",
+                                      color: "#000",
+                                      background: "#fff",
+                                      cursor: "pointer",
+                                      padding: "0.2rem 0.7rem",
+                                      fontSize: "0.75rem",
+                                      fontWeight: 700,
+                                      marginTop: "0.25rem",
+                                    }}
+                                  >
+                                    + Add Link
+                                  </button>
                                 </div>
+                                <div style={{ marginTop: "0.5rem" }}>
+                                  <label
+                                    style={{
+                                      fontSize: "0.7rem",
+                                      fontWeight: 700,
+                                      display: "block",
+                                      marginBottom: "0.2rem",
+                                    }}
+                                  >
+                                    Task Type
+                                  </label>
+                                  <select
+                                    className="input-sharp"
+                                    value={proj.type || "text"}
+                                    onChange={(e) =>
+                                      updateProj("type", e.target.value)
+                                    }
+                                    style={s}
+                                  >
+                                    <option value="text">Text Submission</option>
+                                    <option value="quiz">Quiz</option>
+                                  </select>
+                                </div>
+                                {(proj.type || "text") === "quiz" && (
+                                  <div
+                                    style={{
+                                      marginTop: "0.5rem",
+                                      padding: "0.75rem",
+                                      border: "2px solid #FBBC05",
+                                      background: "#fffdf0",
+                                    }}
+                                  >
+                                    <div style={{ marginBottom: "0.5rem" }}>
+                                      <label
+                                        style={{
+                                          fontSize: "0.7rem",
+                                          fontWeight: 700,
+                                          display: "block",
+                                          marginBottom: "0.2rem",
+                                        }}
+                                      >
+                                        Quiz Input Type
+                                      </label>
+                                      <select
+                                        className="input-sharp"
+                                        value={proj.quizType || "text"}
+                                        onChange={(e) =>
+                                          updateProj("quizType", e.target.value)
+                                        }
+                                        style={s}
+                                      >
+                                        <option value="text">Text Input</option>
+                                        <option value="option">Multiple Choice</option>
+                                        <option value="number">Number Input</option>
+                                      </select>
+                                    </div>
+                                    {proj.quizType === "option" && (
+                                      <div style={{ marginBottom: "0.5rem" }}>
+                                        <label
+                                          style={{
+                                            fontSize: "0.7rem",
+                                            fontWeight: 700,
+                                            display: "block",
+                                            marginBottom: "0.2rem",
+                                          }}
+                                        >
+                                          Options (one per line)
+                                        </label>
+                                        <textarea
+                                          className="input-sharp"
+                                          rows={3}
+                                          value={Array.isArray(proj.quizOptions) ? proj.quizOptions.join("\n") : ""}
+                                          onChange={(e) =>
+                                            updateProj(
+                                              "quizOptions",
+                                              e.target.value
+                                                .split("\n")
+                                                .map((x) => x.trim())
+                                                .filter(Boolean),
+                                            )
+                                          }
+                                          placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"
+                                          style={{ ...s, resize: "vertical" }}
+                                        />
+                                      </div>
+                                    )}
+                                    <div style={{ marginBottom: "0.5rem" }}>
+                                      <label
+                                        style={{
+                                          fontSize: "0.7rem",
+                                          fontWeight: 700,
+                                          display: "block",
+                                          marginBottom: "0.2rem",
+                                        }}
+                                      >
+                                        Correct Answer
+                                      </label>
+                                      {proj.quizType === "option" ? (
+                                        <select
+                                          className="input-sharp"
+                                          value={proj.quizAnswer || ""}
+                                          onChange={(e) =>
+                                            updateProj("quizAnswer", e.target.value)
+                                          }
+                                          style={s}
+                                        >
+                                          <option value="">-- Select --</option>
+                                          {(proj.quizOptions || []).map((opt, oi) => (
+                                            <option key={oi} value={opt}>
+                                              {opt}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          className="input-sharp"
+                                          type={proj.quizType === "number" ? "number" : "text"}
+                                          value={proj.quizAnswer || ""}
+                                          onChange={(e) =>
+                                            updateProj("quizAnswer", e.target.value)
+                                          }
+                                          placeholder="Enter the correct answer"
+                                          style={s}
+                                        />
+                                      )}
+                                    </div>
+                                    <div>
+                                      <label
+                                        style={{
+                                          fontSize: "0.7rem",
+                                          fontWeight: 700,
+                                          display: "block",
+                                          marginBottom: "0.2rem",
+                                        }}
+                                      >
+                                        Passing Grade (%){" "}
+                                        <span style={{ fontWeight: 400, color: "#888" }}>
+                                          (score must be ≥ this to pass)
+                                        </span>
+                                      </label>
+                                      <input
+                                        className="input-sharp"
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        value={proj.passingGrade ?? 100}
+                                        onChange={(e) =>
+                                          updateProj("passingGrade", Number(e.target.value))
+                                        }
+                                        style={{ ...s, width: "100px" }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
                                 <div style={{ marginTop: "0.5rem" }}>
                                   <label
                                     style={{
@@ -2567,7 +2856,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             const u = JSON.parse(JSON.stringify(careerPaths));
                             u[idx].projects = [
                               ...(u[idx].projects || []),
-                              { title: "New Task", description: "", links: "" },
+                              { title: "New Task", description: "", links: [], type: "text", quizType: "text", quizOptions: [], quizAnswer: "", passingGrade: 100 },
                             ];
                             setCareerPaths(u);
                           }}
@@ -3987,11 +4276,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 const submissions = getSubmissions(enrollment);
                 projects.forEach((proj, pIdx) => {
                   const sub = submissions[pIdx];
+                  const isQuiz = (proj?.type || "text") === "quiz";
                   if (
                     sub &&
                     sub.submittedAt &&
                     sub.verified !== true &&
-                    !sub.resubmit
+                    !sub.resubmit &&
+                    !isQuiz
                   ) {
                     const projTitle =
                       typeof proj === "object" ? proj.title || "" : proj;
@@ -6199,8 +6490,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           : project;
                       const projectDesc =
                         typeof project === "object" ? project.description : "";
-                      const projectLinks =
-                        typeof project === "object" ? project.links : "";
+                      const rawLinks =
+                        typeof project === "object" ? project.links : [];
+                      const projectLinks = Array.isArray(rawLinks)
+                        ? rawLinks
+                        : typeof rawLinks === "string" && rawLinks.trim()
+                          ? rawLinks.split(",").map((u) => ({ text: "Resource", url: u.trim() })).filter((l) => l.url)
+                          : [];
 
                       return (
                         <div
@@ -6245,6 +6541,21 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 }}
                               >
                                 Project {idx + 1}
+                                {(project?.type || "text") === "quiz" && (
+                                  <span
+                                    style={{
+                                      marginLeft: "0.5rem",
+                                      background: "#FBBC05",
+                                      color: "#5a4000",
+                                      fontSize: "0.6rem",
+                                      fontWeight: 900,
+                                      padding: "0.15rem 0.4rem",
+                                      textTransform: "uppercase",
+                                    }}
+                                  >
+                                    Quiz
+                                  </span>
+                                )}
                               </span>
                               <div
                                 style={{
@@ -6267,7 +6578,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   {projectDesc}
                                 </p>
                               )}
-                              {projectLinks && (
+                              {projectLinks.length > 0 && (
                                 <div
                                   style={{
                                     fontSize: "0.78rem",
@@ -6276,17 +6587,16 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   }}
                                 >
                                   <strong>Resources:</strong>{" "}
-                                  {projectLinks.split(",").map((l, li) => {
-                                    const t = l.trim();
-                                    if (!t) return null;
+                                  {projectLinks.map((l, li) => {
+                                    const url = l.url || "";
+                                    if (!url.trim()) return null;
+                                    const href = url.startsWith("http")
+                                      ? url
+                                      : `https://${url}`;
                                     return (
                                       <a
                                         key={li}
-                                        href={
-                                          t.startsWith("http")
-                                            ? t
-                                            : `https://${t}`
-                                        }
+                                        href={href}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         style={{
@@ -6295,7 +6605,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                           fontWeight: 700,
                                         }}
                                       >
-                                        Link {li + 1}
+                                        {l.text || `Link ${li + 1}`}
                                       </a>
                                     );
                                   })}
@@ -6422,6 +6732,25 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                               >
                                 {sub.text}
                               </div>
+                              {sub.quizScore !== undefined && (
+                                <div
+                                  style={{
+                                    fontSize: "0.82rem",
+                                    marginTop: "0.35rem",
+                                    color: sub.quizPassed ? "#34A853" : "#EA4335",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  Quiz Score: {sub.quizScore}% —{" "}
+                                  {sub.quizPassed ? "PASSED" : "FAILED"}
+                                  {sub.quizCorrect !== undefined && (
+                                    <span>
+                                      {" "}
+                                      ({sub.quizCorrect ? "Correct" : "Incorrect"})
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                               {isVerified && sub.verifiedAt && (
                                 <div
                                   style={{
