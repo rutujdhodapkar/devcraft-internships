@@ -1610,9 +1610,9 @@ function EnrollmentCard({
                 const normalizeLinks = (raw) => {
                   if (!raw) return [];
                   if (Array.isArray(raw)) {
-                    if (raw.length > 0 && "items" in raw[0]) return raw;
-                    if ("url" in raw[0]) return [{ title: "", items: raw.map((l) => ({ text: l.text || "Resource", url: l.url })) }];
-                    if ("text" in raw[0] && !("urls" in raw[0])) return [{ title: "", items: raw }];
+                    if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "items" in raw[0]) return raw;
+                    if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "url" in raw[0]) return [{ title: "", items: raw.map((l) => ({ text: l.text || "Resource", url: l.url })) }];
+                    if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "text" in raw[0]) return [{ title: "", items: raw }];
                     return raw;
                   }
                   if (typeof raw === "string" && raw.trim()) {
