@@ -21,17 +21,8 @@ export default function CareerPaths({ onApplyDomain }) {
     };
   }, []);
 
-  if (loading) {
-    return (
-      <section id="domains" className="section-padding" style={{ backgroundColor: '#fff', borderBottom: '2px solid var(--border-primary)' }}>
-        <div className="container" style={{ textAlign: 'center', padding: '3rem 0' }}>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Loading domains...</div>
-        </div>
-      </section>
-    );
-  }
-
   useEffect(() => {
+    if (loading || paths.length === 0) return;
     const grid = document.querySelector('.career-paths-grid');
     if (!grid) return;
     const onScroll = () => {
@@ -48,6 +39,16 @@ export default function CareerPaths({ onApplyDomain }) {
     grid.addEventListener('scroll', onScroll, { passive: true });
     return () => grid.removeEventListener('scroll', onScroll);
   }, [paths]);
+
+  if (loading && paths.length === 0) {
+    return (
+      <section id="domains" className="section-padding" style={{ backgroundColor: '#fff', borderBottom: '2px solid var(--border-primary)' }}>
+        <div className="container" style={{ textAlign: 'center', padding: '3rem 0' }}>
+          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Loading domains...</div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="domains" className="section-padding" style={{ backgroundColor: '#fff', borderBottom: '2px solid var(--border-primary)', padding: '5rem 0' }}>
