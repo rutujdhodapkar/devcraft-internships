@@ -1269,6 +1269,7 @@ export default function StudentDashboard({
                     submitting={submitting}
                     submitSuccess={submitSuccess}
                     onSubmitProject={handleSubmitProject}
+                    onSubmitQuiz={handleSubmitQuiz}
                     onDownloadOffer={handleDownloadOffer}
                     onDownloadCertificate={handleDownloadCertificate}
                     txnInput={txnInputs[enrollment.id] || ""}
@@ -1313,6 +1314,7 @@ function EnrollmentCard({
   submitting,
   submitSuccess,
   onSubmitProject,
+  onSubmitQuiz,
   onDownloadOffer,
   onDownloadCertificate,
   txnInput,
@@ -1642,7 +1644,7 @@ function EnrollmentCard({
                     }
                     onSubmit={() =>
                       isQuiz
-                        ? handleSubmitQuiz(enrollment, idx, project)
+                        ? onSubmitQuiz(enrollment, idx, project)
                         : onSubmitProject(enrollment, idx)
                     }
                     isSubmittingNow={isSubmittingNow}
