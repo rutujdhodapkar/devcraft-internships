@@ -2300,6 +2300,7 @@ function ProjectBox({
             inputValue={inputValue}
             onInputChange={onInputChange}
             projectName={projectName}
+            projectIdx={idx}
             isRetry
           />
           <div
@@ -2371,6 +2372,7 @@ function ProjectBox({
               inputValue={inputValue}
               onInputChange={onInputChange}
               projectName={projectName}
+              projectIdx={idx}
             />
           ) : (
             <>
@@ -2445,15 +2447,16 @@ function ProjectBox({
   );
 }
 
-function QuizForm({ project, inputValue, onInputChange, projectName, isRetry }) {
+function QuizForm({ project, inputValue, onInputChange, projectName, isRetry, projectIdx }) {
   const questions = project?.quizQuestions || [];
-  // Parse stored answers JSON or default to empty object
-  const answers = (() => {
-    try { return JSON.parse(inputValue || "{}"); } catch { return {}; }
-  })();
+  const inputRef = useRef(inputValue);
+  inputRef.current = inputValue;
 
   const setAnswer = (qi, val) => {
-    onInputChange(JSON.stringify({ ...answers, [qi]: val }));
+    const raw = inputRef.current || "{}";
+    let cur;
+    try { cur = JSON.parse(raw); } catch { cur = {}; }
+    onInputChange(JSON.stringify({ ...cur, [qi]: val }));
   };
 
   if (questions.length === 0) {
@@ -2473,7 +2476,14 @@ function QuizForm({ project, inputValue, onInputChange, projectName, isRetry }) 
       >
         {isRetry ? "Answer all questions again:" : "Answer all questions:"}
       </div>
-      {questions.map((q, qi) => (
+      {questions.map((q, qi) => {
+        const isChecked = (opt) => {
+          const raw = inputRef.current || "{}";
+          let cur;
+          try { cur = JSON.parse(raw); } catch { cur = {}; }
+          return cur[qi] === opt;
+        };
+        return (
         <div
           key={qi}
           style={{
@@ -2489,38 +2499,51 @@ function QuizForm({ project, inputValue, onInputChange, projectName, isRetry }) 
 
           {q.type === "option" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-              {(q.options || []).map((opt, oi) => (
-                <label
+              {(q.options || []).map((opt, oi) => {
+                const selected = isChecked(opt);
+                return (
+                <div
                   key={oi}
+                  onClick={() => setAnswer(qi, opt)}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "0.5rem",
                     padding: "0.45rem 0.75rem",
-                    border: `2px solid ${answers[qi] === opt ? "#000" : "#ddd"}`,
-                    background: answers[qi] === opt ? "#f0f0f0" : "#fff",
+                    border: `2px solid ${selected ? "#000" : "#ddd"}`,
+                    background: selected ? "#f0f0f0" : "#fff",
                     cursor: "pointer",
                     fontSize: "0.85rem",
-                    fontWeight: answers[qi] === opt ? 700 : 400,
+                    fontWeight: selected ? 700 : 400,
+                    userSelect: "none",
                   }}
                 >
-                  <input
-                    type="radio"
-                    name={`quiz_${projectName}_${qi}`}
-                    value={opt}
-                    checked={answers[qi] === opt}
-                    onChange={() => setAnswer(qi, opt)}
-                    style={{ accentColor: "#000" }}
-                  />
-                  {opt}
-                </label>
-              ))}
+                  <span
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      border: `2px solid ${selected ? "#000" : "#ccc"}`,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      background: selected ? "#000" : "transparent",
+                    }}
+                  >
+                    {selected && (
+                      <span style={{ color: "#fff", fontSize: "12px", lineHeight: 1 }}>✓</span>
+                    )}
+                  </span>
+                  <span>{opt}</span>
+                </div>
+              );
+              })}
             </div>
           ) : q.type === "number" ? (
             <input
               type="number"
               placeholder="Enter your numeric answer…"
-              value={answers[qi] !== undefined ? answers[qi] : ""}
+              value={(() => { try { const a = JSON.parse(inputRef.current || "{}"); return a[qi] !== undefined ? a[qi] : ""; } catch { return ""; }})()}
               onChange={(e) => setAnswer(qi, e.target.value)}
               style={{
                 width: "100%",
@@ -2539,7 +2562,7 @@ function QuizForm({ project, inputValue, onInputChange, projectName, isRetry }) 
             <input
               type="text"
               placeholder={`Type your answer for question ${qi + 1}…`}
-              value={answers[qi] !== undefined ? answers[qi] : ""}
+              value={(() => { try { const a = JSON.parse(inputRef.current || "{}"); return a[qi] !== undefined ? a[qi] : ""; } catch { return ""; }})()}
               onChange={(e) => setAnswer(qi, e.target.value)}
               style={{
                 width: "100%",
@@ -2555,7 +2578,7 @@ function QuizForm({ project, inputValue, onInputChange, projectName, isRetry }) 
             />
           )}
         </div>
-      ))}
+      );})}
     </div>
   );
 }
