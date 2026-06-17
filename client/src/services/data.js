@@ -99,9 +99,13 @@ const DEFAULT_CAREER_PATHS = [
       "Final capstone project",
     ],
     projects: [
-      "Personal Portfolio Website",
-      "Weather Web App",
-      "Task Manager API",
+      { title: "Personal Portfolio Website", description: "Build a personal portfolio website using Python Flask to showcase your projects and skills.", type: "text", links: [], quizQuestions: [], passingGrade: 100 },
+      { title: "Weather Web App", description: "Create a weather web application that fetches real-time weather data from a public API.", type: "text", links: [], quizQuestions: [], passingGrade: 100 },
+      { title: "Python Basics Quiz", description: "Test your understanding of Python fundamentals.", type: "quiz", links: [], passingGrade: 60, quizQuestions: [
+        { question: "What keyword is used to define a function in Python?", type: "option", options: ["func", "def", "function", "define"], answer: "def" },
+        { question: "Which data type is immutable in Python?", type: "option", options: ["list", "dict", "tuple", "set"], answer: "tuple" },
+        { question: "What is the output of print(2 ** 3)?", type: "number", options: [], answer: "8" },
+      ]},
     ],
     paymentQr:
       "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png",
@@ -119,9 +123,13 @@ const DEFAULT_CAREER_PATHS = [
       "Database integration & SQL",
     ],
     projects: [
-      "Library Management System",
-      "REST API Backend",
-      "Student Registry Platform",
+      { title: "Library Management System", description: "Design a console-based library management system using Java OOP principles.", type: "text", links: [], quizQuestions: [], passingGrade: 100 },
+      { title: "REST API Backend", description: "Build a RESTful API backend using Spring Boot with CRUD operations.", type: "text", links: [], quizQuestions: [], passingGrade: 100 },
+      { title: "Java Fundamentals Quiz", description: "Test your knowledge of Java core concepts.", type: "quiz", links: [], passingGrade: 60, quizQuestions: [
+        { question: "Which keyword is used to inherit a class in Java?", type: "option", options: ["implements", "extends", "inherits", "super"], answer: "extends" },
+        { question: "What is the default value of a boolean variable in Java?", type: "option", options: ["true", "false", "0", "null"], answer: "false" },
+        { question: "How many bits does a 'short' data type occupy in Java?", type: "number", options: [], answer: "16" },
+      ]},
     ],
     paymentQr:
       "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png",
@@ -139,9 +147,13 @@ const DEFAULT_CAREER_PATHS = [
       "State management & deployment",
     ],
     projects: [
-      "Responsive Portfolio",
-      "Interactive Quiz App",
-      "Admin Dashboard UI",
+      { title: "Responsive Portfolio", description: "Build a responsive personal portfolio website using HTML, CSS, and JavaScript.", type: "text", links: [], quizQuestions: [], passingGrade: 100 },
+      { title: "Admin Dashboard UI", description: "Create an admin dashboard interface with charts and data tables using React.", type: "text", links: [], quizQuestions: [], passingGrade: 100 },
+      { title: "Web Development Quiz", description: "Test your understanding of web technologies.", type: "quiz", links: [], passingGrade: 60, quizQuestions: [
+        { question: "Which HTML tag is used to link an external CSS file?", type: "option", options: ["<style>", "<script>", "<link>", "<meta>"], answer: "<link>" },
+        { question: "What does CSS selector '.class' target?", type: "option", options: ["ID", "Class", "Element", "Attribute"], answer: "Class" },
+        { question: "Which JavaScript method adds an element to the end of an array?", type: "option", options: ["push()", "pop()", "shift()", "unshift()"], answer: "push()" },
+      ]},
     ],
     paymentQr:
       "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png",
@@ -701,10 +713,11 @@ export async function submitQuizAnswer(enrollmentId, projectIndex, answers, proj
     });
 
     const autoGradedCount = questions.filter((q) => q.type !== "text").length;
+    const hasTextQuestions = questions.some((q) => q.type === "text");
     const score = autoGradedCount > 0 ? Math.round((correctCount / autoGradedCount) * 100) : 0;
     const passingGrade = Number(project.passingGrade) || 100;
     const passed = autoGradedCount > 0 && score >= passingGrade;
-    const allAutoGradedPassed = questions.every((q, qi) => q.type === "text" || results[qi]);
+    const allAutoGradedPassed = !hasTextQuestions && questions.every((q, qi) => q.type === "text" || results[qi]);
 
     await update(
       ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),
