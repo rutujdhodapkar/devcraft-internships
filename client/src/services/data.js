@@ -27,7 +27,6 @@ import {
   increment,
 } from "firebase/database";
 import { rtdb, isFirebaseConfigured } from "../firebase";
-import { gradeQuizTextAnswer } from "../utils/aiVerify";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const encodeEmail = (email) => email.toLowerCase().trim().replace(/\./g, ",");
@@ -701,12 +700,7 @@ export async function submitQuizAnswer(enrollmentId, projectIndex, answers, proj
       const userAns = String((answers && answers[qi]) || "").trim().toLowerCase();
       results[qi] = false;
       if (q.type === "text") {
-        const aiResult = await gradeQuizTextAnswer(q.question, answers[qi]);
-        if (aiResult && typeof aiResult.correct === "boolean") {
-          results[qi] = aiResult.correct;
-        } else {
-          results[qi] = null;
-        }
+        results[qi] = null;
       } else {
         const correctAns = String(q.answer || "").trim().toLowerCase();
         if (q.type === "number") {
@@ -719,20 +713,18 @@ export async function submitQuizAnswer(enrollmentId, projectIndex, answers, proj
     }
 
     const autoGradedCount = questions.filter((q, qi) => results[qi] !== null).length;
-    const hasTextQuestions = questions.some((q, qi) => q.type === "text" && results[qi] === null);
     const score = autoGradedCount > 0 ? Math.round((correctCount / autoGradedCount) * 100) : 0;
     const passingGrade = Number(project.passingGrade) || 100;
     const passed = autoGradedCount > 0 && score >= passingGrade;
-    const allAutoGradedPassed = autoGradedCount === questions.length && questions.every((q, qi) => results[qi] !== false);
 
     await update(
       ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),
       {
         text: parsedAnswers,
         submittedAt: new Date().toISOString(),
-        verified: allAutoGradedPassed,
-        verifiedAt: allAutoGradedPassed ? new Date().toISOString() : null,
-        resubmit: !allAutoGradedPassed,
+        verified: false,
+        verifiedAt: null,
+        resubmit: false,
         quizAnswers: answers,
         quizResults: results,
         quizScore: score,

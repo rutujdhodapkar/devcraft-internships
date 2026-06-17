@@ -1429,18 +1429,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   </button>
                                 </div>
                               </div>
-                              <div
-                                style={{
-                                  padding: "0.65rem 0.85rem",
-                                  background: "#fff",
-                                  border: "1px solid #ddd",
-                                  fontSize: "0.86rem",
-                                  color: "#222",
-                                  wordBreak: "break-all",
-                                }}
-                              >
-                                {submission.text}
-                              </div>
+                              {(project?.type || "text") !== "quiz" && (
+                                <div
+                                  style={{
+                                    padding: "0.65rem 0.85rem",
+                                    background: "#fff",
+                                    border: "1px solid #ddd",
+                                    fontSize: "0.86rem",
+                                    color: "#222",
+                                    wordBreak: "break-all",
+                                  }}
+                                >
+                                  {submission.text}
+                                </div>
+                              )}
                               {submission.quizScore !== undefined && (
                                 <div
                                   style={{
@@ -1453,17 +1455,28 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 >
                                   Quiz Score: {submission.quizScore}% —{" "}
                                   {submission.quizPassed ? "PASSED" : "FAILED"}
-                                  {submission.quizResults && (
-                                    <span style={{ fontWeight: 400, fontSize: "0.75rem", marginLeft: "0.5rem" }}>
-                                      {Object.values(submission.quizResults).filter((r) => r === true).length}/
-                                      {Object.values(submission.quizResults).filter((r) => r !== null).length} auto-graded correct
-                                      {Object.values(submission.quizResults).filter((r) => r === null).length > 0 && (
-                                        <span style={{ color: "#888" }}>
-                                          , {Object.values(submission.quizResults).filter((r) => r === null).length} pending review
-                                        </span>
-                                      )}
-                                    </span>
-                                  )}
+                                </div>
+                              )}
+                              {submission.quizResults && Object.keys(submission.quizResults).length > 0 && (
+                                <div style={{ fontSize: "0.75rem", marginTop: "0.3rem" }}>
+                                  {(project?.quizQuestions || []).map((q, qi) => {
+                                    const r = submission.quizResults[qi];
+                                    if (r === undefined) return null;
+                                    return (
+                                      <div key={qi} style={{ marginBottom: "0.25rem", padding: "0.25rem 0.4rem", background: "#fafafa", border: "1px solid #eee" }}>
+                                        <div style={{ fontWeight: 700 }}>Q{qi + 1}: {q.question}</div>
+                                        <div style={{ color: "#555", marginTop: "0.1rem" }}>
+                                          Submitted: <strong>{submission.quizAnswers?.[qi] ?? "(empty)"}</strong>
+                                          {q.answer !== undefined && q.answer !== "" && (
+                                            <span style={{ marginLeft: "0.5rem" }}>Correct: <strong style={{ color: "#34A853" }}>{q.answer}</strong></span>
+                                          )}
+                                          {r === true && <span style={{ color: "#34A853", marginLeft: "0.4rem" }}>✓</span>}
+                                          {r === false && <span style={{ color: "#EA4335", marginLeft: "0.4rem" }}>✗</span>}
+                                          {r === null && <span style={{ color: "#888", marginLeft: "0.4rem" }}>⏳ Pending</span>}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               )}
                               <div
@@ -6818,11 +6831,17 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     const r = sub.quizResults[qi];
                                     if (r === undefined) return null;
                                     return (
-                                      <div key={qi} style={{ marginBottom: "0.15rem" }}>
-                                        <strong>Q{qi + 1}:</strong> {sub.quizAnswers?.[qi] ?? "(empty)"}
-                                        {r === true && <span style={{ color: "#34A853", marginLeft: "0.4rem" }}>✓</span>}
-                                        {r === false && <span style={{ color: "#EA4335", marginLeft: "0.4rem" }}>✗ (answer: {q.answer})</span>}
-                                        {r === null && <span style={{ color: "#888", marginLeft: "0.4rem" }}>⏳ Pending review</span>}
+                                      <div key={qi} style={{ marginBottom: "0.35rem", padding: "0.3rem 0.5rem", background: "#f9f9f9", border: "1px solid #eee" }}>
+                                        <div><strong>Q{qi + 1}:</strong> {q.question}</div>
+                                        <div style={{ fontSize: "0.75rem", color: "#555", marginTop: "0.15rem" }}>
+                                          Submitted: <strong>{sub.quizAnswers?.[qi] ?? "(empty)"}</strong>
+                                          {q.answer !== undefined && q.answer !== "" && (
+                                            <span style={{ marginLeft: "0.75rem" }}>Correct: <strong style={{ color: "#34A853" }}>{q.answer}</strong></span>
+                                          )}
+                                          {r === true && <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>✓ Correct</span>}
+                                          {r === false && <span style={{ color: "#EA4335", marginLeft: "0.5rem" }}>✗ Incorrect</span>}
+                                          {r === null && <span style={{ color: "#888", marginLeft: "0.5rem" }}>⏳ Pending</span>}
+                                        </div>
                                       </div>
                                     );
                                   })}

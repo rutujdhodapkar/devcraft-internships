@@ -1589,8 +1589,8 @@ function EnrollmentCard({
                   const prevProject = projects[idx - 1];
                   const prevIsQuiz = (prevProject?.type || "text") === "quiz";
                   if (prevIsQuiz) {
-                    // For quiz, next task requires previous to be passed
-                    disabled = !prev?.quizPassed;
+                    // For quiz, next task requires previous to be verified by admin
+                    disabled = !prev?.verified;
                   } else {
                     // For regular tasks, next task requires previous to be submitted
                     disabled = !prev?.submittedAt;
@@ -1946,27 +1946,16 @@ function ProjectBox({
 }) {
   const quizType = project?.quizType || "text";
   const quizOptions = project?.quizOptions || [];
-  const quizFailed = isSubmitted && isQuiz && sub?.quizPassed === false;
-  const quizPassed = isSubmitted && isQuiz && sub?.quizPassed === true;
-
   const borderColor = isVerified
     ? "#34A853"
-    : quizPassed
-      ? "#34A853"
-      : quizFailed
-        ? "#EA4335"
-        : isSubmitted
-          ? "#FBBC05"
-          : disabled
-            ? "#eee"
-            : "#ddd";
+    : isSubmitted
+      ? "#FBBC05"
+      : disabled
+        ? "#eee"
+        : "#ddd";
   const bgColor = isVerified
     ? "#f0fdf4"
-    : quizPassed
-      ? "#f0fdf4"
-      : quizFailed
-        ? "#fff5f5"
-        : isSubmitted
+    : isSubmitted
           ? "#fffdf0"
           : "#fff";
 
@@ -1998,7 +1987,7 @@ function ProjectBox({
               width: "26px",
               height: "26px",
               borderRadius: "50%",
-              background: isVerified || quizPassed
+               background: isVerified
                 ? "#34A853"
                 : isSubmitted
                   ? "#FBBC05"
@@ -2014,7 +2003,7 @@ function ProjectBox({
               flexShrink: 0,
             }}
           >
-            {isVerified || quizPassed ? "✓" : idx + 1}
+            {isVerified ? "✓" : idx + 1}
           </span>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <strong
@@ -2081,7 +2070,7 @@ function ProjectBox({
         </div>
 
         {/* Status Badge */}
-        {quizPassed && (
+        {isVerified && isQuiz && (
           <span
             style={{
               background: "#34A853",
@@ -2093,14 +2082,14 @@ function ProjectBox({
               textTransform: "uppercase",
             }}
           >
-            ✓ PASSED
+            ✓ VERIFIED
           </span>
         )}
-        {quizFailed && (
+        {isSubmitted && isQuiz && !isVerified && (
           <span
             style={{
-              background: "#EA4335",
-              color: "#fff",
+              background: "#FBBC05",
+              color: "#5a4000",
               fontSize: "0.68rem",
               fontWeight: 900,
               letterSpacing: "1px",
@@ -2108,7 +2097,7 @@ function ProjectBox({
               textTransform: "uppercase",
             }}
           >
-            ✗ FAILED
+            SUBMITTED
           </span>
         )}
         {isVerified && !isQuiz && (
@@ -2174,7 +2163,7 @@ function ProjectBox({
       </div>
 
       {/* Submitted view (read-only) */}
-      {isSubmitted && !quizFailed ? (
+      {isSubmitted ? (
         <div>
           <div
             style={{
@@ -2185,12 +2174,11 @@ function ProjectBox({
               marginBottom: "0.35rem",
             }}
           >
-            {isQuiz ? "Your Answers" : "Your Submission"}
+            Your Submission
           </div>
           {isQuiz ? (
             <div>
               {(project?.quizQuestions || []).map((q, qi) => {
-                const qResult = sub?.quizResults?.[qi];
                 const qAnswer = sub?.quizAnswers?.[qi];
                 return (
                   <div
@@ -2198,8 +2186,8 @@ function ProjectBox({
                     style={{
                       padding: "0.5rem 0.75rem",
                       marginBottom: "0.4rem",
-                      background: qResult === true ? "#f0fdf4" : qResult === false ? "#fff5f5" : "#f5f5f5",
-                      border: `1px solid ${qResult === true ? "#34A853" : qResult === false ? "#EA4335" : "#ddd"}`,
+                      background: "#f5f5f5",
+                      border: "1px solid #ddd",
                       fontSize: "0.85rem",
                       color: "#333",
                     }}
@@ -2209,18 +2197,10 @@ function ProjectBox({
                     </div>
                     <div>
                       Your answer: <strong>{qAnswer ?? "(empty)"}</strong>
-                      {qResult === true && <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>✓ Correct</span>}
-                      {qResult === false && <span style={{ color: "#EA4335", marginLeft: "0.5rem" }}>✗ Incorrect</span>}
-                      {qResult === null && <span style={{ color: "#888", marginLeft: "0.5rem" }}>⏳ Pending review</span>}
                     </div>
                   </div>
                 );
               })}
-              {quizPassed && (
-                <div style={{ fontSize: "0.78rem", color: "#34A853", fontWeight: 700, marginTop: "0.25rem" }}>
-                  ✓ Score: {sub.quizScore ?? 0}% — Passed
-                </div>
-              )}
             </div>
           ) : (
             <div
@@ -2244,7 +2224,7 @@ function ProjectBox({
             style={{ fontSize: "0.72rem", color: "#aaa", marginTop: "0.4rem" }}
           >
             Submitted: {new Date(sub.submittedAt).toLocaleString()}
-            {sub.verified && sub.verifiedAt && !isQuiz && (
+            {sub.verified && sub.verifiedAt && (
               <span style={{ color: "#34A853", marginLeft: "1rem" }}>
                 ✓ Verified: {new Date(sub.verifiedAt).toLocaleString()}
               </span>
@@ -2264,80 +2244,20 @@ function ProjectBox({
               📬 Our team will review and verify your submission shortly.
             </div>
           )}
-        </div>
-      ) : isSubmitted && quizFailed ? (
-        /* Failed quiz — show result and allow retry */
-        <div>
-          <div
-            style={{
-              padding: "0.75rem 1rem",
-              background: "#fff5f5",
-              border: "2px solid #EA4335",
-              marginBottom: "1rem",
-            }}
-          >
-            <strong style={{ color: "#EA4335" }}>
-              ✗ Score: {sub.quizScore ?? 0}% (Passing: {project?.passingGrade ?? 100}%)
-            </strong>
-            <div style={{ fontSize: "0.82rem", color: "#555", marginTop: "0.35rem" }}>
-              {(project?.quizQuestions || []).map((q, qi) => {
-                const qResult = sub?.quizResults?.[qi];
-                const qAnswer = sub?.quizAnswers?.[qi];
-                if (q.type === "text") return null;
-                return (
-                  <div key={qi} style={{ marginBottom: "0.15rem" }}>
-                    Q{qi + 1}: {qAnswer ?? "(empty)"}
-                    {qResult === true && <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>✓</span>}
-                    {qResult === false && <span style={{ color: "#EA4335", marginLeft: "0.5rem" }}>✗ (correct: {q.answer})</span>}
-                  </div>
-                );
-              })}
-            </div>
-            <div style={{ fontSize: "0.8rem", color: "#888", marginTop: "0.25rem" }}>
-              Submitted: {new Date(sub.submittedAt).toLocaleString()}
-            </div>
-          </div>
-          <QuizForm
-            project={project}
-            inputValue={inputValue}
-            onInputChange={onInputChange}
-            projectName={projectName}
-            projectIdx={idx}
-            isRetry
-          />
-          <div
-            style={{
-              marginTop: "0.75rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              flexWrap: "wrap",
-            }}
-          >
-            <button
-              onClick={onSubmit}
-              disabled={isSubmittingNow || !inputValue}
-              className="btn-sharp"
+          {!isVerified && isQuiz && (
+            <div
               style={{
-                padding: "0.5rem 1.5rem",
-                fontSize: "0.85rem",
-                opacity: !inputValue ? 0.5 : 1,
+                marginTop: "0.75rem",
+                padding: "0.6rem 0.85rem",
+                background: "#fffbea",
+                border: "1px solid #f0d060",
+                fontSize: "0.78rem",
+                color: "#7a6000",
               }}
             >
-              {isSubmittingNow ? "Submitting…" : "Retry"}
-            </button>
-            {showSuccessMsg && (
-              <span
-                style={{
-                  fontSize: "0.82rem",
-                  color: "#34A853",
-                  fontWeight: 700,
-                }}
-              >
-                ✓ Submitted!
-              </span>
-            )}
-          </div>
+              📬 Our team will review and verify your submission shortly.
+            </div>
+          )}
         </div>
       ) : (
         /* Submit form */
@@ -2431,7 +2351,7 @@ function ProjectBox({
             >
               {isSubmittingNow ? "Submitting…" : isQuiz ? "Submit All Answers" : "Submit Project"}
             </button>
-            {showSuccessMsg && !quizFailed && (
+            {showSuccessMsg && (
               <span
                 style={{
                   fontSize: "0.82rem",
@@ -2439,7 +2359,7 @@ function ProjectBox({
                   fontWeight: 700,
                 }}
               >
-                {isQuiz ? "✓ Answers submitted!" : "✓ Submitted successfully! Our team will verify it shortly."}
+                ✓ Submitted successfully! Our team will verify it shortly.
               </span>
             )}
           </div>
