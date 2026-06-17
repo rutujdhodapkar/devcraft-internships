@@ -27,6 +27,7 @@ import {
   increment,
 } from "firebase/database";
 import { rtdb, isFirebaseConfigured } from "../firebase";
+import { gradeQuizTextAnswer } from "../utils/aiVerify";
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 const encodeEmail = (email) => email.toLowerCase().trim().replace(/\./g, ",");
@@ -695,12 +696,17 @@ export async function submitQuizAnswer(enrollmentId, projectIndex, answers, proj
     const results = {};
     const parsedAnswers = typeof answers === "string" ? answers : JSON.stringify(answers);
 
-    questions.forEach((q, qi) => {
+    for (let qi = 0; qi < questions.length; qi++) {
+      const q = questions[qi];
       const userAns = String((answers && answers[qi]) || "").trim().toLowerCase();
       results[qi] = false;
       if (q.type === "text") {
-        // Text input requires admin verification - not auto-graded
-        results[qi] = null;
+        const aiResult = await gradeQuizTextAnswer(q.question, answers[qi]);
+        if (aiResult && typeof aiResult.correct === "boolean") {
+          results[qi] = aiResult.correct;
+        } else {
+          results[qi] = null;
+        }
       } else {
         const correctAns = String(q.answer || "").trim().toLowerCase();
         if (q.type === "number") {
@@ -708,16 +714,16 @@ export async function submitQuizAnswer(enrollmentId, projectIndex, answers, proj
         } else {
           results[qi] = userAns === correctAns;
         }
-        if (results[qi]) correctCount++;
       }
-    });
+      if (results[qi]) correctCount++;
+    }
 
-    const autoGradedCount = questions.filter((q) => q.type !== "text").length;
-    const hasTextQuestions = questions.some((q) => q.type === "text");
+    const autoGradedCount = questions.filter((q, qi) => results[qi] !== null).length;
+    const hasTextQuestions = questions.some((q, qi) => q.type === "text" && results[qi] === null);
     const score = autoGradedCount > 0 ? Math.round((correctCount / autoGradedCount) * 100) : 0;
     const passingGrade = Number(project.passingGrade) || 100;
     const passed = autoGradedCount > 0 && score >= passingGrade;
-    const allAutoGradedPassed = !hasTextQuestions && questions.every((q, qi) => q.type === "text" || results[qi]);
+    const allAutoGradedPassed = autoGradedCount === questions.length && questions.every((q, qi) => results[qi] !== false);
 
     await update(
       ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),

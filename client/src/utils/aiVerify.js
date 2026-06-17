@@ -477,3 +477,59 @@ export async function verifyTaskInBrowser(params) {
   heuristicResult.codeFilesCount = codeFiles.length;
   return { success: true, data: heuristicResult };
 }
+
+const QUIZ_GRADER_SYSTEM_PROMPT = `You are a strict quiz answer grader. Determine if the student's answer correctly answers the question. Be fair but accurate. Respond ONLY with valid JSON: {"correct": boolean, "reason": "brief explanation"}`;
+
+export async function gradeQuizTextAnswer(question, studentAnswer) {
+  const trimmed = (studentAnswer || "").trim();
+  if (!trimmed) return null;
+
+  const prompt = `Question: ${question}\nStudent's Answer: ${trimmed}\n\nIs this answer correct? Respond with JSON only.`;
+
+  try {
+    const ai = globalThis.ai || globalThis.window?.ai;
+    if (ai?.languageModel?.capabilities) {
+      const caps = await ai.languageModel.capabilities();
+      if (caps.available !== "no") {
+        const session = await ai.languageModel.create({ systemPrompt: QUIZ_GRADER_SYSTEM_PROMPT });
+        const content = await session.prompt(prompt);
+        await session.destroy?.();
+        const match = content.match(/\{[\s\S]*\}/);
+        if (match) {
+          const result = JSON.parse(match[0]);
+          if (typeof result.correct === "boolean") return result;
+        }
+      }
+    }
+  } catch {}
+
+  const apiKey = import.meta.env.VITE_NVIDIA_API_KEY;
+  if (apiKey) {
+    try {
+      const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "meta/llama-3.3-70b-instruct",
+          messages: [
+            { role: "system", content: QUIZ_GRADER_SYSTEM_PROMPT },
+            { role: "user", content: prompt },
+          ],
+          temperature: 0.2,
+          max_tokens: 500,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || "";
+        const match = content.match(/\{[\s\S]*\}/);
+        if (match) {
+          const result = JSON.parse(match[0]);
+          if (typeof result.correct === "boolean") return result;
+        }
+      }
+    } catch {}
+  }
+
+  return null;
+}
