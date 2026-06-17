@@ -7215,20 +7215,65 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 {q.type === "option" && (
                   <div style={{ marginBottom: "0.4rem" }}>
                     <label style={{ fontSize: "0.7rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>
-                      Options (one per line)
+                      Options
                     </label>
-                    <textarea
-                      className="input-sharp"
-                      rows={3}
-                      value={Array.isArray(q.options) ? q.options.join("\n") : ""}
-                      onChange={(e) => {
+                    {(q.options || []).map((opt, oi) => (
+                      <div key={oi} style={{ display: "flex", gap: "0.3rem", marginBottom: "0.3rem", alignItems: "center" }}>
+                        <input
+                          className="input-sharp"
+                          value={opt}
+                          onChange={(e) => {
+                            const u = [...quizModalQuestions];
+                            const opts = [...(u[qi].options || [])];
+                            opts[oi] = e.target.value;
+                            u[qi] = { ...u[qi], options: opts };
+                            setQuizModalQuestions(u);
+                          }}
+                          placeholder={`Option ${oi + 1}`}
+                          style={{ ...s, flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const u = [...quizModalQuestions];
+                            u[qi] = { ...u[qi], options: (u[qi].options || []).filter((_, i) => i !== oi) };
+                            setQuizModalQuestions(u);
+                          }}
+                          style={{
+                            border: "2px solid #EA4335",
+                            color: "#EA4335",
+                            background: "#fff",
+                            cursor: "pointer",
+                            padding: "0.15rem 0.4rem",
+                            fontSize: "0.65rem",
+                            fontWeight: 700,
+                            flexShrink: 0,
+                          }}
+                        >
+                          X
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
                         const u = [...quizModalQuestions];
-                        u[qi] = { ...u[qi], options: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) };
+                        u[qi] = { ...u[qi], options: [...(u[qi].options || []), ""] };
                         setQuizModalQuestions(u);
                       }}
-                      placeholder="Option A&#10;Option B&#10;Option C"
-                      style={{ ...s, resize: "vertical" }}
-                    />
+                      style={{
+                        border: "2px solid #000",
+                        color: "#000",
+                        background: "#fff",
+                        cursor: "pointer",
+                        padding: "0.2rem 0.6rem",
+                        fontSize: "0.7rem",
+                        fontWeight: 700,
+                        marginTop: "0.2rem",
+                      }}
+                    >
+                      + Add Option
+                    </button>
                   </div>
                 )}
                 <div>
