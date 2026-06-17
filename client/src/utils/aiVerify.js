@@ -486,6 +486,20 @@ export async function gradeQuizTextAnswer(question, studentAnswer) {
 
   const prompt = `Question: ${question}\nStudent's Answer: ${trimmed}\n\nIs this answer correct? Respond with JSON only.`;
 
+  // 1. Try Vercel serverless API (no client-side API key exposure)
+  try {
+    const res = await fetch("/api/grade-quiz-text", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, answer: trimmed }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (typeof data.correct === "boolean") return data;
+    }
+  } catch {}
+
+  // 2. Try browser Chrome Prompt API (no API key needed)
   try {
     const ai = globalThis.ai || globalThis.window?.ai;
     if (ai?.languageModel?.capabilities) {
@@ -502,34 +516,6 @@ export async function gradeQuizTextAnswer(question, studentAnswer) {
       }
     }
   } catch {}
-
-  const apiKey = import.meta.env.VITE_NVIDIA_API_KEY;
-  if (apiKey) {
-    try {
-      const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: "meta/llama-3.3-70b-instruct",
-          messages: [
-            { role: "system", content: QUIZ_GRADER_SYSTEM_PROMPT },
-            { role: "user", content: prompt },
-          ],
-          temperature: 0.2,
-          max_tokens: 500,
-        }),
-      });
-      if (response.ok) {
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || "";
-        const match = content.match(/\{[\s\S]*\}/);
-        if (match) {
-          const result = JSON.parse(match[0]);
-          if (typeof result.correct === "boolean") return result;
-        }
-      }
-    } catch {}
-  }
 
   return null;
 }
