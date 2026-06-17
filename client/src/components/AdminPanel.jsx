@@ -23,6 +23,11 @@ import {
   rejectProject,
   fetchEnrollmentById,
   verifyTaskWithAI,
+  saveAdminMessage,
+  fetchAllAdminMessages,
+  setReferralArchived,
+  fetchDashboardNotices,
+  saveDashboardNotices,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -141,6 +146,19 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     target: "all",
     expiresAt: "",
   });
+  const [quickMessageTarget, setQuickMessageTarget] = useState(null);
+  const [quickMessageText, setQuickMessageText] = useState("");
+  const [quickMessageSaving, setQuickMessageSaving] = useState(false);
+
+  const [adminDateFrom, setAdminDateFrom] = useState("");
+  const [adminDateTo, setAdminDateTo] = useState("");
+  const [showArchivedReferralUsers, setShowArchivedReferralUsers] =
+    useState(false);
+  const [dashboardNotices, setDashboardNotices] = useState({
+    intern: "",
+    referral: "",
+  });
+  const [noticesSaving, setNoticesSaving] = useState(false);
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   // Task feedback & certificate approval states
@@ -264,6 +282,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           .catch(() => {})
           .finally(() => setMessagesLoading(false)),
       );
+      fetchDashboardNotices()
+        .then(setDashboardNotices)
+        .catch(() => {});
     }
   }, [activeTab]);
 
@@ -445,6 +466,74 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     (row) => row.status === "Archived",
   );
 
+  const dateInRange = (value) => {
+    if (!adminDateFrom && !adminDateTo) return true;
+    if (!value) return false;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return false;
+    if (adminDateFrom && d < new Date(adminDateFrom)) return false;
+    if (adminDateTo) {
+      const toVal =
+        adminDateTo.length === 10 ? `${adminDateTo}T23:59:59` : adminDateTo;
+      if (d > new Date(toVal)) return false;
+    }
+    return true;
+  };
+
+  const filterByDate = (items, getDate) => {
+    if (!adminDateFrom && !adminDateTo) return items;
+    return items.filter((item) => dateInRange(getDate(item)));
+  };
+
+  const getLatestSubmissionAt = (enrollment) => {
+    const subs = getSubmissions(enrollment);
+    const dates = Object.values(subs)
+      .map((s) => s?.submittedAt)
+      .filter(Boolean);
+    if (!dates.length) return null;
+    return dates.sort((a, b) => new Date(b) - new Date(a))[0];
+  };
+
+  const filteredActiveRequests = useMemo(
+    () => filterByDate(activeRequests, (r) => r.createdAt),
+    [activeRequests, adminDateFrom, adminDateTo],
+  );
+  const filteredCompletedRequests = useMemo(
+    () => filterByDate(completedRequests, (r) => r.createdAt),
+    [completedRequests, adminDateFrom, adminDateTo],
+  );
+  const filteredArchivedRequests = useMemo(
+    () => filterByDate(archivedRequests, (r) => r.createdAt),
+    [archivedRequests, adminDateFrom, adminDateTo],
+  );
+  const filteredVisibleRequests = useMemo(
+    () => filterByDate(visibleRequests, (r) => r.createdAt),
+    [visibleRequests, adminDateFrom, adminDateTo],
+  );
+  const filteredVisits = useMemo(
+    () =>
+      filterByDate(data.visits, (v) => v.visitedAtRaw || v.visitedAt),
+    [data.visits, adminDateFrom, adminDateTo],
+  );
+  const filteredReferrals = useMemo(
+    () => filterByDate(data.referrals, (r) => r.createdAt),
+    [data.referrals, adminDateFrom, adminDateTo],
+  );
+  const filteredReferralUsers = useMemo(() => {
+    const base = referralUsersData.filter((r) =>
+      showArchivedReferralUsers ? r.archived : !r.archived,
+    );
+    return filterByDate(
+      base,
+      (r) => r.lastActivityAt || r.createdAt,
+    );
+  }, [
+    referralUsersData,
+    showArchivedReferralUsers,
+    adminDateFrom,
+    adminDateTo,
+  ]);
+
   const handleReferralSubmit = async (event) => {
     event.preventDefault();
     setReferralLoading(true);
@@ -565,6 +654,37 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     }
   };
 
+  const handleSendQuickMessage = async (event) => {
+    event.preventDefault();
+    if (!quickMessageTarget?.email || !quickMessageText.trim()) return;
+    setQuickMessageSaving(true);
+    setError("");
+    const targetLabel =
+      quickMessageTarget.name || quickMessageTarget.email;
+    try {
+      await saveAdminMessage({
+        title: "",
+        text: quickMessageText.trim(),
+        type: "info",
+        target: quickMessageTarget.email,
+        context: quickMessageTarget.context,
+        requireAck: true,
+        createdBy: user?.email || "",
+      });
+      setQuickMessageTarget(null);
+      setQuickMessageText("");
+      if (activeTab === "messages") {
+        setAdminMessages(await fetchAllAdminMessages());
+      }
+      setSuccessMsg(`Message sent to ${targetLabel}.`);
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err) {
+      setError("Failed to send message: " + err.message);
+    } finally {
+      setQuickMessageSaving(false);
+    }
+  };
+
   const handleDeleteEnrollment = async (enrollmentId, name) => {
     if (
       window.confirm(`Delete enrollment for "${name}"? This cannot be undone.`)
@@ -615,6 +735,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
   return (
     <section
+      className="admin-panel-root"
       style={{
         backgroundColor: "#fff",
         minHeight: "100vh",
@@ -776,6 +897,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
         {/* Tabs */}
         <div
+          className="admin-tabs-row"
           style={{
             display: "flex",
             flexWrap: "wrap",
@@ -818,6 +940,19 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           ))}
         </div>
 
+        {["interns","works","completed","archived","referrals","visits","referral users","verify-ai"].includes(activeTab) && (
+          <AdminDateFilter
+            from={adminDateFrom}
+            to={adminDateTo}
+            onFromChange={setAdminDateFrom}
+            onToChange={setAdminDateTo}
+            onClear={() => {
+              setAdminDateFrom("");
+              setAdminDateTo("");
+            }}
+          />
+        )}
+
         {/* ── 1. INTERNS TAB ── */}
         {activeTab === "interns" && (
           <div>
@@ -837,10 +972,10 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   margin: 0,
                 }}
               >
-                Active Applied Interns ({activeRequests.length})
+                Active Applied Interns ({filteredActiveRequests.length})
               </h3>
             </div>
-            {activeRequests.length === 0 ? (
+            {filteredActiveRequests.length === 0 ? (
               <EmptyBox msg="No intern registrations yet." />
             ) : (
               <div style={{ overflowX: "auto" }}>
@@ -866,6 +1001,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       <th style={th}>Domain</th>
                       <th style={th}>Country</th>
                       <th style={th}>College</th>
+                      <th style={th}>Last Submission</th>
                       <th style={th}>Status</th>
                       <th style={th}>Completed %</th>
                       <th style={th}>Submissions</th>
@@ -873,7 +1009,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {activeRequests.map((row, i) => {
+                    {filteredActiveRequests.map((row, i) => {
                       const pct = getCompletionPct(row);
                       const subCount = getSubmittedCount(row);
                       const totalProj = getProjectsForEnrollment(row).length;
@@ -914,6 +1050,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           <td style={td}>{row.domain}</td>
                           <td style={td}>{row.country || row.city || "-"}</td>
                           <td style={td}>{row.college || "-"}</td>
+                          <td style={td}>
+                            {getLatestSubmissionAt(row)
+                              ? new Date(
+                                  getLatestSubmissionAt(row),
+                                ).toLocaleString()
+                              : "-"}
+                          </td>
                           <td style={td}>
                             <span
                               style={{
@@ -982,6 +1125,30 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             </button>
                           </td>
                           <td style={td}>
+                            {row.email && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setQuickMessageTarget({
+                                    email: row.email,
+                                    name: row.name,
+                                    context: "intern",
+                                  })
+                                }
+                                style={{
+                                  padding: "0.2rem 0.6rem",
+                                  fontSize: "0.75rem",
+                                  fontWeight: 700,
+                                  border: "2px solid #4285F4",
+                                  background: "#4285F4",
+                                  color: "#fff",
+                                  cursor: "pointer",
+                                  marginRight: "0.35rem",
+                                }}
+                              >
+                                Message
+                              </button>
+                            )}
                             {pct === 100 && (
                               <button
                                 type="button"
@@ -1062,7 +1229,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               Internship Works — Progress Overview
             </h3>
             {(() => {
-              const pendingTasks = activeRequests.flatMap((enrollment) => {
+              const pendingTasks = filteredActiveRequests.flatMap((enrollment) => {
                 const projects = getProjectsForEnrollment(enrollment);
                 const submissions = getSubmissions(enrollment);
                 return projects
@@ -1326,7 +1493,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               );
             })()}
 
-            {activeRequests.length === 0 ? (
+            {filteredActiveRequests.length === 0 ? (
               <EmptyBox msg="No intern submissions yet." />
             ) : (
               <div
@@ -1336,7 +1503,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   gap: "0.75rem",
                 }}
               >
-                {activeRequests.map((enrollment) => {
+                {filteredActiveRequests.map((enrollment) => {
                   const projects = getProjectsForEnrollment(enrollment);
                   if (projects.length === 0) return null;
                   const subs = getSubmissions(enrollment);
@@ -1554,9 +1721,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 marginBottom: "1.5rem",
               }}
             >
-              Completed Internships ({completedRequests.length})
+              Completed Internships ({filteredCompletedRequests.length})
             </h3>
-            {completedRequests.length === 0 ? (
+            {filteredCompletedRequests.length === 0 ? (
               <EmptyBox msg="No completed internships yet." />
             ) : (
               <div
@@ -1566,7 +1733,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   gap: "0.75rem",
                 }}
               >
-                {completedRequests.map((enrollment) => {
+                {filteredCompletedRequests.map((enrollment) => {
                   const completedCount = getVerifiedCount(enrollment);
                   const total = getProjectsForEnrollment(enrollment).length;
                   return (
@@ -1888,7 +2055,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             >
               Archived Internships
             </h3>
-            {archivedRequests.length === 0 ? (
+            {filteredArchivedRequests.length === 0 ? (
               <EmptyBox msg="No archived internships." />
             ) : (
               <div
@@ -1898,7 +2065,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   gap: "0.75rem",
                 }}
               >
-                {archivedRequests.map((enrollment) => {
+                {filteredArchivedRequests.map((enrollment) => {
                   const completedCount = getVerifiedCount(enrollment);
                   const total = getProjectsForEnrollment(enrollment).length;
                   return (
@@ -2881,12 +3048,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               </div>
             </div>
 
-            {data.referrals.length === 0 ? (
+            {filteredReferrals.length === 0 ? (
               <EmptyBox msg="No referral users yet." />
             ) : (
               (() => {
-                // Apply date filter
-                const filtered = data.referrals.filter((r) => {
+                const filtered = filteredReferrals.filter((r) => {
                   if (!referralDateFrom && !referralDateTo) return true;
                   const created = new Date(r.createdAt || 0);
                   if (referralDateFrom && created < new Date(referralDateFrom))
@@ -2898,8 +3064,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     return false;
                   return true;
                 });
-
-                // Sort by most assigned internships (most referred) on top
                 const sorted = [...filtered].sort(
                   (a, b) =>
                     (Number(b.assignedInternships) || 0) -
@@ -3013,6 +3177,30 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           }}
                         >
                           {!isDone ? (
+                            <>
+                              {referral.email && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setQuickMessageTarget({
+                                      email: referral.email,
+                                      name: referral.name,
+                                      context: "referral",
+                                    })
+                                  }
+                                  style={{
+                                    padding: "0.25rem 0.75rem",
+                                    fontSize: "0.72rem",
+                                    fontWeight: 700,
+                                    border: "2px solid #4285F4",
+                                    background: "#4285F4",
+                                    color: "#fff",
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Message
+                                </button>
+                              )}
                             <button
                               type="button"
                               onClick={() =>
@@ -3032,6 +3220,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             >
                               ✓ Done
                             </button>
+                            </>
                           ) : (
                             <button
                               type="button"
@@ -3309,20 +3498,26 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 marginBottom: "1rem",
               }}
             >
-              Referral Link Visits ({data.visits.length})
+              Referral Link Visits ({filteredVisits.length})
             </h3>
             <SimpleTable
               empty="No referral visits yet."
               columns={[
                 "referralCode",
                 "matched",
+                "browser",
                 "device",
+                "os",
+                "visitedFrom",
+                "link",
+                "ip",
                 "country",
                 "city",
-                "link",
+                "isVpn",
+                "timezone",
                 "visitedAt",
               ]}
-              rows={data.visits}
+              rows={filteredVisits}
             />
           </div>
         )}
@@ -3338,16 +3533,53 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 marginBottom: "1.5rem",
               }}
             >
-              Referral Users & Their Interns ({referralUsersData.length})
+              Referral Users & Their Interns ({filteredReferralUsers.length})
             </h3>
+            <div
+              style={{
+                display: "flex",
+                gap: "0.75rem",
+                marginBottom: "1rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowArchivedReferralUsers(false)}
+                style={{
+                  padding: "0.35rem 0.85rem",
+                  fontWeight: 700,
+                  border: "2px solid #000",
+                  background: !showArchivedReferralUsers ? "#000" : "#fff",
+                  color: !showArchivedReferralUsers ? "#fff" : "#000",
+                  cursor: "pointer",
+                }}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowArchivedReferralUsers(true)}
+                style={{
+                  padding: "0.35rem 0.85rem",
+                  fontWeight: 700,
+                  border: "2px solid #555",
+                  background: showArchivedReferralUsers ? "#555" : "#fff",
+                  color: showArchivedReferralUsers ? "#fff" : "#555",
+                  cursor: "pointer",
+                }}
+              >
+                Archived
+              </button>
+            </div>
             {referralDataLoading ? (
               <div
                 style={{ textAlign: "center", padding: "2rem", color: "#888" }}
               >
                 Loading referral users…
               </div>
-            ) : referralUsersData.length === 0 ? (
-              <EmptyBox msg="No referral users found." />
+            ) : filteredReferralUsers.length === 0 ? (
+              <EmptyBox msg="No referral users found for this filter." />
             ) : (
               <div
                 style={{
@@ -3356,7 +3588,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   gap: "1.5rem",
                 }}
               >
-                {referralUsersData.map((referral) => (
+                {filteredReferralUsers.map((referral) => (
                   <div
                     key={referral.code}
                     style={{
@@ -3429,6 +3661,33 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
+                        <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await setReferralArchived(referral.code, !referral.archived);
+                                const fresh = await fetchAdminReferralUsersWithInterns();
+                                setReferralUsersData(fresh);
+                                setSuccessMsg(referral.archived ? "Referral user restored." : "Referral user archived.");
+                                setTimeout(() => setSuccessMsg(""), 3000);
+                              } catch (err) {
+                                setError("Failed to update archive: " + err.message);
+                              }
+                            }}
+                            style={{
+                              padding: "0.25rem 0.75rem",
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                              border: "2px solid #555",
+                              background: "#fff",
+                              color: "#555",
+                              cursor: "pointer",
+                            }}
+                          >
+                            {referral.archived ? "Unarchive" : "Archive"}
+                          </button>
+                        </div>
                         <div
                           style={{
                             fontSize: "0.8rem",
@@ -3537,9 +3796,24 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   style={{ fontSize: "0.7rem", color: "#888" }}
                                 >
                                   {intern.appliedAt
-                                    ? `Applied: ${new Date(intern.appliedAt).toLocaleDateString()}`
+                                    ? `Applied: ${new Date(intern.appliedAt).toLocaleString()}`
                                     : ""}
                                 </div>
+                                {intern.lastSubmissionAt && (
+                                  <div
+                                    style={{
+                                      fontSize: "0.7rem",
+                                      color: "#4285F4",
+                                      marginTop: "0.25rem",
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    Last submission:{" "}
+                                    {new Date(
+                                      intern.lastSubmissionAt,
+                                    ).toLocaleString()}
+                                  </div>
+                                )}
                                 {intern.completedAt && (
                                   <div
                                     style={{
@@ -3723,16 +3997,18 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 fontSize: "0.85rem",
               }}
             >
-              Uses NVIDIA LLM to automatically evaluate intern task submissions.
-              The AI reads the task description, reviews the submission, and
-              returns a verified/rejected result with feedback.
+              Runs entirely in your browser — no server needed. Uses Chrome built-in
+              AI when available, or set <code>VITE_NVIDIA_API_KEY</code> in{" "}
+              <code>client/.env</code> for NVIDIA LLM. Falls back to local checks if
+              neither is available.
             </p>
 
             {(() => {
               // Collect all unverified submissions across all enrollments
               const unverifiedList = [];
-              const activeEnrollments = data.requests.filter(
-                (e) => e.status !== "Archived",
+              const activeEnrollments = filterByDate(
+                data.requests.filter((e) => e.status !== "Archived"),
+                (e) => getLatestSubmissionAt(e) || e.createdAt,
               );
               activeEnrollments.forEach((enrollment) => {
                 const projects = getProjectsForEnrollment(enrollment);
@@ -4901,7 +5177,79 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
         {/* ── MESSAGES ── */}
         {activeTab === "messages" && (
+          <>
+            <div
+              style={{
+                border: "2px solid #000",
+                boxShadow: "4px 4px 0 #000",
+                padding: "1.5rem",
+                marginBottom: "1.5rem",
+                background: "#fff",
+              }}
+            >
+              <h3 style={{ fontWeight: 800, marginBottom: "0.35rem" }}>
+                Dashboard Notice Boxes
+              </h3>
+              <p style={{ fontSize: "0.82rem", color: "#666", marginBottom: "1rem" }}>
+                Always-visible notice boxes on the internship and referral tabs in the student dashboard.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }} className="admin-notices-grid">
+                <div>
+                  <label style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase" }}>
+                    Internship Tab Notice
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={dashboardNotices.intern || ""}
+                    onChange={(e) =>
+                      setDashboardNotices((n) => ({ ...n, intern: e.target.value }))
+                    }
+                    placeholder="Notice shown on My Internships tab…"
+                    style={{ ...s, resize: "vertical", marginTop: "0.35rem" }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase" }}>
+                    Refer & Earn Tab Notice
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={dashboardNotices.referral || ""}
+                    onChange={(e) =>
+                      setDashboardNotices((n) => ({ ...n, referral: e.target.value }))
+                    }
+                    placeholder="Notice shown on Refer & Earn tab…"
+                    style={{ ...s, resize: "vertical", marginTop: "0.35rem" }}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-sharp"
+                disabled={noticesSaving}
+                style={{ marginTop: "1rem" }}
+                onClick={async () => {
+                  setNoticesSaving(true);
+                  try {
+                    await saveDashboardNotices({
+                      ...dashboardNotices,
+                      updatedBy: user?.email || "",
+                    });
+                    setSuccessMsg("Dashboard notices saved!");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) {
+                    setError("Failed to save notices: " + err.message);
+                  } finally {
+                    setNoticesSaving(false);
+                  }
+                }}
+              >
+                {noticesSaving ? "Saving…" : "Save Notice Boxes"}
+              </button>
+            </div>
+
           <div
+            className="admin-messages-grid"
             style={{
               display: "grid",
               gridTemplateColumns: "1fr 1.5fr",
@@ -5203,6 +5551,24 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           <span>
                             Sent: {new Date(msg.createdAt).toLocaleString()}
                           </span>
+                          {msg.context && (
+                            <span>
+                              Tab: <strong>{msg.context}</strong>
+                            </span>
+                          )}
+                          {msg.requireAck && (
+                            <span
+                              style={{
+                                color:
+                                  msg.pendingCount > 0 ? "#EA4335" : "#34A853",
+                                fontWeight: 700,
+                              }}
+                            >
+                              {msg.pendingCount > 0
+                                ? `Pending Done: ${msg.pendingCount} user(s) remaining`
+                                : "All users marked Done"}
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -5211,6 +5577,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               )}
             </div>
           </div>
+          </>
         )}
 
         {/* ── 13. MANAGE ADMINS ── */}
@@ -6113,6 +6480,62 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           </div>
         </div>
       )}
+
+      {quickMessageTarget && (
+        <div
+          className="modal-overlay"
+          onClick={() => !quickMessageSaving && setQuickMessageTarget(null)}
+        >
+          <div
+            className="modal-content admin-quick-message-modal"
+            style={{
+              background: "#fff",
+              border: "2px solid #000",
+              padding: "1.5rem",
+              width: "100%",
+              maxWidth: "480px",
+              margin: "1rem",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontWeight: 800, marginBottom: "0.5rem" }}>
+              Send Message
+            </h3>
+            <p style={{ fontSize: "0.82rem", color: "#666", marginBottom: "1rem" }}>
+              To: <strong>{quickMessageTarget.name || quickMessageTarget.email}</strong>{" "}
+              ({quickMessageTarget.context} tab only, no expiry — user must click Done)
+            </p>
+            <form onSubmit={handleSendQuickMessage}>
+              <textarea
+                rows={4}
+                value={quickMessageText}
+                onChange={(e) => setQuickMessageText(e.target.value)}
+                placeholder="Write your message…"
+                style={{ ...s, resize: "vertical", marginBottom: "1rem" }}
+                required
+              />
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                <button
+                  type="submit"
+                  className="btn-sharp"
+                  disabled={quickMessageSaving}
+                  style={{ flex: 1, minWidth: "120px" }}
+                >
+                  {quickMessageSaving ? "Sending…" : "Send"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-sharp-outline"
+                  disabled={quickMessageSaving}
+                  onClick={() => setQuickMessageTarget(null)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -6210,6 +6633,32 @@ function InternIdList({ title, ids = [] }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function AdminDateFilter({ from, to, onFromChange, onToChange, onClear }) {
+  return (
+    <div className="admin-date-filter">
+      <label>
+        From
+        <input
+          type="datetime-local"
+          value={from}
+          onChange={(e) => onFromChange(e.target.value)}
+        />
+      </label>
+      <label>
+        To
+        <input
+          type="datetime-local"
+          value={to}
+          onChange={(e) => onToChange(e.target.value)}
+        />
+      </label>
+      <button type="button" className="btn-sharp-outline" onClick={onClear}>
+        Clear dates
+      </button>
     </div>
   );
 }
