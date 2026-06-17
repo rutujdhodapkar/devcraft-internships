@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { fetchReferralDashboardData, fetchSelfReferralCode } from '../services/data';
+import { fetchReferralDashboardData, fetchSelfReferralCode, fetchSiteNotices } from '../services/data';
 
 export default function ReferralDashboard({ user, onBackClick }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
   const [code, setCode] = useState(null);
+  const [siteNotices, setSiteNotices] = useState([]);
 
   const loadDashboard = async () => {
     if (!user) return;
@@ -31,6 +32,12 @@ export default function ReferralDashboard({ user, onBackClick }) {
   useEffect(() => {
     loadDashboard();
   }, [user]);
+
+  useEffect(() => {
+    fetchSiteNotices()
+      .then((notices) => setSiteNotices(notices.filter((n) => n.context === "all" || n.context === "referral")))
+      .catch(() => setSiteNotices([]));
+  }, []);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`${window.location.origin}/?ref=${code}`);

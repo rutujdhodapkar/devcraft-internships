@@ -9,6 +9,9 @@ import {
   isReferralCodeMatched,
   fetchUserReferralStat,
   fetchReferralDashboardData,
+  fetchAdminMessages,
+  acknowledgeAdminMessage,
+  fetchSiteNotices,
   PAYMENT_QR_DEFAULT,
   PAYMENT_QR_REFERRAL,
 } from "../services/data";
@@ -37,6 +40,8 @@ export default function StudentDashboard({
   user,
   userProfile,
   onExploreClick,
+  initialReferralTab,
+  onReferralTabConsumed,
 }) {
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,10 +60,12 @@ export default function StudentDashboard({
   const [txnSubmitting, setTxnSubmitting] = useState({});
   const [referralMatchedMap, setReferralMatchedMap] = useState({});
 
-  const [activeTab, setActiveTab] = useState("internships");
+  const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "internships");
   const [referralStat, setReferralStat] = useState(null);
   const [referralDashData, setReferralDashData] = useState(null);
   const [referralDashLoading, setReferralDashLoading] = useState(false);
+  const [tabMessages, setTabMessages] = useState([]);
+  const [siteNotices, setSiteNotices] = useState([]);
 
   const handleSubmitTransactionId = async (enrollmentId) => {
     const txnId = (txnInputs[enrollmentId] || "").trim();
@@ -84,6 +91,20 @@ export default function StudentDashboard({
     }
   }, [user]);
 
+  // Reset the referral tab flag after consumption
+  useEffect(() => {
+    if (initialReferralTab && onReferralTabConsumed) {
+      onReferralTabConsumed();
+    }
+  }, []);
+
+  // Switch to referral tab when initialReferralTab becomes true
+  useEffect(() => {
+    if (initialReferralTab) {
+      setActiveTab("referral");
+    }
+  }, [initialReferralTab]);
+
   // Load full referral dashboard data when referral tab opens and user has a code
   useEffect(() => {
     if (
@@ -102,6 +123,36 @@ export default function StudentDashboard({
         .finally(() => setReferralDashLoading(false));
     }
   }, [activeTab, user, referralStat]);
+
+  useEffect(() => {
+    if (!user?.email) return;
+    const context = activeTab === "referral" ? "referral" : "intern";
+    fetchAdminMessages(user.email, { context, uid: user.uid })
+      .then(setTabMessages)
+      .catch(() => setTabMessages([]));
+  }, [activeTab, user]);
+
+  // Fetch site notices
+  useEffect(() => {
+    fetchSiteNotices()
+      .then((notices) => {
+        const context = activeTab === "referral" ? "referral" : "intern";
+        setSiteNotices(notices.filter((n) => n.context === "all" || n.context === context));
+      })
+      .catch(() => setSiteNotices([]));
+  }, [activeTab]);
+
+  const handleMessageDone = async (msgId) => {
+    try {
+      await acknowledgeAdminMessage(msgId, user.uid, {
+        email: user.email,
+        name: user.displayName,
+      });
+    } catch {
+      /* hide locally even if sync fails */
+    }
+    setTabMessages((prev) => prev.filter((m) => m.id !== msgId));
+  };
 
   // Pre-fill submission input with previous text if resubmission is requested
   useEffect(() => {
@@ -318,6 +369,7 @@ export default function StudentDashboard({
 
             {/* Tabs for Internships & Referrals */}
             <div
+              className="student-dashboard-tabs"
               style={{
                 display: "flex",
                 gap: "0.5rem",
@@ -375,6 +427,111 @@ export default function StudentDashboard({
             }}
           >
             {error}
+          </div>
+        )}
+
+        {tabMessages.length > 0 && (
+          <div
+            className="student-tab-messages"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+              marginBottom: "1.5rem",
+            }}
+          >
+            {tabMessages.map((msg) => {
+              const typeStyles = {
+                warning: { bg: "#FFF8E1", border: "#FBBC05", color: "#7a5c00" },
+                success: { bg: "#E8F5E9", border: "#34A853", color: "#1a5c2e" },
+                info: { bg: "#E3F2FD", border: "#4285F4", color: "#1a3a6c" },
+                notice: { bg: "#F3E8FF", border: "#9334EA", color: "#4a1a7a" },
+              };
+              const ts = typeStyles[msg.type] || typeStyles.info;
+              const isNotice = msg.type === "notice";
+              return (
+                <div
+                  key={msg.id}
+                  style={{
+                    border: `2px solid ${ts.border}`,
+                    background: ts.bg,
+                    padding: "0.85rem 1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "1rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ flex: 1, color: ts.color, fontSize: "0.88rem" }}>
+                    {msg.title && (
+                      <strong style={{ marginRight: "0.5rem" }}>{msg.title}:</strong>
+                    )}
+                    {msg.text}
+                  </div>
+                  {!isNotice && (
+                    <button
+                      type="button"
+                      onClick={() => handleMessageDone(msg.id)}
+                      style={{
+                        background: "#fff",
+                        border: `2px solid ${ts.border}`,
+                        color: ts.color,
+                        fontWeight: 800,
+                        fontSize: "0.78rem",
+                        padding: "0.35rem 0.85rem",
+                        cursor: "pointer",
+                        textTransform: "uppercase",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Done
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Site Notices - always visible boxes */}
+        {siteNotices.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.75rem",
+              marginBottom: "1.5rem",
+            }}
+          >
+            {siteNotices.map((notice) => {
+              const typeStyles = {
+                warning: { bg: "#FFF8E1", border: "#FBBC05", color: "#7a5c00" },
+                success: { bg: "#E8F5E9", border: "#34A853", color: "#1a5c2e" },
+                info: { bg: "#E3F2FD", border: "#4285F4", color: "#1a3a6c" },
+              };
+              const ts = typeStyles[notice.type] || typeStyles.info;
+              return (
+                <div
+                  key={notice.id}
+                  style={{
+                    border: `2px solid ${ts.border}`,
+                    background: ts.bg,
+                    padding: "0.85rem 1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "1rem",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ flex: 1, color: ts.color, fontSize: "0.88rem" }}>
+                    {notice.title && (
+                      <strong style={{ marginRight: "0.5rem" }}>{notice.title}:</strong>
+                    )}
+                    {notice.text}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -776,7 +933,16 @@ export default function StudentDashboard({
                       >
                         <thead>
                           <tr style={{ background: "#000", color: "#fff" }}>
-                            {["Date", "Country", "City", "Device"].map((h) => (
+                            {[
+                              "Date",
+                              "Browser",
+                              "From",
+                              "Link",
+                              "Country",
+                              "IP",
+                              "VPN",
+                              "Device",
+                            ].map((h) => (
                               <th
                                 key={h}
                                 style={{
@@ -806,10 +972,42 @@ export default function StudentDashboard({
                                 {new Date(v.visitedAt).toLocaleString()}
                               </td>
                               <td style={{ padding: "0.55rem 0.85rem" }}>
+                                {v.browser || "-"}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.55rem 0.85rem",
+                                  maxWidth: "120px",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                                title={v.visitedFrom || v.referrer || ""}
+                              >
+                                {v.visitedFrom || v.referrer || "Direct"}
+                              </td>
+                              <td
+                                style={{
+                                  padding: "0.55rem 0.85rem",
+                                  maxWidth: "140px",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                                title={v.link || ""}
+                              >
+                                {v.link || "-"}
+                              </td>
+                              <td style={{ padding: "0.55rem 0.85rem" }}>
                                 {v.country || "-"}
                               </td>
                               <td style={{ padding: "0.55rem 0.85rem" }}>
-                                {v.city || "-"}
+                                {v.ip || "-"}
+                              </td>
+                              <td style={{ padding: "0.55rem 0.85rem" }}>
+                                {v.isVpn === true
+                                  ? "Yes"
+                                  : v.isVpn === false
+                                    ? "No"
+                                    : "-"}
                               </td>
                               <td style={{ padding: "0.55rem 0.85rem" }}>
                                 {v.device || v.os || "-"}

@@ -297,7 +297,7 @@ app.delete('/api/admins/:email', async (req, res) => {
 
 // ─── AI Task Verification (NVIDIA API) ─────────────────────────────────────────
 app.post('/api/ai/verify-task', async (req, res) => {
-  const { taskTitle, taskDescription, submissionText, submissionUrl, internName } = req.body;
+  const { taskTitle, taskDescription, taskNotices, submissionText, submissionUrl, internName, codeFiles } = req.body;
 
   if (!taskTitle || !submissionText) {
     return res.status(400).json({ success: false, message: 'Task title and submission text are required.' });
@@ -309,6 +309,30 @@ app.post('/api/ai/verify-task', async (req, res) => {
   }
 
   try {
+    const promptParts = [
+      `Task Title: ${taskTitle}`,
+      `Task Description: ${taskDescription || 'No description provided'}`,
+    ];
+    if (taskNotices && taskNotices.trim()) {
+      promptParts.push(`Task Instructions/Notices:\n${taskNotices}`);
+    }
+    promptParts.push(`Student Name: ${internName || 'Unknown'}`);
+    promptParts.push(`Student's Submission Text: ${submissionText}`);
+    if (submissionUrl) promptParts.push(`Submission URL: ${submissionUrl}`);
+
+    if (codeFiles && Array.isArray(codeFiles) && codeFiles.length > 0) {
+      promptParts.push(`\n=== ACTUAL CODE FETCHED FROM REPOSITORY ===`);
+      for (const file of codeFiles) {
+        const label = file.path || file.name || 'unknown';
+        promptParts.push(`\n--- File: ${label} ---\n${file.content}`);
+      }
+      promptParts.push(`\n=== END OF CODE ===`);
+      promptParts.push(`\nCRITICAL: Carefully check if the code above actually implements what was asked in the task. Check for: 1) Does the code solve the problem described? 2) Are there any placeholder/boilerplate/todo comments? 3) Does the code look like it was written specifically for this task? If the code is wrong, incomplete, or doesn't match the task, set verified to false with specific reasons.`);
+    } else {
+      promptParts.push(`\nIMPORTANT: No actual code could be fetched from the student's submission. The provided link may be invalid, private, or not a code repository. You MUST set verified to false and explain that the code could not be accessed. Do NOT verify submissions whose code cannot be read.`);
+    }
+    promptParts.push('\nEvaluate this submission and respond with JSON only.');
+
     const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -332,13 +356,7 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
           },
           {
             role: 'user',
-            content: `Task Title: ${taskTitle}
-Task Description: ${taskDescription || 'No description provided'}
-Student Name: ${internName || 'Unknown'}
-Student's Submission: ${submissionText}
-${submissionUrl ? `Submission URL: ${submissionUrl}` : ''}
-
-Evaluate this submission and respond with JSON only.`
+            content: promptParts.join('\n')
           }
         ],
         temperature: 0.3,

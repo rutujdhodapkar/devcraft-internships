@@ -140,6 +140,7 @@ export default function App() {
   const [userBan, setUserBan] = useState(null); // null | { banType, reason }
   const [adminMessages, setAdminMessages] = useState([]);
   const [dismissedMessages, setDismissedMessages] = useState(new Set());
+  const [dashboardReferralTab, setDashboardReferralTab] = useState(false); // open dashboard with referral tab
 
   // Listen to Firebase Auth state
   useEffect(() => {
@@ -197,10 +198,14 @@ export default function App() {
           setUserBan(ban || null);
         } catch {}
 
-        // Fetch admin messages for this user
+        // Fetch admin messages for this user (global only — tab-specific load in dashboard)
         try {
-          const msgs = await fetchAdminMessages(currentUser.email);
-          setAdminMessages(msgs || []);
+          const msgs = await fetchAdminMessages(currentUser.email, {
+            uid: currentUser.uid,
+          });
+          setAdminMessages(
+            (msgs || []).filter((m) => !m.context || m.context === "all"),
+          );
         } catch {}
 
         // Fetch / Sync profile details from RTDB
@@ -314,6 +319,10 @@ export default function App() {
       .catch((error) => {
         console.warn("Referral processing failed:", error.message);
       });
+    // General site visit tracking (every page load)
+    import("./services/data").then(({ trackSiteVisit }) =>
+      trackSiteVisit(user).catch(() => {}),
+    );
   }, []);
 
   const handleApplyDomain = async (domainObj) => {
@@ -539,9 +548,10 @@ export default function App() {
               onLoginClick={handleLoginClick}
               onHomeClick={() => setCurrentView("site")}
               onDashboardClick={() => setCurrentView("dashboard")}
-              onReferralDashboardClick={() =>
-                setCurrentView("referralDashboard")
-              }
+              onReferralDashboardClick={() => {
+                setDashboardReferralTab(true);
+                setCurrentView("dashboard");
+              }}
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => setShowEarnModal(true)}
@@ -549,6 +559,8 @@ export default function App() {
             <StudentDashboard
               user={user}
               userProfile={userProfile}
+              initialReferralTab={dashboardReferralTab}
+              onReferralTabConsumed={() => setDashboardReferralTab(false)}
               onExploreClick={() => {
                 setCurrentView("site");
                 setTimeout(() => {
@@ -573,17 +585,29 @@ export default function App() {
               onLoginClick={handleLoginClick}
               onHomeClick={() => setCurrentView("site")}
               onDashboardClick={() => setCurrentView("dashboard")}
-              onReferralDashboardClick={() =>
-                setCurrentView("referralDashboard")
-              }
+              onReferralDashboardClick={() => {
+                setDashboardReferralTab(true);
+                setCurrentView("dashboard");
+              }}
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => setShowEarnModal(true)}
             />
-            <ReferralDashboard
+            <StudentDashboard
               user={user}
-              onBackClick={() => setCurrentView("site")}
+              userProfile={userProfile}
+              initialReferralTab={dashboardReferralTab}
+              onReferralTabConsumed={() => setDashboardReferralTab(false)}
+              onExploreClick={() => {
+                setCurrentView("site");
+                setTimeout(() => {
+                  document
+                    .getElementById("domains")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }, 100);
+              }}
             />
+            <Footer />
             <Footer />
           </>
         );
@@ -600,9 +624,14 @@ export default function App() {
               onLoginClick={handleLoginClick}
               onHomeClick={() => setCurrentView("site")}
               onDashboardClick={() => setCurrentView("dashboard")}
-              onReferralDashboardClick={() =>
-                setCurrentView("referralDashboard")
-              }
+              onReferralDashboardClick={() => {
+                if (user) {
+                  setDashboardReferralTab(true);
+                  setCurrentView("dashboard");
+                } else {
+                  onLoginClick();
+                }
+              }}
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => {
@@ -655,6 +684,7 @@ export default function App() {
     <>
       {/* Admin Messages Banner */}
       {adminMessages
+        .filter((m) => m.type !== "notice")
         .filter((m) => !dismissedMessages.has(m.id))
         .map((msg) => {
           const typeStyles = {
@@ -692,21 +722,66 @@ export default function App() {
                 {msg.text}
               </div>
               <button
-                onClick={() =>
-                  setDismissedMessages((prev) => new Set([...prev, msg.id]))
-                }
+                onClick={async () => {
+                  try {
+                    const { acknowledgeAdminMessage } = await import(
+                      "./services/data"
+                    );
+                    await acknowledgeAdminMessage(msg.id, user?.uid, {
+                      email: user?.email,
+                      name: user?.displayName,
+                    });
+                  } catch {
+                    /* still hide locally */
+                  }
+                  setDismissedMessages((prev) => new Set([...prev, msg.id]));
+                }}
                 style={{
-                  background: "none",
-                  border: "none",
+                  background: "#fff",
+                  border: `2px solid ${ts.border}`,
                   cursor: "pointer",
-                  fontSize: "1.2rem",
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
                   color: ts.color,
-                  padding: "0 0.25rem",
-                  lineHeight: 1,
+                  padding: "0.25rem 0.65rem",
+                  textTransform: "uppercase",
                 }}
               >
-                ×
+                Done
               </button>
+            </div>
+          );
+        })}
+      {adminMessages
+        .filter((m) => m.type === "notice")
+        .map((msg) => {
+          const ts = { bg: "#F3E8FF", border: "#9334EA", color: "#4a1a7a" };
+          return (
+            <div
+              key={msg.id}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 9999,
+                background: ts.bg,
+                borderBottom: `3px solid ${ts.border}`,
+                padding: "0.65rem 1.5rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+                flexWrap: "wrap",
+                fontSize: "0.88rem",
+                color: ts.color,
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                {msg.title && (
+                  <strong style={{ marginRight: "0.5rem" }}>{msg.title}:</strong>
+                )}
+                {msg.text}
+              </div>
             </div>
           );
         })}

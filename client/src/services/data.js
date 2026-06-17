@@ -746,12 +746,13 @@ export async function fetchEnrollmentById(enrollmentId) {
 // ─── Admin Data ────────────────────────────────────────────────────────────────
 export async function fetchAdminData() {
   if (isFirebaseConfigured && rtdb) {
-    const [referralsSnap, visitsSnap, enrollmentsSnap, referralUsersSnap] =
+    const [referralsSnap, visitsSnap, enrollmentsSnap, referralUsersSnap, siteVisitsSnap] =
       await Promise.all([
         get(ref(rtdb, "referrals")),
         get(ref(rtdb, "referralVisits")),
         get(ref(rtdb, "enrollments")),
         get(ref(rtdb, "referralUsers")),
+        get(ref(rtdb, "siteVisits")),
       ]);
 
     const enrollments = snapToArray(enrollmentsSnap.val()).sort((a, b) =>
@@ -780,6 +781,9 @@ export async function fetchAdminData() {
         const relatedEnrollments = enrollments.filter(
           (e) => String(e.referralCode || "").toUpperCase() === code,
         );
+        const relatedVisitCount = snapToArray(visitsSnap.val()).filter(
+          (v) => String(v.referralCode || "").toUpperCase() === code,
+        ).length;
         const loginUidSet = new Set(
           loginUsers.map((u) => u.uid).filter(Boolean),
         );
@@ -805,7 +809,7 @@ export async function fetchAdminData() {
           ...referral,
           code,
           totalLogined: loginUidSet.size,
-          visited: Number(referral.visited || 0),
+          visited: relatedVisitCount || Number(referral.visited || 0),
           assignedInternships: assigned.length,
           completedInterns: completed.length,
           completedInternIds: internIds(completed),
@@ -826,17 +830,36 @@ export async function fetchAdminData() {
         ...visit,
         id: visit.visitId || visit.id,
         referralCode: visit.referralCode || "-",
+        browser: visit.browser || "Unknown",
+        visitedFrom: visit.visitedFrom || visit.referrer || "Direct",
         device: visit.device || "Unknown",
         country: visit.country || "Unknown",
         city: visit.city || "Unknown",
+        ip: visit.ip || "Unknown",
+        isVpn:
+          visit.isVpn === true
+            ? "Yes"
+            : visit.isVpn === false
+              ? "No"
+              : "Unknown",
         link: visit.link || "-",
         matched: visit.matched === true,
+        visitedAtRaw: visit.visitedAt,
         visitedAt: visit.visitedAt
           ? new Date(visit.visitedAt).toLocaleString()
           : "-",
       }));
 
-    return { requests: enrollments, referrals, visits };
+    const siteVisits = snapToArray(siteVisitsSnap.val())
+      .sort((a, b) => (b.visitedAt || "").localeCompare(a.visitedAt || ""))
+      .slice(0, 200)
+      .map((v) => ({
+        ...v,
+        type: "site",
+        name: v.name || v.email || "-",
+        visitedAt: v.visitedAt ? new Date(v.visitedAt).toLocaleString() : "-",
+      }));
+    return { requests: enrollments, referrals, visits, siteVisits };
   }
 
   const data = await apiFetch("/api/admin-data");
@@ -851,6 +874,7 @@ export async function fetchAdminData() {
     requests: data.data.requests || [],
     referrals: data.data.referrals || [],
     visits,
+    siteVisits: [],
   };
 }
 
@@ -938,6 +962,83 @@ export async function createReferral(details) {
   return data.data;
 }
 
+function getDeviceType() {
+  const width = window.innerWidth;
+  if (/Mobi|Android/i.test(navigator.userAgent) || width < 768) return "Mobile";
+  if (/Tablet|iPad/i.test(navigator.userAgent) || width < 1100) return "Tablet";
+  return "Desktop";
+}
+
+function parseBrowserName(ua) {
+  if (/Edg\//i.test(ua)) return "Edge";
+  if (/OPR\//i.test(ua) || /Opera/i.test(ua)) return "Opera";
+  if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) return "Chrome";
+  if (/Firefox\//i.test(ua)) return "Firefox";
+  if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return "Safari";
+  return "Other";
+}
+
+async function fetchGeoDetails() {
+  const geo = {
+    ip: "Unknown",
+    country: "Unknown",
+    city: "Unknown",
+    region: "Unknown",
+    isp: "Unknown",
+    timezone: "Unknown",
+    isVpn: false,
+    isProxy: false,
+    isHosting: false,
+  };
+
+  const fetchWithTimeout = (url, timeoutMs) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(id));
+  };
+
+  try {
+    const geoRes = await fetchWithTimeout(
+      "https://ip-api.com/json/?fields=status,message,query,country,regionName,city,timezone,isp,proxy,hosting,mobile",
+      5000,
+    );
+    if (geoRes.ok) {
+      const g = await geoRes.json();
+      if (g.status === "success") {
+        geo.ip = g.query || "Unknown";
+        geo.country = g.country || "Unknown";
+        geo.city = g.city || "Unknown";
+        geo.region = g.regionName || "Unknown";
+        geo.isp = g.isp || "Unknown";
+        geo.timezone = g.timezone || "Unknown";
+        geo.isProxy = g.proxy === true;
+        geo.isHosting = g.hosting === true;
+        geo.isVpn = g.proxy === true || g.hosting === true;
+        return geo;
+      }
+    }
+  } catch {
+    /* try fallback */
+  }
+
+  try {
+    const geoRes = await fetchWithTimeout("https://ipapi.co/json/", 4000);
+    if (geoRes.ok) {
+      const g = await geoRes.json();
+      geo.ip = g.ip || "Unknown";
+      geo.country = g.country_name || g.country || "Unknown";
+      geo.city = g.city || "Unknown";
+      geo.region = g.region || "Unknown";
+      geo.isp = g.org || "Unknown";
+      geo.timezone = g.timezone || "Unknown";
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return geo;
+}
+
 // ─── Referral Visit Tracking ───────────────────────────────────────────────────
 export async function trackReferralVisit(referralCode) {
   if (!referralCode) return null;
@@ -957,142 +1058,103 @@ export async function trackReferralVisit(referralCode) {
     downlink = "Unknown",
     rtt = "Unknown";
   if (navigator.connection) {
-    connectionType = navigator.connection.effectiveType || "Unknown";
-    downlink = navigator.connection.downlink || "Unknown";
-    rtt = navigator.connection.rtt || "Unknown";
+    try {
+      connectionType = navigator.connection.effectiveType || "Unknown";
+      downlink = navigator.connection.downlink || "Unknown";
+      rtt = navigator.connection.rtt || "Unknown";
+    } catch {}
   }
 
   const normalizedCode = referralCode.toUpperCase();
-  const sessionVisitKey = `referral_visit_${normalizedCode}`;
-  if (sessionStorage.getItem(sessionVisitKey)) return null;
+
+  const visitedFrom = document.referrer || "Direct";
+  const browser = parseBrowserName(ua);
+  let geo;
+  try { geo = await fetchGeoDetails(); } catch { geo = {}; }
 
   const visitBase = {
     referralCode: normalizedCode,
-    browser: ua.substring(0, 200),
+    browser,
+    browserFull: ua.substring(0, 300),
     os,
     hardware: `Cores: ${cores}, RAM: ${memory}GB`,
     network: `Type: ${connectionType}, Downlink: ${downlink}Mbps, RTT: ${rtt}ms`,
     device: getDeviceType(),
     language: navigator.language,
     link: window.location.href,
+    visitedFrom,
+    referrer: document.referrer || "",
+    screen: `${window.screen?.width || 0}x${window.screen?.height || 0}`,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    timezone: (Intl.DateTimeFormat && Intl.DateTimeFormat().resolvedOptions().timeZone) || "Unknown",
     visitedAt: new Date().toISOString(),
-    ip: "Unknown",
-    country: "Unknown",
-    city: "Unknown",
-    region: "Unknown",
-    isp: "Unknown",
+    ip: geo?.ip || "Unknown",
+    country: geo?.country || "Unknown",
+    city: geo?.city || "Unknown",
+    region: geo?.region || "Unknown",
+    isp: geo?.isp || "Unknown",
+    isVpn: geo?.isVpn === true,
+    isProxy: geo?.isProxy === true,
+    isHosting: geo?.isHosting === true,
     action: "visited",
     matched: false,
   };
 
   if (isFirebaseConfigured && rtdb) {
-    const normalizedCode = referralCode.toUpperCase();
-    let referralRef = ref(rtdb, `referrals/${normalizedCode}`);
-    let referralSnap = await get(referralRef);
+    try {
+      let referralRef = ref(rtdb, `referrals/${normalizedCode}`);
+      let referralSnap = await get(referralRef);
 
-    if (!referralSnap.exists()) {
-      const allReferralsSnap = await get(ref(rtdb, "referrals"));
-      if (allReferralsSnap.exists()) {
-        const entries = Object.entries(allReferralsSnap.val());
-        const matchedEntry = entries.find(
-          ([, data]) =>
-            String(data.code || "").toUpperCase() === normalizedCode,
-        );
-        if (matchedEntry) {
-          referralRef = ref(rtdb, `referrals/${matchedEntry[0]}`);
-          referralSnap = await get(referralRef);
-        }
-      }
-    }
-
-    const visitRef = push(ref(rtdb, "referralVisits"));
-    visitBase.visitId = visitRef.key;
-    visitBase.referralCode = normalizedCode;
-
-    await set(visitRef, visitBase);
-
-    const matched = referralSnap.exists();
-    visitBase.matched = matched;
-
-    const patchVisit = update(visitRef, { matched });
-    const counterUpdates = matched
-      ? update(referralRef, {
-          visited: increment(1),
-          lastVisitedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        })
-      : Promise.resolve();
-
-    const patchGeo = async () => {
-      let geo = {};
-      try {
-        const geoRes = await fetch("https://ipapi.co/json/", {
-          signal: AbortSignal.timeout(4000),
-        });
-        if (geoRes.ok) {
-          const g = await geoRes.json();
-          geo = {
-            ip: g.ip || "Unknown",
-            country: g.country_name || g.country || "Unknown",
-            city: g.city || "Unknown",
-            region: g.region || "Unknown",
-            isp: g.org || "Unknown",
-          };
-        }
-      } catch {
-        try {
-          const geoRes2 = await fetch("https://ip-api.com/json/", {
-            signal: AbortSignal.timeout(4000),
-          });
-          if (geoRes2.ok) {
-            const g2 = await geoRes2.json();
-            geo = {
-              ip: g2.query || "Unknown",
-              country: g2.country || "Unknown",
-              city: g2.city || "Unknown",
-              region: g2.regionName || "Unknown",
-              isp: g2.isp || "Unknown",
-            };
+      if (!referralSnap.exists()) {
+        const allReferralsSnap = await get(ref(rtdb, "referrals"));
+        if (allReferralsSnap.exists()) {
+          const entries = Object.entries(allReferralsSnap.val());
+          const matchedEntry = entries.find(
+            ([, data]) =>
+              String(data.code || "").toUpperCase() === normalizedCode,
+          );
+          if (matchedEntry) {
+            referralRef = ref(rtdb, `referrals/${matchedEntry[0]}`);
+            referralSnap = await get(referralRef);
           }
-        } catch {
-          /* ignore */
         }
       }
-      if (Object.keys(geo).length > 0) {
-        try {
-          await update(visitRef, geo);
-        } catch {
-          /* ignore */
-        }
-      }
-    };
 
-    Promise.all([patchVisit, counterUpdates, patchGeo()]).catch(() => {});
-    sessionStorage.setItem(sessionVisitKey, visitRef.key);
-    return { ...visitBase };
+      const visitRef = push(ref(rtdb, "referralVisits"));
+      visitBase.visitId = visitRef.key;
+      visitBase.referralCode = normalizedCode;
+
+      await set(visitRef, visitBase);
+
+      const matched = referralSnap.exists();
+      visitBase.matched = matched;
+
+      await Promise.all([
+        update(visitRef, { matched }),
+        matched
+          ? update(referralRef, {
+              visited: increment(1),
+              lastVisitedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            })
+          : Promise.resolve(),
+      ]).catch(() => {});
+      return { ...visitBase, matched };
+    } catch (e) {
+      console.warn("trackReferralVisit Firebase error:", e.message);
+      return null;
+    }
   }
 
   try {
-    const geoRes = await fetch("https://ipapi.co/json/", {
-      signal: AbortSignal.timeout(4000),
+    const data = await apiFetch("/api/referral-visits", {
+      method: "POST",
+      body: JSON.stringify(visitBase),
     });
-    if (geoRes.ok) {
-      const g = await geoRes.json();
-      visitBase.ip = g.ip || "Unknown";
-      visitBase.country = g.country_name || g.country || "Unknown";
-      visitBase.city = g.city || "Unknown";
-      visitBase.region = g.region || "Unknown";
-      visitBase.isp = g.org || "Unknown";
-    }
+    return data.data;
   } catch {
-    /* ignore */
+    return null;
   }
-
-  const data = await apiFetch("/api/referral-visits", {
-    method: "POST",
-    body: JSON.stringify(visitBase),
-  });
-  return data.data;
 }
 
 /**
@@ -1202,13 +1264,6 @@ export async function removeAdmin(email) {
   await apiFetch(`/api/admins/${encodeURIComponent(cleanEmail)}`, {
     method: "DELETE",
   });
-}
-
-function getDeviceType() {
-  const width = window.innerWidth;
-  if (/Mobi|Android/i.test(navigator.userAgent) || width < 768) return "Mobile";
-  if (/Tablet|iPad/i.test(navigator.userAgent) || width < 1100) return "Tablet";
-  return "Desktop";
 }
 
 // ─── Self-Referral (Earn Section) ─────────────────────────────────────────────
@@ -1505,24 +1560,30 @@ export async function fetchPermanentReferralCode(uid) {
   return null;
 }
 
-// ─── AI Task Verification ──────────────────────────────────────────────────────
-export async function verifyTaskWithAI({
-  taskTitle,
-  taskDescription,
-  submissionText,
-  submissionUrl,
-  internName,
-}) {
-  return await apiFetch("/api/ai/verify-task", {
-    method: "POST",
-    body: JSON.stringify({
-      taskTitle,
-      taskDescription,
-      submissionText,
-      submissionUrl,
-      internName,
-    }),
-  });
+// ─── AI Task Verification ─────────────────────────────────────────────────────
+export async function verifyTaskWithAI(params) {
+  const { fetchCodeFromSubmission } = await import("../utils/aiVerify");
+  let codeFiles = [];
+  try {
+    codeFiles = await fetchCodeFromSubmission(params.submissionText, params.submissionUrl);
+  } catch (err) {
+    console.warn('Failed to fetch code from submission:', err.message);
+  }
+  const paramsWithCode = { ...params, codeFiles };
+
+  try {
+    const data = await apiFetch('/api/ai/verify-task', {
+      method: 'POST',
+      body: JSON.stringify(paramsWithCode),
+    });
+    if (data.success && data.data) {
+      return { success: true, data: { ...data.data, codeFilesCount: codeFiles.length, source: 'server-nvidia' } };
+    }
+  } catch (err) {
+    console.warn('Server AI verification failed, falling back to browser:', err.message);
+  }
+  const { verifyTaskInBrowser } = await import("../utils/aiVerify");
+  return verifyTaskInBrowser(paramsWithCode);
 }
 
 export async function fetchEarnSettings() {
@@ -1635,7 +1696,42 @@ export async function unbanUser(email) {
 }
 
 // ─── Admin Messages ────────────────────────────────────────────────────────────
-export async function fetchAdminMessages(userEmail) {
+function messageMatchesUser(msg, userEmail) {
+  if (msg.target === "all") return true;
+  if (
+    userEmail &&
+    msg.target &&
+    msg.target.toLowerCase() === userEmail.toLowerCase()
+  )
+    return true;
+  return false;
+}
+
+function enrichMessageForAdmin(id, msg) {
+  const acknowledgedBy = msg.acknowledgedBy || {};
+  const ackList = Object.values(acknowledgedBy);
+  const targetCount =
+    msg.target && msg.target !== "all" ? 1 : null;
+  return {
+    ...msg,
+    id,
+    acknowledgedBy,
+    acknowledgedCount: ackList.length,
+    targetCount,
+    pendingCount:
+      msg.requireAck && targetCount !== null
+        ? Math.max(0, targetCount - ackList.length)
+        : null,
+    remainingUsers:
+      msg.requireAck && msg.target && msg.target !== "all" && ackList.length === 0
+        ? [msg.target]
+        : msg.requireAck && msg.target && msg.target !== "all" && ackList.length > 0
+          ? []
+          : null,
+  };
+}
+
+export async function fetchAdminMessages(userEmail, { context, uid } = {}) {
   if (!isFirebaseConfigured || !rtdb) return [];
   try {
     const snap = await get(ref(rtdb, "adminMessages"));
@@ -1645,14 +1741,10 @@ export async function fetchAdminMessages(userEmail) {
       .map(([id, msg]) => ({ ...msg, id }))
       .filter((msg) => {
         if (msg.expiresAt && new Date(msg.expiresAt) < now) return false;
-        if (msg.target === "all") return true;
-        if (
-          userEmail &&
-          msg.target &&
-          msg.target.toLowerCase() === userEmail.toLowerCase()
-        )
-          return true;
-        return false;
+        if (!messageMatchesUser(msg, userEmail)) return false;
+        if (context && msg.context && msg.context !== context) return false;
+        if (uid && msg.acknowledgedBy?.[uid]) return false;
+        return true;
       })
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch {
@@ -1666,7 +1758,7 @@ export async function fetchAllAdminMessages() {
     const snap = await get(ref(rtdb, "adminMessages"));
     if (!snap.exists()) return [];
     return Object.entries(snap.val())
-      .map(([id, msg]) => ({ ...msg, id }))
+      .map(([id, msg]) => enrichMessageForAdmin(id, msg))
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch {
     return [];
@@ -1677,12 +1769,223 @@ export async function saveAdminMessage(message) {
   if (!isFirebaseConfigured || !rtdb)
     throw new Error("Firebase not configured.");
   const msgRef = push(ref(rtdb, "adminMessages"));
-  await set(msgRef, { ...message, createdAt: new Date().toISOString() });
+  const payload = {
+    ...message,
+    createdAt: new Date().toISOString(),
+    acknowledgedBy: {},
+  };
+  if (!payload.expiresAt) delete payload.expiresAt;
+  await set(msgRef, payload);
   return msgRef.key;
+}
+
+export async function acknowledgeAdminMessage(messageId, uid, userInfo = {}) {
+  if (!messageId || !uid) return;
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  await update(ref(rtdb, `adminMessages/${messageId}/acknowledgedBy/${uid}`), {
+    uid,
+    email: userInfo.email || "",
+    name: userInfo.name || "",
+    acknowledgedAt: new Date().toISOString(),
+  });
 }
 
 export async function deleteAdminMessage(id) {
   if (!isFirebaseConfigured || !rtdb)
     throw new Error("Firebase not configured.");
   await remove(ref(rtdb, `adminMessages/${id}`));
+}
+
+// ─── Site Notices (always-visible notice box) ─────────────────────────────────
+export async function saveSiteNotice(notice) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  const noticeRef = push(ref(rtdb, "siteNotices"));
+  await set(noticeRef, {
+    ...notice,
+    createdAt: new Date().toISOString(),
+    active: true,
+  });
+  return noticeRef.key;
+}
+
+export async function fetchSiteNotices() {
+  if (!isFirebaseConfigured || !rtdb) return [];
+  try {
+    const snap = await get(ref(rtdb, "siteNotices"));
+    if (!snap.exists()) return [];
+    return Object.entries(snap.val())
+      .map(([id, n]) => ({ ...n, id }))
+      .filter((n) => n.active !== false)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  } catch { return []; }
+}
+
+export async function toggleSiteNotice(id, active) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  await update(ref(rtdb, `siteNotices/${id}`), { active });
+}
+
+export async function deleteSiteNotice(id) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  await remove(ref(rtdb, `siteNotices/${id}`));
+}
+
+// ─── Homepage Content (headline, description, buttons) ─────────────────────
+export async function fetchHomepageContent() {
+  if (!isFirebaseConfigured || !rtdb) {
+    return {
+      headline: "Kickstart Your Developer Career with Virtual Internships.",
+      description: "Gain hands-on software engineering experience, build real production-grade code, and receive verified completion credentials. Self-paced, industry-aligned, and 100% virtual.",
+      buttons: [
+        { label: "Apply Internship", action: "apply", enabled: true },
+        { label: "Explore Domains", action: "explore", enabled: true },
+      ],
+      badges: [
+        { label: "✦ 100% FREE INTERNSHIP" },
+        { label: "✦ BEST INTERNSHIP FOR COLLEGE STUDENTS" },
+      ],
+      features: [
+        { icon: "✓", label: "Verified Program" },
+        { icon: "✓", label: "Instant Offer Letter" },
+        { icon: "✓", label: "100% Virtual" },
+      ],
+    };
+  }
+  try {
+    const snap = await get(ref(rtdb, "siteContent/homepage"));
+    if (snap.exists()) return snap.val();
+    return {
+      headline: "Kickstart Your Developer Career with Virtual Internships.",
+      description: "Gain hands-on software engineering experience, build real production-grade code, and receive verified completion credentials. Self-paced, industry-aligned, and 100% virtual.",
+      buttons: [
+        { label: "Apply Internship", action: "apply", enabled: true },
+        { label: "Explore Domains", action: "explore", enabled: true },
+      ],
+      badges: [
+        { label: "✦ 100% FREE INTERNSHIP" },
+        { label: "✦ BEST INTERNSHIP FOR COLLEGE STUDENTS" },
+      ],
+      features: [
+        { icon: "✓", label: "Verified Program" },
+        { icon: "✓", label: "Instant Offer Letter" },
+        { icon: "✓", label: "100% Virtual" },
+      ],
+    };
+  } catch { return null; }
+}
+
+export async function saveHomepageContent(content) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  await set(ref(rtdb, "siteContent/homepage"), {
+    ...content,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+// ─── Referral User Achievement ────────────────────────────────────────────────
+export async function markReferralAchieved(referralCode, achieved) {
+  if (!referralCode) return;
+  const code = referralCode.toUpperCase();
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  if (achieved) {
+    await update(ref(rtdb, `referrals/${code}`), {
+      achieved: true,
+      achievedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  } else {
+    await update(ref(rtdb, `referrals/${code}`), {
+      achieved: false,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+}
+
+// ─── Enrollment Completion Verification ──────────────────────────────────────
+export async function markEnrollmentComplete(enrollmentId) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  await update(ref(rtdb, `enrollments/${enrollmentId}`), {
+    status: "Completed",
+    allowedCertificate: "yes",
+    completedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function rejectEnrollmentCompletion(enrollmentId, reason) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  await update(ref(rtdb, `enrollments/${enrollmentId}`), {
+    completionRejectedAt: new Date().toISOString(),
+    completionRejectReason: reason || "",
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+export async function clearCompletionRejection(enrollmentId) {
+  if (!isFirebaseConfigured || !rtdb)
+    throw new Error("Firebase not configured.");
+  await update(ref(rtdb, `enrollments/${enrollmentId}`), {
+    completionRejectedAt: null,
+    completionRejectReason: null,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+// ─── Check & auto-unachieve referral if activity after achievedAt ────────────
+export async function autoUnachieveIfActivity(referralCode) {
+  if (!referralCode) return;
+  const code = referralCode.toUpperCase();
+  if (!isFirebaseConfigured || !rtdb) return;
+  try {
+    const snap = await get(ref(rtdb, `referrals/${code}`));
+    if (!snap.exists()) return;
+    const data = snap.val();
+    if (!data.achieved || !data.achievedAt) return;
+    const achievedAt = new Date(data.achievedAt).getTime();
+    const updatedAt = data.updatedAt ? new Date(data.updatedAt).getTime() : 0;
+    if (updatedAt > achievedAt) {
+      await update(ref(rtdb, `referrals/${code}`), {
+        achieved: false,
+        autoUnachievedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      return true; // was unachieved
+    }
+  } catch (err) {
+    console.warn("autoUnachieveIfActivity error:", err.message);
+  }
+  return false;
+}
+
+// ─── General Site Visit Tracking ─────────────────────────────────────────────
+export async function trackSiteVisit(user) {
+  if (!isFirebaseConfigured || !rtdb) return;
+  try {
+    const visitRef = push(ref(rtdb, "siteVisits"));
+    const visitData = {
+      visitedAt: new Date().toISOString(),
+      userAgent: navigator.userAgent || "",
+      language: navigator.language || "",
+      referrer: document.referrer || "",
+      url: window.location.href || "",
+      screen: `${window.screen?.width || "?"}x${window.screen?.height || "?"}`,
+      viewport: `${window.innerWidth || "?"}x${window.innerHeight || "?"}`,
+    };
+    if (user && user.uid) {
+      visitData.uid = user.uid;
+      visitData.email = user.email || "";
+      visitData.name = user.displayName || "";
+    }
+    await set(visitRef, visitData);
+  } catch (err) {
+    console.warn("trackSiteVisit error:", err.message);
+  }
 }

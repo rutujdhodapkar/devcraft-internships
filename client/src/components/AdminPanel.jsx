@@ -25,9 +25,10 @@ import {
   verifyTaskWithAI,
   saveAdminMessage,
   fetchAllAdminMessages,
-  setReferralArchived,
-  fetchDashboardNotices,
-  saveDashboardNotices,
+  markEnrollmentComplete,
+  rejectEnrollmentCompletion,
+  clearCompletionRejection,
+  autoUnachieveIfActivity,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -52,6 +53,7 @@ const TABS = [
   { id: "works", label: "Internship Works" },
   { id: "completed", label: "Completed" },
   { id: "certificates", label: "Certificates" },
+  { id: "verify-completion", label: "Verify Completion" },
   { id: "archived", label: "Archived" },
   { id: "career paths", label: "Domains" },
   { id: "how it works", label: "How It Works" },
@@ -65,6 +67,8 @@ const TABS = [
   { id: "earn-settings", label: "Earn Settings" },
   { id: "banned-users", label: "Banned Users" },
   { id: "messages", label: "Messages" },
+  { id: "notice-board", label: "Notice Board" },
+  { id: "homepage", label: "Homepage" },
   { id: "manage admins", label: "Admins" },
 ];
 
@@ -150,15 +154,23 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [quickMessageText, setQuickMessageText] = useState("");
   const [quickMessageSaving, setQuickMessageSaving] = useState(false);
 
-  const [adminDateFrom, setAdminDateFrom] = useState("");
-  const [adminDateTo, setAdminDateTo] = useState("");
-  const [showArchivedReferralUsers, setShowArchivedReferralUsers] =
-    useState(false);
-  const [dashboardNotices, setDashboardNotices] = useState({
-    intern: "",
-    referral: "",
-  });
-  const [noticesSaving, setNoticesSaving] = useState(false);
+  // Date/Time filter state for all tabs
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterDomain, setFilterDomain] = useState("");
+  const [filterSortBy, setFilterSortBy] = useState("date-desc");
+  const [filterInternCountMin, setFilterInternCountMin] = useState("");
+
+  // Notice Board state
+  const [siteNotices, setSiteNotices] = useState([]);
+  const [noticesLoading, setNoticesLoading] = useState(false);
+  const [newNotice, setNewNotice] = useState({ title: "", text: "", type: "info", context: "all" });
+  const [noticeSaving, setNoticeSaving] = useState(false);
+
+  // Homepage content state
+  const [homepageContent, setHomepageContent] = useState(null);
+  const [homepageLoading, setHomepageLoading] = useState(false);
+  const [homepageSaving, setHomepageSaving] = useState(false);
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   // Task feedback & certificate approval states
@@ -183,12 +195,31 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   useEffect(() => {
     if (activeTab === "referral users") {
       setReferralDataLoading(true);
-      fetchAdminReferralUsersWithInterns()
-        .then(setReferralUsersData)
-        .catch((err) =>
-          console.warn("Failed to load referral users:", err.message),
-        )
-        .finally(() => setReferralDataLoading(false));
+      (async () => {
+        try {
+          const data = await fetchAdminReferralUsersWithInterns();
+          // Auto-unachieve any referral with activity after achievedAt
+          for (const ref of data) {
+            if (ref.achieved) {
+              const wasUnachieved = await autoUnachieveIfActivity(ref.code);
+              if (wasUnachieved) {
+                setSuccessMsg(`${ref.name} auto-unachieved due to new activity.`);
+                setTimeout(() => setSuccessMsg(""), 4000);
+              }
+            }
+          }
+          if (data.some(r => r.achieved === false && r.autoUnachievedAt)) {
+            const fresh = await fetchAdminReferralUsersWithInterns();
+            setReferralUsersData(fresh);
+          } else {
+            setReferralUsersData(data);
+          }
+        } catch (err) {
+          console.warn("Failed to load referral users:", err.message);
+        } finally {
+          setReferralDataLoading(false);
+        }
+      })();
     }
     if (activeTab === "visits") {
       loadData();
@@ -282,9 +313,24 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           .catch(() => {})
           .finally(() => setMessagesLoading(false)),
       );
-      fetchDashboardNotices()
-        .then(setDashboardNotices)
-        .catch(() => {});
+    }
+    if (activeTab === "notice-board") {
+      setNoticesLoading(true);
+      import("../services/data").then(({ fetchSiteNotices }) =>
+        fetchSiteNotices()
+          .then(setSiteNotices)
+          .catch(() => {})
+          .finally(() => setNoticesLoading(false)),
+      );
+    }
+    if (activeTab === "homepage") {
+      setHomepageLoading(true);
+      import("../services/data").then(({ fetchHomepageContent }) =>
+        fetchHomepageContent()
+          .then(setHomepageContent)
+          .catch(() => {})
+          .finally(() => setHomepageLoading(false)),
+      );
     }
   }, [activeTab]);
 
@@ -378,18 +424,18 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   };
 
   const noticeTimers = useRef({});
-  const [noticeSaving, setNoticeSaving] = useState({});
+  const [autoNoticeSaving, setAutoNoticeSaving] = useState({});
 
   const autoSaveNotice = (pathIdx, pIdx, notice) => {
     const key = `${pathIdx}_${pIdx}`;
     if (noticeTimers.current[key]) clearTimeout(noticeTimers.current[key]);
     noticeTimers.current[key] = setTimeout(async () => {
-      setNoticeSaving((prev) => ({ ...prev, [key]: true }));
+      setAutoNoticeSaving((prev) => ({ ...prev, [key]: true }));
       try {
         await saveCareerPaths(careerPaths);
-        setNoticeSaving((prev) => ({ ...prev, [key]: false }));
+        setAutoNoticeSaving((prev) => ({ ...prev, [key]: false }));
       } catch (err) {
-        setNoticeSaving((prev) => ({ ...prev, [key]: false }));
+        setAutoNoticeSaving((prev) => ({ ...prev, [key]: false }));
         setError("Failed to save notice: " + err.message);
       }
     }, 800);
@@ -465,74 +511,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const archivedRequests = data.requests.filter(
     (row) => row.status === "Archived",
   );
-
-  const dateInRange = (value) => {
-    if (!adminDateFrom && !adminDateTo) return true;
-    if (!value) return false;
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return false;
-    if (adminDateFrom && d < new Date(adminDateFrom)) return false;
-    if (adminDateTo) {
-      const toVal =
-        adminDateTo.length === 10 ? `${adminDateTo}T23:59:59` : adminDateTo;
-      if (d > new Date(toVal)) return false;
-    }
-    return true;
-  };
-
-  const filterByDate = (items, getDate) => {
-    if (!adminDateFrom && !adminDateTo) return items;
-    return items.filter((item) => dateInRange(getDate(item)));
-  };
-
-  const getLatestSubmissionAt = (enrollment) => {
-    const subs = getSubmissions(enrollment);
-    const dates = Object.values(subs)
-      .map((s) => s?.submittedAt)
-      .filter(Boolean);
-    if (!dates.length) return null;
-    return dates.sort((a, b) => new Date(b) - new Date(a))[0];
-  };
-
-  const filteredActiveRequests = useMemo(
-    () => filterByDate(activeRequests, (r) => r.createdAt),
-    [activeRequests, adminDateFrom, adminDateTo],
-  );
-  const filteredCompletedRequests = useMemo(
-    () => filterByDate(completedRequests, (r) => r.createdAt),
-    [completedRequests, adminDateFrom, adminDateTo],
-  );
-  const filteredArchivedRequests = useMemo(
-    () => filterByDate(archivedRequests, (r) => r.createdAt),
-    [archivedRequests, adminDateFrom, adminDateTo],
-  );
-  const filteredVisibleRequests = useMemo(
-    () => filterByDate(visibleRequests, (r) => r.createdAt),
-    [visibleRequests, adminDateFrom, adminDateTo],
-  );
-  const filteredVisits = useMemo(
-    () =>
-      filterByDate(data.visits, (v) => v.visitedAtRaw || v.visitedAt),
-    [data.visits, adminDateFrom, adminDateTo],
-  );
-  const filteredReferrals = useMemo(
-    () => filterByDate(data.referrals, (r) => r.createdAt),
-    [data.referrals, adminDateFrom, adminDateTo],
-  );
-  const filteredReferralUsers = useMemo(() => {
-    const base = referralUsersData.filter((r) =>
-      showArchivedReferralUsers ? r.archived : !r.archived,
-    );
-    return filterByDate(
-      base,
-      (r) => r.lastActivityAt || r.createdAt,
-    );
-  }, [
-    referralUsersData,
-    showArchivedReferralUsers,
-    adminDateFrom,
-    adminDateTo,
-  ]);
 
   const handleReferralSubmit = async (event) => {
     event.preventDefault();
@@ -940,17 +918,63 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           ))}
         </div>
 
-        {["interns","works","completed","archived","referrals","visits","referral users","verify-ai"].includes(activeTab) && (
-          <AdminDateFilter
-            from={adminDateFrom}
-            to={adminDateTo}
-            onFromChange={setAdminDateFrom}
-            onToChange={setAdminDateTo}
-            onClear={() => {
-              setAdminDateFrom("");
-              setAdminDateTo("");
+        {/* Filter Bar (relevant tabs only) */}
+        {["interns", "works", "completed", "archived", "referrals", "visits", "referral users"].includes(activeTab) && (
+          <div
+            style={{
+              display: "flex",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+              alignItems: "flex-end",
+              marginBottom: "1.5rem",
+              padding: "0.75rem 1rem",
+              border: "2px solid #000",
+              background: "#fafafa",
             }}
-          />
+          >
+            <div>
+              <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>From Date</label>
+              <input type="date" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>To Date</label>
+              <input type="date" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none" }} />
+            </div>
+            <div>
+              <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Domain</label>
+              <select value={filterDomain} onChange={(e) => setFilterDomain(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}>
+                <option value="">All</option>
+                {Array.from(new Set(data.requests.map((r) => r.domain).filter(Boolean))).map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            {(activeTab === "referrals" || activeTab === "referral users") && (
+              <div>
+                <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Min Interns</label>
+                <input type="number" min="0" placeholder="0" value={filterInternCountMin} onChange={(e) => setFilterInternCountMin(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "70px" }} />
+              </div>
+            )}
+            <div>
+              <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Sort By</label>
+              <select value={filterSortBy} onChange={(e) => setFilterSortBy(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}>
+                <option value="date-desc">Newest First</option>
+                <option value="date-asc">Oldest First</option>
+                <option value="name-asc">Name A-Z</option>
+                <option value="name-desc">Name Z-A</option>
+                {(activeTab === "referrals" || activeTab === "referral users") && (
+                  <option value="interns-desc">Most Interns</option>
+                )}
+                {(activeTab === "referrals" || activeTab === "referral users") && (
+                  <option value="interns-asc">Fewest Interns</option>
+                )}
+                {(activeTab === "referrals" || activeTab === "referral users") && (
+                  <option value="achieved">Achieved First</option>
+                )}
+              </select>
+            </div>
+            <button type="button" onClick={() => { setFilterDateFrom(""); setFilterDateTo(""); setFilterDomain(""); setFilterInternCountMin(""); setFilterSortBy("date-desc"); }} style={{ padding: "0.35rem 0.85rem", border: "2px solid #000", background: "#fff", cursor: "pointer", fontSize: "0.8rem", fontWeight: 700 }}>Clear All</button>
+          </div>
         )}
 
         {/* ── 1. INTERNS TAB ── */}
@@ -972,12 +996,19 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   margin: 0,
                 }}
               >
-                Active Applied Interns ({filteredActiveRequests.length})
+                Active Applied Interns ({activeRequests.length})
               </h3>
             </div>
-            {filteredActiveRequests.length === 0 ? (
-              <EmptyBox msg="No intern registrations yet." />
-            ) : (
+            {(() => {
+              let filtered = activeRequests;
+              if (filterDomain) filtered = filtered.filter((r) => r.domain === filterDomain);
+              if (filterDateFrom) filtered = filtered.filter((r) => !r.createdAt || new Date(r.createdAt) >= new Date(filterDateFrom));
+              if (filterDateTo) filtered = filtered.filter((r) => !r.createdAt || new Date(r.createdAt) <= new Date(filterDateTo + "T23:59:59"));
+              if (filterSortBy === "name-asc") filtered = [...filtered].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+              else if (filterSortBy === "name-desc") filtered = [...filtered].sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+              else if (filterSortBy === "date-asc") filtered = [...filtered].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+              else filtered = [...filtered].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+              return filtered.length === 0 ? <EmptyBox msg="No intern registrations match filters." /> : (
               <div style={{ overflowX: "auto" }}>
                 <table
                   style={{
@@ -1001,7 +1032,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       <th style={th}>Domain</th>
                       <th style={th}>Country</th>
                       <th style={th}>College</th>
-                      <th style={th}>Last Submission</th>
                       <th style={th}>Status</th>
                       <th style={th}>Completed %</th>
                       <th style={th}>Submissions</th>
@@ -1009,7 +1039,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredActiveRequests.map((row, i) => {
+                    {filtered.map((row, i) => {
                       const pct = getCompletionPct(row);
                       const subCount = getSubmittedCount(row);
                       const totalProj = getProjectsForEnrollment(row).length;
@@ -1050,13 +1080,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           <td style={td}>{row.domain}</td>
                           <td style={td}>{row.country || row.city || "-"}</td>
                           <td style={td}>{row.college || "-"}</td>
-                          <td style={td}>
-                            {getLatestSubmissionAt(row)
-                              ? new Date(
-                                  getLatestSubmissionAt(row),
-                                ).toLocaleString()
-                              : "-"}
-                          </td>
                           <td style={td}>
                             <span
                               style={{
@@ -1211,25 +1234,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   </tbody>
                 </table>
               </div>
-            )}
+            );})()}
           </div>
         )}
 
         {/* ── 2. INTERNSHIP WORKS TAB ── */}
         {activeTab === "works" && (
           <div>
-            <h3
-              style={{
-                fontSize: "1.2rem",
-                fontWeight: 800,
-                textTransform: "uppercase",
-                marginBottom: "1.5rem",
-              }}
-            >
-              Internship Works — Progress Overview
-            </h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", margin: 0 }}>
+                Internship Works — Progress Overview
+              </h3>
+            </div>
             {(() => {
-              const pendingTasks = filteredActiveRequests.flatMap((enrollment) => {
+              const pendingTasks = activeRequests.flatMap((enrollment) => {
                 const projects = getProjectsForEnrollment(enrollment);
                 const submissions = getSubmissions(enrollment);
                 return projects
@@ -1493,7 +1511,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               );
             })()}
 
-            {filteredActiveRequests.length === 0 ? (
+            {activeRequests.length === 0 ? (
               <EmptyBox msg="No intern submissions yet." />
             ) : (
               <div
@@ -1503,7 +1521,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   gap: "0.75rem",
                 }}
               >
-                {filteredActiveRequests.map((enrollment) => {
+                {activeRequests.map((enrollment) => {
                   const projects = getProjectsForEnrollment(enrollment);
                   if (projects.length === 0) return null;
                   const subs = getSubmissions(enrollment);
@@ -1625,7 +1643,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           >
                             {enrollment.status}
                           </span>
-                          {allTasksDone && (
+                          {isCompleted && (
                             <button
                               onClick={() =>
                                 handleStatusToggle(
@@ -1637,36 +1655,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 padding: "0.3rem 0.8rem",
                                 fontSize: "0.75rem",
                                 fontWeight: 700,
-                                border: "2px solid #34A853",
-                                background: "#34A853",
+                                border: "2px solid #FBBC05",
+                                background: "#FBBC05",
                                 color: "#fff",
                                 cursor: "pointer",
                               }}
                             >
-                              Completed
+                              Mark Active
                             </button>
                           )}
-                          <button
-                            onClick={() =>
-                              handleStatusToggle(
-                                enrollment.id,
-                                enrollment.status,
-                              )
-                            }
-                            disabled={!allTasksDone}
-                            style={{
-                              padding: "0.3rem 0.8rem",
-                              fontSize: "0.75rem",
-                              fontWeight: 700,
-                              border: "2px solid #000",
-                              background: "#fff",
-                              color: "#000",
-                              cursor: allTasksDone ? "pointer" : "not-allowed",
-                              opacity: allTasksDone ? 1 : 0.45,
-                            }}
-                          >
-                            {isCompleted ? "Mark Active" : "Mark Completed"}
-                          </button>
                           <button
                             onClick={() =>
                               handleArchiveToggle(
@@ -1710,7 +1707,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           </div>
         )}
 
-        {/* ── 3. CERTIFICATES TAB ── */}
+        {/* ── 3. COMPLETED TAB ── */}
         {activeTab === "completed" && (
           <div>
             <h3
@@ -1721,11 +1718,16 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 marginBottom: "1.5rem",
               }}
             >
-              Completed Internships ({filteredCompletedRequests.length})
+              Completed Internships ({completedRequests.length})
             </h3>
-            {filteredCompletedRequests.length === 0 ? (
-              <EmptyBox msg="No completed internships yet." />
-            ) : (
+            {(() => {
+              let filtered = completedRequests;
+              if (filterDomain) filtered = filtered.filter((r) => r.domain === filterDomain);
+              if (filterSortBy === "name-asc") filtered = [...filtered].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+              else if (filterSortBy === "name-desc") filtered = [...filtered].sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+              else if (filterSortBy === "date-asc") filtered = [...filtered].sort((a, b) => (a.completedAt || a.createdAt || "").localeCompare(b.completedAt || b.createdAt || ""));
+              else filtered = [...filtered].sort((a, b) => (b.completedAt || b.createdAt || "").localeCompare(a.completedAt || a.createdAt || ""));
+              return filtered.length === 0 ? <EmptyBox msg="No completed internships match filters." /> : (
               <div
                 style={{
                   display: "flex",
@@ -1733,7 +1735,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   gap: "0.75rem",
                 }}
               >
-                {filteredCompletedRequests.map((enrollment) => {
+                {filtered.map((enrollment) => {
                   const completedCount = getVerifiedCount(enrollment);
                   const total = getProjectsForEnrollment(enrollment).length;
                   return (
@@ -1831,9 +1833,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       </div>
                     </div>
                   );
-                })}
+                  })}
               </div>
-            )}
+            );})()}
           </div>
         )}
 
@@ -1862,7 +1864,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               dashboard.
             </p>
             {(() => {
-              const eligible = completedRequests;
+              let eligible = completedRequests;
+              if (filterDomain) eligible = eligible.filter((r) => r.domain === filterDomain);
+              if (filterSortBy === "name-asc") eligible = [...eligible].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+              else if (filterSortBy === "name-desc") eligible = [...eligible].sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+              else eligible = [...eligible].sort((a, b) => (b.completedAt || b.createdAt || "").localeCompare(a.completedAt || a.createdAt || ""));
               return eligible.length === 0 ? (
                 <EmptyBox msg="No interns marked as Completed yet. Use the Works tab to mark an intern as Completed." />
               ) : (
@@ -2055,9 +2061,14 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             >
               Archived Internships
             </h3>
-            {filteredArchivedRequests.length === 0 ? (
-              <EmptyBox msg="No archived internships." />
-            ) : (
+            {(() => {
+              let filtered = archivedRequests;
+              if (filterDomain) filtered = filtered.filter((r) => r.domain === filterDomain);
+              if (filterSortBy === "name-asc") filtered = [...filtered].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+              else if (filterSortBy === "name-desc") filtered = [...filtered].sort((a, b) => (b.name || "").localeCompare(a.name || ""));
+              else if (filterSortBy === "date-asc") filtered = [...filtered].sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+              else filtered = [...filtered].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+              return filtered.length === 0 ? <EmptyBox msg="No archived internships match filters." /> : (
               <div
                 style={{
                   display: "flex",
@@ -2065,7 +2076,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   gap: "0.75rem",
                 }}
               >
-                {filteredArchivedRequests.map((enrollment) => {
+                {filtered.map((enrollment) => {
                   const completedCount = getVerifiedCount(enrollment);
                   const total = getProjectsForEnrollment(enrollment).length;
                   return (
@@ -2148,7 +2159,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   );
                 })}
               </div>
-            )}
+            );})()}
           </div>
         )}
 
@@ -2524,7 +2535,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     }}
                                   >
                                     Notice to Intern{" "}
-                                    {noticeSaving[`${idx}_${pIdx}`]
+                                    {autoNoticeSaving[`${idx}_${pIdx}`]
                                       ? "(saving…)"
                                       : ""}
                                   </label>
@@ -2982,89 +2993,14 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 background: "#fafafa",
               }}
             >
-              <div>
-                <label
-                  style={{
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    display: "block",
-                    marginBottom: "0.25rem",
-                  }}
-                >
-                  From Date
-                </label>
-                <input
-                  type="date"
-                  value={referralDateFrom}
-                  onChange={(e) => setReferralDateFrom(e.target.value)}
-                  style={s}
-                />
-              </div>
-              <div>
-                <label
-                  style={{
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    display: "block",
-                    marginBottom: "0.25rem",
-                  }}
-                >
-                  To Date
-                </label>
-                <input
-                  type="date"
-                  value={referralDateTo}
-                  onChange={(e) => setReferralDateTo(e.target.value)}
-                  style={s}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setReferralDateFrom("");
-                  setReferralDateTo("");
-                }}
-                style={{
-                  padding: "0.4rem 0.9rem",
-                  border: "2px solid #000",
-                  background: "#fff",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                  fontWeight: 700,
-                }}
-              >
-                Clear Filter
-              </button>
-              <div
-                style={{
-                  marginLeft: "auto",
-                  fontSize: "0.82rem",
-                  color: "#555",
-                }}
-              >
-                Sorted by most referred on top
-              </div>
             </div>
 
-            {filteredReferrals.length === 0 ? (
+            {data.referrals.length === 0 ? (
               <EmptyBox msg="No referral users yet." />
             ) : (
               (() => {
-                const filtered = filteredReferrals.filter((r) => {
-                  if (!referralDateFrom && !referralDateTo) return true;
-                  const created = new Date(r.createdAt || 0);
-                  if (referralDateFrom && created < new Date(referralDateFrom))
-                    return false;
-                  if (
-                    referralDateTo &&
-                    created > new Date(referralDateTo + "T23:59:59")
-                  )
-                    return false;
-                  return true;
-                });
-                const sorted = [...filtered].sort(
+                // Sort by most assigned internships (most referred) on top
+                const sorted = [...data.referrals].sort(
                   (a, b) =>
                     (Number(b.assignedInternships) || 0) -
                     (Number(a.assignedInternships) || 0),
@@ -3498,27 +3434,70 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 marginBottom: "1rem",
               }}
             >
-              Referral Link Visits ({filteredVisits.length})
+              All Visits
             </h3>
-            <SimpleTable
-              empty="No referral visits yet."
-              columns={[
-                "referralCode",
-                "matched",
-                "browser",
-                "device",
-                "os",
-                "visitedFrom",
-                "link",
-                "ip",
-                "country",
-                "city",
-                "isVpn",
-                "timezone",
-                "visitedAt",
-              ]}
-              rows={filteredVisits}
-            />
+            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
+              <div style={{ border: "2px solid #000", padding: "0.75rem 1.25rem", background: "#fff", textAlign: "center", minWidth: "150px" }}>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{(data.siteVisits?.length || 0) + data.visits.length}</div>
+                <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Total Visits</div>
+              </div>
+              <div style={{ border: "2px solid #000", padding: "0.75rem 1.25rem", background: "#fff", textAlign: "center", minWidth: "150px" }}>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{data.siteVisits?.length || 0}</div>
+                <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Site Visits</div>
+              </div>
+              <div style={{ border: "2px solid #000", padding: "0.75rem 1.25rem", background: "#fff", textAlign: "center", minWidth: "150px" }}>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{data.visits.length}</div>
+                <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Referral Visits</div>
+              </div>
+              <div style={{ border: "2px solid #000", padding: "0.75rem 1.25rem", background: "#fff", textAlign: "center", minWidth: "150px" }}>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{data.siteVisits?.filter((v) => v.email && v.email !== "-").length || 0}</div>
+                <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Logged In</div>
+              </div>
+            </div>
+            <div style={{ marginBottom: "2rem" }}>
+              <h4 style={{ fontSize: "0.95rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.75rem", color: "#555" }}>
+                General Site Visits ({data.siteVisits?.length || 0})
+              </h4>
+              <SimpleTable
+                empty="No general site visits yet."
+                columns={[
+                  "visitedAt",
+                  "name",
+                  "email",
+                  "referrer",
+                  "url",
+                  "userAgent",
+                  "language",
+                  "screen",
+                  "viewport",
+                ]}
+                rows={data.siteVisits || []}
+              />
+            </div>
+            <div>
+              <h4 style={{ fontSize: "0.95rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.75rem", color: "#555" }}>
+                Referral Link Visits ({data.visits.length})
+              </h4>
+              <SimpleTable
+                empty="No referral visits yet."
+                columns={[
+                  "referralCode",
+                  "matched",
+                  "browser",
+                  "device",
+                  "os",
+                  "visitedFrom",
+                  "link",
+                  "ip",
+                  "country",
+                  "city",
+                  "isVpn",
+                  "timezone",
+                  "visitedAt",
+                ]}
+                rows={data.visits}
+              />
+            </div>
           </div>
         )}
 
@@ -3533,62 +3512,33 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 marginBottom: "1.5rem",
               }}
             >
-              Referral Users & Their Interns ({filteredReferralUsers.length})
+              Referral Users & Their Interns ({referralUsersData.length})
             </h3>
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                marginBottom: "1rem",
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setShowArchivedReferralUsers(false)}
-                style={{
-                  padding: "0.35rem 0.85rem",
-                  fontWeight: 700,
-                  border: "2px solid #000",
-                  background: !showArchivedReferralUsers ? "#000" : "#fff",
-                  color: !showArchivedReferralUsers ? "#fff" : "#000",
-                  cursor: "pointer",
-                }}
-              >
-                Active
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowArchivedReferralUsers(true)}
-                style={{
-                  padding: "0.35rem 0.85rem",
-                  fontWeight: 700,
-                  border: "2px solid #555",
-                  background: showArchivedReferralUsers ? "#555" : "#fff",
-                  color: showArchivedReferralUsers ? "#fff" : "#555",
-                  cursor: "pointer",
-                }}
-              >
-                Archived
-              </button>
-            </div>
             {referralDataLoading ? (
               <div
                 style={{ textAlign: "center", padding: "2rem", color: "#888" }}
               >
                 Loading referral users…
               </div>
-            ) : filteredReferralUsers.length === 0 ? (
-              <EmptyBox msg="No referral users found for this filter." />
+            ) : referralUsersData.length === 0 ? (
+              <EmptyBox msg="No referral users found." />
             ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "1.5rem",
-                }}
-              >
-                {filteredReferralUsers.map((referral) => (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                {referralUsersData
+                  .filter((r) => {
+                    const minCount = parseInt(filterInternCountMin, 10);
+                    return isNaN(minCount) || r.internCount >= minCount;
+                  })
+                  .sort((a, b) => {
+                    if (filterSortBy === "name-asc") return (a.name || "").localeCompare(b.name || "");
+                    if (filterSortBy === "name-desc") return (b.name || "").localeCompare(a.name || "");
+                    if (filterSortBy === "interns-desc") return (b.internCount || 0) - (a.internCount || 0);
+                    if (filterSortBy === "interns-asc") return (a.internCount || 0) - (b.internCount || 0);
+                    if (filterSortBy === "achieved") return (b.achieved ? 1 : 0) - (a.achieved ? 1 : 0);
+                    if (filterSortBy === "date-asc") return (a.createdAt || "").localeCompare(b.createdAt || "");
+                    return (b.createdAt || "").localeCompare(a.createdAt || "");
+                  })
+                  .map((referral) => (
                   <div
                     key={referral.code}
                     style={{
@@ -3661,33 +3611,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end", marginBottom: "0.5rem", flexWrap: "wrap" }}>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                await setReferralArchived(referral.code, !referral.archived);
-                                const fresh = await fetchAdminReferralUsersWithInterns();
-                                setReferralUsersData(fresh);
-                                setSuccessMsg(referral.archived ? "Referral user restored." : "Referral user archived.");
-                                setTimeout(() => setSuccessMsg(""), 3000);
-                              } catch (err) {
-                                setError("Failed to update archive: " + err.message);
-                              }
-                            }}
-                            style={{
-                              padding: "0.25rem 0.75rem",
-                              fontSize: "0.72rem",
-                              fontWeight: 700,
-                              border: "2px solid #555",
-                              background: "#fff",
-                              color: "#555",
-                              cursor: "pointer",
-                            }}
-                          >
-                            {referral.archived ? "Unarchive" : "Archive"}
-                          </button>
-                        </div>
                         <div
                           style={{
                             fontSize: "0.8rem",
@@ -3705,6 +3628,52 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           }}
                         >
                           {referral.internCount}
+                        </div>
+                        <div style={{ marginTop: "0.5rem" }}>
+                          <span style={{
+                            display: "inline-block",
+                            padding: "0.15rem 0.5rem",
+                            fontSize: "0.68rem",
+                            fontWeight: 900,
+                            background: referral.achieved ? "#34A853" : "#eee",
+                            color: referral.achieved ? "#fff" : "#888",
+                            textTransform: "uppercase",
+                            marginBottom: "0.35rem",
+                          }}>
+                            {referral.achieved ? "ACHIEVED" : "NOT ACHIEVED"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const { markReferralAchieved, fetchAdminReferralUsersWithInterns } = await import("../services/data");
+                                await markReferralAchieved(referral.code, !referral.achieved);
+                                setReferralUsersData(await fetchAdminReferralUsersWithInterns());
+                                setSuccessMsg(referral.achieved ? "Achievement revoked." : "User marked as achieved!");
+                                setTimeout(() => setSuccessMsg(""), 3000);
+                              } catch (err) {
+                                setError("Failed: " + err.message);
+                              }
+                            }}
+                            style={{
+                              padding: "0.25rem 0.65rem",
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                              border: "2px solid #34A853",
+                              background: referral.achieved ? "#fff" : "#34A853",
+                              color: referral.achieved ? "#34A853" : "#fff",
+                              cursor: "pointer",
+                              display: "block",
+                              width: "100%",
+                            }}
+                          >
+                            {referral.achieved ? "Revoke" : "Mark Achieved"}
+                          </button>
+                          {referral.achievedAt && (
+                            <div style={{ fontSize: "0.65rem", color: "#34A853", marginTop: "0.25rem" }}>
+                              {new Date(referral.achievedAt).toLocaleString()}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -3731,7 +3700,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             style={{
                               display: "grid",
                               gridTemplateColumns:
-                                "repeat(auto-fit,minmax(200px,1fr))",
+                                "repeat(auto-fit,minmax(220px,1fr))",
                               gap: "0.75rem",
                             }}
                           >
@@ -3743,11 +3712,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   padding: "1rem",
                                   background: "#fafafa",
                                   cursor: "pointer",
-                                  transition: "all 0.2s",
-                                  ":hover": {
-                                    borderColor: "#34A853",
-                                    boxShadow: "2px 2px 0 #34A853",
-                                  },
                                 }}
                                 onClick={() => setSelectedIntern(intern)}
                               >
@@ -3796,24 +3760,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   style={{ fontSize: "0.7rem", color: "#888" }}
                                 >
                                   {intern.appliedAt
-                                    ? `Applied: ${new Date(intern.appliedAt).toLocaleString()}`
+                                    ? `Applied: ${new Date(intern.appliedAt).toLocaleDateString()}`
                                     : ""}
                                 </div>
-                                {intern.lastSubmissionAt && (
-                                  <div
-                                    style={{
-                                      fontSize: "0.7rem",
-                                      color: "#4285F4",
-                                      marginTop: "0.25rem",
-                                      fontWeight: 700,
-                                    }}
-                                  >
-                                    Last submission:{" "}
-                                    {new Date(
-                                      intern.lastSubmissionAt,
-                                    ).toLocaleString()}
-                                  </div>
-                                )}
                                 {intern.completedAt && (
                                   <div
                                     style={{
@@ -3825,7 +3774,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     Completed:{" "}
                                     {new Date(
                                       intern.completedAt,
-                                    ).toLocaleDateString()}
+                                    ).toLocaleString()}
                                   </div>
                                 )}
                                 {intern.paymentDate && (
@@ -3840,6 +3789,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     {new Date(
                                       intern.paymentDate,
                                     ).toLocaleDateString()}
+                                  </div>
+                                )}
+                                {/* Show submission dates for each task */}
+                                {intern.submissions && Object.keys(intern.submissions).length > 0 && (
+                                  <div style={{ marginTop: "0.5rem", borderTop: "1px solid #eee", paddingTop: "0.4rem" }}>
+                                    <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.2rem" }}>
+                                      Submissions:
+                                    </div>
+                                    {Object.entries(intern.submissions).map(([pIdx, sub]) => (
+                                      <div key={pIdx} style={{ fontSize: "0.65rem", color: "#666", marginBottom: "0.15rem" }}>
+                                        Task {parseInt(pIdx) + 1}: {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : "-"}
+                                        {sub.verified && " ✓"}
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
                               </div>
@@ -3943,6 +3906,16 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     >
                                       {intern.status}
                                     </div>
+                                    {intern.submissions && Object.keys(intern.submissions).length > 0 && (
+                                      <div style={{ marginTop: "0.4rem", borderTop: "1px solid #eee", paddingTop: "0.3rem" }}>
+                                        <div style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.15rem" }}>Tasks:</div>
+                                        {Object.entries(intern.submissions).map(([pIdx, sub]) => (
+                                          <div key={pIdx} style={{ fontSize: "0.62rem", color: "#666", marginBottom: "0.1rem" }}>
+                                            T{parseInt(pIdx) + 1}: {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : "-"}{sub.verified ? " ✓" : ""}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -4006,9 +3979,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             {(() => {
               // Collect all unverified submissions across all enrollments
               const unverifiedList = [];
-              const activeEnrollments = filterByDate(
-                data.requests.filter((e) => e.status !== "Archived"),
-                (e) => getLatestSubmissionAt(e) || e.createdAt,
+              const activeEnrollments = data.requests.filter(
+                (e) => e.status !== "Archived",
               );
               activeEnrollments.forEach((enrollment) => {
                 const projects = getProjectsForEnrollment(enrollment);
@@ -4025,16 +3997,21 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       typeof proj === "object" ? proj.title || "" : proj;
                     const projDesc =
                       typeof proj === "object" ? proj.description || "" : "";
+                    const subText = sub.text || "";
+                    const urlMatch = subText.match(/https?:\/\/[^\s<>"']+/);
+                    const domainName = enrollment.domain || enrollment.domainId || "";
+                    const taskDesc = projDesc || `Task: ${projTitle} — Part of the "${domainName}" internship program. Build a complete working implementation of this project.`;
                     unverifiedList.push({
                       key: `${enrollment.id}_${pIdx}`,
                       enrollmentId: enrollment.id,
                       projectIndex: pIdx,
                       projectTitle: projTitle,
-                      projectDescription: projDesc,
+                      projectDescription: taskDesc,
                       internName: enrollment.name,
                       internEmail: enrollment.email,
-                      domain: enrollment.domain,
-                      submissionText: sub.text || "",
+                      domain: domainName,
+                      submissionText: subText,
+                      submissionUrl: urlMatch ? urlMatch[0] : subText,
                       submittedAt: sub.submittedAt,
                     });
                   }
@@ -4115,7 +4092,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                               const res = await verifyTaskWithAI({
                                 taskTitle: item.projectTitle,
                                 taskDescription: item.projectDescription,
+                                taskNotices: item.projectDescription,
                                 submissionText: item.submissionText,
+                                submissionUrl: item.submissionUrl || item.submissionText,
                                 internName: item.internName,
                               });
                               if (res.success && res.data) {
@@ -4169,7 +4148,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 const result = aiResults[item.key];
                                 if (!result) continue;
                                 try {
-                                  if (result.verified) {
+                                  const confidenceOk = (result.confidence || 0) >= 60;
+                                  if (result.verified && confidenceOk) {
                                     await verifyProject(
                                       item.enrollmentId,
                                       item.projectIndex,
@@ -4367,11 +4347,21 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                               >
                                 {result.verified ? "VERIFIED" : "REJECTED"}
                               </span>
+                              {result.verified && (result.confidence || 0) < 60 && (
+                                <span style={{ fontSize: "0.72rem", color: "#EA4335", fontWeight: 700 }}>
+                                  ⚠ LOW CONFIDENCE
+                                </span>
+                              )}
                               <span
                                 style={{ fontSize: "0.72rem", color: "#888" }}
                               >
                                 Confidence: {result.confidence}%
                               </span>
+                              {result.codeFilesCount !== undefined && (
+                                <span style={{ fontSize: "0.72rem", color: "#888" }}>
+                                  | Files: {result.codeFilesCount}
+                                </span>
+                              )}
                             </div>
                             <div
                               style={{
@@ -4410,7 +4400,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   const res = await verifyTaskWithAI({
                                     taskTitle: item.projectTitle,
                                     taskDescription: item.projectDescription,
+                                    taskNotices: item.projectDescription,
                                     submissionText: item.submissionText,
+                                    submissionUrl: item.submissionUrl || item.submissionText,
                                     internName: item.internName,
                                   });
                                   if (res.success && res.data) {
@@ -4552,6 +4544,23 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               );
             })()}
           </div>
+        )}
+
+        {/* ── VERIFY COMPLETION ── */}
+        {activeTab === "verify-completion" && (
+          <VerifyCompletionTab
+            data={data}
+            getProjectsForEnrollment={getProjectsForEnrollment}
+            getSubmissions={getSubmissions}
+            markEnrollmentComplete={markEnrollmentComplete}
+            rejectEnrollmentCompletion={rejectEnrollmentCompletion}
+            clearCompletionRejection={clearCompletionRejection}
+            loadData={loadData}
+            setSuccessMsg={setSuccessMsg}
+            setError={setError}
+            s={s}
+            EmptyBox={EmptyBox}
+          />
         )}
 
         {/* ── Earn Settings ── */}
@@ -5177,77 +5186,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
         {/* ── MESSAGES ── */}
         {activeTab === "messages" && (
-          <>
-            <div
-              style={{
-                border: "2px solid #000",
-                boxShadow: "4px 4px 0 #000",
-                padding: "1.5rem",
-                marginBottom: "1.5rem",
-                background: "#fff",
-              }}
-            >
-              <h3 style={{ fontWeight: 800, marginBottom: "0.35rem" }}>
-                Dashboard Notice Boxes
-              </h3>
-              <p style={{ fontSize: "0.82rem", color: "#666", marginBottom: "1rem" }}>
-                Always-visible notice boxes on the internship and referral tabs in the student dashboard.
-              </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }} className="admin-notices-grid">
-                <div>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase" }}>
-                    Internship Tab Notice
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={dashboardNotices.intern || ""}
-                    onChange={(e) =>
-                      setDashboardNotices((n) => ({ ...n, intern: e.target.value }))
-                    }
-                    placeholder="Notice shown on My Internships tab…"
-                    style={{ ...s, resize: "vertical", marginTop: "0.35rem" }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase" }}>
-                    Refer & Earn Tab Notice
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={dashboardNotices.referral || ""}
-                    onChange={(e) =>
-                      setDashboardNotices((n) => ({ ...n, referral: e.target.value }))
-                    }
-                    placeholder="Notice shown on Refer & Earn tab…"
-                    style={{ ...s, resize: "vertical", marginTop: "0.35rem" }}
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn-sharp"
-                disabled={noticesSaving}
-                style={{ marginTop: "1rem" }}
-                onClick={async () => {
-                  setNoticesSaving(true);
-                  try {
-                    await saveDashboardNotices({
-                      ...dashboardNotices,
-                      updatedBy: user?.email || "",
-                    });
-                    setSuccessMsg("Dashboard notices saved!");
-                    setTimeout(() => setSuccessMsg(""), 3000);
-                  } catch (err) {
-                    setError("Failed to save notices: " + err.message);
-                  } finally {
-                    setNoticesSaving(false);
-                  }
-                }}
-              >
-                {noticesSaving ? "Saving…" : "Save Notice Boxes"}
-              </button>
-            </div>
-
           <div
             className="admin-messages-grid"
             style={{
@@ -5368,6 +5306,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <option value="info">ℹ Info</option>
                   <option value="warning">⚠ Warning</option>
                   <option value="success">✓ Success</option>
+                  <option value="notice">📌 Notice (box in dashboard, non-dismissible)</option>
                 </select>
                 <label
                   style={{
@@ -5452,7 +5391,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         ? "#FBBC05"
                         : msg.type === "success"
                           ? "#34A853"
-                          : "#4285F4";
+                          : msg.type === "notice"
+                            ? "#9334EA"
+                            : "#4285F4";
                     return (
                       <div
                         key={msg.id}
@@ -5577,10 +5518,229 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               )}
             </div>
           </div>
-          </>
         )}
 
-        {/* ── 13. MANAGE ADMINS ── */}
+        {/* ── 13. NOTICE BOARD ── */}
+        {activeTab === "notice-board" && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1.5fr",
+              gap: "2rem",
+            }}
+          >
+            {/* Compose Notice */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: "1.75rem",
+                boxShadow: "4px 4px 0 #000",
+              }}
+            >
+              <h3 style={{ fontWeight: 800, marginBottom: "0.5rem" }}>
+                Add Notice
+              </h3>
+              <p
+                style={{
+                  fontSize: "0.82rem",
+                  color: "#666",
+                  marginBottom: "1rem",
+                }}
+              >
+                Notices appear as always-visible boxes on user dashboards (Internship & Referral).
+              </p>
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newNotice.text.trim()) return;
+                  setNoticeSaving(true);
+                  try {
+                    const { saveSiteNotice, fetchSiteNotices } = await import("../services/data");
+                    await saveSiteNotice({
+                      ...newNotice,
+                      createdBy: user?.email || "",
+                    });
+                    setNewNotice({ title: "", text: "", type: "info", context: "all" });
+                    setSiteNotices(await fetchSiteNotices());
+                    setSuccessMsg("Notice added!");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) {
+                    setError("Failed to add notice: " + err.message);
+                  } finally {
+                    setNoticeSaving(false);
+                  }
+                }}
+              >
+                <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", textTransform: "uppercase" }}>
+                  Title (optional)
+                </label>
+                <input type="text" placeholder="Notice title…" value={newNotice.title} onChange={(e) => setNewNotice((n) => ({ ...n, title: e.target.value }))} style={{ ...s, marginBottom: "0.75rem" }} />
+                <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", textTransform: "uppercase" }}>
+                  Notice Text *
+                </label>
+                <textarea rows={3} placeholder="Write notice content…" value={newNotice.text} onChange={(e) => setNewNotice((n) => ({ ...n, text: e.target.value }))} style={{ ...s, resize: "vertical", marginBottom: "0.75rem" }} required />
+                <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", textTransform: "uppercase" }}>
+                  Type
+                </label>
+                <select value={newNotice.type} onChange={(e) => setNewNotice((n) => ({ ...n, type: e.target.value }))} style={{ ...s, marginBottom: "0.75rem", cursor: "pointer" }}>
+                  <option value="info">Info</option>
+                  <option value="warning">Warning</option>
+                  <option value="success">Success</option>
+                </select>
+                <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", textTransform: "uppercase" }}>
+                  Show On
+                </label>
+                <select value={newNotice.context} onChange={(e) => setNewNotice((n) => ({ ...n, context: e.target.value }))} style={{ ...s, marginBottom: "1rem", cursor: "pointer" }}>
+                  <option value="all">Both Dashboards</option>
+                  <option value="intern">Internship Dashboard</option>
+                  <option value="referral">Referral Dashboard</option>
+                </select>
+                <button type="submit" className="btn-sharp" style={{ width: "100%" }} disabled={noticeSaving}>
+                  {noticeSaving ? "Adding…" : "Add Notice"}
+                </button>
+              </form>
+            </div>
+
+            {/* All Notices */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: "1.75rem",
+                boxShadow: "4px 4px 0 #000",
+              }}
+            >
+              <h3 style={{ fontWeight: 800, marginBottom: "1rem" }}>
+                Active Notices ({siteNotices.length})
+              </h3>
+              {noticesLoading ? (
+                <div style={{ color: "#888" }}>Loading…</div>
+              ) : siteNotices.length === 0 ? (
+                <EmptyBox msg="No notices yet. Create one to show on user dashboards." />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem", maxHeight: "520px", overflowY: "auto" }}>
+                  {siteNotices.map((notice) => {
+                    const typeColor = notice.type === "warning" ? "#FBBC05" : notice.type === "success" ? "#34A853" : "#4285F4";
+                    return (
+                      <div key={notice.id} style={{ border: `2px solid ${typeColor}`, padding: "0.85rem 1rem", background: "#fff" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem", marginBottom: "0.35rem" }}>
+                          <div>
+                            {notice.title && <div style={{ fontWeight: 800, fontSize: "0.9rem" }}>{notice.title}</div>}
+                            <div style={{ fontSize: "0.85rem", color: "#333", marginTop: notice.title ? "0.2rem" : 0 }}>{notice.text}</div>
+                          </div>
+                          <div style={{ display: "flex", gap: "0.35rem", flexShrink: 0 }}>
+                            <button type="button" onClick={async () => {
+                              try {
+                                const { toggleSiteNotice, fetchSiteNotices } = await import("../services/data");
+                                await toggleSiteNotice(notice.id, false);
+                                setSiteNotices(await fetchSiteNotices());
+                                setSuccessMsg("Notice deactivated.");
+                                setTimeout(() => setSuccessMsg(""), 3000);
+                              } catch (err) { setError("Failed: " + err.message); }
+                            }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.4rem", fontSize: "0.75rem" }}>Deactivate</button>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", fontSize: "0.72rem", color: "#888", marginTop: "0.4rem" }}>
+                          <span>Context: <strong>{notice.context === "all" ? "Both" : notice.context === "intern" ? "Internship" : "Referral"}</strong></span>
+                          <span>Type: <strong style={{ color: typeColor }}>{notice.type}</strong></span>
+                          <span>Created: {new Date(notice.createdAt).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── 14. HOMEPAGE EDITOR ── */}
+        {activeTab === "homepage" && (
+          <div style={{ maxWidth: "800px" }}>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "1rem" }}>Homepage Content Editor</h3>
+            {homepageLoading ? (
+              <div style={{ color: "#888" }}>Loading…</div>
+            ) : homepageContent ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                {/* Headline */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", textTransform: "uppercase" }}>Headline (H1)</label>
+                  <textarea rows={2} value={homepageContent.headline || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, headline: e.target.value }))} style={{ ...s, resize: "vertical", marginBottom: "1rem", fontSize: "1.1rem", fontWeight: 900 }} />
+                  <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.35rem", textTransform: "uppercase" }}>Description (Paragraph)</label>
+                  <textarea rows={3} value={homepageContent.description || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, description: e.target.value }))} style={{ ...s, resize: "vertical", fontSize: "0.95rem" }} />
+                </div>
+
+                {/* Badges */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Badge Tags</span>
+                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, badges: [...(p.badges || []), { label: "New Badge" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Badge</button>
+                  </div>
+                  {(homepageContent.badges || []).map((badge, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
+                      <input value={badge.label} onChange={(e) => { const u = [...homepageContent.badges]; u[idx] = { ...u[idx], label: e.target.value }; setHomepageContent((p) => ({ ...p, badges: u })); }} style={{ ...s, flex: 1 }} />
+                      <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, badges: p.badges.filter((_, i) => i !== idx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Buttons */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>CTA Buttons</span>
+                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, buttons: [...(p.buttons || []), { label: "New Button", action: "apply", enabled: true }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Button</button>
+                  </div>
+                  {(homepageContent.buttons || []).map((btn, idx) => (
+                    <div key={idx} style={{ border: "1px solid #ddd", padding: "0.85rem", marginBottom: "0.75rem", background: "#fafafa" }}>
+                      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem" }}>
+                        <input value={btn.label} onChange={(e) => { const u = [...homepageContent.buttons]; u[idx] = { ...u[idx], label: e.target.value }; setHomepageContent((p) => ({ ...p, buttons: u })); }} placeholder="Button label" style={{ ...s, flex: 1 }} />
+                        <select value={btn.action || "apply"} onChange={(e) => { const u = [...homepageContent.buttons]; u[idx] = { ...u[idx], action: e.target.value }; setHomepageContent((p) => ({ ...p, buttons: u })); }} style={{ ...s, width: "auto", cursor: "pointer" }}>
+                          <option value="apply">Apply Internship</option>
+                          <option value="explore">Explore Domains</option>
+                        </select>
+                        <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap" }}>
+                          <input type="checkbox" checked={btn.enabled !== false} onChange={(e) => { const u = [...homepageContent.buttons]; u[idx] = { ...u[idx], enabled: e.target.checked }; setHomepageContent((p) => ({ ...p, buttons: u })); }} /> Enabled
+                        </label>
+                        <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, buttons: p.buttons.filter((_, i) => i !== idx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Features */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Feature Highlights</span>
+                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, features: [...(p.features || []), { icon: "✓", label: "New Feature" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Feature</button>
+                  </div>
+                  {(homepageContent.features || []).map((feat, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
+                      <input value={feat.icon} onChange={(e) => { const u = [...homepageContent.features]; u[idx] = { ...u[idx], icon: e.target.value }; setHomepageContent((p) => ({ ...p, features: u })); }} style={{ ...s, width: "60px" }} placeholder="Icon" />
+                      <input value={feat.label} onChange={(e) => { const u = [...homepageContent.features]; u[idx] = { ...u[idx], label: e.target.value }; setHomepageContent((p) => ({ ...p, features: u })); }} style={{ ...s, flex: 1 }} placeholder="Feature text" />
+                      <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, features: p.features.filter((_, i) => i !== idx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+
+                <button className="btn-sharp" disabled={homepageSaving} onClick={async () => {
+                  setHomepageSaving(true);
+                  try {
+                    const { saveHomepageContent } = await import("../services/data");
+                    await saveHomepageContent(homepageContent);
+                    setSuccessMsg("Homepage content saved!");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) { setError("Failed to save: " + err.message); }
+                  finally { setHomepageSaving(false); }
+                }} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
+                  {homepageSaving ? "Saving…" : "Save Homepage"}
+                </button>
+              </div>
+            ) : (
+              <EmptyBox msg="Could not load homepage content." />
+            )}
+          </div>
+        )}
+
+        {/* ── 15. MANAGE ADMINS ── */}
         {activeTab === "manage admins" && (
           <div
             style={{
@@ -6637,32 +6797,6 @@ function InternIdList({ title, ids = [] }) {
   );
 }
 
-function AdminDateFilter({ from, to, onFromChange, onToChange, onClear }) {
-  return (
-    <div className="admin-date-filter">
-      <label>
-        From
-        <input
-          type="datetime-local"
-          value={from}
-          onChange={(e) => onFromChange(e.target.value)}
-        />
-      </label>
-      <label>
-        To
-        <input
-          type="datetime-local"
-          value={to}
-          onChange={(e) => onToChange(e.target.value)}
-        />
-      </label>
-      <button type="button" className="btn-sharp-outline" onClick={onClear}>
-        Clear dates
-      </button>
-    </div>
-  );
-}
-
 function EmptyBox({ msg }) {
   return (
     <div
@@ -6746,6 +6880,91 @@ const td = {
   textOverflow: "ellipsis",
   color: "#000",
 };
+
+function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, markEnrollmentComplete, rejectEnrollmentCompletion, clearCompletionRejection, loadData, setSuccessMsg, setError, s, EmptyBox }) {
+  const [rejectTexts, setRejectTexts] = useState({});
+  const [completing, setCompleting] = useState({});
+  const [rejecting, setRejecting] = useState({});
+  const pendingComplete = data.requests.filter((e) => {
+    if (e.status === "Completed" || e.status === "Archived") return false;
+    const projects = getProjectsForEnrollment(e);
+    if (projects.length === 0) return false;
+    const subs = getSubmissions(e);
+    const allVerified = projects.every((_, i) => subs[i]?.verified);
+    return allVerified && !!e.transactionId;
+  });
+  return (
+    <div style={{ maxWidth: "900px" }}>
+      <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.5rem" }}>
+        Verify Internship Completion
+      </h3>
+      <p style={{ color: "#666", fontSize: "0.85rem", marginBottom: "1.5rem" }}>
+        Interns below have completed all tasks and submitted a Transaction ID. Review and mark as Completed or reject with a reason.
+      </p>
+      {pendingComplete.length === 0 ? <EmptyBox msg="No interns pending completion verification." /> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {pendingComplete.map((enrollment) => {
+            const rejected = !!enrollment.completionRejectedAt;
+            return (
+              <div key={enrollment.id} style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
+                  <div style={{ flex: 1, minWidth: "250px" }}>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#888", marginBottom: "0.15rem" }}>{enrollment.internId || enrollment.id}</div>
+                    <div style={{ fontWeight: 900, fontSize: "1.1rem" }}>{enrollment.name}</div>
+                    <div style={{ fontSize: "0.82rem", color: "#555", marginTop: "0.25rem" }}>{enrollment.email} | {enrollment.domain} | {enrollment.college || "-"}</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "flex-end", minWidth: "180px" }}>
+                    <div style={{ border: "2px solid #34A853", background: "#f0fdf4", padding: "0.4rem 0.7rem", fontSize: "0.75rem" }}>
+                      <strong>Txn ID:</strong> <code>{enrollment.transactionId}</code>
+                    </div>
+                    {enrollment.completionRejectedAt && (
+                      <div style={{ border: "2px solid #EA4335", background: "#fff5f5", padding: "0.4rem 0.7rem", fontSize: "0.75rem", color: "#EA4335" }}>
+                        <strong>Previously Rejected:</strong> {enrollment.completionRejectReason || "No reason given"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ marginTop: "1rem", display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <button className="btn-sharp" disabled={completing[enrollment.id]} style={{ padding: "0.5rem 1.5rem", background: "#34A853", borderColor: "#34A853", color: "#fff" }}
+                    onClick={async () => {
+                      setCompleting((p) => ({ ...p, [enrollment.id]: true }));
+                      try {
+                        if (rejected) await clearCompletionRejection(enrollment.id);
+                        await markEnrollmentComplete(enrollment.id);
+                        await loadData();
+                        setSuccessMsg(`${enrollment.name} marked as Completed!`);
+                        setTimeout(() => setSuccessMsg(""), 3000);
+                      } catch (err) { setError("Failed: " + err.message); }
+                      finally { setCompleting((p) => ({ ...p, [enrollment.id]: false })); }
+                    }}
+                  >{completing[enrollment.id] ? "Marking…" : "Mark Completed"}</button>
+                  {!rejected && (
+                    <>
+                      <input type="text" placeholder="Optional rejection reason…" value={rejectTexts[enrollment.id] || ""} onChange={(e) => setRejectTexts((p) => ({ ...p, [enrollment.id]: e.target.value }))}
+                        style={{ ...s, flex: 1, minWidth: "200px", maxWidth: "350px", fontSize: "0.82rem" }} />
+                      <button className="btn-sharp-outline" disabled={rejecting[enrollment.id]} style={{ borderColor: "#EA4335", color: "#EA4335", padding: "0.5rem 1.2rem" }}
+                        onClick={async () => {
+                          setRejecting((p) => ({ ...p, [enrollment.id]: true }));
+                          try {
+                            await rejectEnrollmentCompletion(enrollment.id, rejectTexts[enrollment.id] || "");
+                            await loadData();
+                            setSuccessMsg(`Completion rejected for ${enrollment.name}.`);
+                            setTimeout(() => setSuccessMsg(""), 3000);
+                          } catch (err) { setError("Failed: " + err.message); }
+                          finally { setRejecting((p) => ({ ...p, [enrollment.id]: false })); }
+                        }}
+                      >{rejecting[enrollment.id] ? "Rejecting…" : "Reject"}</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function formatCell(value) {
   if (value === undefined || value === null || value === "") return "-";
