@@ -4,6 +4,7 @@ import { fetchCareerPaths } from '../services/data';
 export default function CareerPaths({ onApplyDomain }) {
   const [paths, setPaths] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeDot, setActiveDot] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -30,16 +31,82 @@ export default function CareerPaths({ onApplyDomain }) {
     );
   }
 
-  // Determine grid template: if paths length is greater than or equal to 3, show 3 columns.
-  const gridStyle = {
-    display: 'grid',
-    gridTemplateColumns: paths.length >= 3 ? 'repeat(3, 1fr)' : `repeat(${paths.length}, 1fr)`,
-    gap: '2rem',
-    marginTop: '3rem'
-  };
+  useEffect(() => {
+    const grid = document.querySelector('.career-paths-grid');
+    if (!grid) return;
+    const onScroll = () => {
+      const children = [...grid.children];
+      let closest = 0;
+      let minDist = Infinity;
+      children.forEach((child, i) => {
+        const rect = child.getBoundingClientRect();
+        const dist = Math.abs(rect.left);
+        if (dist < minDist) { minDist = dist; closest = i; }
+      });
+      setActiveDot(closest);
+    };
+    grid.addEventListener('scroll', onScroll, { passive: true });
+    return () => grid.removeEventListener('scroll', onScroll);
+  }, [paths]);
 
   return (
     <section id="domains" className="section-padding" style={{ backgroundColor: '#fff', borderBottom: '2px solid var(--border-primary)', padding: '5rem 0' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .career-paths-grid {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            overflow-y: hidden !important;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x mandatory !important;
+            scroll-behavior: smooth !important;
+            gap: 0 !important;
+            margin-top: 2rem !important;
+            padding: 0 1rem !important;
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
+          }
+          .career-paths-grid::-webkit-scrollbar { display: none !important; }
+          .career-paths-grid > * {
+            min-width: calc(100vw - 3rem) !important;
+            max-width: calc(100vw - 3rem) !important;
+            flex-shrink: 0 !important;
+            scroll-snap-align: start !important;
+            margin-right: 1.5rem !important;
+          }
+          .career-paths-grid > *:last-child { margin-right: 0 !important; }
+          .domain-scroll-dots {
+            display: flex !important;
+            justify-content: center !important;
+            gap: 0.5rem !important;
+            margin-top: 1.5rem !important;
+          }
+          .domain-scroll-dot {
+            width: 10px !important;
+            height: 10px !important;
+            border-radius: 50% !important;
+            border: 2px solid #000 !important;
+            background: transparent !important;
+            cursor: pointer !important;
+            padding: 0 !important;
+            transition: background 0.2s !important;
+          }
+          .domain-scroll-dot.active {
+            background: #000 !important;
+          }
+        }
+        @media (min-width: 769px) {
+          .career-paths-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 2rem !important;
+            margin-top: 3rem !important;
+          }
+          .domain-scroll-dots { display: none !important; }
+        }
+      `}</style>
       <div className="container">
         <div className="section-heading" style={{ textAlign: 'center', marginBottom: '3rem' }}>
           <span className="badge-sharp" style={{ marginBottom: '1rem' }}>AVAILABLE DOMAINS</span>
@@ -52,7 +119,13 @@ export default function CareerPaths({ onApplyDomain }) {
         {paths.length === 0 ? (
           <p style={{ textAlign: 'center', fontStyle: 'italic', color: 'var(--text-secondary)' }}>No domains configured yet.</p>
         ) : (
-          <div className="career-paths-grid" style={gridStyle}>
+          <>
+          <div className="career-paths-grid" style={{
+            display: 'grid',
+            gridTemplateColumns: paths.length >= 3 ? 'repeat(3, 1fr)' : `repeat(${paths.length}, 1fr)`,
+            gap: '2rem',
+            marginTop: '3rem'
+          }}>
             {paths.map((path) => (
               <div
                 key={path.id}
@@ -134,6 +207,16 @@ export default function CareerPaths({ onApplyDomain }) {
               </div>
             ))}
           </div>
+          <div className="domain-scroll-dots">
+            {paths.map((_, i) => (
+              <button key={i} className={`domain-scroll-dot${i === activeDot ? ' active' : ''}`} onClick={(e) => {
+                const grid = e.currentTarget.closest('section').querySelector('.career-paths-grid');
+                const child = grid?.children[i];
+                if (child) child.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+              }} />
+            ))}
+          </div>
+          </>
         )}
       </div>
     </section>
