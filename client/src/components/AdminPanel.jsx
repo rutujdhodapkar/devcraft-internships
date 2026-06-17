@@ -101,6 +101,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [showRejectInput, setShowRejectInput] = useState({}); // { key: bool }
   const [rejectFeedback, setRejectFeedback] = useState({}); // { key: string }
 
+  // Quiz Editor modal state
+  const [quizModalDomainIdx, setQuizModalDomainIdx] = useState(null);
+  const [quizModalProjIdx, setQuizModalProjIdx] = useState(null);
+  const [quizModalQuestions, setQuizModalQuestions] = useState([]);
+
   // AI Verification state
   const [aiVerifying, setAiVerifying] = useState({}); // { [subKey]: bool }
   const [aiResults, setAiResults] = useState({}); // { [subKey]: { verified, reason, message, confidence } }
@@ -1448,6 +1453,17 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 >
                                   Quiz Score: {submission.quizScore}% —{" "}
                                   {submission.quizPassed ? "PASSED" : "FAILED"}
+                                  {submission.quizResults && (
+                                    <span style={{ fontWeight: 400, fontSize: "0.75rem", marginLeft: "0.5rem" }}>
+                                      {Object.values(submission.quizResults).filter((r) => r === true).length}/
+                                      {Object.values(submission.quizResults).filter((r) => r !== null).length} auto-graded correct
+                                      {Object.values(submission.quizResults).filter((r) => r === null).length > 0 && (
+                                        <span style={{ color: "#888" }}>
+                                          , {Object.values(submission.quizResults).filter((r) => r === null).length} pending review
+                                        </span>
+                                      )}
+                                    </span>
+                                  )}
                                 </div>
                               )}
                               <div
@@ -2461,14 +2477,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                               typeof proj === "object"
                                 ? proj.description || ""
                                 : "";
-                            const links =
-                              typeof proj === "object"
-                                ? Array.isArray(proj.links)
-                                  ? proj.links
-                                  : typeof proj.links === "string" && proj.links.trim()
-                                    ? proj.links.split(",").map((u) => ({ text: "Resource", url: u.trim() })).filter((l) => l.url)
-                                    : []
-                                : [];
+                            const normalizeLinks = (raw) => {
+                              if (!raw) return [];
+                              if (Array.isArray(raw)) {
+                                if (raw.length > 0 && "items" in raw[0]) return raw;
+                                if ("url" in raw[0]) return [{ title: "", items: raw }];
+                                if ("text" in raw[0] && !("urls" in raw[0])) return [{ title: "", items: raw.map((l) => ({ text: l.text, url: l.url })) }];
+                                return raw;
+                              }
+                              if (typeof raw === "string" && raw.trim()) {
+                                return [{ title: "", items: raw.split(",").map((u) => ({ text: "Resource", url: u.trim() })).filter((l) => l.url) }];
+                              }
+                              return [];
+                            };
+                            const links = normalizeLinks(proj.links);
                             const updateProj = (field, val) => {
                               const u = JSON.parse(JSON.stringify(careerPaths));
                               const current = u[idx].projects[pIdx];
@@ -2589,62 +2611,129 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   >
                                     Reference Links
                                   </label>
-                                  {links.map((link, li) => (
+                                  {links.map((group, gi) => (
                                     <div
-                                      key={li}
+                                      key={gi}
                                       style={{
-                                        display: "flex",
-                                        gap: "0.4rem",
-                                        marginBottom: "0.35rem",
-                                        alignItems: "center",
+                                        marginBottom: "0.75rem",
+                                        padding: "0.5rem",
+                                        border: "1px solid #ccc",
+                                        background: "#fafafa",
                                       }}
                                     >
-                                      <input
-                                        className="input-sharp"
-                                        value={link.text || ""}
-                                        onChange={(e) => {
-                                          const updated = [...links];
-                                          updated[li] = { ...updated[li], text: e.target.value };
-                                          updateProj("links", updated);
-                                        }}
-                                        placeholder="Link label"
-                                        style={{ ...s, width: "120px", flexShrink: 0 }}
-                                      />
-                                      <input
-                                        className="input-sharp"
-                                        value={link.url || ""}
-                                        onChange={(e) => {
-                                          const updated = [...links];
-                                          updated[li] = { ...updated[li], url: e.target.value };
-                                          updateProj("links", updated);
-                                        }}
-                                        placeholder="https://example.com"
-                                        style={{ ...s, flex: 1 }}
-                                      />
+                                      <div style={{ display: "flex", gap: "0.4rem", marginBottom: "0.35rem", alignItems: "center" }}>
+                                        <input
+                                          className="input-sharp"
+                                          value={group.title || ""}
+                                          onChange={(e) => {
+                                            const updated = JSON.parse(JSON.stringify(links));
+                                            updated[gi].title = e.target.value;
+                                            updateProj("links", updated);
+                                          }}
+                                          placeholder="Section title (e.g. Documentation)"
+                                          style={{ ...s, flex: 1 }}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            updateProj("links", links.filter((_, i) => i !== gi));
+                                          }}
+                                          style={{
+                                            border: "2px solid #EA4335",
+                                            color: "#EA4335",
+                                            background: "#fff",
+                                            cursor: "pointer",
+                                            padding: "0.2rem 0.5rem",
+                                            fontSize: "0.7rem",
+                                            fontWeight: 700,
+                                            flexShrink: 0,
+                                          }}
+                                        >
+                                          Remove Group
+                                        </button>
+                                      </div>
+                                      {(group.items || []).map((item, ii) => (
+                                        <div
+                                          key={ii}
+                                          style={{
+                                            display: "flex",
+                                            gap: "0.4rem",
+                                            marginBottom: "0.3rem",
+                                            marginLeft: "1rem",
+                                            alignItems: "center",
+                                          }}
+                                        >
+                                          <input
+                                            className="input-sharp"
+                                            value={item.text || ""}
+                                            onChange={(e) => {
+                                              const updated = JSON.parse(JSON.stringify(links));
+                                              updated[gi].items[ii].text = e.target.value;
+                                              updateProj("links", updated);
+                                            }}
+                                            placeholder="Link label"
+                                            style={{ ...s, width: "120px", flexShrink: 0 }}
+                                          />
+                                          <input
+                                            className="input-sharp"
+                                            value={item.url || ""}
+                                            onChange={(e) => {
+                                              const updated = JSON.parse(JSON.stringify(links));
+                                              updated[gi].items[ii].url = e.target.value;
+                                              updateProj("links", updated);
+                                            }}
+                                            placeholder="https://example.com"
+                                            style={{ ...s, flex: 1 }}
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const updated = JSON.parse(JSON.stringify(links));
+                                              updated[gi].items = updated[gi].items.filter((_, i) => i !== ii);
+                                              updateProj("links", updated);
+                                            }}
+                                            style={{
+                                              border: "2px solid #EA4335",
+                                              color: "#EA4335",
+                                              background: "#fff",
+                                              cursor: "pointer",
+                                              padding: "0.15rem 0.4rem",
+                                              fontSize: "0.65rem",
+                                              fontWeight: 700,
+                                              flexShrink: 0,
+                                            }}
+                                          >
+                                            X
+                                          </button>
+                                        </div>
+                                      ))}
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          updateProj("links", links.filter((_, i) => i !== li));
+                                          const updated = JSON.parse(JSON.stringify(links));
+                                          updated[gi].items = [...(updated[gi].items || []), { text: "", url: "" }];
+                                          updateProj("links", updated);
                                         }}
                                         style={{
-                                          border: "2px solid #EA4335",
-                                          color: "#EA4335",
-                                          background: "#fff",
+                                          border: "none",
+                                          color: "#000",
+                                          background: "none",
                                           cursor: "pointer",
-                                          padding: "0.2rem 0.5rem",
-                                          fontSize: "0.7rem",
+                                          padding: "0.15rem 0.5rem",
+                                          fontSize: "0.75rem",
                                           fontWeight: 700,
-                                          flexShrink: 0,
+                                          textDecoration: "underline",
+                                          marginLeft: "1rem",
                                         }}
                                       >
-                                        Remove
+                                        + Add Link to "{group.title || `Group ${gi + 1}`}"
                                       </button>
                                     </div>
                                   ))}
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      updateProj("links", [...links, { text: "", url: "" }]);
+                                      updateProj("links", [...links, { title: "", items: [{ text: "", url: "" }] }]);
                                     }}
                                     style={{
                                       border: "2px solid #000",
@@ -2657,7 +2746,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                       marginTop: "0.25rem",
                                     }}
                                   >
-                                    + Add Link
+                                    + Add Link Group
                                   </button>
                                 </div>
                                 <div style={{ marginTop: "0.5rem" }}>
@@ -2701,100 +2790,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                           marginBottom: "0.2rem",
                                         }}
                                       >
-                                        Quiz Input Type
-                                      </label>
-                                      <select
-                                        className="input-sharp"
-                                        value={proj.quizType || "text"}
-                                        onChange={(e) =>
-                                          updateProj("quizType", e.target.value)
-                                        }
-                                        style={s}
-                                      >
-                                        <option value="text">Text Input</option>
-                                        <option value="option">Multiple Choice</option>
-                                        <option value="number">Number Input</option>
-                                      </select>
-                                    </div>
-                                    {proj.quizType === "option" && (
-                                      <div style={{ marginBottom: "0.5rem" }}>
-                                        <label
-                                          style={{
-                                            fontSize: "0.7rem",
-                                            fontWeight: 700,
-                                            display: "block",
-                                            marginBottom: "0.2rem",
-                                          }}
-                                        >
-                                          Options (one per line)
-                                        </label>
-                                        <textarea
-                                          className="input-sharp"
-                                          rows={3}
-                                          value={Array.isArray(proj.quizOptions) ? proj.quizOptions.join("\n") : ""}
-                                          onChange={(e) =>
-                                            updateProj(
-                                              "quizOptions",
-                                              e.target.value
-                                                .split("\n")
-                                                .map((x) => x.trim())
-                                                .filter(Boolean),
-                                            )
-                                          }
-                                          placeholder="Option A&#10;Option B&#10;Option C&#10;Option D"
-                                          style={{ ...s, resize: "vertical" }}
-                                        />
-                                      </div>
-                                    )}
-                                    <div style={{ marginBottom: "0.5rem" }}>
-                                      <label
-                                        style={{
-                                          fontSize: "0.7rem",
-                                          fontWeight: 700,
-                                          display: "block",
-                                          marginBottom: "0.2rem",
-                                        }}
-                                      >
-                                        Correct Answer
-                                      </label>
-                                      {proj.quizType === "option" ? (
-                                        <select
-                                          className="input-sharp"
-                                          value={proj.quizAnswer || ""}
-                                          onChange={(e) =>
-                                            updateProj("quizAnswer", e.target.value)
-                                          }
-                                          style={s}
-                                        >
-                                          <option value="">-- Select --</option>
-                                          {(proj.quizOptions || []).map((opt, oi) => (
-                                            <option key={oi} value={opt}>
-                                              {opt}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      ) : (
-                                        <input
-                                          className="input-sharp"
-                                          type={proj.quizType === "number" ? "number" : "text"}
-                                          value={proj.quizAnswer || ""}
-                                          onChange={(e) =>
-                                            updateProj("quizAnswer", e.target.value)
-                                          }
-                                          placeholder="Enter the correct answer"
-                                          style={s}
-                                        />
-                                      )}
-                                    </div>
-                                    <div>
-                                      <label
-                                        style={{
-                                          fontSize: "0.7rem",
-                                          fontWeight: 700,
-                                          display: "block",
-                                          marginBottom: "0.2rem",
-                                        }}
-                                      >
                                         Passing Grade (%){" "}
                                         <span style={{ fontWeight: 400, color: "#888" }}>
                                           (score must be ≥ this to pass)
@@ -2811,6 +2806,61 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                         }
                                         style={{ ...s, width: "100px" }}
                                       />
+                                    </div>
+                                    <div style={{ marginBottom: "0.5rem" }}>
+                                      <label
+                                        style={{
+                                          fontSize: "0.7rem",
+                                          fontWeight: 700,
+                                          display: "block",
+                                          marginBottom: "0.2rem",
+                                        }}
+                                      >
+                                        Questions ({(proj.quizQuestions || []).length})
+                                      </label>
+                                      {(proj.quizQuestions || []).length === 0 ? (
+                                        <p style={{ fontSize: "0.8rem", color: "#888", fontStyle: "italic" }}>
+                                          No questions added yet.
+                                        </p>
+                                      ) : (
+                                        <ul style={{ fontSize: "0.8rem", margin: "0.25rem 0", paddingLeft: "1.25rem" }}>
+                                          {(proj.quizQuestions || []).slice(0, 3).map((q, qi) => (
+                                            <li key={qi}>
+                                              {q.question || `Question ${qi + 1}`}
+                                              <span style={{ color: "#888" }}>
+                                                {" "}({q.type || "text"})
+                                              </span>
+                                            </li>
+                                          ))}
+                                          {(proj.quizQuestions || []).length > 3 && (
+                                            <li style={{ color: "#888" }}>
+                                              +{proj.quizQuestions.length - 3} more
+                                            </li>
+                                          )}
+                                        </ul>
+                                      )}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setQuizModalDomainIdx(idx);
+                                          setQuizModalProjIdx(pIdx);
+                                          setQuizModalQuestions(
+                                            JSON.parse(JSON.stringify(proj.quizQuestions || [])),
+                                          );
+                                        }}
+                                        style={{
+                                          border: "2px solid #000",
+                                          color: "#000",
+                                          background: "#fff",
+                                          cursor: "pointer",
+                                          padding: "0.3rem 0.8rem",
+                                          fontSize: "0.75rem",
+                                          fontWeight: 700,
+                                          marginTop: "0.25rem",
+                                        }}
+                                      >
+                                        Manage Questions
+                                      </button>
                                     </div>
                                   </div>
                                 )}
@@ -2856,7 +2906,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             const u = JSON.parse(JSON.stringify(careerPaths));
                             u[idx].projects = [
                               ...(u[idx].projects || []),
-                              { title: "New Task", description: "", links: [], type: "text", quizType: "text", quizOptions: [], quizAnswer: "", passingGrade: 100 },
+                              { title: "New Task", description: "", links: [], type: "text", quizQuestions: [], passingGrade: 100 },
                             ];
                             setCareerPaths(u);
                           }}
@@ -6492,11 +6542,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         typeof project === "object" ? project.description : "";
                       const rawLinks =
                         typeof project === "object" ? project.links : [];
-                      const projectLinks = Array.isArray(rawLinks)
-                        ? rawLinks
-                        : typeof rawLinks === "string" && rawLinks.trim()
-                          ? rawLinks.split(",").map((u) => ({ text: "Resource", url: u.trim() })).filter((l) => l.url)
-                          : [];
+                      const normalizeLinks = (raw) => {
+                        if (!raw) return [];
+                        if (Array.isArray(raw)) {
+                          if (raw.length > 0 && "items" in raw[0]) return raw;
+                          if ("url" in raw[0]) return [{ title: "", items: raw.map((l) => ({ text: l.text || "Resource", url: l.url })) }];
+                          if ("text" in raw[0] && !("urls" in raw[0])) return [{ title: "", items: raw }];
+                          return raw;
+                        }
+                        if (typeof raw === "string" && raw.trim()) {
+                          return [{ title: "", items: raw.split(",").map((u) => ({ text: "Resource", url: u.trim() })).filter((l) => l.url) }];
+                        }
+                        return [];
+                      };
+                      const projectLinks = normalizeLinks(rawLinks);
 
                       return (
                         <div
@@ -6586,29 +6645,37 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     marginTop: "0.3rem",
                                   }}
                                 >
-                                  <strong>Resources:</strong>{" "}
-                                  {projectLinks.map((l, li) => {
-                                    const url = l.url || "";
-                                    if (!url.trim()) return null;
-                                    const href = url.startsWith("http")
-                                      ? url
-                                      : `https://${url}`;
-                                    return (
-                                      <a
-                                        key={li}
-                                        href={href}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{
-                                          color: "#000",
-                                          marginRight: "0.5rem",
-                                          fontWeight: 700,
-                                        }}
-                                      >
-                                        {l.text || `Link ${li + 1}`}
-                                      </a>
-                                    );
-                                  })}
+                                  <strong>Resources:</strong>
+                                  {projectLinks.map((group, gi) => (
+                                    <div key={gi} style={{ marginTop: "0.2rem" }}>
+                                      {group.title && (
+                                        <div style={{ fontWeight: 700, color: "#555", marginBottom: "0.15rem" }}>
+                                          {group.title}
+                                        </div>
+                                      )}
+                                      {(group.items || []).map((item, ii) => {
+                                        const url = item.url || "";
+                                        if (!url.trim()) return null;
+                                        const href = url.startsWith("http") ? url : `https://${url}`;
+                                        return (
+                                          <a
+                                            key={ii}
+                                            href={href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{
+                                              color: "#000",
+                                              marginRight: "0.5rem",
+                                              fontWeight: 700,
+                                              display: "inline-block",
+                                            }}
+                                          >
+                                            {item.text || `Link ${ii + 1}`}
+                                          </a>
+                                        );
+                                      })}
+                                    </div>
+                                  ))}
                                 </div>
                               )}
                             </div>
@@ -6743,12 +6810,22 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 >
                                   Quiz Score: {sub.quizScore}% —{" "}
                                   {sub.quizPassed ? "PASSED" : "FAILED"}
-                                  {sub.quizCorrect !== undefined && (
-                                    <span>
-                                      {" "}
-                                      ({sub.quizCorrect ? "Correct" : "Incorrect"})
-                                    </span>
-                                  )}
+                                </div>
+                              )}
+                              {sub.quizResults && (Object.keys(sub.quizResults).length > 0) && (
+                                <div style={{ fontSize: "0.78rem", marginTop: "0.3rem" }}>
+                                  {(project?.quizQuestions || []).map((q, qi) => {
+                                    const r = sub.quizResults[qi];
+                                    if (r === undefined) return null;
+                                    return (
+                                      <div key={qi} style={{ marginBottom: "0.15rem" }}>
+                                        <strong>Q{qi + 1}:</strong> {sub.quizAnswers?.[qi] ?? "(empty)"}
+                                        {r === true && <span style={{ color: "#34A853", marginLeft: "0.4rem" }}>✓</span>}
+                                        {r === false && <span style={{ color: "#EA4335", marginLeft: "0.4rem" }}>✗ (answer: {q.answer})</span>}
+                                        {r === null && <span style={{ color: "#888", marginLeft: "0.4rem" }}>⏳ Pending review</span>}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               )}
                               {isVerified && sub.verifiedAt && (
@@ -7022,6 +7099,240 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Quiz Questions Modal ── */}
+      {quizModalDomainIdx !== null && quizModalProjIdx !== null && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(0,0,0,0.4)",
+            backdropFilter: "blur(4px)",
+            zIndex: 2000,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+          onClick={() => {
+            setQuizModalDomainIdx(null);
+            setQuizModalProjIdx(null);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff",
+              border: "2px solid #000",
+              boxShadow: "12px 12px 0 #000",
+              padding: "2rem",
+              maxWidth: "700px",
+              width: "90vw",
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
+          >
+            <h4
+              style={{
+                fontSize: "1rem",
+                fontWeight: 800,
+                textTransform: "uppercase",
+                marginBottom: "1rem",
+              }}
+            >
+              Edit Quiz Questions
+            </h4>
+            {quizModalQuestions.length === 0 && (
+              <p style={{ fontSize: "0.85rem", color: "#888", fontStyle: "italic", marginBottom: "1rem" }}>
+                No questions yet. Add your first question below.
+              </p>
+            )}
+            {quizModalQuestions.map((q, qi) => (
+              <div
+                key={qi}
+                style={{
+                  border: "2px solid #000",
+                  padding: "1rem",
+                  marginBottom: "1rem",
+                  background: "#fafafa",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.5rem" }}>
+                  <strong style={{ fontSize: "0.8rem" }}>Question #{qi + 1}</strong>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuizModalQuestions(quizModalQuestions.filter((_, i) => i !== qi));
+                    }}
+                    style={{
+                      border: "2px solid #EA4335",
+                      color: "#EA4335",
+                      background: "#fff",
+                      cursor: "pointer",
+                      padding: "0.15rem 0.4rem",
+                      fontSize: "0.7rem",
+                      fontWeight: 700,
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div style={{ marginBottom: "0.4rem" }}>
+                  <input
+                    className="input-sharp"
+                    value={q.question || ""}
+                    onChange={(e) => {
+                      const u = [...quizModalQuestions];
+                      u[qi] = { ...u[qi], question: e.target.value };
+                      setQuizModalQuestions(u);
+                    }}
+                    placeholder="Enter the question"
+                    style={{ ...s, width: "100%" }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.4rem", alignItems: "center" }}>
+                  <label style={{ fontSize: "0.7rem", fontWeight: 700, flexShrink: 0 }}>Type:</label>
+                  <select
+                    className="input-sharp"
+                    value={q.type || "text"}
+                    onChange={(e) => {
+                      const u = [...quizModalQuestions];
+                      u[qi] = { ...u[qi], type: e.target.value, options: e.target.value === "option" ? (u[qi].options || ["", ""]) : [], answer: "" };
+                      setQuizModalQuestions(u);
+                    }}
+                    style={{ ...s, width: "auto" }}
+                  >
+                    <option value="text">Text Input (admin verifies)</option>
+                    <option value="option">Multiple Choice</option>
+                    <option value="number">Number Input</option>
+                  </select>
+                </div>
+                {q.type === "option" && (
+                  <div style={{ marginBottom: "0.4rem" }}>
+                    <label style={{ fontSize: "0.7rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>
+                      Options (one per line)
+                    </label>
+                    <textarea
+                      className="input-sharp"
+                      rows={3}
+                      value={Array.isArray(q.options) ? q.options.join("\n") : ""}
+                      onChange={(e) => {
+                        const u = [...quizModalQuestions];
+                        u[qi] = { ...u[qi], options: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) };
+                        setQuizModalQuestions(u);
+                      }}
+                      placeholder="Option A&#10;Option B&#10;Option C"
+                      style={{ ...s, resize: "vertical" }}
+                    />
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontSize: "0.7rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>
+                    {q.type === "text"
+                      ? "Text Answer (not auto-graded)"
+                      : q.type === "number"
+                        ? "Correct Number Answer"
+                        : "Correct Answer"}
+                  </label>
+                  {q.type === "option" ? (
+                    <select
+                      className="input-sharp"
+                      value={q.answer || ""}
+                      onChange={(e) => {
+                        const u = [...quizModalQuestions];
+                        u[qi] = { ...u[qi], answer: e.target.value };
+                        setQuizModalQuestions(u);
+                      }}
+                      style={s}
+                    >
+                      <option value="">-- Select --</option>
+                      {(q.options || []).map((opt, oi) => (
+                        <option key={oi} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      className="input-sharp"
+                      type={q.type === "number" ? "number" : "text"}
+                      value={q.answer || ""}
+                      onChange={(e) => {
+                        const u = [...quizModalQuestions];
+                        u[qi] = { ...u[qi], answer: e.target.value };
+                        setQuizModalQuestions(u);
+                      }}
+                      placeholder={q.type === "text" ? "Leave blank (not auto-graded)" : "Enter correct answer"}
+                      style={s}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "1rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuizModalQuestions([...quizModalQuestions, { question: "", type: "text", options: [], answer: "" }]);
+                }}
+                style={{
+                  border: "2px solid #000",
+                  color: "#000",
+                  background: "#fff",
+                  cursor: "pointer",
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                }}
+              >
+                + Add Question
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const u = JSON.parse(JSON.stringify(careerPaths));
+                  const target = u[quizModalDomainIdx].projects[quizModalProjIdx];
+                  if (typeof target === "object") {
+                    target.quizQuestions = JSON.parse(JSON.stringify(quizModalQuestions));
+                  }
+                  setCareerPaths(u);
+                  setQuizModalDomainIdx(null);
+                  setQuizModalProjIdx(null);
+                }}
+                style={{
+                  border: "2px solid #34A853",
+                  color: "#fff",
+                  background: "#34A853",
+                  cursor: "pointer",
+                  padding: "0.5rem 1.5rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                }}
+              >
+                Save Questions
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setQuizModalDomainIdx(null);
+                  setQuizModalProjIdx(null);
+                }}
+                style={{
+                  border: "2px solid #000",
+                  color: "#000",
+                  background: "#fff",
+                  cursor: "pointer",
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -227,6 +227,12 @@ export default function StudentDashboard({
   };
 
   const getProjectsForEnrollment = (enrollment) => {
+    const path = careerPaths.find(
+      (p) => p.id === enrollment.domainId || p.title === enrollment.domain,
+    );
+    if (path?.projects?.length > 0) {
+      return path.projects;
+    }
     if (
       enrollment.projects &&
       Array.isArray(enrollment.projects) &&
@@ -234,11 +240,7 @@ export default function StudentDashboard({
     ) {
       return enrollment.projects;
     }
-    // Fallback: look up from career paths
-    const path = careerPaths.find(
-      (p) => p.id === enrollment.domainId || p.title === enrollment.domain,
-    );
-    return path?.projects || [];
+    return [];
   };
 
   const getSubmissions = (enrollment) => {
@@ -284,14 +286,22 @@ export default function StudentDashboard({
 
   const handleSubmitQuiz = async (enrollment, projectIdx, project) => {
     const key = `${enrollment.id}_${projectIdx}`;
-    const answer = (submissionInputs[key] || "").trim();
-    if (!answer) {
-      alert("Please answer the quiz question before submitting.");
+    const raw = submissionInputs[key] || "{}";
+    let answers;
+    try { answers = JSON.parse(raw); } catch { answers = {}; }
+    const questions = project?.quizQuestions || [];
+    // Check all questions have an answer
+    const unanswered = questions.findIndex((q, qi) => {
+      const val = answers[qi];
+      return val === undefined || String(val).trim() === "";
+    });
+    if (unanswered !== -1) {
+      alert(`Please answer question ${unanswered + 1} before submitting.`);
       return;
     }
     setSubmitting((prev) => ({ ...prev, [key]: true }));
     try {
-      const result = await submitQuizAnswer(enrollment.id, projectIdx, answer, project);
+      const result = await submitQuizAnswer(enrollment.id, projectIdx, answers, project);
       await refreshEnrollment(enrollment.id);
       setSubmitSuccess((prev) => ({ ...prev, [key]: true }));
       setSubmissionInputs((prev) => ({ ...prev, [key]: "" }));
@@ -1597,11 +1607,20 @@ function EnrollmentCard({
                   typeof project === "object" && project !== null
                     ? project.links
                     : [];
-                const links = Array.isArray(rawLinks)
-                  ? rawLinks
-                  : typeof rawLinks === "string" && rawLinks.trim()
-                    ? rawLinks.split(",").map((u) => ({ text: "Resource", url: u.trim() })).filter((l) => l.url)
-                    : [];
+                const normalizeLinks = (raw) => {
+                  if (!raw) return [];
+                  if (Array.isArray(raw)) {
+                    if (raw.length > 0 && "items" in raw[0]) return raw;
+                    if ("url" in raw[0]) return [{ title: "", items: raw.map((l) => ({ text: l.text || "Resource", url: l.url })) }];
+                    if ("text" in raw[0] && !("urls" in raw[0])) return [{ title: "", items: raw }];
+                    return raw;
+                  }
+                  if (typeof raw === "string" && raw.trim()) {
+                    return [{ title: "", items: raw.split(",").map((u) => ({ text: "Resource", url: u.trim() })).filter((l) => l.url) }];
+                  }
+                  return [];
+                };
+                const links = normalizeLinks(rawLinks);
 
                 return (
                   <ProjectBox
@@ -2021,30 +2040,39 @@ function ProjectBox({
                   marginTop: "0.2rem",
                 }}
               >
-                <strong>Reference Resources:</strong>{" "}
-                {links.map((link, lIdx) => {
-                  const url = link.url || "";
-                  if (!url.trim()) return null;
-                  const href = url.startsWith("http")
-                    ? url
-                    : `https://${url}`;
-                  return (
-                    <a
-                      key={lIdx}
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color: "#000",
-                        textDecoration: "underline",
-                        marginRight: "0.75rem",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {link.text || `Resource ${lIdx + 1}`}
-                    </a>
-                  );
-                })}
+                <strong>Reference Resources:</strong>
+                {links.map((group, gi) => (
+                  <div key={gi} style={{ marginTop: "0.25rem" }}>
+                    {group.title && (
+                      <div style={{ fontWeight: 700, color: "#444", marginBottom: "0.15rem", fontSize: "0.78rem" }}>
+                        {group.title}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem" }}>
+                      {(group.items || []).map((item, ii) => {
+                        const url = item.url || "";
+                        if (!url.trim()) return null;
+                        const href = url.startsWith("http") ? url : `https://${url}`;
+                        return (
+                          <a
+                            key={ii}
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              color: "#000",
+                              textDecoration: "underline",
+                              fontWeight: 700,
+                              fontSize: "0.78rem",
+                            }}
+                          >
+                            {item.text || `Link ${ii + 1}`}
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -2155,33 +2183,65 @@ function ProjectBox({
               marginBottom: "0.35rem",
             }}
           >
-            {isQuiz ? "Your Answer" : "Your Submission"}
+            {isQuiz ? "Your Answers" : "Your Submission"}
           </div>
-          <div
-            style={{
-              padding: "0.75rem 1rem",
-              background: "#f5f5f5",
-              border: "1px solid #ddd",
-              fontSize: "0.88rem",
-              color: "#333",
-              wordBreak: "break-all",
-              lineHeight: "1.5",
-              fontFamily: sub?.text?.startsWith("http")
-                ? "monospace"
-                : "inherit",
-            }}
-          >
-            {sub.text}
-          </div>
+          {isQuiz ? (
+            <div>
+              {(project?.quizQuestions || []).map((q, qi) => {
+                const qResult = sub?.quizResults?.[qi];
+                const qAnswer = sub?.quizAnswers?.[qi];
+                return (
+                  <div
+                    key={qi}
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      marginBottom: "0.4rem",
+                      background: qResult === true ? "#f0fdf4" : qResult === false ? "#fff5f5" : "#f5f5f5",
+                      border: `1px solid ${qResult === true ? "#34A853" : qResult === false ? "#EA4335" : "#ddd"}`,
+                      fontSize: "0.85rem",
+                      color: "#333",
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, marginBottom: "0.15rem" }}>
+                      Q{qi + 1}: {q.question}
+                    </div>
+                    <div>
+                      Your answer: <strong>{qAnswer ?? "(empty)"}</strong>
+                      {qResult === true && <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>✓ Correct</span>}
+                      {qResult === false && <span style={{ color: "#EA4335", marginLeft: "0.5rem" }}>✗ Incorrect</span>}
+                      {qResult === null && <span style={{ color: "#888", marginLeft: "0.5rem" }}>⏳ Pending review</span>}
+                    </div>
+                  </div>
+                );
+              })}
+              {quizPassed && (
+                <div style={{ fontSize: "0.78rem", color: "#34A853", fontWeight: 700, marginTop: "0.25rem" }}>
+                  ✓ Score: {sub.quizScore ?? 0}% — Passed
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: "0.75rem 1rem",
+                background: "#f5f5f5",
+                border: "1px solid #ddd",
+                fontSize: "0.88rem",
+                color: "#333",
+                wordBreak: "break-all",
+                lineHeight: "1.5",
+                fontFamily: sub?.text?.startsWith("http")
+                  ? "monospace"
+                  : "inherit",
+              }}
+            >
+              {sub.text}
+            </div>
+          )}
           <div
             style={{ fontSize: "0.72rem", color: "#aaa", marginTop: "0.4rem" }}
           >
             Submitted: {new Date(sub.submittedAt).toLocaleString()}
-            {quizPassed && (
-              <span style={{ color: "#34A853", marginLeft: "1rem" }}>
-                ✓ Score: {sub.quizScore ?? 0}% — Passed
-              </span>
-            )}
             {sub.verified && sub.verifiedAt && !isQuiz && (
               <span style={{ color: "#34A853", marginLeft: "1rem" }}>
                 ✓ Verified: {new Date(sub.verifiedAt).toLocaleString()}
@@ -2215,10 +2275,21 @@ function ProjectBox({
             }}
           >
             <strong style={{ color: "#EA4335" }}>
-              ✗ Incorrect — Score: {sub.quizScore ?? 0}% (Passing: {project?.passingGrade ?? 100}%)
+              ✗ Score: {sub.quizScore ?? 0}% (Passing: {project?.passingGrade ?? 100}%)
             </strong>
-            <div style={{ fontSize: "0.82rem", color: "#555", marginTop: "0.25rem" }}>
-              Your answer: "{sub.text}"
+            <div style={{ fontSize: "0.82rem", color: "#555", marginTop: "0.35rem" }}>
+              {(project?.quizQuestions || []).map((q, qi) => {
+                const qResult = sub?.quizResults?.[qi];
+                const qAnswer = sub?.quizAnswers?.[qi];
+                if (q.type === "text") return null;
+                return (
+                  <div key={qi} style={{ marginBottom: "0.15rem" }}>
+                    Q{qi + 1}: {qAnswer ?? "(empty)"}
+                    {qResult === true && <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>✓</span>}
+                    {qResult === false && <span style={{ color: "#EA4335", marginLeft: "0.5rem" }}>✗ (correct: {q.answer})</span>}
+                  </div>
+                );
+              })}
             </div>
             <div style={{ fontSize: "0.8rem", color: "#888", marginTop: "0.25rem" }}>
               Submitted: {new Date(sub.submittedAt).toLocaleString()}
@@ -2242,12 +2313,12 @@ function ProjectBox({
           >
             <button
               onClick={onSubmit}
-              disabled={isSubmittingNow || !inputValue.trim()}
+              disabled={isSubmittingNow || !inputValue}
               className="btn-sharp"
               style={{
                 padding: "0.5rem 1.5rem",
                 fontSize: "0.85rem",
-                opacity: !inputValue.trim() ? 0.5 : 1,
+                opacity: !inputValue ? 0.5 : 1,
               }}
             >
               {isSubmittingNow ? "Submitting…" : "Retry"}
@@ -2346,15 +2417,15 @@ function ProjectBox({
           >
             <button
               onClick={onSubmit}
-              disabled={isSubmittingNow || !inputValue.trim()}
+              disabled={isSubmittingNow || (!isQuiz && !inputValue.trim()) || (isQuiz && !inputValue)}
               className="btn-sharp"
               style={{
                 padding: "0.5rem 1.5rem",
                 fontSize: "0.85rem",
-                opacity: !inputValue.trim() ? 0.5 : 1,
+                opacity: (!inputValue.trim() && !isQuiz) ? 0.5 : 1,
               }}
             >
-              {isSubmittingNow ? "Submitting…" : isQuiz ? "Submit Answer" : "Submit Project"}
+              {isSubmittingNow ? "Submitting…" : isQuiz ? "Submit All Answers" : "Submit Project"}
             </button>
             {showSuccessMsg && !quizFailed && (
               <span
@@ -2364,7 +2435,7 @@ function ProjectBox({
                   fontWeight: 700,
                 }}
               >
-                {isQuiz ? "✓ Answer submitted!" : "✓ Submitted successfully! Our team will verify it shortly."}
+                {isQuiz ? "✓ Answers submitted!" : "✓ Submitted successfully! Our team will verify it shortly."}
               </span>
             )}
           </div>
@@ -2375,92 +2446,20 @@ function ProjectBox({
 }
 
 function QuizForm({ project, inputValue, onInputChange, projectName, isRetry }) {
-  const quizType = project?.quizType || "text";
-  const quizOptions = project?.quizOptions || [];
+  const questions = project?.quizQuestions || [];
+  // Parse stored answers JSON or default to empty object
+  const answers = (() => {
+    try { return JSON.parse(inputValue || "{}"); } catch { return {}; }
+  })();
 
-  if (quizType === "option") {
-    return (
-      <div>
-        <div
-          style={{
-            fontSize: "0.78rem",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            color: "#666",
-            marginBottom: "0.5rem",
-          }}
-        >
-          {isRetry ? "Choose a different answer:" : "Choose your answer:"}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-          {quizOptions.map((opt, oi) => (
-            <label
-              key={oi}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.5rem 0.75rem",
-                border: `2px solid ${inputValue === opt ? "#000" : "#ddd"}`,
-                background: inputValue === opt ? "#f0f0f0" : "#fff",
-                cursor: "pointer",
-                fontSize: "0.88rem",
-                fontWeight: inputValue === opt ? 700 : 400,
-              }}
-            >
-              <input
-                type="radio"
-                name={`quiz_${projectName}`}
-                value={opt}
-                checked={inputValue === opt}
-                onChange={() => onInputChange(opt)}
-                style={{ accentColor: "#000" }}
-              />
-              {opt}
-            </label>
-          ))}
-        </div>
-      </div>
-    );
+  const setAnswer = (qi, val) => {
+    onInputChange(JSON.stringify({ ...answers, [qi]: val }));
+  };
+
+  if (questions.length === 0) {
+    return <p style={{ color: "#888", fontStyle: "italic" }}>No questions configured for this quiz.</p>;
   }
 
-  if (quizType === "number") {
-    return (
-      <div>
-        <div
-          style={{
-            fontSize: "0.78rem",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            color: "#666",
-            marginBottom: "0.5rem",
-          }}
-        >
-          {isRetry ? "Enter a different answer:" : "Enter your answer:"}
-        </div>
-        <input
-          type="number"
-          placeholder="Enter your numeric answer…"
-          value={inputValue}
-          onChange={(e) => onInputChange(e.target.value)}
-          style={{
-            width: "100%",
-            maxWidth: "300px",
-            padding: "0.65rem 0.85rem",
-            border: "2px solid #ccc",
-            fontSize: "0.88rem",
-            fontFamily: "inherit",
-            boxSizing: "border-box",
-            outline: "none",
-          }}
-          onFocus={(e) => (e.target.style.borderColor = "#000")}
-          onBlur={(e) => (e.target.style.borderColor = "#ccc")}
-        />
-      </div>
-    );
-  }
-
-  // text input
   return (
     <div>
       <div
@@ -2469,28 +2468,94 @@ function QuizForm({ project, inputValue, onInputChange, projectName, isRetry }) 
           fontWeight: 700,
           textTransform: "uppercase",
           color: "#666",
-          marginBottom: "0.5rem",
+          marginBottom: "0.75rem",
         }}
       >
-        {isRetry ? "Enter a different answer:" : "Enter your answer:"}
+        {isRetry ? "Answer all questions again:" : "Answer all questions:"}
       </div>
-      <input
-        type="text"
-        placeholder={`Type your answer for "${projectName}"…`}
-        value={inputValue}
-        onChange={(e) => onInputChange(e.target.value)}
-        style={{
-          width: "100%",
-          padding: "0.65rem 0.85rem",
-          border: "2px solid #ccc",
-          fontSize: "0.88rem",
-          fontFamily: "inherit",
-          boxSizing: "border-box",
-          outline: "none",
-        }}
-        onFocus={(e) => (e.target.style.borderColor = "#000")}
-        onBlur={(e) => (e.target.style.borderColor = "#ccc")}
-      />
+      {questions.map((q, qi) => (
+        <div
+          key={qi}
+          style={{
+            marginBottom: "1rem",
+            padding: "0.75rem",
+            border: "1px solid #ddd",
+            background: "#fafafa",
+          }}
+        >
+          <div style={{ fontWeight: 700, fontSize: "0.88rem", marginBottom: "0.5rem" }}>
+            {qi + 1}. {q.question || `Question ${qi + 1}`}
+          </div>
+
+          {q.type === "option" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              {(q.options || []).map((opt, oi) => (
+                <label
+                  key={oi}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.45rem 0.75rem",
+                    border: `2px solid ${answers[qi] === opt ? "#000" : "#ddd"}`,
+                    background: answers[qi] === opt ? "#f0f0f0" : "#fff",
+                    cursor: "pointer",
+                    fontSize: "0.85rem",
+                    fontWeight: answers[qi] === opt ? 700 : 400,
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name={`quiz_${projectName}_${qi}`}
+                    value={opt}
+                    checked={answers[qi] === opt}
+                    onChange={() => setAnswer(qi, opt)}
+                    style={{ accentColor: "#000" }}
+                  />
+                  {opt}
+                </label>
+              ))}
+            </div>
+          ) : q.type === "number" ? (
+            <input
+              type="number"
+              placeholder="Enter your numeric answer…"
+              value={answers[qi] !== undefined ? answers[qi] : ""}
+              onChange={(e) => setAnswer(qi, e.target.value)}
+              style={{
+                width: "100%",
+                maxWidth: "300px",
+                padding: "0.5rem 0.75rem",
+                border: "2px solid #ccc",
+                fontSize: "0.88rem",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+                outline: "none",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#000")}
+              onBlur={(e) => (e.target.style.borderColor = "#ccc")}
+            />
+          ) : (
+            <input
+              type="text"
+              placeholder={`Type your answer for question ${qi + 1}…`}
+              value={answers[qi] !== undefined ? answers[qi] : ""}
+              onChange={(e) => setAnswer(qi, e.target.value)}
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                border: "2px solid #ccc",
+                fontSize: "0.88rem",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+                outline: "none",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#000")}
+              onBlur={(e) => (e.target.style.borderColor = "#ccc")}
+            />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

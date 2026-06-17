@@ -675,24 +675,47 @@ export async function submitProject(
   throw new Error("Firebase RTDB is not configured.");
 }
 
-export async function submitQuizAnswer(enrollmentId, projectIndex, answer, project) {
+export async function submitQuizAnswer(enrollmentId, projectIndex, answers, project) {
   if (isFirebaseConfigured && rtdb) {
-    const userAnswer = String(answer || "").trim().toLowerCase();
-    const correctAnswer = String(project.quizAnswer || "").trim().toLowerCase();
-    const correct = userAnswer === correctAnswer;
-    const score = correct ? 100 : 0;
+    const questions = project.quizQuestions || [];
+    const totalQ = questions.length;
+    let correctCount = 0;
+    const results = {};
+    const parsedAnswers = typeof answers === "string" ? answers : JSON.stringify(answers);
+
+    questions.forEach((q, qi) => {
+      const userAns = String((answers && answers[qi]) || "").trim().toLowerCase();
+      results[qi] = false;
+      if (q.type === "text") {
+        // Text input requires admin verification - not auto-graded
+        results[qi] = null;
+      } else {
+        const correctAns = String(q.answer || "").trim().toLowerCase();
+        if (q.type === "number") {
+          results[qi] = parseFloat(userAns) === parseFloat(correctAns);
+        } else {
+          results[qi] = userAns === correctAns;
+        }
+        if (results[qi]) correctCount++;
+      }
+    });
+
+    const autoGradedCount = questions.filter((q) => q.type !== "text").length;
+    const score = autoGradedCount > 0 ? Math.round((correctCount / autoGradedCount) * 100) : 0;
     const passingGrade = Number(project.passingGrade) || 100;
-    const passed = score >= passingGrade;
+    const passed = autoGradedCount > 0 && score >= passingGrade;
+    const allAutoGradedPassed = questions.every((q, qi) => q.type === "text" || results[qi]);
 
     await update(
       ref(rtdb, `enrollments/${enrollmentId}/submissions/${projectIndex}`),
       {
-        text: answer,
+        text: parsedAnswers,
         submittedAt: new Date().toISOString(),
-        verified: passed,
-        verifiedAt: passed ? new Date().toISOString() : null,
-        resubmit: !passed,
-        quizCorrect: correct,
+        verified: allAutoGradedPassed,
+        verifiedAt: allAutoGradedPassed ? new Date().toISOString() : null,
+        resubmit: !allAutoGradedPassed,
+        quizAnswers: answers,
+        quizResults: results,
         quizScore: score,
         quizPassed: passed,
       },
@@ -700,7 +723,7 @@ export async function submitQuizAnswer(enrollmentId, projectIndex, answer, proje
     await update(ref(rtdb, `enrollments/${enrollmentId}`), {
       updatedAt: new Date().toISOString(),
     });
-    return { correct, score, passed };
+    return { results, score, passed };
   }
   throw new Error("Firebase RTDB is not configured.");
 }
