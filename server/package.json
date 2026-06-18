@@ -9,6 +9,8 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.19.2",
-    "firebase-admin": "^14.0.0"
+    "jsonwebtoken": "^9.0.3",
+    "firebase-admin": "^14.0.0",
+    "stripe": "^22.2.1"
   }
 }

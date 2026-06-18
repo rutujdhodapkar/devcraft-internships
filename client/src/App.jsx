@@ -18,15 +18,13 @@ import {
   saveUserProfile,
   enrollStudent,
   fetchUserEnrollments,
-  recordReferralLogin,
   isReferralCodeMatched,
   savePermanentReferralCode,
   fetchSelfReferralCode,
   checkUserBan,
   fetchAdminMessages,
 } from "./services/data";
-import { auth, googleProvider, isFirebaseConfigured } from "./firebase";
-import { onAuthStateChanged, signOut, signInWithPopup } from "firebase/auth";
+import { fetchCurrentUser, signInWithGoogle, signOutUser, isFirebaseConfigured } from "./firebase";
 
 async function sha256(message) {
   const msgBuffer = new TextEncoder().encode(message);
@@ -144,105 +142,113 @@ export default function App() {
 
   // Listen to Firebase Auth state
   useEffect(() => {
-    if (!isFirebaseConfigured || !auth) {
+    (async () => {
+      setAuthLoading(true);
+      try {
+        const currentUser = await fetchCurrentUser();
+        if (currentUser && currentUser.email) {
+          await handleAuthUser(currentUser);
+        } else {
+          setUser(null);
+          setUserProfile(null);
+          setIsAdmin(false);
+          setHasReferralCode(false);
+          setUserBan(null);
+          setAdminMessages([]);
+        }
+      } catch { setUser(null); }
       setAuthLoading(false);
-      return;
+    })();
+  }, []);
+
+  const handleAuthUser = async (currentUser) => {
+    setUser(currentUser);
+
+    const { code: urlCode, matched } = await processReferralFromUrl();
+    const storedReferral = matched ? urlCode : "";
+    if (storedReferral) {
+      setReferralCode(storedReferral);
+      savePermanentReferralCode(currentUser.uid, storedReferral).catch(() => {});
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser && currentUser.email) {
-        // Always re-read URL on auth change so referral is checked at login
-        const { code: urlCode, matched } = await processReferralFromUrl();
-        const storedReferral = matched ? urlCode : "";
-        if (storedReferral) {
-          setReferralCode(storedReferral);
-          // Save referral permanently to user's profile
-          savePermanentReferralCode(currentUser.uid, storedReferral).catch(
-            () => {},
-          );
-        }
-        if (storedReferral) {
-          recordReferralLogin(storedReferral, currentUser).catch((e) => {
-            console.warn("Could not record referral login:", e.message);
+    fetchSelfReferralCode(currentUser.uid)
+      .then((code) => setHasReferralCode(!!code))
+      .catch(() => setHasReferralCode(false));
+
+    const hash = await sha256(currentUser.email.toLowerCase());
+    const isRootAdmin =
+      hash === "9de7c6f74278613debd72673db80f6d8d69bb7c0aae71746745d75fc5e264083";
+    let isUserAdmin = isRootAdmin;
+    if (!isUserAdmin) {
+      try {
+        const checkRes = await checkAdminStatus(currentUser.email);
+        isUserAdmin = checkRes.isAdmin;
+      } catch {}
+    }
+    setIsAdmin(isUserAdmin);
+
+    try {
+      const ban = await checkUserBan(currentUser.email);
+      setUserBan(ban || null);
+    } catch {}
+
+    try {
+      const msgs = await fetchAdminMessages(currentUser.email, { uid: currentUser.uid });
+      setAdminMessages((msgs || []).filter((m) => !m.context || m.context === "all"));
+    } catch {}
+
+    try {
+      const profile = await fetchUserProfile(currentUser.uid);
+      if (profile) {
+        setUserProfile(profile);
+        const isComplete = profile.phone && profile.college && profile.city && profile.country;
+        if (!isComplete) {
+          setProfileForm({
+            countryCode: profile.countryCode || detectCountryCode(),
+            phone: profile.phone || "",
+            college: profile.college || "",
+            city: profile.city || "",
+            country: profile.country || "",
+            upiId: profile.upiId || "",
           });
-        }
-
-        // Check if user has a self-created referral code
-        fetchSelfReferralCode(currentUser.uid)
-          .then((code) => {
-            setHasReferralCode(!!code);
-          })
-          .catch(() => setHasReferralCode(false));
-
-        // Check root admin hash
-        const hash = await sha256(currentUser.email.toLowerCase());
-        const isRootAdmin =
-          hash ===
-          "9de7c6f74278613debd72673db80f6d8d69bb7c0aae71746745d75fc5e264083";
-        let isUserAdmin = isRootAdmin;
-
-        if (!isUserAdmin) {
+          setShowProfilePrompt(true);
+        } else {
           try {
-            const checkRes = await checkAdminStatus(currentUser.email);
-            isUserAdmin = checkRes.isAdmin;
-          } catch (e) {
-            console.warn("Could not verify admin status:", e.message);
+            const userEnrs = await fetchUserEnrollments(currentUser.uid);
+            if (currentView !== "admin" && currentView !== "site" && userEnrs.length > 0) {
+              setCurrentView("dashboard");
+            } else if (pendingEnrollmentDomain) {
+              await enrollStudent(currentUser.uid, profile, pendingEnrollmentDomain);
+              setPendingEnrollmentDomain(null);
+              setCurrentView("dashboard");
+            } else if (currentView === "auth") {
+              setCurrentView(isUserAdmin ? "admin" : authRedirectTarget);
+            }
+          } catch {
+            if (pendingEnrollmentDomain) {
+              await enrollStudent(currentUser.uid, profile, pendingEnrollmentDomain);
+              setPendingEnrollmentDomain(null);
+              setCurrentView("dashboard");
+            } else if (currentView === "auth") {
+              setCurrentView(isUserAdmin ? "admin" : authRedirectTarget);
+            }
           }
         }
-        setIsAdmin(isUserAdmin);
-
-        // Check if user is banned
-        try {
-          const ban = await checkUserBan(currentUser.email);
-          setUserBan(ban || null);
-        } catch {}
-
-        // Fetch admin messages for this user (global only — tab-specific load in dashboard)
-        try {
-          const msgs = await fetchAdminMessages(currentUser.email, {
-            uid: currentUser.uid,
-          });
-          setAdminMessages(
-            (msgs || []).filter((m) => !m.context || m.context === "all"),
-          );
-        } catch {}
-
-        // Fetch / Sync profile details from RTDB
-        try {
-          const profile = await fetchUserProfile(currentUser.uid);
-          if (profile) {
-            setUserProfile(profile);
-
-            // Check if profile is complete — UPI is only required during enrollment, not plain login
-            const isComplete =
-              profile.phone &&
-              profile.college &&
-              profile.city &&
-              profile.country;
-            if (!isComplete) {
-              setProfileForm({
-                countryCode: profile.countryCode || detectCountryCode(),
-                phone: profile.phone || "",
-                college: profile.college || "",
-                city: profile.city || "",
-                country: profile.country || "",
-                upiId: profile.upiId || "",
-              });
-              setShowProfilePrompt(true);
-            } else {
-              // Profile is complete!
-              // If they already have applied internships, direct open their dashboard
-              try {
-                const userEnrs = await fetchUserEnrollments(currentUser.uid);
-                if (
-                  currentView !== "admin" &&
-                  currentView !== "site" &&
-                  userEnrs.length > 0
-                ) {
-                  setCurrentView("dashboard");
-                } else if (pendingEnrollmentDomain) {
-                  await enrollStudent(
+      } else {
+        setProfileForm({
+          countryCode: detectCountryCode(),
+          phone: "", college: "", city: "", country: "", upiId: "",
+        });
+        setShowProfilePrompt(true);
+      }
+    } catch {
+      setProfileForm({
+        countryCode: detectCountryCode(),
+        phone: "", college: "", city: "", country: "", upiId: "",
+      });
+      setShowProfilePrompt(true);
+    }
+  };
                     currentUser.uid,
                     profile,
                     pendingEnrollmentDomain,
@@ -282,22 +288,6 @@ export default function App() {
             });
             setShowProfilePrompt(true);
           }
-        } catch (err) {
-          console.error("Profile fetch failed:", err);
-        }
-      } else {
-        setIsAdmin(false);
-        setUserProfile(null);
-        setHasReferralCode(false);
-        setUserBan(null);
-        setAdminMessages([]);
-      }
-      setAuthLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [currentView, pendingEnrollmentDomain, authRedirectTarget]);
-
   // Reset referral input when profile prompt opens
   useEffect(() => {
     if (showProfilePrompt) {
@@ -466,29 +456,8 @@ export default function App() {
     }
   };
 
-  const handleLoginClick = async () => {
-    if (isFirebaseConfigured && auth && googleProvider) {
-      try {
-        setAuthLoading(true);
-        googleProvider.setCustomParameters({ prompt: "select_account" });
-        await signInWithPopup(auth, googleProvider);
-      } catch (err) {
-        if (err.code === "auth/popup-blocked") {
-          alert(
-            "Popup was blocked by your browser. Please allow popups for this site or try again.",
-          );
-        } else if (err.code === "auth/popup-closed-by-user") {
-          // User closed popup - not an error
-        } else {
-          console.error("Google Sign In failed:", err);
-        }
-      } finally {
-        setAuthLoading(false);
-      }
-    } else {
-      setAuthRedirectTarget("site");
-      setCurrentView("auth");
-    }
+  const handleLoginClick = () => {
+    signInWithGoogle(window.location.pathname + window.location.search);
   };
 
   const handleShowIdCard = async () => {
@@ -509,9 +478,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (isFirebaseConfigured && auth) {
-      await signOut(auth);
-    }
+    await signOutUser();
     setUser(null);
     setUserProfile(null);
     setIsAdmin(false);

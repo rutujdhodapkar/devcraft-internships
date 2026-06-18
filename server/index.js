@@ -3,6 +3,10 @@ import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import Stripe from 'stripe';
+import cookieParser from "cookie-parser";
+import registerFirebaseRoutes from './routes-firebase.js';
+import { initFirebaseAuth } from './firebase-auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,8 +40,18 @@ const ADMINS_FILE = path.join(__dirname, 'admins.json');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  credentials: true,
+}));
 app.use(express.json());
+app.use(cookieParser());
+
+// Register all Firebase-backed API routes
+registerFirebaseRoutes(app);
+
+// Initialize Firebase session auth
+initFirebaseAuth(app);
 
 async function readJson(filePath, fallback = []) {
   try {
@@ -295,6 +309,156 @@ app.delete('/api/admins/:email', async (req, res) => {
   return res.json({ success: true, data: updated });
 });
 
+// ─── Stripe Payment ────────────────────────────────────────────────────────────
+const STRIPE_AMOUNTS = {
+  normal: 200,
+  referral: 170,
+};
+
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+let stripe = null;
+if (stripeSecretKey) {
+  stripe = new Stripe(stripeSecretKey);
+}
+
+// Create Stripe Checkout Session
+app.post('/api/create-checkout-session', async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ success: false, message: 'Stripe not configured.' });
+  }
+
+  const { plan, enrollmentId, userId, email, name } = req.body;
+
+  if (!plan || !STRIPE_AMOUNTS[plan]) {
+    return res.status(400).json({ success: false, message: `Invalid plan "${plan}". Allowed plans: ${Object.keys(STRIPE_AMOUNTS).join(', ')}.` });
+  }
+
+  if (!enrollmentId || !userId) {
+    return res.status(400).json({ success: false, message: 'Missing required fields: enrollmentId, userId.' });
+  }
+
+  const amount = STRIPE_AMOUNTS[plan];
+  const isReferral = plan === 'referral';
+  const amountInPaise = Math.round(Number(amount) * 100);
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card', 'upi'],
+      line_items: [{
+        price_data: {
+          currency: 'inr',
+          product_data: {
+            name: isReferral ? 'Internship Enrollment (Referral)' : 'Internship Enrollment',
+            description: `Internship enrollment - ${isReferral ? 'Referral price ₹170' : 'Standard price ₹200'}`,
+          },
+          unit_amount: amountInPaise,
+        },
+        quantity: 1,
+      }],
+      mode: 'payment',
+      success_url: `${req.headers.origin}/payment-success?session_id={CHECKOUT_SESSION_ID}&enrollment_id=${enrollmentId}`,
+      cancel_url: `${req.headers.origin}/payment-cancelled?enrollment_id=${enrollmentId}`,
+      customer_email: email || undefined,
+      metadata: { enrollmentId, userId, amount: String(amount), plan },
+    });
+
+    res.json({ success: true, url: session.url, sessionId: session.id });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Payment session creation failed: ' + error.message });
+  }
+});
+
+// Verify payment status
+app.post('/api/verify-payment', async (req, res) => {
+  if (!stripe) {
+    return res.status(500).json({ success: false, message: 'Stripe not configured.' });
+  }
+
+  const { sessionId } = req.body;
+  if (!sessionId) {
+    return res.status(400).json({ success: false, message: 'Session ID required.' });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    res.json({
+      success: true,
+      paymentStatus: session.payment_status,
+      metadata: session.metadata,
+      amountTotal: session.amount_total,
+      currency: session.currency,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to verify payment.' });
+  }
+});
+
+// ─── Quiz Grading (Vercel compat) ──────────────────────────────────────────────
+const QUIZ_SYSTEM_PROMPT = `You are a strict quiz answer grader. Determine if the student's answer correctly answers the question. Be fair but accurate. Respond ONLY with valid JSON: {"correct": boolean, "reason": "brief explanation"}`;
+
+app.post('/api/grade-quiz-text', async (req, res) => {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const { question, answer } = req.body || {};
+  if (!question || !answer) {
+    return res.status(400).json({ error: "Missing question or answer" });
+  }
+
+  const trimmed = String(answer).trim();
+  if (!trimmed) {
+    return res.status(400).json({ correct: false, reason: "Empty answer" });
+  }
+
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: "AI grading not configured" });
+  }
+
+  try {
+    const prompt = `Question: ${question}\nStudent's Answer: ${trimmed}\n\nIs this answer correct? Respond with JSON only.`;
+
+    const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "meta/llama-3.3-70b-instruct",
+        messages: [
+          { role: "system", content: QUIZ_SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
+        max_tokens: 500,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return res.status(502).json({ error: `AI service error: ${response.status}`, detail: errText.slice(0, 200) });
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "";
+    const match = content.match(/\{[\s\S]*\}/);
+    if (!match) {
+      return res.status(502).json({ error: "Invalid AI response format", raw: content.slice(0, 200) });
+    }
+
+    const result = JSON.parse(match[0]);
+    if (typeof result.correct !== "boolean") {
+      return res.status(502).json({ error: "AI response missing correct field", raw: result });
+    }
+
+    return res.status(200).json(result);
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── AI Task Verification (NVIDIA API) ─────────────────────────────────────────
 app.post('/api/ai/verify-task', async (req, res) => {
   const { taskTitle, taskDescription, taskNotices, submissionText, submissionUrl, internName, codeFiles } = req.body;
@@ -396,6 +560,11 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
+const isVercel = process.env.VERCEL === '1' || process.env.VERCEL_ENV;
+if (!isVercel) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;

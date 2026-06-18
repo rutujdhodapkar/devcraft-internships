@@ -1,41 +1,10 @@
-import React, { useState } from 'react';
-import { auth, googleProvider, isFirebaseConfigured } from '../firebase';
-import { signInWithPopup } from 'firebase/auth';
+import React from 'react';
+import { signInWithGoogle } from '../firebase';
 import GooeyNav from './GooeyNav';
 
-export default function AuthPage({ onAuthSuccess, onBackToSite }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleGoogleLogin = async () => {
-    if (!isFirebaseConfigured || !auth || !googleProvider) {
-      setError('Firebase/Google Login is not configured.');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      googleProvider.setCustomParameters({ prompt: 'select_account' });
-      await signInWithPopup(auth, googleProvider);
-      onAuthSuccess();
-    } catch (err) {
-      if (err.code === 'auth/popup-blocked') {
-        setError('Popup was blocked. Please allow popups for this site and try again.');
-      } else if (err.code === 'auth/popup-closed-by-user') {
-        // User closed popup - do nothing
-      } else {
-        console.error('Google Sign In failed:', err);
-        setError(err.message);
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
+export default function AuthPage({ onBackToSite }) {
   const navItems = [
-    { label: loading ? 'Logging in...' : 'Sign In with Google', onClick: handleGoogleLogin },
+    { label: 'Sign In with Google', onClick: () => signInWithGoogle(window.location.pathname + window.location.search) },
     { label: 'Back to Website', onClick: onBackToSite },
   ];
 
@@ -52,7 +21,7 @@ export default function AuthPage({ onAuthSuccess, onBackToSite }) {
           </p>
         </div>
 
-        {error && <div className="error-msg" style={{ border: '2px solid #EA4335', padding: '0.75rem', color: '#EA4335', fontWeight: 'bold', fontSize: '0.85rem', marginBottom: '1.5rem', backgroundColor: '#FFF5F5' }}>{error}</div>}
+
 
         <div style={{
           background: '#000',
