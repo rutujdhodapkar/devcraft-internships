@@ -8,7 +8,7 @@ function send(res, status, payload) {
 }
 
 function getServiceAccount() {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
   if (raw) {
     const json = raw.trim().startsWith("{") ? raw : Buffer.from(raw, "base64").toString("utf8");
     const parsed = JSON.parse(json);
