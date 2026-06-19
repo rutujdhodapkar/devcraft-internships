@@ -30,8 +30,10 @@ const fallbackRates = { USD: 1.0, INR: 83.5, EUR: 0.93, GBP: 0.79, CAD: 1.37, AU
 const PUBLIC_COLLECTIONS = new Set(['careerPaths', 'faqs', 'services', 'siteContent', 'siteNotices', 'courses', 'testimonials']);
 
 function getPath(req) {
-  if (req.query?.path) return String(req.query.path).replace(/^\/|\/$/g, '');
+  // After Vercel rewrite, req.url = /api?path=firestore/update
   const u = new URL(req.url, 'http://localhost');
+  const fromSearch = u.searchParams.get('path');
+  if (fromSearch) return fromSearch.replace(/^\/|\/$/g, '');
   return u.pathname.replace(/^\/api\/?/, '').replace(/\/$/, '');
 }
 
