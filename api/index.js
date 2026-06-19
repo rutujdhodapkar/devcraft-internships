@@ -1,28 +1,16 @@
 import admin from 'firebase-admin';
 import crypto from 'crypto';
-import { readFileSync, existsSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 if (!admin.apps.length) {
-  let cred;
-  try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-      cred = admin.credential.cert(typeof raw === 'string' && raw.trim().startsWith('{') ? JSON.parse(raw) : raw);
-    } else {
-      const p = join(__dirname, '../server/firebase-service-account.json');
-      if (existsSync(p)) cred = admin.credential.cert(JSON.parse(readFileSync(p, 'utf8')));
-    }
-  } catch (e) {
-    console.error('Admin init error:', e.message);
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (raw) {
+    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(raw)) });
+  } else {
+    admin.initializeApp();
   }
-  admin.initializeApp({ credential: cred, databaseURL: 'https://login-data-680b9-default-rtdb.firebaseio.com' });
 }
 
-const db = admin.database();
+const db = admin.firestore();
 
 const PUBLIC = ['careerPaths', 'faqs', 'services', 'siteContent', 'siteNotices', 'courses', 'testimonials'];
 
@@ -40,49 +28,42 @@ function route(req) {
   return (u.searchParams.get('path') || u.pathname.replace(/^\/api\/?/, '')).replace(/\/$/, '').split('/');
 }
 
-function snapArr(snap) {
-  const a = [];
-  snap.forEach(c => a.push({ id: c.key, ...c.val() }));
-  return a;
-}
-
 async function proxy(action, coll, doc, data) {
   if (!coll) return [400, { error: 'collection required' }];
   try {
-    const ref = db.ref(coll);
+    const ref = doc ? db.collection(coll).doc(doc) : null;
     switch (action) {
       case 'get': {
         if (doc) {
-          const snap = await ref.child(doc).once('value');
-          return [200, { data: snap.exists() ? { id: doc, ...snap.val() } : null }];
+          const snap = await ref.get();
+          return [200, { data: snap.exists ? { id: doc, ...snap.data() } : null }];
         }
-        const snap = await ref.once('value');
-        const arr = snapArr(snap);
-        arr.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+        const snap = await db.collection(coll).orderBy('createdAt', 'asc').get();
+        const arr = [];
+        snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
         return [200, { data: arr }];
       }
       case 'set': {
-        await ref.child(doc || crypto.randomUUID()).set(data || {});
+        await ref.set(data || {}, { merge: false });
         return [200, { data: { id: doc, ...data } }];
       }
       case 'update': {
         if (!data) return [400, { error: 'data required' }];
-        await ref.child(doc).update(data);
+        await ref.set(data, { merge: true });
         return [200, { success: true }];
       }
       case 'push': {
         const d = data || {};
         if (doc) {
-          await ref.child(doc).set(d);
+          await ref.set(d, { merge: false });
           return [200, { data: { id: doc, ...d } }];
         }
-        const newRef = ref.push();
-        await newRef.set(d);
-        return [200, { data: { id: newRef.key, ...d } }];
+        const r = await db.collection(coll).add(d);
+        return [200, { data: { id: r.id, ...d } }];
       }
       case 'delete': {
         if (!doc) return [400, { error: 'doc required' }];
-        await ref.child(doc).remove();
+        await ref.delete();
         return [200, { success: true }];
       }
       default:
@@ -98,7 +79,6 @@ export default async function handler(req, res) {
     const user = await getUser(req);
     const method = req.method;
 
-    // Firestore-style proxy (backed by RTDB now)
     if (segments[0] === 'firestore' && segments[1] && method === 'POST') {
       const { collection, doc, data } = req.body || {};
       const isWrite = ['set', 'update', 'push', 'delete'].includes(segments[1]);
@@ -107,7 +87,6 @@ export default async function handler(req, res) {
       return res.status(code).json(json);
     }
 
-    // Quiz grading
     if (path === 'grade-quiz-text' && method === 'POST') {
       const { question, answer } = req.body || {};
       if (!question || !answer) return res.status(400).json({ error: 'Missing question or answer' });
@@ -124,100 +103,79 @@ export default async function handler(req, res) {
       return m ? res.json(JSON.parse(m[0])) : res.status(502).json({ error: 'Invalid AI response' });
     }
 
-    // Public: rates
     if (path === 'rates' && method === 'GET') {
       try { const r = await fetch('https://open.er-api.com/v6/latest/USD'); if (r.ok) { const d = await r.json(); if (d?.rates) return res.json({ success: true, rates: d.rates, source: 'network' }); } } catch {}
       return res.json({ success: true, rates: { USD: 1.0, INR: 83.5, EUR: 0.93, GBP: 0.79, CAD: 1.37, AUD: 1.51, JPY: 157.4 }, source: 'fallback' });
     }
 
-    // Public: inquire
     if (path === 'inquire' && method === 'POST') {
       const { name, email, phone, projectType, planTier } = req.body || {};
       if (!name || !email || !phone || !projectType || !planTier) return res.status(400).json({ success: false, message: 'All fields required' });
       const id = `INQ-${Date.now()}`;
-      await db.ref('inquiries').child(id).set({ ...req.body, id, createdAt: new Date().toISOString(), status: 'contacted', progress: 'New request' });
+      await db.collection('inquiries').doc(id).set({ ...req.body, id, createdAt: new Date().toISOString(), status: 'contacted', progress: 'New request' });
       return res.status(201).json({ success: true, message: 'Inquiry received!' });
     }
 
-    // Public: referral-visits
     if (path === 'referral-visits' && method === 'POST') {
       const code = String(req.body?.referralCode || '').toUpperCase();
-      const refs = await db.ref('referrals').once('value');
+      const refs = await db.collection('referrals').get();
       let matched = false;
-      refs.forEach(c => { if (String(c.val().code).toUpperCase() === code) matched = true; });
-      await db.ref('referralVisits').push({ ...req.body, referralCode: code, matched, visitedAt: new Date().toISOString(), action: 'visited' });
+      refs.forEach(d => { if (String(d.data().code).toUpperCase() === code) matched = true; });
+      await db.collection('referralVisits').add({ ...req.body, referralCode: code, matched, visitedAt: new Date().toISOString(), action: 'visited' });
       if (matched) {
-        refs.forEach(c => {
-          if (String(c.val().code).toUpperCase() === code) {
-            c.ref.update({ visited: (c.val().visited || 0) + 1 });
-          }
+        refs.forEach(d => {
+          if (String(d.data().code).toUpperCase() === code) d.ref.update({ visited: (d.data().visited || 0) + 1 });
         });
       }
       return res.status(201).json({ success: true, data: { referralCode: code, matched } });
     }
 
-    // Auth required below
     if (!user) return res.status(401).json({ error: 'auth required' });
 
-    // check-admin
     if (path === 'check-admin' && method === 'POST') {
       const email = (req.body?.email || '').toLowerCase().trim();
       if (!email) return res.status(400).json({ success: false, message: 'Email required' });
       if (email === 'rutujdhodapkar@gmail.com') return res.json({ success: true, isAdmin: true });
-      const snap = await db.ref('admins').once('value');
-      let isAdmin = false;
-      snap.forEach(c => { if (c.val().email?.toLowerCase().trim() === email) isAdmin = true; });
-      return res.json({ success: true, isAdmin });
+      const snap = await db.collection('admins').where('email', '==', email).get();
+      return res.json({ success: true, isAdmin: !snap.empty });
     }
 
-    // admins GET
     if (path === 'admins' && method === 'GET') {
-      const snap = await db.ref('admins').once('value');
+      const snap = await db.collection('admins').orderBy('createdAt', 'asc').get();
       const emails = [];
-      snap.forEach(c => emails.push(c.val().email));
+      snap.forEach(d => emails.push(d.data().email));
       return res.json({ success: true, data: emails });
     }
 
-    // admins DELETE
     if (segments[0] === 'admins' && segments[1] && method === 'DELETE') {
       const clean = decodeURIComponent(segments[1]).toLowerCase().trim();
-      const snap = await db.ref('admins').once('value');
-      snap.forEach(c => { if (c.val().email?.toLowerCase().trim() === clean) c.ref.remove(); });
+      const snap = await db.collection('admins').where('email', '==', clean).get();
+      snap.forEach(d => d.ref.delete());
       return res.json({ success: true });
     }
 
-    // admin-data
     if (path === 'admin-data' && method === 'GET') {
       const [inq, ref, vis] = await Promise.all([
-        db.ref('inquiries').once('value'),
-        db.ref('referrals').once('value'),
-        db.ref('referralVisits').orderByChild('visitedAt').limitToLast(100).once('value'),
+        db.collection('inquiries').orderBy('createdAt', 'desc').get(),
+        db.collection('referrals').orderBy('createdAt', 'asc').get(),
+        db.collection('referralVisits').orderBy('visitedAt', 'desc').limit(100).get(),
       ]);
-      const toArr = s => { const a = []; s.forEach(c => a.push({ id: c.key, ...c.val() })); return a; };
-      const inqArr = toArr(inq);
-      inqArr.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-      const refArr = toArr(ref);
-      refArr.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-      const visArr = toArr(vis);
-      visArr.reverse();
-      return res.json({ success: true, data: { requests: inqArr, referrals: refArr, visits: visArr } });
+      const toArr = s => { const a = []; s.forEach(d => a.push({ id: d.id, ...d.data() })); return a; };
+      return res.json({ success: true, data: { requests: toArr(inq), referrals: toArr(ref), visits: toArr(vis) } });
     }
 
-    // inquiries GET
     if (path === 'inquiries' && method === 'GET') {
-      const snap = await db.ref('inquiries').once('value');
-      const arr = snapArr(snap);
-      arr.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+      const snap = await db.collection('inquiries').orderBy('createdAt', 'asc').get();
+      const arr = [];
+      snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
       return res.json({ success: true, data: arr });
     }
 
-    // inquiries DELETE
     if (segments[0] === 'inquiries' && segments[1] && method === 'DELETE') {
-      await db.ref('inquiries').child(segments[1]).remove();
+      await db.collection('inquiries').doc(segments[1]).delete();
       return res.json({ success: true });
     }
 
-    // ai/verify-task
     if (path === 'ai/verify-task' && method === 'POST') {
       const { taskTitle, submissionText } = req.body || {};
       if (!taskTitle || !submissionText) return res.status(400).json({ success: false, message: 'Title and submission required' });
@@ -234,28 +192,21 @@ export default async function handler(req, res) {
       return res.json({ success: true, data: { ...(m ? JSON.parse(m[0]) : { verified: false }), rawResponse: c } });
     }
 
-    // referrals POST
     if (path === 'referrals' && method === 'POST') {
       const code = req.body?.code || `REF-${Date.now().toString(36).toUpperCase()}`;
-      await db.ref('referrals').child(code).set({ ...req.body, code, visited: 0, contacted: 0, createdAt: new Date().toISOString() });
+      await db.collection('referrals').doc(code).set({ ...req.body, code, visited: 0, contacted: 0, createdAt: new Date().toISOString() });
       return res.status(201).json({ success: true, data: { code } });
     }
 
-    // referrals DELETE
     if (segments[0] === 'referrals' && segments[1] && method === 'DELETE') {
-      await db.ref('referrals').child(segments[1]).remove();
+      await db.collection('referrals').doc(segments[1]).delete();
       return res.json({ success: true });
     }
 
-    // referrals/:code/contacted
     if (segments[0] === 'referrals' && segments[2] === 'contacted' && method === 'POST') {
       const code = String(segments[1]).toUpperCase();
-      const snap = await db.ref('referrals').once('value');
-      snap.forEach(c => {
-        if (c.val().code === code) {
-          c.ref.update({ contacted: (c.val().contacted || 0) + 1, lastContactedAt: new Date().toISOString() });
-        }
-      });
+      const snap = await db.collection('referrals').where('code', '==', code).get();
+      snap.forEach(d => d.ref.update({ contacted: (d.data().contacted || 0) + 1, lastContactedAt: new Date().toISOString() }));
       return res.json({ success: true });
     }
 

@@ -3,28 +3,20 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-import { readFileSync, existsSync } from 'fs';
 import admin from 'firebase-admin';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 if (!admin.apps.length) {
-  let cred;
-  try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-      cred = admin.credential.cert(typeof raw === 'string' && raw.trim().startsWith('{') ? JSON.parse(raw) : raw);
-    } else {
-      const p = path.join(__dirname, 'firebase-service-account.json');
-      if (existsSync(p)) cred = admin.credential.cert(JSON.parse(readFileSync(p, 'utf8')));
-    }
-  } catch (e) {
-    console.error('Admin init error:', e.message);
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (raw) {
+    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(raw)) });
+  } else {
+    admin.initializeApp();
   }
-  admin.initializeApp({ credential: cred, databaseURL: 'https://login-data-680b9-default-rtdb.firebaseio.com' });
 }
 
-const db = admin.database();
+const db = admin.firestore();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -42,49 +34,42 @@ async function verifyToken(req, res, next) {
 }
 app.use(verifyToken);
 
-function snapArr(snap) {
-  const a = [];
-  snap.forEach(c => a.push({ id: c.key, ...c.val() }));
-  return a;
-}
-
 async function proxy(action, coll, doc, data) {
   if (!coll) return [400, { error: 'collection required' }];
   try {
-    const ref = db.ref(coll);
+    const ref = doc ? db.collection(coll).doc(doc) : null;
     switch (action) {
       case 'get': {
         if (doc) {
-          const snap = await ref.child(doc).once('value');
-          return [200, { data: snap.exists() ? { id: doc, ...snap.val() } : null }];
+          const snap = await ref.get();
+          return [200, { data: snap.exists ? { id: doc, ...snap.data() } : null }];
         }
-        const snap = await ref.once('value');
-        const arr = snapArr(snap);
-        arr.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+        const snap = await db.collection(coll).orderBy('createdAt', 'asc').get();
+        const arr = [];
+        snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
         return [200, { data: arr }];
       }
       case 'set': {
-        await ref.child(doc || crypto.randomUUID()).set(data || {});
+        await ref.set(data || {}, { merge: false });
         return [200, { data: { id: doc, ...data } }];
       }
       case 'update': {
         if (!data) return [400, { error: 'data required' }];
-        await ref.child(doc).update(data);
+        await ref.set(data, { merge: true });
         return [200, { success: true }];
       }
       case 'push': {
         const d = data || {};
         if (doc) {
-          await ref.child(doc).set(d);
+          await ref.set(d, { merge: false });
           return [200, { data: { id: doc, ...d } }];
         }
-        const newRef = ref.push();
-        await newRef.set(d);
-        return [200, { data: { id: newRef.key, ...d } }];
+        const r = await db.collection(coll).add(d);
+        return [200, { data: { id: r.id, ...d } }];
       }
       case 'delete': {
         if (!doc) return [400, { error: 'doc required' }];
-        await ref.child(doc).remove();
+        await ref.delete();
         return [200, { success: true }];
       }
       default: return [400, { error: `unknown action: ${action}` }];
@@ -92,7 +77,6 @@ async function proxy(action, coll, doc, data) {
   } catch (e) { return [500, { error: e.message }]; }
 }
 
-// Firestore-style proxy (backed by RTDB)
 app.post('/api/firestore/:action', async (req, res) => {
   const { action } = req.params;
   const { collection, doc, data } = req.body || {};
@@ -102,7 +86,6 @@ app.post('/api/firestore/:action', async (req, res) => {
   res.status(code).json(json);
 });
 
-// Rates
 const RATES = { USD: 1.0, INR: 83.5, EUR: 0.93, GBP: 0.79, CAD: 1.37, AUD: 1.51, JPY: 157.4 };
 app.get('/api/rates', async (req, res) => {
   try {
@@ -112,66 +95,53 @@ app.get('/api/rates', async (req, res) => {
   res.json({ success: true, rates: RATES, source: 'fallback' });
 });
 
-// Inquire
 app.post('/api/inquire', async (req, res) => {
   const { name, email, phone, projectType, planTier } = req.body || {};
   if (!name || !email || !phone || !projectType || !planTier) return res.status(400).json({ success: false, message: 'All fields required' });
   const id = `INQ-${Date.now()}`;
-  await db.ref('inquiries').child(id).set({ ...req.body, id, createdAt: new Date().toISOString(), status: 'contacted', progress: 'New request' });
+  await db.collection('inquiries').doc(id).set({ ...req.body, id, createdAt: new Date().toISOString(), status: 'contacted', progress: 'New request' });
   res.status(201).json({ success: true, message: 'Inquiry received!' });
 });
 
-// Referral visits
 app.post('/api/referral-visits', async (req, res) => {
   const code = String(req.body?.referralCode || '').toUpperCase();
-  const refs = await db.ref('referrals').once('value');
+  const refs = await db.collection('referrals').get();
   let matched = false;
-  refs.forEach(c => { if (String(c.val().code).toUpperCase() === code) matched = true; });
-  await db.ref('referralVisits').push({ ...req.body, referralCode: code, matched, visitedAt: new Date().toISOString(), action: 'visited' });
+  refs.forEach(d => { if (String(d.data().code).toUpperCase() === code) matched = true; });
+  await db.collection('referralVisits').add({ ...req.body, referralCode: code, matched, visitedAt: new Date().toISOString(), action: 'visited' });
   if (matched) {
-    refs.forEach(c => {
-      if (String(c.val().code).toUpperCase() === code) c.ref.update({ visited: (c.val().visited || 0) + 1 });
+    refs.forEach(d => {
+      if (String(d.data().code).toUpperCase() === code) d.ref.update({ visited: (d.data().visited || 0) + 1 });
     });
   }
   res.status(201).json({ success: true, data: { referralCode: code, matched } });
 });
 
-// Admin data
 app.get('/api/admin-data', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const [inq, ref, vis] = await Promise.all([
-    db.ref('inquiries').once('value'),
-    db.ref('referrals').once('value'),
-    db.ref('referralVisits').orderByChild('visitedAt').limitToLast(100).once('value'),
+    db.collection('inquiries').orderBy('createdAt', 'desc').get(),
+    db.collection('referrals').orderBy('createdAt', 'asc').get(),
+    db.collection('referralVisits').orderBy('visitedAt', 'desc').limit(100).get(),
   ]);
-  const toArr = s => { const a = []; s.forEach(c => a.push({ id: c.key, ...c.val() })); return a; };
-  const inqArr = toArr(inq);
-  inqArr.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-  const refArr = toArr(ref);
-  refArr.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-  const visArr = toArr(vis);
-  visArr.reverse();
-  res.json({ success: true, data: { requests: inqArr, referrals: refArr, visits: visArr } });
+  const toArr = s => { const a = []; s.forEach(d => a.push({ id: d.id, ...d.data() })); return a; };
+  res.json({ success: true, data: { requests: toArr(inq), referrals: toArr(ref), visits: toArr(vis) } });
 });
 
-// Check admin
 app.post('/api/check-admin', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const email = (req.body?.email || '').toLowerCase().trim();
   if (!email) return res.status(400).json({ success: false, message: 'Email required' });
   if (email === 'rutujdhodapkar@gmail.com') return res.json({ success: true, isAdmin: true });
-  const snap = await db.ref('admins').once('value');
-  let isAdmin = false;
-  snap.forEach(c => { if (c.val().email?.toLowerCase().trim() === email) isAdmin = true; });
-  res.json({ success: true, isAdmin });
+  const snap = await db.collection('admins').where('email', '==', email).get();
+  res.json({ success: true, isAdmin: !snap.empty });
 });
 
-// Admins
 app.get('/api/admins', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const snap = await db.ref('admins').once('value');
+  const snap = await db.collection('admins').orderBy('createdAt', 'asc').get();
   const emails = [];
-  snap.forEach(c => emails.push(c.val().email));
+  snap.forEach(d => emails.push(d.data().email));
   res.json({ success: true, data: emails });
 });
 
@@ -179,59 +149,53 @@ app.post('/api/admins', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const email = (req.body?.email || '').toLowerCase().trim();
   if (!email) return res.status(400).json({ success: false, message: 'Email required' });
-  const ref = db.ref('admins').push();
-  await ref.set({ email, createdAt: new Date().toISOString() });
+  await db.collection('admins').add({ email, createdAt: new Date().toISOString() });
   res.json({ success: true });
 });
 
 app.delete('/api/admins/:email', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const clean = decodeURIComponent(req.params.email).toLowerCase().trim();
-  const snap = await db.ref('admins').once('value');
-  snap.forEach(c => { if (c.val().email?.toLowerCase().trim() === clean) c.ref.remove(); });
+  const snap = await db.collection('admins').where('email', '==', clean).get();
+  snap.forEach(d => d.ref.delete());
   res.json({ success: true });
 });
 
-// Inquiries
 app.get('/api/inquiries', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const snap = await db.ref('inquiries').once('value');
-  const arr = snapArr(snap);
-  arr.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  const snap = await db.collection('inquiries').orderBy('createdAt', 'asc').get();
+  const arr = [];
+  snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
   res.json({ success: true, data: arr });
 });
 
 app.delete('/api/inquiries/:id', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  await db.ref('inquiries').child(req.params.id).remove();
+  await db.collection('inquiries').doc(req.params.id).delete();
   res.json({ success: true });
 });
 
-// Referrals
 app.post('/api/referrals', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const code = req.body?.code || `REF-${Date.now().toString(36).toUpperCase()}`;
-  await db.ref('referrals').child(code).set({ ...req.body, code, visited: 0, contacted: 0, createdAt: new Date().toISOString() });
+  await db.collection('referrals').doc(code).set({ ...req.body, code, visited: 0, contacted: 0, createdAt: new Date().toISOString() });
   res.status(201).json({ success: true, data: { code } });
 });
 
 app.delete('/api/referrals/:code', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  await db.ref('referrals').child(req.params.code).remove();
+  await db.collection('referrals').doc(req.params.code).delete();
   res.json({ success: true });
 });
 
 app.post('/api/referrals/:code/contacted', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const code = String(req.params.code).toUpperCase();
-  const snap = await db.ref('referrals').once('value');
-  snap.forEach(c => {
-    if (c.val().code === code) c.ref.update({ contacted: (c.val().contacted || 0) + 1, lastContactedAt: new Date().toISOString() });
-  });
+  const snap = await db.collection('referrals').where('code', '==', code).get();
+  snap.forEach(d => d.ref.update({ contacted: (d.data().contacted || 0) + 1, lastContactedAt: new Date().toISOString() }));
   res.json({ success: true });
 });
 
-// AI verify
 app.post('/api/ai/verify-task', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const { taskTitle, submissionText } = req.body || {};
@@ -251,7 +215,6 @@ app.post('/api/ai/verify-task', async (req, res) => {
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
 });
 
-// Serve built client
 app.use(express.static(path.join(__dirname, '../client/dist')));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../client/dist/index.html'));
