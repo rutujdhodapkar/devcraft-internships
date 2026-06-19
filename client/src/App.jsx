@@ -25,8 +25,7 @@ import {
   checkUserBan,
   fetchAdminMessages,
 } from "./services/data";
-import { auth, googleProvider, isFirebaseConfigured } from "./firebase";
-import { onAuthStateChanged, signOut, signInWithPopup } from "firebase/auth";
+import { isFirebaseConfigured, signInWithGoogle, signOut as gisSignOut, onAuthStateChanged } from "./firebase";
 
 async function sha256(message) {
   const msgBuffer = new TextEncoder().encode(message);
@@ -142,14 +141,14 @@ export default function App() {
   const [dismissedMessages, setDismissedMessages] = useState(new Set());
   const [dashboardReferralTab, setDashboardReferralTab] = useState(false); // open dashboard with referral tab
 
-  // Listen to Firebase Auth state
+  // Listen to Google Auth state
   useEffect(() => {
-    if (!isFirebaseConfigured || !auth) {
+    if (!isFirebaseConfigured) {
       setAuthLoading(false);
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(async (currentUser) => {
       setUser(currentUser);
       if (currentUser && currentUser.email) {
         // Always re-read URL on auth change so referral is checked at login
@@ -467,20 +466,20 @@ export default function App() {
   };
 
   const handleLoginClick = async () => {
-    if (isFirebaseConfigured && auth && googleProvider) {
+    if (isFirebaseConfigured) {
       try {
         setAuthLoading(true);
-        googleProvider.setCustomParameters({ prompt: "select_account" });
-        await signInWithPopup(auth, googleProvider);
+        await signInWithGoogle();
       } catch (err) {
-        if (err.code === "auth/popup-blocked") {
-          alert(
-            "Popup was blocked by your browser. Please allow popups for this site or try again.",
-          );
-        } else if (err.code === "auth/popup-closed-by-user") {
+        if (err.message === "user_cancelled") {
           // User closed popup - not an error
         } else {
           console.error("Google Sign In failed:", err);
+          if (err.message?.includes("popup")) {
+            alert(
+              "Popup was blocked by your browser. Please allow popups for this site or try again.",
+            );
+          }
         }
       } finally {
         setAuthLoading(false);
@@ -509,8 +508,8 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (isFirebaseConfigured && auth) {
-      await signOut(auth);
+    if (isFirebaseConfigured) {
+      gisSignOut();
     }
     setUser(null);
     setUserProfile(null);

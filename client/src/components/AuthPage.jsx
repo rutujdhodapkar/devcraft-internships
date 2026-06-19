@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { auth, googleProvider, isFirebaseConfigured } from '../firebase';
-import { signInWithPopup } from 'firebase/auth';
+import { isFirebaseConfigured, signInWithGoogle } from '../firebase';
 import GooeyNav from './GooeyNav';
 
 export default function AuthPage({ onAuthSuccess, onBackToSite }) {
@@ -8,8 +7,8 @@ export default function AuthPage({ onAuthSuccess, onBackToSite }) {
   const [error, setError] = useState('');
 
   const handleGoogleLogin = async () => {
-    if (!isFirebaseConfigured || !auth || !googleProvider) {
-      setError('Firebase/Google Login is not configured.');
+    if (!isFirebaseConfigured) {
+      setError('Google Login is not configured.');
       return;
     }
 
@@ -17,17 +16,18 @@ export default function AuthPage({ onAuthSuccess, onBackToSite }) {
     setError('');
 
     try {
-      googleProvider.setCustomParameters({ prompt: 'select_account' });
-      await signInWithPopup(auth, googleProvider);
+      await signInWithGoogle();
       onAuthSuccess();
     } catch (err) {
-      if (err.code === 'auth/popup-blocked') {
-        setError('Popup was blocked. Please allow popups for this site and try again.');
-      } else if (err.code === 'auth/popup-closed-by-user') {
+      if (err.message === 'user_cancelled') {
         // User closed popup - do nothing
       } else {
         console.error('Google Sign In failed:', err);
-        setError(err.message);
+        if (err.message?.includes('popup')) {
+          setError('Popup was blocked. Please allow popups for this site and try again.');
+        } else {
+          setError(err.message);
+        }
       }
     } finally {
       setLoading(false);
