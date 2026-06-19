@@ -1,5 +1,7 @@
 import { neon } from '@neondatabase/serverless';
+import { createClerkClient } from '@clerk/backend';
 
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 const sql = neon(process.env.DATABASE_URL);
 
 sql`
@@ -18,9 +20,8 @@ const PUBLIC = ['careerPaths', 'faqs', 'services', 'siteContent', 'siteNotices',
 function getUser(req) {
   const t = req.headers.authorization?.replace('Bearer ', '');
   if (!t) return null;
-  return fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${t}`)
-    .then(r => r.ok ? r.json() : null)
-    .then(i => i ? { uid: i.sub, email: i.email } : null)
+  return clerk.verifyToken(t)
+    .then(p => p.sub ? { uid: p.sub, email: p.email || '' } : null)
     .catch(() => null);
 }
 

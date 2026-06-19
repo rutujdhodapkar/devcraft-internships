@@ -26,7 +26,7 @@ import {
   checkUserBan,
   fetchAdminMessages,
 } from "./services/data";
-import { isFirebaseConfigured, signInWithGoogle, signOut as gisSignOut, onAuthStateChanged } from "./firebase";
+import { signOut as clerkSignOut, onAuthStateChanged } from "./firebase";
 
 async function sha256(message) {
   const msgBuffer = new TextEncoder().encode(message);
@@ -148,7 +148,7 @@ export default function App() {
     setAlertHandler((msg, type) => setAppAlert({ message: msg, type }));
   }, []);
 
-  // Listen to Google Auth state
+  // Listen to Clerk auth state
   useEffect(() => {
     if (!isFirebaseConfigured) {
       setAuthLoading(false);
@@ -331,7 +331,7 @@ export default function App() {
 
   const handleApplyDomain = async (domainObj) => {
     if (!user) {
-      showAlert("Please sign in with Google first using the 'Google Login' button in the header.", "error");
+      showAlert("Please sign in first using the 'Login' button in the header.", "error");
       return;
     }
 
@@ -459,26 +459,17 @@ export default function App() {
   };
 
   const handleLoginClick = async () => {
-    if (isFirebaseConfigured) {
-      try {
-        setAuthLoading(true);
-        await signInWithGoogle();
-      } catch (err) {
-        if (err.message === "user_cancelled") {
-          // User closed popup - not an error
-        } else {
-          console.error("Google Sign In failed:", err);
-          if (err.message?.includes("popup")) {
-            alert(
-              "Popup was blocked by your browser. Please allow popups for this site or try again.",
-            );
-          }
-        }
-      } finally {
+    setAuthLoading(true);
+    try {
+      if (window.Clerk?.openSignIn) {
+        window.Clerk.openSignIn();
+      } else {
+        showAlert("Sign-in is loading. Please try again.", "error");
         setAuthLoading(false);
       }
-    } else {
-      alert("Google Login is not configured. Please set up your environment variables.");
+    } catch (err) {
+      console.error("Sign-in failed:", err);
+      setAuthLoading(false);
     }
   };
 
@@ -500,9 +491,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (isFirebaseConfigured) {
-      gisSignOut();
-    }
+    clerkSignOut();
     setUser(null);
     setUserProfile(null);
     setIsAdmin(false);

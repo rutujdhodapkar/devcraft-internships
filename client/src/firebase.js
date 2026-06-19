@@ -1,9 +1,5 @@
 import { setAccessToken } from './services/data';
 
-export const isFirebaseConfigured = true;
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
 let currentUser = null;
 const listeners = new Set();
 
@@ -13,66 +9,47 @@ export function onAuthStateChanged(callback) {
   return () => listeners.delete(callback);
 }
 
-function notifyListeners(user) {
+function notify(user) {
   currentUser = user;
   setAccessToken(user?.accessToken || null);
   listeners.forEach(fn => fn(user));
 }
 
-function initGis() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true;
-    s.defer = true;
-    document.body.appendChild(s);
-  }
+// Watch Clerk auth state via polling (window.Clerk is set by ClerkProvider)
+let clerkCheck = null;
+function startClerkWatch() {
+  if (clerkCheck) return;
+  clerkCheck = setInterval(async () => {
+    const c = window.Clerk;
+    if (!c || !c.client) return;
+    if (!c.user) { if (currentUser) notify(null); return; }
+    const session = c.session;
+    if (!session) { if (currentUser) notify(null); return; }
+    try {
+      const token = await session.getToken();
+      const user = {
+        uid: c.user.id,
+        email: c.user.primaryEmailAddress?.emailAddress || '',
+        displayName: c.user.fullName || c.user.id,
+        photoURL: c.user.imageUrl || '',
+        accessToken: token,
+        toJSON: () => ({ ...c.user }),
+      };
+      if (!currentUser || currentUser.uid !== user.uid) notify(user);
+    } catch { if (currentUser) notify(null); }
+  }, 500);
 }
 
-export function signInWithGoogle() {
-  return new Promise((resolve, reject) => {
-    if (!GOOGLE_CLIENT_ID) {
-      reject(new Error('Google Client ID not configured.'));
-      return;
-    }
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile',
-      callback: (response) => {
-        if (response.error) {
-          if (response.error === 'user_cancelled') return;
-          reject(new Error(response.error));
-          return;
-        }
-        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${response.access_token}` }
-        })
-          .then(r => r.json())
-          .then(info => {
-            const user = {
-              uid: info.sub,
-              email: info.email,
-              displayName: info.name,
-              photoURL: info.picture,
-              emailVerified: info.email_verified,
-              accessToken: response.access_token,
-              toJSON: () => ({ ...user }),
-            };
-            notifyListeners(user);
-            resolve(user);
-          })
-          .catch(err => reject(err));
-      },
-    });
-    client.requestAccessToken({ prompt: 'select_account' });
-  });
+export async function getToken() {
+  try {
+    if (window.Clerk?.session) return await window.Clerk.session.getToken();
+  } catch {}
+  return null;
 }
 
 export function signOut() {
-  if (currentUser?.accessToken && typeof google !== 'undefined' && google.accounts?.oauth2) {
-    try { google.accounts.oauth2.revoke(currentUser.accessToken, () => {}); } catch {}
-  }
-  notifyListeners(null);
+  window.Clerk?.signOut();
+  notify(null);
 }
 
-initGis();
+startClerkWatch();
