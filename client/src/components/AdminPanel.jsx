@@ -4339,11 +4339,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 const submissions = getSubmissions(enrollment);
                 projects.forEach((proj, pIdx) => {
                   const sub = submissions[pIdx];
+                  const isQuiz = (proj?.type || "text") === "quiz";
                   if (
                     sub &&
                     sub.submittedAt &&
                     sub.verified !== true &&
-                    !sub.resubmit
+                    !sub.resubmit &&
+                    !isQuiz
                   ) {
                     const projTitle =
                       typeof proj === "object" ? proj.title || "" : proj;

@@ -1,223 +1,401 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import crypto from 'crypto';
-import admin from 'firebase-admin';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-if (!admin.apps.length) {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (raw) {
-    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(raw)) });
-  } else {
-    admin.initializeApp();
+async function loadEnvFile() {
+  try {
+    const envPath = path.join(__dirname, '.env');
+    const content = await fs.readFile(envPath, 'utf-8');
+    content.split('\n').forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) return;
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) return;
+      const key = trimmed.slice(0, eq).trim();
+      const value = trimmed.slice(eq + 1).trim();
+      if (key && process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    });
+  } catch {
+    // .env is optional in local development
   }
 }
 
-const db = admin.firestore();
+await loadEnvFile();
+const INQUIRIES_FILE = path.join(__dirname, 'inquiries.json');
+const REFERRALS_FILE = path.join(__dirname, 'referrals.json');
+const VISITS_FILE = path.join(__dirname, 'referral-visits.json');
+const ADMINS_FILE = path.join(__dirname, 'admins.json');
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json({ limit: '5mb' }));
+app.use(express.json());
 
-async function verifyToken(req, res, next) {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) { req.authUser = null; return next(); }
+async function readJson(filePath, fallback = []) {
   try {
-    const decoded = await admin.auth().verifyIdToken(token);
-    req.authUser = { uid: decoded.uid, email: decoded.email || '' };
-  } catch { req.authUser = null; }
-  next();
-}
-app.use(verifyToken);
-
-async function proxy(action, coll, doc, data) {
-  if (!coll) return [400, { error: 'collection required' }];
-  try {
-    const ref = doc ? db.collection(coll).doc(doc) : null;
-    switch (action) {
-      case 'get': {
-        if (doc) {
-          const snap = await ref.get();
-          return [200, { data: snap.exists ? { id: doc, ...snap.data() } : null }];
-        }
-        const snap = await db.collection(coll).orderBy('createdAt', 'asc').get();
-        const arr = [];
-        snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
-        return [200, { data: arr }];
-      }
-      case 'set': {
-        await ref.set(data || {}, { merge: false });
-        return [200, { data: { id: doc, ...data } }];
-      }
-      case 'update': {
-        if (!data) return [400, { error: 'data required' }];
-        await ref.set(data, { merge: true });
-        return [200, { success: true }];
-      }
-      case 'push': {
-        const d = data || {};
-        if (doc) {
-          await ref.set(d, { merge: false });
-          return [200, { data: { id: doc, ...d } }];
-        }
-        const r = await db.collection(coll).add(d);
-        return [200, { data: { id: r.id, ...d } }];
-      }
-      case 'delete': {
-        if (!doc) return [400, { error: 'doc required' }];
-        await ref.delete();
-        return [200, { success: true }];
-      }
-      default: return [400, { error: `unknown action: ${action}` }];
-    }
-  } catch (e) { return [500, { error: e.message }]; }
-}
-
-app.post('/api/firestore/:action', async (req, res) => {
-  const { action } = req.params;
-  const { collection, doc, data } = req.body || {};
-  const isWrite = ['set', 'update', 'push', 'delete'].includes(action);
-  if (isWrite && !req.authUser) return res.status(401).json({ error: 'auth required' });
-  const [code, json] = await proxy(action, collection, doc, data);
-  res.status(code).json(json);
-});
-
-const RATES = { USD: 1.0, INR: 83.5, EUR: 0.93, GBP: 0.79, CAD: 1.37, AUD: 1.51, JPY: 157.4 };
-app.get('/api/rates', async (req, res) => {
-  try {
-    const r = await fetch('https://open.er-api.com/v6/latest/USD');
-    if (r.ok) { const d = await r.json(); if (d?.rates) return res.json({ success: true, rates: d.rates, source: 'network' }); }
-  } catch {}
-  res.json({ success: true, rates: RATES, source: 'fallback' });
-});
-
-app.post('/api/inquire', async (req, res) => {
-  const { name, email, phone, projectType, planTier } = req.body || {};
-  if (!name || !email || !phone || !projectType || !planTier) return res.status(400).json({ success: false, message: 'All fields required' });
-  const id = `INQ-${Date.now()}`;
-  await db.collection('inquiries').doc(id).set({ ...req.body, id, createdAt: new Date().toISOString(), status: 'contacted', progress: 'New request' });
-  res.status(201).json({ success: true, message: 'Inquiry received!' });
-});
-
-app.post('/api/referral-visits', async (req, res) => {
-  const code = String(req.body?.referralCode || '').toUpperCase();
-  const refs = await db.collection('referrals').get();
-  let matched = false;
-  refs.forEach(d => { if (String(d.data().code).toUpperCase() === code) matched = true; });
-  await db.collection('referralVisits').add({ ...req.body, referralCode: code, matched, visitedAt: new Date().toISOString(), action: 'visited' });
-  if (matched) {
-    refs.forEach(d => {
-      if (String(d.data().code).toUpperCase() === code) d.ref.update({ visited: (d.data().visited || 0) + 1 });
-    });
+    const fileData = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(fileData);
+  } catch {
+    return fallback;
   }
-  res.status(201).json({ success: true, data: { referralCode: code, matched } });
+}
+
+async function writeJson(filePath, data) {
+  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+}
+
+// In-memory caching for currency exchange rates
+let cachedRates = null;
+let lastFetchTime = 0;
+const CACHE_DURATION = 1000 * 60 * 60; // 1 hour
+
+// Helper to get fallback rates in case API is down
+const fallbackRates = {
+  USD: 1.0,
+  INR: 83.5,
+  EUR: 0.93,
+  GBP: 0.79,
+  CAD: 1.37,
+  AUD: 1.51,
+  JPY: 157.4
+};
+
+// Route: Get live currency conversion rates proxy
+app.get('/api/rates', async (req, res) => {
+  const now = Date.now();
+  if (cachedRates && (now - lastFetchTime < CACHE_DURATION)) {
+    return res.json({ success: true, rates: cachedRates, source: 'cache' });
+  }
+
+  try {
+    const response = await fetch('https://open.er-api.com/v6/latest/USD');
+    if (!response.ok) throw new Error('Failed to fetch from exchange API');
+    const data = await response.json();
+    
+    if (data && data.rates) {
+      cachedRates = data.rates;
+      lastFetchTime = now;
+      return res.json({ success: true, rates: cachedRates, source: 'network' });
+    }
+  } catch (error) {
+    console.error('Error fetching currency rates, using fallback:', error.message);
+  }
+
+  // Fallback if network fails
+  return res.json({ success: true, rates: fallbackRates, source: 'fallback' });
+});
+
+// Route: Save design/development inquiry
+app.post('/api/inquire', async (req, res) => {
+  const {
+    name,
+    email,
+    phone,
+    projectType,
+    planTier,
+    customSpecs,
+    estimatedPrice,
+    currency,
+    requirements,
+    message,
+    referralCode,
+  } = req.body;
+
+  if (!name || !email || !phone || !projectType || !planTier) {
+    return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
+  }
+
+  const newInquiry = {
+    id: `INQ-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    name,
+    email,
+    phone,
+    ...req.body,
+    projectType, // 'software' or 'documentation'
+    planTier, // 'basic', 'advance', 'pro'
+    customSpecs: customSpecs || [],
+    estimatedPrice,
+    currency: currency || 'USD',
+    message: requirements || message || '',
+    referralCode: referralCode || '',
+    status: req.body.status || 'contacted',
+    progress: req.body.progress || 'New request',
+  };
+
+  try {
+    const inquiries = await readJson(INQUIRIES_FILE);
+
+    inquiries.push(newInquiry);
+    await writeJson(INQUIRIES_FILE, inquiries);
+
+    console.log('\n--- NEW INQUIRY RECEIVED ---');
+    console.log(`ID: ${newInquiry.id}`);
+    console.log(`Client: ${newInquiry.name} (${newInquiry.email})`);
+    console.log(`Service: ${newInquiry.projectType.toUpperCase()} - ${newInquiry.planTier.toUpperCase()}`);
+    console.log(`Price Est: ${newInquiry.estimatedPrice} ${newInquiry.currency}`);
+    console.log(`Phone: ${newInquiry.phone}`);
+    console.log(`Specs: ${(newInquiry.customSpecs || []).join(', ') || 'None'}`);
+    console.log(`Message: ${newInquiry.message}`);
+    console.log('-----------------------------\n');
+
+    return res.status(201).json({ 
+      success: true, 
+      message: 'Inquiry received successfully! We will contact you soon.',
+      inquiryId: newInquiry.id
+    });
+  } catch (error) {
+    console.error('Error saving inquiry:', error);
+    return res.status(500).json({ success: false, message: 'Internal server error while saving project inquiry.' });
+  }
+});
+
+// Get all inquiries (simple dashboard read)
+app.get('/api/inquiries', async (req, res) => {
+  const inquiries = await readJson(INQUIRIES_FILE);
+  res.json({ success: true, data: inquiries });
 });
 
 app.get('/api/admin-data', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const [inq, ref, vis] = await Promise.all([
-    db.collection('inquiries').orderBy('createdAt', 'desc').get(),
-    db.collection('referrals').orderBy('createdAt', 'asc').get(),
-    db.collection('referralVisits').orderBy('visitedAt', 'desc').limit(100).get(),
+  const [requests, referrals, visits] = await Promise.all([
+    readJson(INQUIRIES_FILE),
+    readJson(REFERRALS_FILE),
+    readJson(VISITS_FILE),
   ]);
-  const toArr = s => { const a = []; s.forEach(d => a.push({ id: d.id, ...d.data() })); return a; };
-  res.json({ success: true, data: { requests: toArr(inq), referrals: toArr(ref), visits: toArr(vis) } });
-});
 
-app.post('/api/check-admin', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const email = (req.body?.email || '').toLowerCase().trim();
-  if (!email) return res.status(400).json({ success: false, message: 'Email required' });
-  if (email === 'rutujdhodapkar@gmail.com') return res.json({ success: true, isAdmin: true });
-  const snap = await db.collection('admins').where('email', '==', email).get();
-  res.json({ success: true, isAdmin: !snap.empty });
-});
+  // Sort requests descending by date
+  const sortedRequests = [...requests].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // Sort visits descending by date and limit to 100
+  const sortedVisits = [...visits].sort((a, b) => new Date(b.visitedAt) - new Date(a.visitedAt)).slice(0, 100);
 
-app.get('/api/admins', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const snap = await db.collection('admins').orderBy('createdAt', 'asc').get();
-  const emails = [];
-  snap.forEach(d => emails.push(d.data().email));
-  res.json({ success: true, data: emails });
-});
-
-app.post('/api/admins', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const email = (req.body?.email || '').toLowerCase().trim();
-  if (!email) return res.status(400).json({ success: false, message: 'Email required' });
-  await db.collection('admins').add({ email, createdAt: new Date().toISOString() });
-  res.json({ success: true });
-});
-
-app.delete('/api/admins/:email', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const clean = decodeURIComponent(req.params.email).toLowerCase().trim();
-  const snap = await db.collection('admins').where('email', '==', clean).get();
-  snap.forEach(d => d.ref.delete());
-  res.json({ success: true });
-});
-
-app.get('/api/inquiries', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const snap = await db.collection('inquiries').orderBy('createdAt', 'asc').get();
-  const arr = [];
-  snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
-  res.json({ success: true, data: arr });
-});
-
-app.delete('/api/inquiries/:id', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  await db.collection('inquiries').doc(req.params.id).delete();
-  res.json({ success: true });
+  res.json({ success: true, data: { requests: sortedRequests, referrals, visits: sortedVisits } });
 });
 
 app.post('/api/referrals', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const code = req.body?.code || `REF-${Date.now().toString(36).toUpperCase()}`;
-  await db.collection('referrals').doc(code).set({ ...req.body, code, visited: 0, contacted: 0, createdAt: new Date().toISOString() });
-  res.status(201).json({ success: true, data: { code } });
+  const referrals = await readJson(REFERRALS_FILE);
+  const referral = {
+    id: req.body.code,
+    ...req.body,
+    code: req.body.code || `REF-${Date.now().toString(36).toUpperCase()}`,
+    visited: req.body.visited || 0,
+    contacted: req.body.contacted || 0,
+    createdAt: req.body.createdAt || new Date().toISOString(),
+  };
+
+  referrals.push(referral);
+  await writeJson(REFERRALS_FILE, referrals);
+  res.status(201).json({ success: true, data: referral });
+});
+
+app.post('/api/referral-visits', async (req, res) => {
+  const [referrals, visits] = await Promise.all([
+    readJson(REFERRALS_FILE),
+    readJson(VISITS_FILE),
+  ]);
+
+  const code = String(req.body.referralCode || '').toUpperCase();
+  const matchedReferral = referrals.find((item) => String(item.code).toUpperCase() === code);
+  const visit = {
+    id: `VIS-${Date.now()}`,
+    ...req.body,
+    referralCode: code,
+    matched: Boolean(matchedReferral),
+    visitedAt: req.body.visitedAt || new Date().toISOString(),
+    action: 'visited',
+  };
+
+  visits.push(visit);
+  if (matchedReferral) {
+    matchedReferral.visited = Number(matchedReferral.visited || 0) + 1;
+    matchedReferral.lastVisitedAt = visit.visitedAt;
+  }
+
+  await Promise.all([writeJson(VISITS_FILE, visits), writeJson(REFERRALS_FILE, referrals)]);
+  res.status(201).json({ success: true, data: visit });
 });
 
 app.delete('/api/referrals/:code', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  await db.collection('referrals').doc(req.params.code).delete();
-  res.json({ success: true });
+  const code = String(req.params.code || '').toUpperCase();
+  const referrals = await readJson(REFERRALS_FILE);
+  const filtered = referrals.filter((item) => String(item.code).toUpperCase() !== code);
+  await writeJson(REFERRALS_FILE, filtered);
+  res.json({ success: true, message: `Referral ${code} deleted.` });
+});
+
+app.delete('/api/inquiries/:id', async (req, res) => {
+  const { id } = req.params;
+  const inquiries = await readJson(INQUIRIES_FILE);
+  const filtered = inquiries.filter((item) => item.id !== id);
+  await writeJson(INQUIRIES_FILE, filtered);
+  res.json({ success: true, message: `Inquiry ${id} deleted.` });
 });
 
 app.post('/api/referrals/:code/contacted', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const code = String(req.params.code).toUpperCase();
-  const snap = await db.collection('referrals').where('code', '==', code).get();
-  snap.forEach(d => d.ref.update({ contacted: (d.data().contacted || 0) + 1, lastContactedAt: new Date().toISOString() }));
-  res.json({ success: true });
+  const referrals = await readJson(REFERRALS_FILE);
+  const code = String(req.params.code || '').toUpperCase();
+  const matchedReferral = referrals.find((item) => String(item.code).toUpperCase() === code);
+
+  if (matchedReferral) {
+    matchedReferral.contacted = Number(matchedReferral.contacted || 0) + 1;
+    matchedReferral.lastContactedAt = new Date().toISOString();
+    await writeJson(REFERRALS_FILE, referrals);
+  }
+
+  res.json({ success: true, data: matchedReferral || null });
 });
 
+// Admin management APIs
+app.post('/api/check-admin', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Email required.' });
+  }
+  const cleanEmail = email.toLowerCase().trim();
+  if (cleanEmail === 'rutujdhodapkar@gmail.com') {
+    return res.json({ success: true, isAdmin: true });
+  }
+  const admins = await readJson(ADMINS_FILE);
+  const isAdmin = admins.some(adminEmail => adminEmail.toLowerCase().trim() === cleanEmail);
+  return res.json({ success: true, isAdmin });
+});
+
+app.get('/api/admins', async (req, res) => {
+  const admins = await readJson(ADMINS_FILE);
+  return res.json({ success: true, data: admins });
+});
+
+app.post('/api/admins', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ success: false, message: 'Email required.' });
+  }
+  const cleanEmail = email.toLowerCase().trim();
+  const admins = await readJson(ADMINS_FILE);
+  if (!admins.includes(cleanEmail)) {
+    admins.push(cleanEmail);
+    await writeJson(ADMINS_FILE, admins);
+  }
+  return res.json({ success: true, data: admins });
+});
+
+app.delete('/api/admins/:email', async (req, res) => {
+  const { email } = req.params;
+  const cleanEmail = email.toLowerCase().trim();
+  const admins = await readJson(ADMINS_FILE);
+  const updated = admins.filter(adminEmail => adminEmail.toLowerCase().trim() !== cleanEmail);
+  await writeJson(ADMINS_FILE, updated);
+  return res.json({ success: true, data: updated });
+});
+
+// ─── AI Task Verification (NVIDIA API) ─────────────────────────────────────────
 app.post('/api/ai/verify-task', async (req, res) => {
-  if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const { taskTitle, submissionText } = req.body || {};
-  if (!taskTitle || !submissionText) return res.status(400).json({ success: false, message: 'Title and submission required' });
-  const key = process.env.NVIDIA_API_KEY;
-  if (!key) return res.status(500).json({ success: false, message: 'NVIDIA key not configured' });
+  const { taskTitle, taskDescription, taskNotices, submissionText, submissionUrl, internName, codeFiles } = req.body;
+
+  if (!taskTitle || !submissionText) {
+    return res.status(400).json({ success: false, message: 'Task title and submission text are required.' });
+  }
+
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ success: false, message: 'NVIDIA API key not configured on server.' });
+  }
+
   try {
-    const resp = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model: 'meta/llama-3.3-70b-instruct', messages: [{ role: 'system', content: 'Evaluate. Respond JSON: {"verified":boolean,"confidence":number,"reason":"...","message":"..."}' }, { role: 'user', content: `Task: ${taskTitle}\nSubmission: ${submissionText}` }], temperature: 0.3, max_tokens: 600 }),
+    const promptParts = [
+      `Task Title: ${taskTitle}`,
+      `Task Description: ${taskDescription || 'No description provided'}`,
+    ];
+    if (taskNotices && taskNotices.trim()) {
+      promptParts.push(`Task Instructions/Notices:\n${taskNotices}`);
+    }
+    promptParts.push(`Student Name: ${internName || 'Unknown'}`);
+    promptParts.push(`Student's Submission Text: ${submissionText}`);
+    if (submissionUrl) promptParts.push(`Submission URL: ${submissionUrl}`);
+
+    if (codeFiles && Array.isArray(codeFiles) && codeFiles.length > 0) {
+      promptParts.push(`\n=== ACTUAL CODE FETCHED FROM REPOSITORY ===`);
+      for (const file of codeFiles) {
+        const label = file.path || file.name || 'unknown';
+        promptParts.push(`\n--- File: ${label} ---\n${file.content}`);
+      }
+      promptParts.push(`\n=== END OF CODE ===`);
+      promptParts.push(`\nCRITICAL: Carefully check if the code above actually implements what was asked in the task. Check for: 1) Does the code solve the problem described? 2) Are there any placeholder/boilerplate/todo comments? 3) Does the code look like it was written specifically for this task? If the code is wrong, incomplete, or doesn't match the task, set verified to false with specific reasons.`);
+    } else {
+      promptParts.push(`\nIMPORTANT: No actual code could be fetched from the student's submission. The provided link may be invalid, private, or not a code repository. You MUST set verified to false and explain that the code could not be accessed. Do NOT verify submissions whose code cannot be read.`);
+    }
+    promptParts.push('\nEvaluate this submission and respond with JSON only.');
+
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'meta/llama-3.3-70b-instruct',
+        messages: [
+          {
+            role: 'system',
+            content: `You are an AI internship task verifier. Evaluate the student's project submission against the task requirements.
+
+Respond ONLY with a valid JSON object (no markdown, no extra text):
+{
+  "verified": boolean,
+  "confidence": number (0-100),
+  "reason": "brief explanation of your decision",
+  "message": "constructive feedback for the student; if rejected explain what is missing or wrong, if verified give positive confirmation"
+}`
+          },
+          {
+            role: 'user',
+            content: promptParts.join('\n')
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 600,
+      }),
     });
-    if (!resp.ok) throw new Error(`NVIDIA error ${resp.status}`);
-    const d = await resp.json();
-    const c = d.choices?.[0]?.message?.content || '';
-    const m = c.match(/\{[\s\S]*\}/);
-    res.json({ success: true, data: { ...(m ? JSON.parse(m[0]) : { verified: false }), rawResponse: c } });
-  } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`NVIDIA API error ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    let result;
+    try {
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON in response');
+      }
+    } catch (parseErr) {
+      result = {
+        verified: false,
+        confidence: 0,
+        reason: 'AI response could not be parsed',
+        message: 'AI verification failed to produce a clear result. Please review manually.',
+      };
+    }
+
+    return res.json({ success: true, data: { ...result, rawResponse: content } });
+  } catch (error) {
+    console.error('AI verification error:', error.message);
+    return res.status(500).json({ success: false, message: 'AI verification failed: ' + error.message });
+  }
 });
 
-app.use(express.static(path.join(__dirname, '../client/dist')));
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
-
-app.listen(PORT, () => console.log(`Server on http://localhost:${PORT}`));

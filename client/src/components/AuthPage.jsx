@@ -6,23 +6,28 @@ export default function AuthPage({ onAuthSuccess, onBackToSite }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = async () => {
+  const handleGoogleLogin = async () => {
     if (!isFirebaseConfigured) {
       setError('Google Login is not configured.');
       return;
     }
+
     setLoading(true);
     setError('');
+
     try {
       await signInWithGoogle();
       onAuthSuccess();
     } catch (err) {
-      if (err.message === 'user_cancelled') return;
-      console.error('Google Sign In failed:', err);
-      if (err.message?.includes('popup')) {
-        setError('Popup was blocked. Please allow popups for this site and try again.');
+      if (err.message === 'user_cancelled') {
+        // User closed popup - do nothing
       } else {
-        setError(err.message);
+        console.error('Google Sign In failed:', err);
+        if (err.message?.includes('popup')) {
+          setError('Popup was blocked. Please allow popups for this site and try again.');
+        } else {
+          setError(err.message);
+        }
       }
     } finally {
       setLoading(false);
@@ -30,7 +35,7 @@ export default function AuthPage({ onAuthSuccess, onBackToSite }) {
   };
 
   const navItems = [
-    { label: loading ? 'Logging in...' : 'Sign In', onClick: handleLogin },
+    { label: loading ? 'Logging in...' : 'Sign In with Google', onClick: handleGoogleLogin },
     { label: 'Back to Website', onClick: onBackToSite },
   ];
 

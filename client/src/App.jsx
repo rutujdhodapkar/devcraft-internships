@@ -4,14 +4,13 @@ import Hero from "./components/Hero";
 import CareerPaths from "./components/CareerPaths";
 import HowItWorks from "./components/HowItWorks";
 import FAQ from "./components/FAQ";
+import AuthPage from "./components/AuthPage";
 import StudentDashboard from "./components/StudentDashboard";
 import Footer from "./components/Footer";
 import AdminPanel from "./components/AdminPanel";
 import EarnSection from "./components/EarnSection";
 import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
-import AlertModal from "./components/AlertModal";
-import { setAlertHandler, showAlert } from "./utils/alert";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -121,6 +120,7 @@ export default function App() {
     college: "",
     city: "",
     country: "",
+    upiId: "",
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileErrors, setProfileErrors] = useState({});
@@ -141,15 +141,13 @@ export default function App() {
   const [dismissedMessages, setDismissedMessages] = useState(new Set());
   const [dashboardReferralTab, setDashboardReferralTab] = useState(false); // open dashboard with referral tab
 
-  // Custom Alert
-  const [appAlert, setAppAlert] = useState(null);
-
+  // Listen to Google Auth state
   useEffect(() => {
-    setAlertHandler((msg, type) => setAppAlert({ message: msg, type }));
-  }, []);
+    if (!isFirebaseConfigured) {
+      setAuthLoading(false);
+      return;
+    }
 
-  // Listen to Clerk auth state
-  useEffect(() => {
     const unsubscribe = onAuthStateChanged(async (currentUser) => {
       setUser(currentUser);
       if (currentUser && currentUser.email) {
@@ -215,7 +213,7 @@ export default function App() {
           if (profile) {
             setUserProfile(profile);
 
-            // Check if profile is complete
+            // Check if profile is complete — UPI is only required during enrollment, not plain login
             const isComplete =
               profile.phone &&
               profile.college &&
@@ -228,6 +226,7 @@ export default function App() {
                 college: profile.college || "",
                 city: profile.city || "",
                 country: profile.country || "",
+                upiId: profile.upiId || "",
               });
               setShowProfilePrompt(true);
             } else {
@@ -278,6 +277,7 @@ export default function App() {
               college: "",
               city: "",
               country: "",
+              upiId: "",
             });
             setShowProfilePrompt(true);
           }
@@ -326,7 +326,9 @@ export default function App() {
 
   const handleApplyDomain = async (domainObj) => {
     if (!user) {
-      showAlert("Please sign in first using the 'Login' button in the header.", "error");
+      setPendingEnrollmentDomain(domainObj);
+      setAuthRedirectTarget("dashboard");
+      setCurrentView("auth");
       return;
     }
 
@@ -335,10 +337,9 @@ export default function App() {
       userBan &&
       (userBan.banType === "both" || userBan.banType === "internship")
     ) {
-      showAlert(
+      alert(
         "Your account has been restricted from applying to internships." +
           (userBan.reason ? " Reason: " + userBan.reason : ""),
-        "error",
       );
       return;
     }
@@ -355,6 +356,7 @@ export default function App() {
         college: "",
         city: "",
         country: "",
+        upiId: "",
       };
       try {
         await saveUserProfile(user.uid, profile);
@@ -378,7 +380,7 @@ export default function App() {
       await enrollStudent(user.uid, profile, domainObj);
       setCurrentView("dashboard");
     } catch (err) {
-      showAlert("Enrollment failed: " + err.message, "error");
+      alert("Enrollment failed: " + err.message);
     } finally {
       setAuthLoading(false);
     }
@@ -400,6 +402,15 @@ export default function App() {
     }
     if (!profileForm.country) {
       errors.country = "Please select your country.";
+    }
+    // UPI is only required when the user is applying for an internship via referral
+    if (pendingEnrollmentDomain) {
+      if (
+        !profileForm.upiId.trim() ||
+        !/^[\w.\-]+@[\w.\-]+$/.test(profileForm.upiId.trim())
+      ) {
+        errors.upiId = "Please enter a valid UPI ID (e.g. name@upi).";
+      }
     }
     return errors;
   };
@@ -425,6 +436,7 @@ export default function App() {
         college: profileForm.college.trim(),
         city: profileForm.city.trim(),
         country: profileForm.country,
+        upiId: profileForm.upiId.trim(),
       };
       // Store referral code in localStorage if matched (enrollStudent will read & clear it)
       if (referralCheckStatus === "matched" && referralCodeInput.trim()) {
@@ -447,29 +459,34 @@ export default function App() {
         setCurrentView(isAdmin ? "admin" : authRedirectTarget);
       }
     } catch (err) {
-      showAlert("Failed to save profile: " + err.message, "error");
+      alert("Failed to save profile: " + err.message);
     } finally {
       setProfileSaving(false);
     }
   };
 
   const handleLoginClick = async () => {
-    if (!isFirebaseConfigured) {
-      showAlert("Google Login is not configured.", "error");
-      return;
-    }
-    setAuthLoading(true);
-    try {
-      await signInWithGoogle();
-    } catch (err) {
-      if (err?.message === "user_cancelled") return;
-      if (err?.message?.includes("popup")) {
-        showAlert("Popup was blocked. Please allow popups for this site.", "error");
-      } else {
-        console.error("Google Sign In failed:", err);
+    if (isFirebaseConfigured) {
+      try {
+        setAuthLoading(true);
+        await signInWithGoogle();
+      } catch (err) {
+        if (err.message === "user_cancelled") {
+          // User closed popup - not an error
+        } else {
+          console.error("Google Sign In failed:", err);
+          if (err.message?.includes("popup")) {
+            alert(
+              "Popup was blocked by your browser. Please allow popups for this site or try again.",
+            );
+          }
+        }
+      } finally {
+        setAuthLoading(false);
       }
-    } finally {
-      setAuthLoading(false);
+    } else {
+      setAuthRedirectTarget("site");
+      setCurrentView("auth");
     }
   };
 
@@ -491,7 +508,9 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (isFirebaseConfigured) gisSignOut();
+    if (isFirebaseConfigured) {
+      gisSignOut();
+    }
     setUser(null);
     setUserProfile(null);
     setIsAdmin(false);
@@ -507,6 +526,13 @@ export default function App() {
             onClose={() => setCurrentView("site")}
             user={user}
             onLogout={handleLogout}
+          />
+        );
+      case "auth":
+        return (
+          <AuthPage
+            onAuthSuccess={() => {}}
+            onBackToSite={() => setCurrentView("site")}
           />
         );
       case "dashboard":
@@ -622,7 +648,7 @@ export default function App() {
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
             />
-            <CareerPaths onApplyDomain={handleApplyDomain} user={user} onLoginClick={handleLoginClick} />
+            <CareerPaths onApplyDomain={handleApplyDomain} />
             <HowItWorks />
             <FAQ />
             <EarnSection
@@ -1033,6 +1059,45 @@ export default function App() {
                   <div style={errorStyle}>{profileErrors.city}</div>
                 )}
               </div>
+
+              {/* UPI ID — only shown when applying for an internship via referral */}
+              {pendingEnrollmentDomain && (
+                <div style={{ marginBottom: "1.25rem" }}>
+                  <label
+                    style={{
+                      fontWeight: 800,
+                      fontSize: "0.78rem",
+                      textTransform: "uppercase",
+                      display: "block",
+                      marginBottom: "0.4rem",
+                    }}
+                  >
+                    UPI ID *{" "}
+                    <span
+                      style={{
+                        fontWeight: 400,
+                        color: "#888",
+                        fontSize: "0.72rem",
+                        textTransform: "none",
+                      }}
+                    >
+                      (for internship payment)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="name@upi"
+                    value={profileForm.upiId}
+                    onChange={(e) =>
+                      setProfileForm({ ...profileForm, upiId: e.target.value })
+                    }
+                    style={inputStyle}
+                  />
+                  {profileErrors.upiId && (
+                    <div style={errorStyle}>{profileErrors.upiId}</div>
+                  )}
+                </div>
+              )}
 
               {/* Referral Code */}
               <div style={{ marginBottom: "2rem" }}>
