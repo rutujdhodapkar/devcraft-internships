@@ -10,11 +10,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 if (!admin.apps.length) {
   let cred;
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    cred = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
-  } else {
-    const p = path.join(__dirname, 'firebase-service-account.json');
-    if (existsSync(p)) cred = admin.credential.cert(readFileSync(p, 'utf8'));
+  try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+      cred = admin.credential.cert(typeof raw === 'string' && raw.trim().startsWith('{') ? JSON.parse(raw) : raw);
+    } else {
+      const p = path.join(__dirname, 'firebase-service-account.json');
+      if (existsSync(p)) cred = admin.credential.cert(JSON.parse(readFileSync(p, 'utf8')));
+    }
+  } catch (e) {
+    console.error('Admin init error:', e.message);
   }
   admin.initializeApp({ credential: cred, databaseURL: 'https://login-data-680b9-default-rtdb.firebaseio.com' });
 }
