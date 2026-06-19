@@ -1,27 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getDatabase } from 'firebase/database';
+import { setAccessToken } from './services/data';
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || 'https://login-data-680b9-default-rtdb.firebaseio.com',
-};
-
-export const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.databaseURL);
-
-let rtdb = null;
-
-if (isFirebaseConfigured) {
-  const app = initializeApp(firebaseConfig);
-  rtdb = getDatabase(app);
-}
-
-export { rtdb };
-export const db = null;
+export const isFirebaseConfigured = true;
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -30,12 +9,13 @@ const listeners = new Set();
 
 export function onAuthStateChanged(callback) {
   listeners.add(callback);
-  if (currentUser) callback(currentUser);
+  callback(currentUser);
   return () => listeners.delete(callback);
 }
 
 function notifyListeners(user) {
   currentUser = user;
+  setAccessToken(user?.accessToken || null);
   listeners.forEach(fn => fn(user));
 }
 

@@ -10,6 +10,8 @@ import AdminPanel from "./components/AdminPanel";
 import EarnSection from "./components/EarnSection";
 import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
+import AlertModal from "./components/AlertModal";
+import { setAlertHandler, showAlert } from "./utils/alert";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -138,6 +140,13 @@ export default function App() {
   const [adminMessages, setAdminMessages] = useState([]);
   const [dismissedMessages, setDismissedMessages] = useState(new Set());
   const [dashboardReferralTab, setDashboardReferralTab] = useState(false); // open dashboard with referral tab
+
+  // Custom Alert
+  const [appAlert, setAppAlert] = useState(null);
+
+  useEffect(() => {
+    setAlertHandler((msg, type) => setAppAlert({ message: msg, type }));
+  }, []);
 
   // Listen to Google Auth state
   useEffect(() => {
@@ -322,7 +331,7 @@ export default function App() {
 
   const handleApplyDomain = async (domainObj) => {
     if (!user) {
-      alert("Please sign in with Google first using the 'Google Login' button in the header.");
+      showAlert("Please sign in with Google first using the 'Google Login' button in the header.", "error");
       return;
     }
 
@@ -331,9 +340,10 @@ export default function App() {
       userBan &&
       (userBan.banType === "both" || userBan.banType === "internship")
     ) {
-      alert(
+      showAlert(
         "Your account has been restricted from applying to internships." +
           (userBan.reason ? " Reason: " + userBan.reason : ""),
+        "error",
       );
       return;
     }
@@ -373,7 +383,7 @@ export default function App() {
       await enrollStudent(user.uid, profile, domainObj);
       setCurrentView("dashboard");
     } catch (err) {
-      alert("Enrollment failed: " + err.message);
+      showAlert("Enrollment failed: " + err.message, "error");
     } finally {
       setAuthLoading(false);
     }
@@ -442,7 +452,7 @@ export default function App() {
         setCurrentView(isAdmin ? "admin" : authRedirectTarget);
       }
     } catch (err) {
-      alert("Failed to save profile: " + err.message);
+      showAlert("Failed to save profile: " + err.message, "error");
     } finally {
       setProfileSaving(false);
     }
