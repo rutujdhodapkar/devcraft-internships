@@ -27,6 +27,58 @@ async function verifyToken(req) {
 }
 
 const fallbackRates = { USD: 1.0, INR: 83.5, EUR: 0.93, GBP: 0.79, CAD: 1.37, AUD: 1.51, JPY: 157.4 };
+const PUBLIC_COLLECTIONS = new Set(['careerPaths', 'faqs', 'services', 'siteContent', 'siteNotices', 'courses', 'testimonials']);
+
+// ─── Firestore proxy handler ───────────────────────────────────────
+async function handleFirestore(firestore, user, body) {
+  if (!firestore) return { status: 503, json: { error: 'Firestore not configured' } };
+  const { action, collection, doc, data, queries } = body;
+  if (!collection) return { status: 400, json: { error: 'collection required' } };
+
+  const isWrite = ['set', 'update', 'push', 'delete'].includes(action);
+  if (isWrite && !user) return { status: 401, json: { error: 'auth required for write operations' } };
+  if (action === 'get' && !user && !PUBLIC_COLLECTIONS.has(collection)) {
+    return { status: 401, json: { error: 'auth required to read this collection' } };
+  }
+
+  try {
+    switch (action) {
+      case 'get': {
+        if (doc) {
+          const snap = await firestore.collection(collection).doc(doc).get();
+          return { json: { data: snap.exists ? { id: snap.id, ...snap.data() } : null } };
+        }
+        const snap = await firestore.collection(collection).get();
+        return { json: { data: snap.docs.map(d => ({ id: d.id, ...d.data() })) } };
+      }
+      case 'set': {
+        if (!data) return { status: 400, json: { error: 'data required' } };
+        const ref = doc ? firestore.collection(collection).doc(doc) : firestore.collection(collection).doc();
+        await ref.set(data);
+        return { json: { data: { id: ref.id, ...data } } };
+      }
+      case 'update': {
+        if (!doc || !data) return { status: 400, json: { error: 'doc and data required' } };
+        await firestore.collection(collection).doc(doc).set(data, { merge: true });
+        return { json: { success: true } };
+      }
+      case 'push': {
+        if (!data) return { status: 400, json: { error: 'data required' } };
+        const pushRef = await firestore.collection(collection).add(data);
+        return { json: { data: { id: pushRef.id, ...data } } };
+      }
+      case 'delete': {
+        if (!doc) return { status: 400, json: { error: 'doc required' } };
+        await firestore.collection(collection).doc(doc).delete();
+        return { json: { success: true } };
+      }
+      default:
+        return { status: 400, json: { error: `Unknown action: ${action}` } };
+    }
+  } catch (e) {
+    return { status: 500, json: { error: e.message } };
+  }
+}
 
 export default async function handler(req, res) {
   const method = req.method;
@@ -36,6 +88,14 @@ export default async function handler(req, res) {
 
   const firestore = getDb();
   const user = await verifyToken(req);
+
+  // ─── Firestore proxy ─────────────────────────────────────────────
+  if (segments[0] === 'firestore' && segments[1] && method === 'POST') {
+    const body = req.body || {};
+    body.action = body.action || segments[1];
+    const result = await handleFirestore(firestore, user, body);
+    return res.status(result.status || 200).json(result.json);
+  }
 
   // ─── Public routes (no auth required) ──────────────────────────────
 
@@ -225,7 +285,7 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
       }
     }
 
-    // ─── Referrals (create / delete / mark contacted) ───────────────
+    // Referrals (create / delete / mark contacted)
     if (path === 'referrals' && method === 'POST') {
       if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
       const referral = {
