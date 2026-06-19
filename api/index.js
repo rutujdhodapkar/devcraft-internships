@@ -1,13 +1,20 @@
 import admin from 'firebase-admin';
 import crypto from 'crypto';
+import { readFileSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 if (!admin.apps.length) {
+  let cred;
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({ credential: admin.credential.cert(sa), databaseURL: 'https://login-data-680b9-default-rtdb.firebaseio.com' });
+    cred = admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT));
   } else {
-    admin.initializeApp({ databaseURL: 'https://login-data-680b9-default-rtdb.firebaseio.com' });
+    const p = join(__dirname, '../server/firebase-service-account.json');
+    if (existsSync(p)) cred = admin.credential.cert(readFileSync(p, 'utf8'));
   }
+  admin.initializeApp({ credential: cred, databaseURL: 'https://login-data-680b9-default-rtdb.firebaseio.com' });
 }
 
 const db = admin.database();
