@@ -4,7 +4,6 @@ import Hero from "./components/Hero";
 import CareerPaths from "./components/CareerPaths";
 import HowItWorks from "./components/HowItWorks";
 import FAQ from "./components/FAQ";
-import AuthPage from "./components/AuthPage";
 import StudentDashboard from "./components/StudentDashboard";
 import Footer from "./components/Footer";
 import AdminPanel from "./components/AdminPanel";
@@ -120,7 +119,6 @@ export default function App() {
     college: "",
     city: "",
     country: "",
-    upiId: "",
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileErrors, setProfileErrors] = useState({});
@@ -213,7 +211,7 @@ export default function App() {
           if (profile) {
             setUserProfile(profile);
 
-            // Check if profile is complete — UPI is only required during enrollment, not plain login
+            // Check if profile is complete
             const isComplete =
               profile.phone &&
               profile.college &&
@@ -226,7 +224,6 @@ export default function App() {
                 college: profile.college || "",
                 city: profile.city || "",
                 country: profile.country || "",
-                upiId: profile.upiId || "",
               });
               setShowProfilePrompt(true);
             } else {
@@ -277,7 +274,6 @@ export default function App() {
               college: "",
               city: "",
               country: "",
-              upiId: "",
             });
             setShowProfilePrompt(true);
           }
@@ -326,9 +322,7 @@ export default function App() {
 
   const handleApplyDomain = async (domainObj) => {
     if (!user) {
-      setPendingEnrollmentDomain(domainObj);
-      setAuthRedirectTarget("dashboard");
-      setCurrentView("auth");
+      alert("Please sign in with Google first using the 'Google Login' button in the header.");
       return;
     }
 
@@ -356,7 +350,6 @@ export default function App() {
         college: "",
         city: "",
         country: "",
-        upiId: "",
       };
       try {
         await saveUserProfile(user.uid, profile);
@@ -403,15 +396,6 @@ export default function App() {
     if (!profileForm.country) {
       errors.country = "Please select your country.";
     }
-    // UPI is only required when the user is applying for an internship via referral
-    if (pendingEnrollmentDomain) {
-      if (
-        !profileForm.upiId.trim() ||
-        !/^[\w.\-]+@[\w.\-]+$/.test(profileForm.upiId.trim())
-      ) {
-        errors.upiId = "Please enter a valid UPI ID (e.g. name@upi).";
-      }
-    }
     return errors;
   };
 
@@ -436,7 +420,6 @@ export default function App() {
         college: profileForm.college.trim(),
         city: profileForm.city.trim(),
         country: profileForm.country,
-        upiId: profileForm.upiId.trim(),
       };
       // Store referral code in localStorage if matched (enrollStudent will read & clear it)
       if (referralCheckStatus === "matched" && referralCodeInput.trim()) {
@@ -485,8 +468,7 @@ export default function App() {
         setAuthLoading(false);
       }
     } else {
-      setAuthRedirectTarget("site");
-      setCurrentView("auth");
+      alert("Google Login is not configured. Please set up your environment variables.");
     }
   };
 
@@ -526,13 +508,6 @@ export default function App() {
             onClose={() => setCurrentView("site")}
             user={user}
             onLogout={handleLogout}
-          />
-        );
-      case "auth":
-        return (
-          <AuthPage
-            onAuthSuccess={() => {}}
-            onBackToSite={() => setCurrentView("site")}
           />
         );
       case "dashboard":
@@ -1059,45 +1034,6 @@ export default function App() {
                   <div style={errorStyle}>{profileErrors.city}</div>
                 )}
               </div>
-
-              {/* UPI ID — only shown when applying for an internship via referral */}
-              {pendingEnrollmentDomain && (
-                <div style={{ marginBottom: "1.25rem" }}>
-                  <label
-                    style={{
-                      fontWeight: 800,
-                      fontSize: "0.78rem",
-                      textTransform: "uppercase",
-                      display: "block",
-                      marginBottom: "0.4rem",
-                    }}
-                  >
-                    UPI ID *{" "}
-                    <span
-                      style={{
-                        fontWeight: 400,
-                        color: "#888",
-                        fontSize: "0.72rem",
-                        textTransform: "none",
-                      }}
-                    >
-                      (for internship payment)
-                    </span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="name@upi"
-                    value={profileForm.upiId}
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, upiId: e.target.value })
-                    }
-                    style={inputStyle}
-                  />
-                  {profileErrors.upiId && (
-                    <div style={errorStyle}>{profileErrors.upiId}</div>
-                  )}
-                </div>
-              )}
 
               {/* Referral Code */}
               <div style={{ marginBottom: "2rem" }}>
