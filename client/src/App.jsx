@@ -150,11 +150,6 @@ export default function App() {
 
   // Listen to Clerk auth state
   useEffect(() => {
-    if (!isFirebaseConfigured) {
-      setAuthLoading(false);
-      return;
-    }
-
     const unsubscribe = onAuthStateChanged(async (currentUser) => {
       setUser(currentUser);
       if (currentUser && currentUser.email) {

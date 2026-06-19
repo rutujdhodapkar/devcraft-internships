@@ -1,41 +1,29 @@
 import React, { useState } from 'react';
-import { isFirebaseConfigured, signInWithGoogle } from '../firebase';
 import GooeyNav from './GooeyNav';
 
 export default function AuthPage({ onAuthSuccess, onBackToSite }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleGoogleLogin = async () => {
-    if (!isFirebaseConfigured) {
-      setError('Google Login is not configured.');
-      return;
-    }
-
+  const handleLogin = async () => {
     setLoading(true);
     setError('');
-
     try {
-      await signInWithGoogle();
-      onAuthSuccess();
-    } catch (err) {
-      if (err.message === 'user_cancelled') {
-        // User closed popup - do nothing
+      if (window.Clerk?.openSignIn) {
+        window.Clerk.openSignIn();
       } else {
-        console.error('Google Sign In failed:', err);
-        if (err.message?.includes('popup')) {
-          setError('Popup was blocked. Please allow popups for this site and try again.');
-        } else {
-          setError(err.message);
-        }
+        setError('Sign-in is loading. Please try again.');
       }
+    } catch (err) {
+      console.error('Sign-in failed:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   const navItems = [
-    { label: loading ? 'Logging in...' : 'Sign In with Google', onClick: handleGoogleLogin },
+    { label: loading ? 'Logging in...' : 'Sign In', onClick: handleLogin },
     { label: 'Back to Website', onClick: onBackToSite },
   ];
 

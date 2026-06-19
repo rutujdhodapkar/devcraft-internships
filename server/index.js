@@ -1,6 +1,10 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import admin from 'firebase-admin';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 if (!admin.apps.length) {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -223,6 +227,12 @@ app.post('/api/ai/verify-task', async (req, res) => {
     const m = c.match(/\{[\s\S]*\}/);
     res.json({ success: true, data: { ...(m ? JSON.parse(m[0]) : { verified: false }), rawResponse: c } });
   } catch (e) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// Serve built client
+app.use(express.static(path.join(__dirname, '../client/dist')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });
 
 app.listen(PORT, () => console.log(`Server on http://localhost:${PORT}`));
