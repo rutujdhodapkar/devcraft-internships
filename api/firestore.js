@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       }
       case 'update': {
         if (!doc || !data) return res.status(400).json({ error: 'doc and data required' });
-        await db.collection(collection).doc(doc).update(data);
+        await db.collection(collection).doc(doc).set(data, { merge: true });
         return res.json({ success: true });
       }
       case 'push': {

@@ -134,7 +134,7 @@ app.post('/api/firestore/update', async (req, res) => {
   if (!collection || !doc || !data) return res.status(400).json({ error: 'collection, doc, data required' });
   if (authRequired && !req.authUser) return res.status(401).json({ error: 'auth required' });
   try {
-    await firestore.collection(collection).doc(doc).update(data);
+    await firestore.collection(collection).doc(doc).set(data, { merge: true });
     return res.json({ success: true });
   } catch (e) {
     return res.status(500).json({ error: e.message });
