@@ -8,7 +8,7 @@
     "dev": "concurrently \"npm run server\" \"npm run client\""
   },
   "dependencies": {
-    "firebase-admin": "^12.6.0"
+    "@neondatabase/serverless": "^0.9.0"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
