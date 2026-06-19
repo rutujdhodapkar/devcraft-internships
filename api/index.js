@@ -1,7 +1,4 @@
 import admin from 'firebase-admin';
-import { createClerkClient } from '@clerk/backend';
-
-const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
 if (!admin.apps.length) {
   if (process.env.FIREBASE_SERVICE_ACCOUNT) {
@@ -16,12 +13,13 @@ const db = admin.firestore();
 
 const PUBLIC = ['careerPaths', 'faqs', 'services', 'siteContent', 'siteNotices', 'courses', 'testimonials'];
 
-function getUser(req) {
+async function getUser(req) {
   const t = req.headers.authorization?.replace('Bearer ', '');
   if (!t) return null;
-  return clerk.verifyToken(t)
-    .then(p => p.sub ? { uid: p.sub, email: p.email || '' } : null)
-    .catch(() => null);
+  try {
+    const decoded = await admin.auth().verifyIdToken(t);
+    return { uid: decoded.uid, email: decoded.email || '' };
+  } catch { return null; }
 }
 
 function route(req) {

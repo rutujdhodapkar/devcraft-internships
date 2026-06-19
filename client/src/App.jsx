@@ -26,7 +26,7 @@ import {
   checkUserBan,
   fetchAdminMessages,
 } from "./services/data";
-import { signOut as clerkSignOut, onAuthStateChanged } from "./firebase";
+import { isFirebaseConfigured, signInWithGoogle, signOut as gisSignOut, onAuthStateChanged } from "./firebase";
 
 async function sha256(message) {
   const msgBuffer = new TextEncoder().encode(message);
@@ -454,20 +454,21 @@ export default function App() {
   };
 
   const handleLoginClick = async () => {
+    if (!isFirebaseConfigured) {
+      showAlert("Google Login is not configured.", "error");
+      return;
+    }
     setAuthLoading(true);
     try {
-      if (window.Clerk?.client?.signIn?.authenticateWithRedirect) {
-        await window.Clerk.client.signIn.authenticateWithRedirect({
-          strategy: 'oauth_google',
-          redirectUrl: window.location.href,
-          redirectUrlComplete: window.location.href,
-        });
-      } else {
-        showAlert("Sign-in is loading. Please try again.", "error");
-        setAuthLoading(false);
-      }
+      await signInWithGoogle();
     } catch (err) {
-      console.error("Sign-in failed:", err);
+      if (err?.message === "user_cancelled") return;
+      if (err?.message?.includes("popup")) {
+        showAlert("Popup was blocked. Please allow popups for this site.", "error");
+      } else {
+        console.error("Google Sign In failed:", err);
+      }
+    } finally {
       setAuthLoading(false);
     }
   };
@@ -490,7 +491,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    clerkSignOut();
+    if (isFirebaseConfigured) gisSignOut();
     setUser(null);
     setUserProfile(null);
     setIsAdmin(false);
@@ -621,7 +622,7 @@ export default function App() {
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
             />
-            <CareerPaths onApplyDomain={handleApplyDomain} />
+            <CareerPaths onApplyDomain={handleApplyDomain} user={user} onLoginClick={handleLoginClick} />
             <HowItWorks />
             <FAQ />
             <EarnSection

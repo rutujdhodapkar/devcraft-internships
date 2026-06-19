@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { fetchCareerPaths } from '../services/data';
 
-export default function CareerPaths({ onApplyDomain }) {
+export default function CareerPaths({ onApplyDomain, user, onLoginClick }) {
   const [paths, setPaths] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
+    setError('');
     fetchCareerPaths()
       .then((data) => {
         if (active) setPaths(data);
       })
-      .catch((err) => console.error(err))
+      .catch(() => {
+        if (active) setError('Could not load domains. Please try again.');
+      })
       .finally(() => {
         if (active) setLoading(false);
       });
@@ -19,6 +23,14 @@ export default function CareerPaths({ onApplyDomain }) {
       active = false;
     };
   }, []);
+
+  const handleApply = (path) => {
+    if (!user) {
+      if (onLoginClick) onLoginClick();
+      return;
+    }
+    onApplyDomain(path);
+  };
 
   if (loading) {
     return (
@@ -50,7 +62,18 @@ export default function CareerPaths({ onApplyDomain }) {
         </div>
 
         {paths.length === 0 ? (
-          <p style={{ textAlign: 'center', fontStyle: 'italic', color: 'var(--text-secondary)' }}>No domains configured yet.</p>
+          <div style={{ textAlign: 'center', padding: '2rem 0' }}>
+            {error ? (
+              <p style={{ color: '#EA4335', fontWeight: 'bold' }}>{error}</p>
+            ) : !user ? (
+              <>
+                <p style={{ fontStyle: 'italic', color: 'var(--text-secondary)', marginBottom: '1rem' }}>Sign in to explore and apply for internship domains.</p>
+                <button type="button" className="btn-sharp" onClick={onLoginClick} style={{ padding: '0.8rem 2rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Sign In to Apply</button>
+              </>
+            ) : (
+              <p style={{ textAlign: 'center', fontStyle: 'italic', color: 'var(--text-secondary)' }}>No domains configured yet.</p>
+            )}
+          </div>
         ) : (
           <div className="career-paths-grid" style={gridStyle}>
             {paths.map((path) => (
@@ -126,7 +149,7 @@ export default function CareerPaths({ onApplyDomain }) {
                 <button
                   type="button"
                   className="btn-sharp"
-                  onClick={() => onApplyDomain(path)}
+                  onClick={() => handleApply(path)}
                   style={{ width: '100%', padding: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase' }}
                 >
                   Apply Now

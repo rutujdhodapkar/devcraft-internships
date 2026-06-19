@@ -26,11 +26,8 @@ async function verifyToken(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) { req.authUser = null; return next(); }
   try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
-      req.authUser = { uid: payload.sub, email: payload.email || '' };
-    } else { req.authUser = null; }
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.authUser = { uid: decoded.uid, email: decoded.email || '' };
   } catch { req.authUser = null; }
   next();
 }
