@@ -26,6 +26,8 @@ async function verifyToken(req) {
   } catch { return null; }
 }
 
+const PUBLIC_COLLECTIONS = new Set(['careerPaths', 'faqs', 'services', 'siteContent', 'siteNotices', 'courses', 'testimonials']);
+
 export default async function handler(req, res) {
   const db = getDb();
   if (!db) return res.status(503).json({ error: 'Firestore not configured' });
@@ -35,7 +37,11 @@ export default async function handler(req, res) {
   const { action, collection, doc, data, queries } = body;
   if (!collection) return res.status(400).json({ error: 'collection required' });
 
-  if (body.authRequired && !user) return res.status(401).json({ error: 'auth required' });
+  const isWrite = ['set', 'update', 'push', 'delete'].includes(action);
+  if (isWrite && !user) return res.status(401).json({ error: 'auth required for write operations' });
+  if (action === 'get' && !user && !PUBLIC_COLLECTIONS.has(collection)) {
+    return res.status(401).json({ error: 'auth required to read this collection' });
+  }
 
   try {
     switch (action) {

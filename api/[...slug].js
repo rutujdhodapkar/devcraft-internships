@@ -35,9 +35,72 @@ export default async function handler(req, res) {
   const segments = path.split('/');
 
   const firestore = getDb();
+  const user = await verifyToken(req);
+
+  // ─── Public routes (no auth required) ──────────────────────────────
+
+  // Currency rates
+  if (path === 'rates' && method === 'GET') {
+    try {
+      const response = await fetch('https://open.er-api.com/v6/latest/USD');
+      if (response.ok) {
+        const data = await response.json();
+        if (data?.rates) return res.json({ success: true, rates: data.rates, source: 'network' });
+      }
+    } catch {}
+    return res.json({ success: true, rates: fallbackRates, source: 'fallback' });
+  }
+
+  // Submit inquiry (contact form)
+  if (path === 'inquire' && method === 'POST') {
+    if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
+    const { name, email, phone, projectType, planTier } = req.body || {};
+    if (!name || !email || !phone || !projectType || !planTier) {
+      return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
+    }
+    const newInquiry = {
+      id: `INQ-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      ...req.body,
+      status: req.body.status || 'contacted',
+      progress: req.body.progress || 'New request',
+    };
+    await firestore.collection('inquiries').add(newInquiry);
+    return res.status(201).json({ success: true, message: 'Inquiry received!', inquiryId: newInquiry.id });
+  }
+
+  // Referral visit tracking (unauthenticated visitors)
+  if (path === 'referral-visits' && method === 'POST') {
+    if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
+    const { referralCode } = req.body || {};
+    const code = String(referralCode || '').toUpperCase();
+    const refSnap = await firestore.collection('referrals').get();
+    let matchedReferral = null;
+    for (const d of refSnap.docs) {
+      if (String(d.data().code).toUpperCase() === code) { matchedReferral = d; break; }
+    }
+    const visit = {
+      ...req.body,
+      referralCode: code,
+      matched: Boolean(matchedReferral),
+      visitedAt: req.body.visitedAt || new Date().toISOString(),
+      action: 'visited',
+    };
+    await firestore.collection('referralVisits').add(visit);
+    if (matchedReferral) {
+      await matchedReferral.ref.update({
+        visited: Number(matchedReferral.data().visited || 0) + 1,
+        lastVisitedAt: visit.visitedAt,
+      });
+    }
+    return res.status(201).json({ success: true, data: visit });
+  }
+
+  // ─── Auth-required routes ──────────────────────────────────────────
+  if (!user) return res.status(401).json({ error: 'auth required' });
 
   try {
-    // ─── Auth endpoints ─────────────────────────────────────────────
+    // Check admin
     if (path === 'check-admin' && method === 'POST') {
       const { email } = req.body || {};
       if (!email) return res.status(400).json({ success: false, message: 'Email required.' });
@@ -49,6 +112,7 @@ export default async function handler(req, res) {
       return res.json({ success: true, isAdmin: admins.includes(cleanEmail) });
     }
 
+    // List / add / delete admins
     if (path === 'admins' && method === 'GET') {
       if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
       const snap = await firestore.collection('admins').get();
@@ -67,19 +131,7 @@ export default async function handler(req, res) {
       return res.json({ success: true, data: remaining });
     }
 
-    // ─── Currency rates ─────────────────────────────────────────────
-    if (path === 'rates' && method === 'GET') {
-      try {
-        const response = await fetch('https://open.er-api.com/v6/latest/USD');
-        if (response.ok) {
-          const data = await response.json();
-          if (data?.rates) return res.json({ success: true, rates: data.rates, source: 'network' });
-        }
-      } catch {}
-      return res.json({ success: true, rates: fallbackRates, source: 'fallback' });
-    }
-
-    // ─── Admin data ─────────────────────────────────────────────────
+    // Admin dashboard data
     if (path === 'admin-data' && method === 'GET') {
       if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
       const [reqSnap, refSnap, visSnap] = await Promise.all([
@@ -93,24 +145,7 @@ export default async function handler(req, res) {
       return res.json({ success: true, data: { requests, referrals, visits } });
     }
 
-    // ─── Inquire ────────────────────────────────────────────────────
-    if (path === 'inquire' && method === 'POST') {
-      if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
-      const { name, email, phone, projectType, planTier } = req.body || {};
-      if (!name || !email || !phone || !projectType || !planTier) {
-        return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
-      }
-      const newInquiry = {
-        id: `INQ-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        ...req.body,
-        status: req.body.status || 'contacted',
-        progress: req.body.progress || 'New request',
-      };
-      await firestore.collection('inquiries').add(newInquiry);
-      return res.status(201).json({ success: true, message: 'Inquiry received!', inquiryId: newInquiry.id });
-    }
-
+    // Inquiries list / delete
     if (path === 'inquiries' && method === 'GET') {
       if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
       const snap = await firestore.collection('inquiries').get();
@@ -125,7 +160,7 @@ export default async function handler(req, res) {
       return res.json({ success: true, message: `Inquiry ${segments[1]} deleted.` });
     }
 
-    // ─── AI verify task ─────────────────────────────────────────────
+    // AI verify task
     if (path === 'ai/verify-task' && method === 'POST') {
       const { taskTitle, taskDescription, taskNotices, submissionText, submissionUrl, internName, codeFiles } = req.body || {};
       if (!taskTitle || !submissionText) {
@@ -190,7 +225,7 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
       }
     }
 
-    // ─── Referrals ──────────────────────────────────────────────────
+    // ─── Referrals (create / delete / mark contacted) ───────────────
     if (path === 'referrals' && method === 'POST') {
       if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
       const referral = {
@@ -202,32 +237,6 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
       };
       const ref = await firestore.collection('referrals').add(referral);
       return res.status(201).json({ success: true, data: { id: ref.id, ...referral } });
-    }
-
-    if (path === 'referral-visits' && method === 'POST') {
-      if (!firestore) return res.status(503).json({ error: 'Firestore not configured' });
-      const { referralCode } = req.body || {};
-      const code = String(referralCode || '').toUpperCase();
-      const refSnap = await firestore.collection('referrals').get();
-      let matchedReferral = null;
-      for (const d of refSnap.docs) {
-        if (String(d.data().code).toUpperCase() === code) { matchedReferral = d; break; }
-      }
-      const visit = {
-        ...req.body,
-        referralCode: code,
-        matched: Boolean(matchedReferral),
-        visitedAt: req.body.visitedAt || new Date().toISOString(),
-        action: 'visited',
-      };
-      await firestore.collection('referralVisits').add(visit);
-      if (matchedReferral) {
-        await matchedReferral.ref.update({
-          visited: Number(matchedReferral.data().visited || 0) + 1,
-          lastVisitedAt: visit.visitedAt,
-        });
-      }
-      return res.status(201).json({ success: true, data: visit });
     }
 
     if (segments[0] === 'referrals' && segments[1] && method === 'DELETE') {
