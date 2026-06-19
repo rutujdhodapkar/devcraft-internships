@@ -10,3 +10,4 @@ build/
 Thumbs.db
 
 .vercel
+*-service-account.*
