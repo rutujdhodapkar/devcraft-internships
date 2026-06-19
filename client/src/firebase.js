@@ -1,98 +1,112 @@
-import { initializeApp } from 'firebase/app';
-import { getDatabase } from 'firebase/database';
+export const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+export const isFirebaseConfigured = true;
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || 'https://login-data-680b9-default-rtdb.firebaseio.com',
-};
+const AUTH_STORAGE_KEY = "devcraft_google_user";
 
-export const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.databaseURL);
-
-let rtdb = null;
-
-if (isFirebaseConfigured) {
-  const app = initializeApp(firebaseConfig);
-  rtdb = getDatabase(app);
+function decodeJwtPayload(token) {
+  const [, payload] = String(token || "").split(".");
+  if (!payload) throw new Error("Invalid Google credential.");
+  const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(atob(normalized));
 }
 
-export { rtdb };
-export const db = null;
-
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-let currentUser = null;
-const listeners = new Set();
-
-export function onAuthStateChanged(callback) {
-  listeners.add(callback);
-  if (currentUser) callback(currentUser);
-  return () => listeners.delete(callback);
+function mapGooglePayload(payload, credential) {
+  return {
+    uid: payload.sub,
+    id: payload.sub,
+    email: payload.email || "",
+    displayName: payload.name || payload.email || "Google User",
+    photoURL: payload.picture || "",
+    credential,
+  };
 }
 
-function notifyListeners(user) {
-  currentUser = user;
-  listeners.forEach(fn => fn(user));
-}
-
-function initGis() {
-  if (typeof google === 'undefined' || !google.accounts) {
-    const s = document.createElement('script');
-    s.src = 'https://accounts.google.com/gsi/client';
-    s.async = true;
-    s.defer = true;
-    document.body.appendChild(s);
+export function getStoredGoogleUser() {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
   }
 }
 
-export function signInWithGoogle() {
+export function clearStoredGoogleUser() {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
+export async function signInWithGoogleCredential(credential) {
+  const payload = decodeJwtPayload(credential);
+  const response = await fetch("/api/auth/google", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ credential }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.success === false) {
+    throw new Error(data.message || "Google login could not be verified.");
+  }
+  const user = mapGooglePayload(data.user || payload, credential);
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+  window.dispatchEvent(new CustomEvent("devcraft-auth", { detail: user }));
+  return user;
+}
+
+export function onGoogleAuthStateChanged(callback) {
+  callback(getStoredGoogleUser());
+  const handler = (event) => callback(event.detail || getStoredGoogleUser());
+  window.addEventListener("devcraft-auth", handler);
+  window.addEventListener("storage", handler);
+  return () => {
+    window.removeEventListener("devcraft-auth", handler);
+    window.removeEventListener("storage", handler);
+  };
+}
+
+export function signOutGoogle() {
+  clearStoredGoogleUser();
+  window.dispatchEvent(new CustomEvent("devcraft-auth", { detail: null }));
+}
+
+export async function openGoogleLogin() {
+  if (!googleClientId) {
+    throw new Error("Google login is not configured.");
+  }
+  if (!window.google?.accounts?.id) {
+    await new Promise((resolve, reject) => {
+      const existing = document.querySelector("script[data-google-identity]");
+      if (existing) {
+        existing.addEventListener("load", resolve, { once: true });
+        existing.addEventListener("error", reject, { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.dataset.googleIdentity = "true";
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("Could not load Google login."));
+      document.head.appendChild(script);
+    });
+  }
   return new Promise((resolve, reject) => {
-    if (!GOOGLE_CLIENT_ID) {
-      reject(new Error('Google Client ID not configured.'));
-      return;
-    }
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: 'openid email profile',
-      callback: (response) => {
-        if (response.error) {
-          if (response.error === 'user_cancelled') return;
-          reject(new Error(response.error));
-          return;
+    window.google.accounts.id.initialize({
+      client_id: googleClientId,
+      callback: async (response) => {
+        try {
+          resolve(await signInWithGoogleCredential(response.credential));
+        } catch (err) {
+          reject(err);
         }
-        fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-          headers: { Authorization: `Bearer ${response.access_token}` }
-        })
-          .then(r => r.json())
-          .then(info => {
-            const user = {
-              uid: info.sub,
-              email: info.email,
-              displayName: info.name,
-              photoURL: info.picture,
-              emailVerified: info.email_verified,
-              accessToken: response.access_token,
-              toJSON: () => ({ ...user }),
-            };
-            notifyListeners(user);
-            resolve(user);
-          })
-          .catch(err => reject(err));
       },
     });
-    client.requestAccessToken({ prompt: 'select_account' });
+    window.google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
+        reject(new Error("Google login prompt was closed or blocked."));
+      }
+    });
   });
 }
 
-export function signOut() {
-  if (currentUser?.accessToken && typeof google !== 'undefined' && google.accounts?.oauth2) {
-    try { google.accounts.oauth2.revoke(currentUser.accessToken, () => {}); } catch {}
-  }
-  notifyListeners(null);
-}
-
-initGis();
+export const auth = null;
+export const googleProvider = null;

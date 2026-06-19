@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { isFirebaseConfigured, signInWithGoogle } from '../firebase';
+import { openGoogleLogin } from '../firebase';
 import GooeyNav from './GooeyNav';
 
 export default function AuthPage({ onAuthSuccess, onBackToSite }) {
@@ -7,28 +7,15 @@ export default function AuthPage({ onAuthSuccess, onBackToSite }) {
   const [error, setError] = useState('');
 
   const handleGoogleLogin = async () => {
-    if (!isFirebaseConfigured) {
-      setError('Google Login is not configured.');
-      return;
-    }
-
     setLoading(true);
     setError('');
 
     try {
-      await signInWithGoogle();
+      await openGoogleLogin();
       onAuthSuccess();
     } catch (err) {
-      if (err.message === 'user_cancelled') {
-        // User closed popup - do nothing
-      } else {
-        console.error('Google Sign In failed:', err);
-        if (err.message?.includes('popup')) {
-          setError('Popup was blocked. Please allow popups for this site and try again.');
-        } else {
-          setError(err.message);
-        }
-      }
+      console.error('Google Sign In failed:', err);
+      setError(err.message || 'Google sign in failed.');
     } finally {
       setLoading(false);
     }

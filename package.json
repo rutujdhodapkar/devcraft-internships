@@ -7,6 +7,9 @@
     "client": "npm run dev --prefix client",
     "dev": "concurrently \"npm run server\" \"npm run client\""
   },
+  "dependencies": {
+    "firebase-admin": "^14.0.0"
+  },
   "devDependencies": {
     "concurrently": "^8.2.2"
   }

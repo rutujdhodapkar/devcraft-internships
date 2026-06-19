@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { fetchServices, DEFAULT_SERVICES } from '../services/data';
+import { fetchServices } from '../services/data';
 
 export default function Services({ currency, rates, convertPrice, formatPrice, onSelectTier, isModalView = false }) {
-  const [services, setServices] = useState(DEFAULT_SERVICES);
+  const [services, setServices] = useState(null);
   const [loadingServices, setLoadingServices] = useState(true);
 
   useEffect(() => {
@@ -10,7 +10,7 @@ export default function Services({ currency, rates, convertPrice, formatPrice, o
     setLoadingServices(true);
     fetchServices()
       .then((data) => { if (!cancelled) setServices(data); })
-      .catch(() => { if (!cancelled) setServices(DEFAULT_SERVICES); })
+      .catch(() => { if (!cancelled) setServices(null); })
       .finally(() => { if (!cancelled) setLoadingServices(false); });
     return () => { cancelled = true; };
   }, []);
@@ -62,8 +62,9 @@ export default function Services({ currency, rates, convertPrice, formatPrice, o
     );
   };
 
-  const softwareTiers = (services.software || DEFAULT_SERVICES.software).map((t) => ({ ...t, category: 'software' }));
-  const documentationTiers = (services.documentation || DEFAULT_SERVICES.documentation).map((t) => ({ ...t, category: 'documentation' }));
+  const servicesData = services || { software: [], documentation: [] };
+  const softwareTiers = (servicesData.software || []).map((t) => ({ ...t, category: 'software' }));
+  const documentationTiers = (servicesData.documentation || []).map((t) => ({ ...t, category: 'documentation' }));
 
   return (
     <section id="services" className={`services-section ${isModalView ? '' : 'section-padding'}`}>

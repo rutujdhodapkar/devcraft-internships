@@ -4323,7 +4323,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               }}
             >
               Runs entirely in your browser — no server needed. Uses Chrome built-in
-              AI when available, or set <code>VITE_NVIDIA_API_KEY</code> in{" "}
+              AI when available, or set <code>NVIDIA_API_KEY</code> on the backend in{" "}
               <code>client/.env</code> for NVIDIA LLM. Falls back to local checks if
               neither is available.
             </p>

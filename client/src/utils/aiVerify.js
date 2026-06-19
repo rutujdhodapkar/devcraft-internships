@@ -2,7 +2,7 @@
  * AI task verification — runs entirely in the admin browser (no server proxy).
  * Visits submitted GitHub/repo links, reads the actual code, and verifies it
  * against the task requirements.
- * Tries: Chrome Prompt API → NVIDIA API (VITE_NVIDIA_API_KEY) → local heuristic.
+ * Tries: Chrome Prompt API → server NVIDIA API → local heuristic.
  */
 
 const SYSTEM_PROMPT = `You are a STRICT internship task verifier. Your ONLY job is to compare the student's ACTUAL CODE against the task requirements and determine if they match. You are biased toward rejection — only verify if you are CERTAIN the code correctly implements the task.
@@ -412,29 +412,6 @@ async function verifyWithChromePrompt(userPrompt) {
   return parseAiJson(content);
 }
 
-async function verifyWithNvidia(userPrompt) {
-  const apiKey = import.meta.env.VITE_NVIDIA_API_KEY;
-  if (!apiKey) return null;
-  const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: "meta/llama-3.3-70b-instruct",
-      messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt }],
-      temperature: 0.3,
-      max_tokens: 1200,
-    }),
-  });
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`NVIDIA API error ${response.status}: ${errorText.slice(0, 200)}`);
-  }
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "";
-  const result = parseAiJson(content);
-  return { ...result, source: "nvidia", rawResponse: content };
-}
-
 export async function verifyTaskInBrowser(params) {
   if (!params.taskTitle || !params.submissionText) {
     throw new Error("Task title and submission text are required.");
@@ -461,16 +438,6 @@ export async function verifyTaskInBrowser(params) {
     }
   } catch (err) {
     console.warn("Chrome Prompt API failed:", err.message);
-  }
-
-  try {
-    const nvidiaResult = await verifyWithNvidia(userPrompt);
-    if (nvidiaResult) {
-      nvidiaResult.codeFilesCount = codeFiles.length;
-      return { success: true, data: nvidiaResult };
-    }
-  } catch (err) {
-    console.warn("NVIDIA browser API failed:", err.message);
   }
 
   const heuristicResult = await heuristicVerify(paramsWithCode);
