@@ -1,21 +1,17 @@
 import express from 'express';
 import cors from 'cors';
-import { neon } from '@neondatabase/serverless';
-import crypto from 'crypto';
+import admin from 'firebase-admin';
 
-const sql = neon(process.env.DATABASE_URL);
+if (!admin.apps.length) {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    admin.initializeApp({ credential: admin.credential.cert(sa) });
+  } else {
+    admin.initializeApp();
+  }
+}
 
-sql`
-  CREATE TABLE IF NOT EXISTS docs (
-    collection TEXT NOT NULL,
-    doc_id TEXT NOT NULL,
-    data JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (collection, doc_id)
-  )
-`.catch(() => {});
-
+const db = admin.firestore();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -26,10 +22,10 @@ async function verifyToken(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) { req.authUser = null; return next(); }
   try {
-    const resp = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${token}`);
-    if (resp.ok) {
-      const info = await resp.json();
-      req.authUser = { uid: info.sub, email: info.email };
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+      req.authUser = { uid: payload.sub, email: payload.email || '' };
     } else { req.authUser = null; }
   } catch { req.authUser = null; }
   next();
@@ -41,36 +37,39 @@ const PUBLIC = ['careerPaths', 'faqs', 'services', 'siteContent', 'siteNotices',
 async function proxy(action, coll, doc, data) {
   if (!coll) return [400, { error: 'collection required' }];
   try {
+    const ref = doc ? db.collection(coll).doc(doc) : null;
     switch (action) {
       case 'get': {
         if (doc) {
-          const r = await sql`SELECT data FROM docs WHERE collection=${coll} AND doc_id=${doc}`;
-          return [200, { data: r.length ? { id: doc, ...r[0].data } : null }];
+          const snap = await ref.get();
+          return [200, { data: snap.exists ? { id: doc, ...snap.data() } : null }];
         }
-        const r = await sql`SELECT doc_id, data FROM docs WHERE collection=${coll} ORDER BY created_at`;
-        return [200, { data: r.map(x => ({ id: x.doc_id, ...x.data })) }];
+        const snap = await db.collection(coll).orderBy('createdAt', 'asc').get();
+        const arr = [];
+        snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
+        return [200, { data: arr }];
       }
       case 'set': {
-        const d = data || {};
-        await sql`INSERT INTO docs (collection, doc_id, data) VALUES (${coll}, ${doc || crypto.randomUUID()}, ${JSON.stringify(d)}) ON CONFLICT (collection, doc_id) DO UPDATE SET data=${JSON.stringify(d)}, updated_at=NOW()`;
-        return [200, { data: { id: doc, ...d } }];
+        await ref.set(data || {}, { merge: false });
+        return [200, { data: { id: doc, ...data } }];
       }
       case 'update': {
         if (!data) return [400, { error: 'data required' }];
-        const existing = doc ? (await sql`SELECT data FROM docs WHERE collection=${coll} AND doc_id=${doc}`)[0] : null;
-        const merged = existing ? { ...existing.data, ...data } : data;
-        await sql`INSERT INTO docs (collection, doc_id, data) VALUES (${coll}, ${doc}, ${JSON.stringify(merged)}) ON CONFLICT (collection, doc_id) DO UPDATE SET data=${JSON.stringify(merged)}, updated_at=NOW()`;
+        await ref.set(data, { merge: true });
         return [200, { success: true }];
       }
       case 'push': {
         const d = data || {};
-        const id = d.id || crypto.randomUUID();
-        await sql`INSERT INTO docs (collection, doc_id, data) VALUES (${coll}, ${id}, ${JSON.stringify(d)}) ON CONFLICT (collection, doc_id) DO UPDATE SET data=${JSON.stringify(d)}, updated_at=NOW()`;
-        return [200, { data: { id, ...d } }];
+        if (doc) {
+          await ref.set(d, { merge: false });
+          return [200, { data: { id: doc, ...d } }];
+        }
+        const r = await db.collection(coll).add(d);
+        return [200, { data: { id: r.id, ...d } }];
       }
       case 'delete': {
         if (!doc) return [400, { error: 'doc required' }];
-        await sql`DELETE FROM docs WHERE collection=${coll} AND doc_id=${doc}`;
+        await ref.delete();
         return [200, { success: true }];
       }
       default: return [400, { error: `unknown action: ${action}` }];
@@ -81,7 +80,7 @@ async function proxy(action, coll, doc, data) {
 // Firestore-style proxy
 app.post('/api/firestore/:action', async (req, res) => {
   const { action } = req.params;
-  const { collection, doc, data, authRequired } = req.body || {};
+  const { collection, doc, data } = req.body || {};
   const isWrite = ['set', 'update', 'push', 'delete'].includes(action);
   if (isWrite && !req.authUser) return res.status(401).json({ error: 'auth required' });
   const [code, json] = await proxy(action, collection, doc, data);
@@ -102,29 +101,36 @@ app.get('/api/rates', async (req, res) => {
 app.post('/api/inquire', async (req, res) => {
   const { name, email, phone, projectType, planTier } = req.body || {};
   if (!name || !email || !phone || !projectType || !planTier) return res.status(400).json({ success: false, message: 'All fields required' });
-  await sql`INSERT INTO docs (collection, doc_id, data) VALUES ('inquiries', ${`INQ-${Date.now()}`}, ${JSON.stringify({ ...req.body, id: `INQ-${Date.now()}`, createdAt: new Date().toISOString(), status: 'contacted', progress: 'New request' })})`;
+  const id = `INQ-${Date.now()}`;
+  await db.collection('inquiries').doc(id).set({ ...req.body, id, createdAt: new Date().toISOString(), status: 'contacted', progress: 'New request' });
   res.status(201).json({ success: true, message: 'Inquiry received!' });
 });
 
 // Referral visits
 app.post('/api/referral-visits', async (req, res) => {
   const code = String(req.body?.referralCode || '').toUpperCase();
-  const refs = await sql`SELECT doc_id, data FROM docs WHERE collection='referrals'`;
-  const matched = refs.find(r => String(r.data?.code).toUpperCase() === code);
-  await sql`INSERT INTO docs (collection, doc_id, data) VALUES ('referralVisits', ${`VIS-${Date.now()}`}, ${JSON.stringify({ ...req.body, referralCode: code, matched: !!matched, visitedAt: new Date().toISOString(), action: 'visited' })})`;
-  if (matched) await sql`UPDATE docs SET data=jsonb_set(data, '{visited}', (COALESCE(data->>'visited','0')::int+1)::text::jsonb), updated_at=NOW() WHERE collection='referrals' AND doc_id=${matched.doc_id}`;
-  res.status(201).json({ success: true, data: { referralCode: code, matched: !!matched } });
+  const refs = await db.collection('referrals').get();
+  let matched = false;
+  refs.forEach(d => { if (String(d.data().code).toUpperCase() === code) matched = true; });
+  await db.collection('referralVisits').add({ ...req.body, referralCode: code, matched, visitedAt: new Date().toISOString(), action: 'visited' });
+  if (matched) {
+    refs.forEach(d => {
+      if (String(d.data().code).toUpperCase() === code) d.ref.update({ visited: (d.data().visited || 0) + 1 });
+    });
+  }
+  res.status(201).json({ success: true, data: { referralCode: code, matched } });
 });
 
 // Admin data
 app.get('/api/admin-data', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const [inq, ref, vis] = await Promise.all([
-    sql`SELECT doc_id, data FROM docs WHERE collection='inquiries' ORDER BY (data->>'createdAt') DESC`,
-    sql`SELECT doc_id, data FROM docs WHERE collection='referrals' ORDER BY created_at`,
-    sql`SELECT doc_id, data FROM docs WHERE collection='referralVisits' ORDER BY (data->>'visitedAt') DESC LIMIT 100`,
+    db.collection('inquiries').orderBy('createdAt', 'desc').get(),
+    db.collection('referrals').orderBy('createdAt', 'asc').get(),
+    db.collection('referralVisits').orderBy('visitedAt', 'desc').limit(100).get(),
   ]);
-  res.json({ success: true, data: { requests: inq.map(x => ({ id: x.doc_id, ...x.data })), referrals: ref.map(x => ({ id: x.doc_id, ...x.data })), visits: vis.map(x => ({ id: x.doc_id, ...x.data })) } });
+  const toArr = s => { const a = []; s.forEach(d => a.push({ id: d.id, ...d.data() })); return a; };
+  res.json({ success: true, data: { requests: toArr(inq), referrals: toArr(ref), visits: toArr(vis) } });
 });
 
 // Check admin
@@ -133,42 +139,47 @@ app.post('/api/check-admin', async (req, res) => {
   const email = (req.body?.email || '').toLowerCase().trim();
   if (!email) return res.status(400).json({ success: false, message: 'Email required' });
   if (email === 'rutujdhodapkar@gmail.com') return res.json({ success: true, isAdmin: true });
-  const admins = await sql`SELECT data FROM docs WHERE collection='admins'`;
-  res.json({ success: true, isAdmin: admins.some(a => a.data?.email?.toLowerCase().trim() === email) });
+  const snap = await db.collection('admins').where('email', '==', email).get();
+  res.json({ success: true, isAdmin: !snap.empty });
 });
 
 // Admins
 app.get('/api/admins', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const r = await sql`SELECT data FROM docs WHERE collection='admins' ORDER BY created_at`;
-  res.json({ success: true, data: r.map(x => x.data?.email) });
+  const snap = await db.collection('admins').orderBy('createdAt', 'asc').get();
+  const emails = [];
+  snap.forEach(d => emails.push(d.data().email));
+  res.json({ success: true, data: emails });
 });
 
 app.post('/api/admins', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const email = (req.body?.email || '').toLowerCase().trim();
   if (!email) return res.status(400).json({ success: false, message: 'Email required' });
-  await sql`INSERT INTO docs (collection, doc_id, data) VALUES ('admins', ${crypto.randomUUID()}, ${JSON.stringify({ email })}) ON CONFLICT (collection, doc_id) DO NOTHING`;
+  await db.collection('admins').add({ email, createdAt: new Date().toISOString() });
   res.json({ success: true });
 });
 
 app.delete('/api/admins/:email', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const clean = decodeURIComponent(req.params.email).toLowerCase().trim();
-  await sql`DELETE FROM docs WHERE collection='admins' AND LOWER(data->>'email')=${clean}`;
+  const snap = await db.collection('admins').where('email', '==', clean).get();
+  snap.forEach(d => d.ref.delete());
   res.json({ success: true });
 });
 
 // Inquiries
 app.get('/api/inquiries', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const r = await sql`SELECT doc_id, data FROM docs WHERE collection='inquiries' ORDER BY created_at`;
-  res.json({ success: true, data: r.map(x => ({ id: x.doc_id, ...x.data })) });
+  const snap = await db.collection('inquiries').orderBy('createdAt', 'asc').get();
+  const arr = [];
+  snap.forEach(d => arr.push({ id: d.id, ...d.data() }));
+  res.json({ success: true, data: arr });
 });
 
 app.delete('/api/inquiries/:id', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  await sql`DELETE FROM docs WHERE collection='inquiries' AND doc_id=${req.params.id}`;
+  await db.collection('inquiries').doc(req.params.id).delete();
   res.json({ success: true });
 });
 
@@ -176,21 +187,21 @@ app.delete('/api/inquiries/:id', async (req, res) => {
 app.post('/api/referrals', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const code = req.body?.code || `REF-${Date.now().toString(36).toUpperCase()}`;
-  await sql`INSERT INTO docs (collection, doc_id, data) VALUES ('referrals', ${code}, ${JSON.stringify({ ...req.body, code, visited: 0, contacted: 0, createdAt: new Date().toISOString() })})`;
+  await db.collection('referrals').doc(code).set({ ...req.body, code, visited: 0, contacted: 0, createdAt: new Date().toISOString() });
   res.status(201).json({ success: true, data: { code } });
 });
 
 app.delete('/api/referrals/:code', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
-  const code = String(req.params.code).toUpperCase();
-  await sql`DELETE FROM docs WHERE collection='referrals' AND doc_id=${code}`;
+  await db.collection('referrals').doc(req.params.code).delete();
   res.json({ success: true });
 });
 
 app.post('/api/referrals/:code/contacted', async (req, res) => {
   if (!req.authUser) return res.status(401).json({ error: 'auth required' });
   const code = String(req.params.code).toUpperCase();
-  await sql`UPDATE docs SET data=jsonb_set(jsonb_set(data, '{contacted}', (COALESCE(data->>'contacted','0')::int+1)::text::jsonb), '{lastContactedAt}', ${JSON.stringify(new Date().toISOString())}::jsonb), updated_at=NOW() WHERE collection='referrals' AND doc_id=${code}`;
+  const snap = await db.collection('referrals').where('code', '==', code).get();
+  snap.forEach(d => d.ref.update({ contacted: (d.data().contacted || 0) + 1, lastContactedAt: new Date().toISOString() }));
   res.json({ success: true });
 });
 
