@@ -9,15 +9,19 @@ export default function AuthPage({ onAuthSuccess, onBackToSite }) {
     setLoading(true);
     setError('');
     try {
-      if (window.Clerk?.openSignIn) {
-        window.Clerk.openSignIn();
+      if (window.Clerk?.client?.signIn?.authenticateWithRedirect) {
+        await window.Clerk.client.signIn.authenticateWithRedirect({
+          strategy: 'oauth_google',
+          redirectUrl: window.location.href,
+          redirectUrlComplete: window.location.href,
+        });
       } else {
         setError('Sign-in is loading. Please try again.');
+        setLoading(false);
       }
     } catch (err) {
       console.error('Sign-in failed:', err);
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };

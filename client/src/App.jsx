@@ -456,8 +456,12 @@ export default function App() {
   const handleLoginClick = async () => {
     setAuthLoading(true);
     try {
-      if (window.Clerk?.openSignIn) {
-        window.Clerk.openSignIn();
+      if (window.Clerk?.client?.signIn?.authenticateWithRedirect) {
+        await window.Clerk.client.signIn.authenticateWithRedirect({
+          strategy: 'oauth_google',
+          redirectUrl: window.location.href,
+          redirectUrlComplete: window.location.href,
+        });
       } else {
         showAlert("Sign-in is loading. Please try again.", "error");
         setAuthLoading(false);
