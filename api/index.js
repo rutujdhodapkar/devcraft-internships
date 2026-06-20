@@ -435,8 +435,11 @@ async function handleAiGradeQuiz(req, res) {
 }
 
 async function handleData(req, res, routeParts) {
-  const db = initFirebase();
   const [resource, id, sub, extra, extra2] = routeParts;
+
+  if (resource === "stripe-config") return send(res, 200, { success: true, data: { publishableKey: STRIPE_PUBLISHABLE_KEY || "" } });
+
+  const db = initFirebase();
 
   if (resource === "career-paths") {
     if (req.method === "GET") {
@@ -465,7 +468,6 @@ async function handleData(req, res, routeParts) {
     return send(res, 200, { success: true, data: (await setDoc(db, "config", "aboutText", { value: req.body.text || "", updatedAt: now() })).value });
   }
   if (resource === "payment-settings") return getSetConfig(db, req, res, "paymentSettings", req.body);
-  if (resource === "stripe-config") return send(res, 200, { success: true, data: { publishableKey: STRIPE_PUBLISHABLE_KEY || "" } });
   if (resource === "users") return handleUsers(db, req, res, id, sub, extra);
   if (resource === "enrollments") return handleEnrollments(db, req, res, id, sub, extra, extra2);
   if (resource === "admin-data") {
