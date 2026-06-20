@@ -5,8 +5,11 @@ const serviceAccount = JSON.parse(
   readFileSync(process.env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH, "utf8")
 );
 
-admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-const db = admin.firestore();
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://login-data-680b9-default-rtdb.firebaseio.com",
+});
+const db = admin.database();
 
 const CAREER_PATHS = [
   {
@@ -83,45 +86,42 @@ const TEMPLATES = {
 const ABOUT_TEXT = "DEV/CRAFT is a 100% free virtual internship platform for college students and aspiring developers. We provide hands-on project-based learning across multiple domains including Web Development, Python, Java, and more. Our mission is to bridge the gap between academic learning and industry-ready skills.";
 
 async function seed() {
-  console.log("Seeding Firestore...");
+  console.log("Seeding Realtime Database...");
 
   // Career Paths
-  const batch1 = db.batch();
-  const existing = await db.collection("careerPaths").get();
-  existing.docs.forEach((doc) => batch1.delete(doc.ref));
+  await db.ref("careerPaths").remove();
+  const pathsUpdates = {};
   CAREER_PATHS.forEach((path, idx) => {
     const id = path.id || `path_${idx + 1}`;
-    batch1.set(db.collection("careerPaths").doc(id), { ...path, id, updatedAt: new Date().toISOString() });
+    pathsUpdates[`careerPaths/${id}`] = { ...path, id, updatedAt: new Date().toISOString() };
   });
-  await batch1.commit();
+  await db.ref().update(pathsUpdates);
   console.log(`  ✓ Career paths (${CAREER_PATHS.length})`);
 
   // How It Works
-  const batch2 = db.batch();
-  const existing2 = await db.collection("howItWorks").get();
-  existing2.docs.forEach((doc) => batch2.delete(doc.ref));
+  await db.ref("howItWorks").remove();
+  const worksUpdates = {};
   HOW_IT_WORKS.forEach((step) => {
-    batch2.set(db.collection("howItWorks").doc(step.id), { ...step, updatedAt: new Date().toISOString() });
+    worksUpdates[`howItWorks/${step.id}`] = { ...step, updatedAt: new Date().toISOString() };
   });
-  await batch2.commit();
+  await db.ref().update(worksUpdates);
   console.log(`  ✓ How it works (${HOW_IT_WORKS.length})`);
 
   // FAQs
-  const batch3 = db.batch();
-  const existing3 = await db.collection("faqs").get();
-  existing3.docs.forEach((doc) => batch3.delete(doc.ref));
+  await db.ref("faqs").remove();
+  const faqUpdates = {};
   FAQS.forEach((faq) => {
-    batch3.set(db.collection("faqs").doc(faq.id), { ...faq, updatedAt: new Date().toISOString() });
+    faqUpdates[`faqs/${faq.id}`] = { ...faq, updatedAt: new Date().toISOString() };
   });
-  await batch3.commit();
+  await db.ref().update(faqUpdates);
   console.log(`  ✓ FAQs (${FAQS.length})`);
 
-  // Templates (config doc)
-  await db.collection("config").doc("templates").set({ value: TEMPLATES, updatedAt: new Date().toISOString() });
+  // Templates (config node)
+  await db.ref("config/templates").set({ value: TEMPLATES, updatedAt: new Date().toISOString() });
   console.log("  ✓ Templates");
 
-  // About Text (config doc)
-  await db.collection("config").doc("aboutText").set({ value: ABOUT_TEXT, updatedAt: new Date().toISOString() });
+  // About Text (config node)
+  await db.ref("config/aboutText").set({ value: ABOUT_TEXT, updatedAt: new Date().toISOString() });
   console.log("  ✓ About text");
 
   console.log("\nSeeding complete!");

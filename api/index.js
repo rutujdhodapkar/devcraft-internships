@@ -7,6 +7,7 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
+const DATABASE_URL = "https://login-data-680b9-default-rtdb.firebaseio.com";
 
 function send(res, status, payload) {
   res.status(status).json(payload);
@@ -31,16 +32,17 @@ function getServiceAccount() {
 }
 
 function initFirebase() {
-  if (admin.apps.length) return admin.firestore();
+  if (admin.apps.length) return admin.database();
   const credential = getServiceAccount();
   if (!credential) {
     throw new Error("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY on Vercel.");
   }
   admin.initializeApp({
     credential: admin.credential.cert(credential),
+    databaseURL: DATABASE_URL,
     projectId: credential.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
   });
-  return admin.firestore();
+  return admin.database();
 }
 
 function cleanId(value) {
@@ -59,49 +61,61 @@ function now() {
   return new Date().toISOString();
 }
 
+// RTDB helpers
 async function listCollection(db, name) {
-  const snap = await db.collection(name).get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const snap = await db.ref(name).get();
+  if (!snap.exists()) return [];
+  const result = [];
+  snap.forEach(child => result.push({ id: child.key, ...child.val() }));
+  return result;
 }
 
 async function getDoc(db, collection, id, fallback = null) {
-  const doc = await db.collection(collection).doc(id).get();
-  return doc.exists ? { id: doc.id, ...doc.data() } : fallback;
+  const snap = await db.ref(`${collection}/${id}`).get();
+  return snap.exists() ? { id: snap.key, ...snap.val() } : fallback;
 }
 
 async function setDoc(db, collection, id, data, merge = true) {
-  const ref = db.collection(collection).doc(id);
-  await ref.set(data, { merge });
-  const doc = await ref.get();
-  return { id: doc.id, ...doc.data() };
+  const ref = db.ref(`${collection}/${id}`);
+  if (merge) {
+    await ref.update(data);
+  } else {
+    await ref.set(data);
+  }
+  const snap = await ref.get();
+  return { id: snap.key, ...snap.val() };
 }
 
 async function deleteDoc(db, collection, id) {
-  await db.collection(collection).doc(id).delete();
+  await db.ref(`${collection}/${id}`).remove();
   return { id };
 }
 
 async function replaceKeyedCollection(db, collection, items, fallbackPrefix) {
-  const batch = db.batch();
-  const existing = await db.collection(collection).get();
-  existing.docs.forEach((doc) => batch.delete(doc.ref));
+  await db.ref(collection).remove();
+  const updates = {};
   items.forEach((item, idx) => {
     const id = cleanId(item.id) || `${fallbackPrefix}_${idx + 1}`;
-    batch.set(db.collection(collection).doc(id), { ...item, id, updatedAt: now() });
+    updates[`${collection}/${id}`] = { ...item, id, updatedAt: now() };
   });
-  await batch.commit();
+  if (Object.keys(updates).length) await db.ref().update(updates);
   return items;
 }
 
 async function listUserEnrollments(db, uid) {
-  const snap = await db.collection("enrollments").where("uid", "==", uid).get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const snap = await db.ref("enrollments").orderByChild("uid").equalTo(uid).get();
+  if (!snap.exists()) return [];
+  const result = [];
+  snap.forEach(child => result.push({ id: child.key, ...child.val() }));
+  return result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 }
 
 async function listReferralInterns(db, code) {
-  const snap = await db.collection("enrollments").where("referralCode", "==", code).get();
-  return snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const snap = await db.ref("enrollments").orderByChild("referralCode").equalTo(code).get();
+  if (!snap.exists()) return [];
+  const result = [];
+  snap.forEach(child => result.push({ id: child.key, ...child.val() }));
+  return result;
 }
 
 async function handleAuth(req, res) {
@@ -186,7 +200,6 @@ async function fetchCodeFromUrls(text, url) {
     if (seen.has(lower)) continue;
     seen.add(lower);
 
-    // GitHub repo
     const match = u.match(/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\/|$|\.git)/);
     if (match) {
       const owner = match[1], repo = match[2].replace(/\.git$/, "");
@@ -210,7 +223,6 @@ async function fetchCodeFromUrls(text, url) {
       continue;
     }
 
-    // Raw file URL
     if (/(?:raw\.githubusercontent|github\.io)/i.test(u) && u.startsWith("http")) {
       try {
         const res = await fetch(u);
@@ -232,7 +244,6 @@ async function handleAiVerify(req, res) {
   const apiKey = process.env.NVIDIA_API_KEY;
   if (!apiKey) return send(res, 500, { success: false, message: "NVIDIA API key not configured on server." });
 
-  // Fetch code from submitted URLs server-side
   let codeFiles = [];
   let fetchError = null;
   try {
@@ -368,14 +379,13 @@ async function handleStripeWebhook(req, res) {
       if (stage === "fully_paid" || timing !== "both") {
         patch.allowedCertificate = "yes";
       }
-      await db.collection("enrollments").doc(enrollmentId).set(patch, { merge: true });
-      // Auto-check if certificate should unlock (all tasks verified + payment fully done)
+      await db.ref(`enrollments/${enrollmentId}`).update(patch);
       if ((stage === "fully_paid" || timing !== "both") && enrollment) {
         const submissions = enrollment.submissions || {};
         const projectCount = (enrollment.projects || []).length;
         const allVerified = projectCount > 0 && enrollment.projects.every((_, i) => submissions[i]?.verified);
         if (allVerified) {
-          await db.collection("enrollments").doc(enrollmentId).set({ allowedCertificate: "yes", updatedAt: now() }, { merge: true });
+          await db.ref(`enrollments/${enrollmentId}`).update({ allowedCertificate: "yes", updatedAt: now() });
         }
       }
     }
@@ -466,10 +476,13 @@ async function handleData(req, res, routeParts) {
   if (resource === "referral-visits") {
     const code = codeId(req.body.referralCode);
     const referral = code ? await getDoc(db, "referrals", code, null) : null;
-    const ref = db.collection("referralVisits").doc();
-    const data = { id: ref.id, ...req.body, referralCode: code, matched: Boolean(referral), visitedAt: req.body.visitedAt || now() };
-    await ref.set(data);
-    if (referral) await db.collection("referrals").doc(code).set({ visited: admin.firestore.FieldValue.increment(1), lastVisitedAt: data.visitedAt, updatedAt: now() }, { merge: true });
+    const newRef = db.ref("referralVisits").push();
+    const data = { id: newRef.key, ...req.body, referralCode: code, matched: Boolean(referral), visitedAt: req.body.visitedAt || now() };
+    await newRef.set(data);
+    if (referral) {
+      await db.ref(`referrals/${code}/visited`).transaction(current => (current || 0) + 1);
+      await db.ref(`referrals/${code}`).update({ lastVisitedAt: data.visitedAt, updatedAt: now() });
+    }
     return send(res, 201, { success: true, data });
   }
   if (resource === "referral-logins") return handleReferralLogin(db, req, res);
@@ -484,9 +497,9 @@ async function handleData(req, res, routeParts) {
   if (resource === "site-notices") return handleNotices(db, req, res, id, sub);
   if (resource === "homepage") return getSetConfig(db, req, res, "homepage", req.body.content);
   if (resource === "site-visits") {
-    const ref = db.collection("siteVisits").doc();
-    await ref.set({ id: ref.id, ...req.body, createdAt: now() });
-    return send(res, 201, { success: true, data: { id: ref.id } });
+    const newRef = db.ref("siteVisits").push();
+    await newRef.set({ id: newRef.key, ...req.body, createdAt: now() });
+    return send(res, 201, { success: true, data: { id: newRef.key } });
   }
   if (resource === "payment-stats") {
     const enrollments = await listCollection(db, "enrollments");
@@ -535,19 +548,17 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
   if (!id && req.method === "POST") {
     const domain = req.body.domain || {};
     const profile = req.body.profile || {};
-    const ref = db.collection("enrollments").doc();
-    // Look up payment settings for this domain
-      const paymentSettings = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || { defaultAmount: 200, defaultAmountReferral: 170 };
+    const newRef = db.ref("enrollments").push();
+    const paymentSettings = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || { defaultAmount: 200, defaultAmountReferral: 170 };
     const refCode = codeId(req.body.referralCode);
     const isReferral = Boolean(refCode);
     const domainAmount = domain.paymentAmount || (isReferral ? (paymentSettings.defaultAmountReferral || 170) : paymentSettings.defaultAmount || 200);
     const paymentTiming = domain.paymentTiming || paymentSettings.defaultTiming || "end";
-    // For "both" timing, split amount: start = half, end = remaining
     const splitPercent = domain.paymentSplitPercent || paymentSettings.defaultSplitPercent || 50;
     const paymentStartAmount = paymentTiming === "both" ? Math.round(domainAmount * splitPercent / 100) : 0;
     const paymentEndAmount = paymentTiming === "both" ? domainAmount - paymentStartAmount : domainAmount;
     const enrollment = {
-      id: ref.id,
+      id: newRef.key,
       uid: req.body.uid,
       name: profile.name || profile.displayName || "Student",
       email: profile.email || "",
@@ -575,13 +586,15 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       createdAt: now(),
       updatedAt: now(),
     };
-    await ref.set(enrollment);
-    if (enrollment.referralCode) await db.collection("referrals").doc(enrollment.referralCode).set({ contacted: admin.firestore.FieldValue.increment(1), updatedAt: now() }, { merge: true });
+    await newRef.set(enrollment);
+    if (enrollment.referralCode) {
+      await db.ref(`referrals/${enrollment.referralCode}/contacted`).transaction(current => (current || 0) + 1);
+      await db.ref(`referrals/${enrollment.referralCode}`).update({ updatedAt: now() });
+    }
     return send(res, 201, { success: true, data: enrollment });
   }
   if (id && req.method === "GET") return send(res, 200, { success: true, data: await getDoc(db, "enrollments", id, null) });
   if (id && req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(db, "enrollments", id) });
-  const ref = db.collection("enrollments").doc(id);
   const patch = { updatedAt: now() };
   if (sub === "status") patch.status = req.body.status;
   if (sub === "transaction") patch.transactionId = req.body.transactionId;
@@ -641,8 +654,7 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     if (extra2 === "feedback") Object.assign(patch, { [`${base}.feedback`]: req.body.feedback || "" });
     if (extra2 === "reject") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.rejected`]: true, [`${base}.feedback`]: req.body.feedback || "", [`${base}.rejectedAt`]: now() });
   }
-  await ref.set(patch, { merge: true });
-  // Auto-check certificate after update
+  await db.ref(`enrollments/${id}`).update(patch);
   const updated = await getDoc(db, "enrollments", id, null);
   if (updated) {
     const isPaid = updated.paymentTiming === "both" ? updated.paymentStage === "fully_paid" : updated.paymentStatus === "paid";
@@ -651,7 +663,7 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       const projs = updated.projects || [];
       const allVerified = projs.length > 0 && projs.every((_, i) => subs[i]?.verified);
       if (allVerified && updated.allowedCertificate !== "yes") {
-        await db.collection("enrollments").doc(id).set({ allowedCertificate: "yes", certificateUnlockedAt: now(), updatedAt: now() }, { merge: true });
+        await db.ref(`enrollments/${id}`).update({ allowedCertificate: "yes", certificateUnlockedAt: now(), updatedAt: now() });
       }
     }
   }
@@ -667,7 +679,8 @@ async function handleReferrals(db, req, res, id, sub) {
   if (id && req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(db, "referrals", codeId(id)) });
   if (sub === "matched") return send(res, 200, { success: true, data: { matched: Boolean(await getDoc(db, "referrals", codeId(id), null)) } });
   if (sub === "contacted") {
-    await db.collection("referrals").doc(codeId(id)).set({ contacted: admin.firestore.FieldValue.increment(1), lastContactedAt: now(), updatedAt: now() }, { merge: true });
+    await db.ref(`referrals/${codeId(id)}/contacted`).transaction(current => (current || 0) + 1);
+    await db.ref(`referrals/${codeId(id)}`).update({ lastContactedAt: now(), updatedAt: now() });
     return send(res, 200, { success: true, data: await getDoc(db, "referrals", codeId(id), null) });
   }
   if (sub === "achieved") return send(res, 200, { success: true, data: await setDoc(db, "referrals", codeId(id), { achieved: Boolean(req.body.achieved), achievedAt: req.body.achieved ? now() : null, updatedAt: now() }) });
@@ -675,11 +688,11 @@ async function handleReferrals(db, req, res, id, sub) {
   if (sub === "mark-payout") {
     const payoutAmount = req.body.payoutAmount || 0;
     const payoutNote = req.body.payoutNote || "";
-    await db.collection("referrals").doc(codeId(id)).set({ payoutStatus: "done", payoutAmount, payoutNote, payoutAt: now(), updatedAt: now() }, { merge: true });
+    await db.ref(`referrals/${codeId(id)}`).update({ payoutStatus: "done", payoutAmount, payoutNote, payoutAt: now(), updatedAt: now() });
     return send(res, 200, { success: true, data: await getDoc(db, "referrals", codeId(id), null) });
   }
   if (sub === "clear-payout") {
-    await db.collection("referrals").doc(codeId(id)).set({ payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: now() }, { merge: true });
+    await db.ref(`referrals/${codeId(id)}`).update({ payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: now() });
     return send(res, 200, { success: true, data: await getDoc(db, "referrals", codeId(id), null) });
   }
   return send(res, 404, { success: false, message: "Unknown referral route." });
@@ -688,8 +701,8 @@ async function handleReferrals(db, req, res, id, sub) {
 async function handleReferralLogin(db, req, res) {
   const code = codeId(req.body.referralCode);
   const user = req.body.user || {};
-  await db.collection("referralUsers").doc(`${code}_${user.uid}`).set({ ...user, code, loginAt: now(), updatedAt: now() }, { merge: true });
-  await db.collection("referrals").doc(code).set({ lastActivityAt: now(), updatedAt: now() }, { merge: true });
+  await db.ref(`referralUsers/${code}_${user.uid}`).set({ ...user, code, loginAt: now(), updatedAt: now() });
+  await db.ref(`referrals/${code}`).update({ lastActivityAt: now(), updatedAt: now() });
   return send(res, 201, { success: true, data: { code } });
 }
 
@@ -749,13 +762,13 @@ async function handleMessages(db, req, res, id, sub) {
     return send(res, 200, { success: true, data: msgs });
   }
   if (!id && req.method === "POST") {
-    const ref = db.collection("adminMessages").doc();
-    const data = { id: ref.id, ...req.body.message, acknowledgedBy: {}, createdAt: now() };
-    await ref.set(data);
+    const newRef = db.ref("adminMessages").push();
+    const data = { id: newRef.key, ...req.body.message, acknowledgedBy: {}, createdAt: now() };
+    await newRef.set(data);
     return send(res, 201, { success: true, data });
   }
   if (sub === "ack") {
-    await db.collection("adminMessages").doc(id).set({ [`acknowledgedBy.${req.body.uid}`]: { ...(req.body.userInfo || {}), uid: req.body.uid, acknowledgedAt: now() } }, { merge: true });
+    await db.ref(`adminMessages/${id}/acknowledgedBy/${req.body.uid}`).set({ ...(req.body.userInfo || {}), uid: req.body.uid, acknowledgedAt: now() });
     return send(res, 200, { success: true, data: { id } });
   }
   if (req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(db, "adminMessages", id) });
@@ -764,9 +777,9 @@ async function handleMessages(db, req, res, id, sub) {
 async function handleNotices(db, req, res, id, sub) {
   if (!id && req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "siteNotices")).filter((n) => n.active !== false) });
   if (!id && req.method === "POST") {
-    const ref = db.collection("siteNotices").doc();
-    const data = { id: ref.id, ...req.body.notice, active: true, createdAt: now() };
-    await ref.set(data);
+    const newRef = db.ref("siteNotices").push();
+    const data = { id: newRef.key, ...req.body.notice, active: true, createdAt: now() };
+    await newRef.set(data);
     return send(res, 201, { success: true, data });
   }
   if (sub === "toggle") return send(res, 200, { success: true, data: await setDoc(db, "siteNotices", id, { active: Boolean(req.body.active), updatedAt: now() }) });
@@ -801,10 +814,11 @@ async function buildReferralDashboard(db, uid) {
   const owner = await getDoc(db, "selfReferralOwners", uid, null);
   if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 } };
   const code = codeId(owner.code);
-  const [referral, interns, visits] = await Promise.all([
+  const snap = await db.ref("referralVisits").orderByChild("referralCode").equalTo(code).get();
+  const visits = snap.exists() ? (() => { const r = []; snap.forEach(c => r.push({ id: c.key, ...c.val() })); return r; })() : [];
+  const [referral, interns] = await Promise.all([
     getDoc(db, "referrals", code, null),
     listReferralInterns(db, code),
-    db.collection("referralVisits").where("referralCode", "==", code).get().then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),
   ]);
   const paidCompleted = interns.filter((i) => i.status === "Completed" && i.paymentStatus === "paid");
   const earnings = paidCompleted.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
@@ -812,16 +826,17 @@ async function buildReferralDashboard(db, uid) {
 }
 
 async function buildEmailReferralStat(db, email) {
-  const refs = await db.collection("referrals").where("email", "==", email).get();
-  if (refs.empty) return null;
-  const referral = { id: refs.docs[0].id, ...refs.docs[0].data() };
+  const snap = await db.ref("referrals").orderByChild("email").equalTo(email).get();
+  if (!snap.exists()) return null;
+  let first = null;
+  snap.forEach(c => { if (!first) first = { id: c.key, ...c.val() }; });
+  const referral = first;
   const interns = await listReferralInterns(db, codeId(referral.code || referral.id));
   return { referral, interns, internCount: interns.length, completed: interns.filter((i) => i.status === "Completed").length };
 }
 
 export default async function handler(req, res) {
   try {
-    // Stripe webhook needs raw body
     const rawPath = (req.url || "").split("?")[0].replace(/^\/api\/?/, "");
     const rawParts = rawPath.split("/").filter(Boolean);
     if (rawParts[0] === "stripe-webhook") return handleStripeWebhook(req, res);
