@@ -324,7 +324,10 @@ export async function rejectProject(enrollmentId, projectIndex, feedback) {
   await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: false, rejected: true, feedback, rejectedAt: new Date().toISOString() });
 }
 
-export async function fetchEnrollmentById(enrollmentId) { return dbGet(`enrollments/${enrollmentId}`); }
+export async function fetchEnrollmentById(enrollmentId) {
+  const data = await dbGet(`enrollments/${enrollmentId}`);
+  return data ? { id: enrollmentId, ...data } : null;
+}
 
 export async function fetchAdminData() {
   const [requests, referrals, visits, siteVisits] = await Promise.all([dbList("enrollments"), dbList("referrals"), dbList("referralVisits"), dbList("siteVisits")]);

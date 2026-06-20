@@ -68,6 +68,10 @@ export default function StudentDashboard({
   const [siteNotices, setSiteNotices] = useState([]);
 
   const handleOpenPayment = (enrollment, stage) => {
+    if (!enrollment?.id) {
+      console.error("handleOpenPayment: enrollment missing id", enrollment);
+      return;
+    }
     setPaymentEnrollment({ ...enrollment, _paymentStage: stage || "full" });
     setShowPaymentModal(true);
   };
