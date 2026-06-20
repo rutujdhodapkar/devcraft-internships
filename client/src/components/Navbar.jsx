@@ -493,59 +493,22 @@ export default function Navbar({
             )}
 
             {verificationResult && (
-              <div
-                style={{
-                  border: "2px dashed #bda068",
-                  padding: "1.25rem",
-                  backgroundColor: "#faf8f5",
-                  fontSize: "0.9rem",
-                }}
-              >
-                <span
-                  className="badge-sharp"
-                  style={{
-                    backgroundColor: "#34A853",
-                    color: "#fff",
-                    marginBottom: "0.75rem",
-                    display: "inline-block",
-                  }}
-                >
-                  VERIFIED PROGRAM
+              <div style={{ border: `2px dashed ${verificationResult.allVerified ? "#34A853" : "#EA4335"}`, padding: "1.25rem", backgroundColor: "#faf8f5", fontSize: "0.9rem" }}>
+                <span className="badge-sharp" style={{ backgroundColor: verificationResult.allVerified ? "#34A853" : "#EA4335", color: "#fff", marginBottom: "0.75rem", display: "inline-block" }}>
+                  {verificationResult.allVerified ? "VERIFIED PROGRAM" : "INCOMPLETE PROGRAM"}
                 </span>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <strong>Candidate Name:</strong> {verificationResult.name}
-                </div>
-                {verificationResult.internId && (
-                  <div style={{ marginBottom: "0.5rem" }}>
-                    <strong>Intern ID:</strong>{" "}
-                    <code>{verificationResult.internId}</code>
-                  </div>
-                )}
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <strong>Domain:</strong> {verificationResult.domain}
-                </div>
+                <div style={{ marginBottom: "0.5rem" }}><strong>Candidate Name:</strong> {verificationResult.name}</div>
+                {verificationResult.internId && (<div style={{ marginBottom: "0.5rem" }}><strong>Intern ID:</strong> <code>{verificationResult.internId}</code></div>)}
+                <div style={{ marginBottom: "0.5rem" }}><strong>Domain:</strong> {verificationResult.domain}</div>
                 <div style={{ marginBottom: "0.5rem" }}>
                   <strong>Status:</strong>{" "}
-                  <span
-                    style={{
-                      fontWeight: "bold",
-                      color:
-                        verificationResult.status === "Completed"
-                          ? "#34A853"
-                          : "#FBBC05",
-                    }}
-                  >
-                    {verificationResult.status}
+                  <span style={{ fontWeight: "bold", color: verificationResult.allVerified ? "#34A853" : "#EA4335" }}>
+                    {verificationResult.allVerified ? "Completed" : "Incomplete"}
                   </span>
                 </div>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  <strong>Enrolled Date:</strong>{" "}
-                  {new Date(verificationResult.createdAt).toLocaleDateString()}
-                </div>
-                <div>
-                  <strong>Institution:</strong>{" "}
-                  {verificationResult.college || "-"}
-                </div>
+                <div style={{ marginBottom: "0.5rem" }}><strong>Tasks:</strong> {verificationResult.submittedCount || 0} / {verificationResult.totalTasks || 0} submitted</div>
+                <div style={{ marginBottom: "0.5rem" }}><strong>Enrolled Date:</strong> {new Date(verificationResult.createdAt).toLocaleDateString()}</div>
+                <div><strong>Institution:</strong> {verificationResult.college || "-"}</div>
               </div>
             )}
           </div>

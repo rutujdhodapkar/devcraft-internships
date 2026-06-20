@@ -250,8 +250,17 @@ export async function allowCertificate(enrollmentId, allowed) {
 export async function verifyInternship(enrollmentId) {
   const enrollment = await dbGet(`enrollments/${enrollmentId}`);
   if (!enrollment) return null;
-  await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-  return { ...enrollment, status: "Completed", allowedCertificate: "yes" };
+  const projects = enrollment.projects || [];
+  const submissions = enrollment.submissions || {};
+  const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
+  const submittedCount = projects.filter((_, i) => submissions[i]?.submittedAt).length;
+  return {
+    ...enrollment,
+    status: allVerified ? "Completed" : "Incomplete",
+    allVerified,
+    submittedCount,
+    totalTasks: projects.length,
+  };
 }
 
 export async function submitProject(enrollmentId, projectIndex, submissionText, submissionUrl = "") {
