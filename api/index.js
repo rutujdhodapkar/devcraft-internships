@@ -855,8 +855,8 @@ export default async function handler(req, res) {
     if (parts[0] === "grade-quiz-text") return handleQuiz(req, res);
     if (parts[0] === "stripe-config") return send(res, 200, { success: true, data: { publishableKey: STRIPE_PUBLISHABLE_KEY || "" } });
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
-    console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts });
-    return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})` });
+    console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
+    return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {
     console.error("API error:", error);
     return send(res, 500, { success: false, message: error.message || "Server error." });
