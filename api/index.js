@@ -337,7 +337,6 @@ async function handleCreatePaymentIntent(req, res) {
       amount: Math.round(amount * 100),
       currency: currency.toLowerCase(),
       metadata: { enrollmentId, paymentStage },
-      automatic_payment_methods: { enabled: true },
       payment_method_types: paymentMethods,
     });
     return send(res, 200, { success: true, data: { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id } });
