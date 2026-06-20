@@ -65,8 +65,8 @@ export default function StripePaymentModal({ enrollmentId, amount, paymentStage 
   }, [enrollmentId, amount, paymentStage]);
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000 }}>
-      <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", width: "90%", maxWidth: "480px", boxShadow: "8px 8px 0 #000" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, overflowY: "auto", padding: "2rem 0" }}>
+      <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", width: "90%", maxWidth: "480px", boxShadow: "8px 8px 0 #000", maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
         <div style={{ height: "6px", background: "#000", marginBottom: "1.5rem", margin: "-2rem -2rem 1.5rem -2rem" }} />
         <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.2rem", marginBottom: "0.5rem" }}>Complete Payment</h3>
         <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>Pay ₹{amount} to unlock your internship.</p>
