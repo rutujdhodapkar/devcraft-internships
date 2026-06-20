@@ -558,7 +558,7 @@ export async function createPaymentIntent(enrollmentId, amount, paymentStage = "
 }
 
 export async function fetchStripeConfig() {
-  const d = await dbGet("siteConfig/stripe-config");
+  const d = await apiFetch("/api/stripe-config");
   return d?.data || { publishableKey: "" };
 }
 

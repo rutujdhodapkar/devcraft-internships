@@ -325,7 +325,7 @@ async function handleQuiz(req, res) {
 
 async function handleCreatePaymentIntent(req, res) {
   if (req.method !== "POST") return send(res, 405, { success: false, message: "Method not allowed." });
-  if (!stripe) return send(res, 500, { success: false, message: "Stripe not configured." });
+  if (!stripe) return send(res, 500, { success: false, message: "Stripe not configured (STRIPE_SECRET_KEY missing in server env)." });
   const { enrollmentId, amount, currency = "inr", paymentStage = "full" } = req.body || {};
   if (!enrollmentId || !amount) return send(res, 400, { success: false, message: "Missing enrollmentId or amount." });
   try {
