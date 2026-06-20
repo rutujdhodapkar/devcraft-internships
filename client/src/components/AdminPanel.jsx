@@ -3737,9 +3737,10 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 Credential HTML Templates
               </h3>
               <p style={{ color: "#666", fontSize: "0.82rem", margin: 0 }}>
-                Edit the HTML below. Available variables: <code>{"{{name}}"}</code> <code>{"{{domain}}"}</code>{" "}
-                <code>{"{{date}}"}</code> <code>{"{{id}}"}</code> <code>{"{{internId}}"}</code>. When an intern clicks a button,
-                the HTML is auto-filled with their data and a print dialog opens.
+                Edit the HTML below. All enrollment fields are available as variables, e.g.{" "}
+                <code>{"{{name}}"}</code> <code>{"{{email}}"}</code> <code>{"{{phone}}"}</code> <code>{"{{college}}"}</code>{" "}
+                <code>{"{{city}}"}</code> <code>{"{{country}}"}</code> <code>{"{{domain}}"}</code> <code>{"{{internId}}"}</code>{" "}
+                <code>{"{{date}}"}</code>. When an intern clicks a button, the HTML is auto-filled and a print dialog opens.
               </p>
             </div>
             {contentLoading ? (
@@ -3750,34 +3751,34 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   const name = prompt("New template name:");
                   if (!name) return;
                   const key = name.trim();
-                  if (templates.templates[key]) { alert("Template name already exists."); return; }
-                  setTemplates({ ...templates, templates: { ...templates.templates, [key]: "" }, templateOrder: [...templates.templateOrder, key] });
+                  if (templates.templates?.[key]) { alert("Template name already exists."); return; }
+                  setTemplates({ ...templates, templates: { ...(templates.templates || {}), [key]: "" }, templateOrder: [...(templates.templateOrder || []), key] });
                 }} style={{ alignSelf: "flex-start", fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}>
                   + Add Template
                 </button>
-                {templates.templateOrder.map((key) => (
+                {(templates.templateOrder || []).map((key) => (
                   <div key={key} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", border: "1px solid #ddd", padding: "1rem" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <input value={key} onChange={(e) => {
                         const newKey = e.target.value.trim();
-                        if (!newKey || (newKey !== key && templates.templates[newKey])) return;
-                        const tmpl = { ...templates.templates };
-                        tmpl[newKey] = tmpl[key];
+                        if (!newKey || (newKey !== key && templates.templates?.[newKey])) return;
+                        const tmpl = { ...(templates.templates || {}) };
+                        tmpl[newKey] = tmpl[key] || "";
                         delete tmpl[key];
-                        const order = templates.templateOrder.map((k) => k === key ? newKey : k);
+                        const order = (templates.templateOrder || []).map((k) => k === key ? newKey : k);
                         setTemplates({ ...templates, templates: tmpl, templateOrder: order });
                       }} style={{ border: "1px solid #000", padding: "0.25rem 0.5rem", fontSize: "0.85rem", fontWeight: 700, fontFamily: "inherit", outline: "none", width: "200px" }} />
                       <button type="button" onClick={() => {
                         if (!window.confirm(`Delete template "${key}"?`)) return;
-                        const tmpl = { ...templates.templates };
+                        const tmpl = { ...(templates.templates || {}) };
                         delete tmpl[key];
-                        const order = templates.templateOrder.filter((k) => k !== key);
+                        const order = (templates.templateOrder || []).filter((k) => k !== key);
                         setTemplates({ ...templates, templates: tmpl, templateOrder: order });
                       }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.4rem", fontSize: "0.8rem" }}>
                         Delete
                       </button>
                     </div>
-                    <textarea rows={14} value={templates.templates[key] || ""} onChange={(e) => setTemplates({ ...templates, templates: { ...templates.templates, [key]: e.target.value } })}
+                    <textarea rows={14} value={(templates.templates || {})[key] || ""} onChange={(e) => setTemplates({ ...templates, templates: { ...(templates.templates || {}), [key]: e.target.value } })}
                       style={{ fontFamily: "monospace", fontSize: "0.75rem", border: "2px solid #000", padding: "0.5rem", resize: "vertical", width: "100%", boxSizing: "border-box" }}
                     />
                   </div>
@@ -6955,13 +6956,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       month: "long",
                       day: "numeric",
                     });
-                    generateAndPrint(templates.templates?.["Offer Letter"] || "", {
-                      name: selectedIntern.name,
-                      domain: selectedIntern.domain,
-                      date,
-                      id: selectedIntern.id,
-                      internId: selectedIntern.internId || selectedIntern.id,
-                    });
+                    generateAndPrint(templates.templates?.["Offer Letter"] || "", { ...selectedIntern, date });
                   }}
                   className="btn-sharp-outline"
                   style={{

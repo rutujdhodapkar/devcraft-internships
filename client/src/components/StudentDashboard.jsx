@@ -326,25 +326,13 @@ export default function StudentDashboard({
   const handleDownloadOffer = (enrollment) => {
     const html = getTemplate("Offer Letter");
     if (!html) { alert("Offer letter template not available. Please contact support."); return; }
-    generateAndPrint(html, {
-      name: enrollment.name || user.displayName || "Student",
-      domain: enrollment.domain,
-      date: new Date(enrollment.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-      id: enrollment.id,
-      internId: enrollment.internId || enrollment.id,
-    });
+    generateAndPrint(html, { ...enrollment, date: new Date(enrollment.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) });
   };
 
   const handleDownloadFromTemplate = (enrollment, templateName) => {
     const html = getTemplate(templateName);
     if (!html) { alert(`Template "${templateName}" not available. Please contact support.`); return; }
-    generateAndPrint(html, {
-      name: enrollment.name || user.displayName || "Student",
-      domain: enrollment.domain,
-      date: new Date(enrollment.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-      id: enrollment.id,
-      internId: enrollment.internId || enrollment.id,
-    });
+    generateAndPrint(html, { ...enrollment, date: new Date(enrollment.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) });
   };
 
   const handleDownloadCertificate = (enrollment) => {

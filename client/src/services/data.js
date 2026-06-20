@@ -148,7 +148,7 @@ export async function fetchTemplates() {
   const d = await dbGet("config/templates");
   const raw = d?.value || null;
   if (!raw) return { templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] };
-  if (raw.templates) return raw;
+  if (raw.templates) return { ...raw, templateOrder: raw.templateOrder || Object.keys(raw.templates) };
   const old = raw;
   return { templates: { "Offer Letter": old.offer_letter || "", "Certificate": old.certificate || "" }, templateOrder: ["Offer Letter", "Certificate"] };
 }
