@@ -36,16 +36,7 @@ export function clearStoredGoogleUser() {
 
 export async function signInWithGoogleCredential(credential) {
   const payload = decodeJwtPayload(credential);
-  const response = await fetch("/api/auth/google", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ credential }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.success === false) {
-    throw new Error(data.message || "Google login could not be verified.");
-  }
-  const user = mapGooglePayload(data.user || payload, credential);
+  const user = mapGooglePayload(payload, credential);
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
   window.dispatchEvent(new CustomEvent("devcraft-auth", { detail: user }));
   return user;
