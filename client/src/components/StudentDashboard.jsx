@@ -1339,10 +1339,13 @@ function EnrollmentCard({
   const submittedCount = projects.filter(
     (_, idx) => submissions[idx]?.submittedAt,
   ).length;
-  // Payment gating logic
-  const isStartPaid = paymentTiming === "start" ? paymentStatus === "paid" : paymentTiming === "both" ? (paymentStage === "start_paid" || paymentStage === "fully_paid") : true;
-  const isEndPaid = paymentTiming === "both" ? paymentStage === "fully_paid" : paymentStatus === "paid";
-  const tasksLocked = (paymentTiming === "start" || paymentTiming === "both") && !isStartPaid;
+  // Payment gating logic — default to "end" timing if not set
+  const pTiming = paymentTiming || "end";
+  const pStatus = paymentStatus || "none";
+  const pStage = paymentStage || "none";
+  const isStartPaid = pTiming === "start" ? pStatus === "paid" : pTiming === "both" ? (pStage === "start_paid" || pStage === "fully_paid") : true;
+  const isEndPaid = pTiming === "both" ? pStage === "fully_paid" : pStatus === "paid";
+  const tasksLocked = (pTiming === "start" || pTiming === "both") && !isStartPaid;
 
   return (
     <div>
@@ -1757,7 +1760,7 @@ function EnrollmentCard({
             {/* Conditional Payment section */}
             {enrollment.allowedCertificate !== "yes" && (
               <div>
-                {paymentTiming === "start" && paymentStatus !== "paid" && (
+                {pTiming === "start" && pStatus !== "paid" && (
                   <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
                     <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
                       Payment Required
@@ -1775,16 +1778,16 @@ function EnrollmentCard({
                     <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
                       Unlock Completion Certificate
                     </h5>
-                    {paymentStatus === "paid" && allVerified ? (
+                    {pStatus === "paid" && allVerified ? (
                       <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
                         <strong style={{ color: "#1a5c2e" }}>✓ Certificate Unlocked!</strong>
                         <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>All tasks verified and payment confirmed.</p>
                       </div>
-                    ) : paymentStatus === "paid" && !allVerified ? (
+                    ) : pStatus === "paid" && !allVerified ? (
                       <div style={{ padding: "0.75rem 1rem", background: "#fffbea", borderLeft: "4px solid #FBBC05", fontSize: "0.82rem", color: "#7a6000" }}>
                         ⏳ <strong>Waiting for task verification:</strong> Your payment is confirmed. Your certificate will unlock once all your projects are verified by our team.
                       </div>
-                    ) : paymentStatus !== "paid" && (paymentTiming === "end" || paymentTiming === "both") ? (
+                    ) : pStatus !== "paid" && (pTiming === "end" || pTiming === "both") ? (
                       <div>
                         <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                           Complete the payment to unlock your certificate.
@@ -1800,7 +1803,7 @@ function EnrollmentCard({
                     )}
                   </div>
                 )}
-                {submittedCount < projects.length && paymentTiming !== "start" && paymentStatus !== "paid" && (
+                {submittedCount < projects.length && pTiming !== "start" && pStatus !== "paid" && (
                   <div style={{ marginTop: "1rem", padding: "0.75rem 1rem", background: "#f5f5f5", borderLeft: "4px solid #ccc", fontSize: "0.82rem", color: "#666" }}>
                     Complete and submit all <strong>{projects.length}</strong> projects to unlock payment and certificate download.
                   </div>
