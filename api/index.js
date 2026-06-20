@@ -382,10 +382,10 @@ async function handleStripeWebhook(req, res) {
       await db.ref(`enrollments/${enrollmentId}`).update(patch);
       if ((stage === "fully_paid" || timing !== "both") && enrollment) {
         const submissions = enrollment.submissions || {};
-        const projectCount = (enrollment.projects || []).length;
-        const allVerified = projectCount > 0 && enrollment.projects.every((_, i) => submissions[i]?.verified);
-        if (allVerified) {
-          await db.ref(`enrollments/${enrollmentId}`).update({ allowedCertificate: "yes", updatedAt: now() });
+        const projects = enrollment.projects || [];
+        const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
+        if (allVerified && enrollment.status !== "Completed") {
+          await db.ref(`enrollments/${enrollmentId}`).update({ status: "Completed", allowedCertificate: "yes", completedAt: now(), updatedAt: now() });
         }
       }
     }

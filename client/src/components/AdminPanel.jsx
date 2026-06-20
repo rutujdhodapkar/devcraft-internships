@@ -1231,6 +1231,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       <th style={th}>Country</th>
                       <th style={th}>College</th>
                       <th style={th}>Status</th>
+                      <th style={th}>Payment</th>
+                      <th style={th}>Certificate</th>
                       <th style={th}>Completed %</th>
                       <th style={th}>Submissions</th>
                       <th style={th}>Actions</th>
@@ -1294,6 +1296,26 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                               }}
                             >
                               {row.status}
+                            </span>
+                          </td>
+                          <td style={{ ...td, fontSize: "0.72rem" }}>
+                            {(() => {
+                              const isPaid = row.paymentTiming === "both" ? row.paymentStage === "fully_paid" : row.paymentStatus === "paid";
+                              const isPartial = row.paymentStage === "start_paid";
+                              const amt = row.paymentAmount;
+                              return (
+                                <>
+                                  <span style={{ fontWeight: 700, color: isPaid ? "#34A853" : isPartial ? "#FBBC05" : "#EA4335" }}>
+                                    {isPaid ? "Paid" : isPartial ? "Partial" : "Not Paid"}
+                                  </span>
+                                  {amt && <span style={{ marginLeft: "0.25rem" }}>₹{amt}</span>}
+                                </>
+                              );
+                            })()}
+                          </td>
+                          <td style={{ ...td, fontSize: "0.72rem" }}>
+                            <span style={{ fontWeight: 700, color: row.allowedCertificate === "yes" ? "#34A853" : "#999" }}>
+                              {row.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}
                             </span>
                           </td>
                           <td style={td}>
@@ -3396,9 +3418,10 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 700 }}>Email</th>
                       <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 700 }}>Domain</th>
                       <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Tasks</th>
-                      <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Payment</th>
-                      <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Status</th>
-                      <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Action</th>
+                          <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Payment</th>
+                          <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Certificate</th>
+                          <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Status</th>
+                          <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3426,6 +3449,12 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
                             <span style={{ color: isPaid ? "#34A853" : "#EA4335", fontWeight: 700 }}>
                               {isPaid ? "Paid" : (row.paymentStage === "start_paid" ? "Partial" : "Not Paid")}
+                            </span>
+                            {row.paymentAmount ? <span style={{ marginLeft: "0.2rem", fontSize: "0.72rem" }}>₹{row.paymentAmount}</span> : null}
+                          </td>
+                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
+                            <span style={{ fontWeight: 700, fontSize: "0.72rem", color: row.allowedCertificate === "yes" ? "#34A853" : "#999" }}>
+                              {row.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}
                             </span>
                           </td>
                           <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
@@ -8241,7 +8270,7 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
                       {check.ready ? "✓ READY TO COMPLETE" : "✗ " + check.reason}
                     </div>
                     <div style={{ fontSize: "0.72rem", color: "#555" }}>
-                      Tasks: <strong>{verifiedCount}/{projects.length}</strong> verified | Payment: <strong style={{ color: isPaid ? "#34A853" : "#EA4335" }}>{isPaid ? "Paid" : "Not Paid"}</strong>
+                      Tasks: <strong>{verifiedCount}/{projects.length}</strong> verified | Payment: <strong style={{ color: isPaid ? "#34A853" : "#EA4335" }}>{isPaid ? "Paid" : (enrollment.paymentStage === "start_paid" ? "Partial" : "Not Paid")}</strong>{enrollment.paymentAmount ? <span> (₹{enrollment.paymentAmount})</span> : null} | Certificate: <strong style={{ color: enrollment.allowedCertificate === "yes" ? "#34A853" : "#999" }}>{enrollment.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}</strong>
                     </div>
                     {enrollment.transactionId && (
                       <div style={{ border: "2px solid #000", background: "#fff", padding: "0.25rem 0.5rem", fontSize: "0.72rem" }}>

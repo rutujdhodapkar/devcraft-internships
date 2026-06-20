@@ -273,6 +273,16 @@ export async function submitQuizAnswer(enrollmentId, projectIndex, answers, proj
 
 export async function verifyProject(enrollmentId, projectIndex) {
   await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: true, verifiedAt: new Date().toISOString(), rejected: false });
+  const enrollment = await dbGet(`enrollments/${enrollmentId}`);
+  if (enrollment) {
+    const subs = enrollment.submissions || {};
+    const projects = enrollment.projects || [];
+    const allVerified = projects.length > 0 && projects.every((_, i) => subs[i]?.verified === true);
+    const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
+    if (allVerified && isPaid && enrollment.status !== "Completed") {
+      await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    }
+  }
 }
 
 export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) {
