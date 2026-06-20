@@ -1,0 +1,14 @@
+{
+  "buildCommand": "npm install && npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "functions": {
+    "api/index.js": {
+      "runtime": "@vercel/node@4"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.js" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
