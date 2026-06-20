@@ -1,4 +1,4 @@
-  const API_BASE = import.meta.env.VITE_SERVER_URL || "https://example.com/api";
+  const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
 
 function userIdentity(user) {
   if (!user) return null;
