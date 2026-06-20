@@ -6,18 +6,17 @@ import {
   submitQuizAnswer,
   fetchEnrollmentById,
   fetchCareerPaths,
-  submitTransactionId,
   isReferralCodeMatched,
   fetchUserReferralStat,
   fetchReferralDashboardData,
   fetchAdminMessages,
   acknowledgeAdminMessage,
   fetchSiteNotices,
-  PAYMENT_QR_DEFAULT,
-  PAYMENT_QR_REFERRAL,
+  updatePaymentStatus,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 import EarnSection from "./EarnSection";
+import StripePaymentModal from "./StripePayment";
 
 /** Generate the HTML document from template + variables and open print dialog */
 function generateAndPrint(templateHtml, variables) {
@@ -56,10 +55,10 @@ export default function StudentDashboard({
   const [submitting, setSubmitting] = useState({}); // { [key]: bool }
   const [submitSuccess, setSubmitSuccess] = useState({}); // { [key]: bool } — show notice
 
-  // Payment Transaction ID state
-  const [txnInputs, setTxnInputs] = useState({});
-  const [txnSubmitting, setTxnSubmitting] = useState({});
+  // Payment state
   const [referralMatchedMap, setReferralMatchedMap] = useState({});
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentEnrollment, setPaymentEnrollment] = useState(null);
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "internships");
   const [referralStat, setReferralStat] = useState(null);
@@ -68,22 +67,28 @@ export default function StudentDashboard({
   const [tabMessages, setTabMessages] = useState([]);
   const [siteNotices, setSiteNotices] = useState([]);
 
-  const handleSubmitTransactionId = async (enrollmentId) => {
-    const txnId = (txnInputs[enrollmentId] || "").trim();
-    if (!txnId) {
-      alert("Please enter your payment Transaction ID before submitting.");
-      return;
+  const handleOpenPayment = (enrollment, stage) => {
+    setPaymentEnrollment({ ...enrollment, _paymentStage: stage || "full" });
+    setShowPaymentModal(true);
+  };
+
+  const handlePaymentSuccess = async () => {
+    setShowPaymentModal(false);
+    if (paymentEnrollment) {
+      const stage = paymentEnrollment._paymentStage || "full";
+      const timing = paymentEnrollment.paymentTiming || "end";
+      let statusPayload = { paymentStatus: "paid", paymentStage: stage };
+      if (timing === "both") {
+        if (stage === "start") {
+          statusPayload = { paymentStatus: "paid", paymentStage: "start_paid" };
+        } else {
+          statusPayload = { paymentStatus: "paid", paymentStage: "fully_paid" };
+        }
+      }
+      await updatePaymentStatus(paymentEnrollment.id, statusPayload.paymentStatus, statusPayload.paymentStage);
+      await refreshEnrollment(paymentEnrollment.id);
     }
-    setTxnSubmitting((prev) => ({ ...prev, [enrollmentId]: true }));
-    try {
-      await submitTransactionId(enrollmentId, txnId);
-      await refreshEnrollment(enrollmentId);
-      alert("Transaction ID submitted successfully!");
-    } catch (err) {
-      alert("Failed to submit Transaction ID: " + err.message);
-    } finally {
-      setTxnSubmitting((prev) => ({ ...prev, [enrollmentId]: false }));
-    }
+    setPaymentEnrollment(null);
   };
 
   useEffect(() => {
@@ -1272,25 +1277,16 @@ export default function StudentDashboard({
                     onSubmitQuiz={handleSubmitQuiz}
                     onDownloadOffer={handleDownloadOffer}
                     onDownloadCertificate={handleDownloadCertificate}
-                    txnInput={txnInputs[enrollment.id] || ""}
-                    onTxnInputChange={(val) =>
-                      setTxnInputs((prev) => ({
-                        ...prev,
-                        [enrollment.id]: val,
-                      }))
-                    }
-                    txnSubmitting={txnSubmitting[enrollment.id] || false}
-                    onSubmitTxn={() => handleSubmitTransactionId(enrollment.id)}
+                    onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
+                    paymentStatus={enrollment.paymentStatus}
+                    paymentStage={enrollment.paymentStage || "none"}
+                    paymentAmount={enrollment.paymentAmount}
+                    paymentStartAmount={enrollment.paymentStartAmount}
+                    paymentEndAmount={enrollment.paymentEndAmount}
+                    paymentTiming={enrollment.paymentTiming}
                     hasMatchedReferral={!!referralMatchedMap[enrollment.id]}
                     showBackButton={enrollments.length > 1}
                     onBackClick={() => setSelectedEnrollment(null)}
-                    paymentQrUrl={
-                      careerPaths.find(
-                        (p) =>
-                          p.id === enrollment.domainId ||
-                          p.title === enrollment.domain,
-                      )?.paymentQr || ""
-                    }
                   />
                 );
               })()
@@ -1298,6 +1294,15 @@ export default function StudentDashboard({
           </div>
         )}
       </div>
+      {showPaymentModal && paymentEnrollment && (
+        <StripePaymentModal
+          enrollmentId={paymentEnrollment.id}
+          amount={paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
+          paymentStage={paymentEnrollment._paymentStage || "full"}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); }}
+        />
+      )}
     </section>
   );
 }
@@ -1317,14 +1322,16 @@ function EnrollmentCard({
   onSubmitQuiz,
   onDownloadOffer,
   onDownloadCertificate,
-  txnInput,
-  onTxnInputChange,
-  txnSubmitting,
-  onSubmitTxn,
+  onOpenPayment,
+  paymentStatus,
+  paymentStage,
+  paymentAmount,
+  paymentStartAmount,
+  paymentEndAmount,
+  paymentTiming,
   hasMatchedReferral,
   showBackButton,
   onBackClick,
-  paymentQrUrl: domainPaymentQr,
 }) {
   const verifiedCount = projects.filter(
     (_, idx) => submissions[idx]?.verified,
@@ -1332,9 +1339,10 @@ function EnrollmentCard({
   const submittedCount = projects.filter(
     (_, idx) => submissions[idx]?.submittedAt,
   ).length;
-  const paymentQrUrl =
-    domainPaymentQr ||
-    (hasMatchedReferral ? PAYMENT_QR_REFERRAL : PAYMENT_QR_DEFAULT);
+  // Payment gating logic
+  const isStartPaid = paymentTiming === "start" ? paymentStatus === "paid" : paymentTiming === "both" ? (paymentStage === "start_paid" || paymentStage === "fully_paid") : true;
+  const isEndPaid = paymentTiming === "both" ? paymentStage === "fully_paid" : paymentStatus === "paid";
+  const tasksLocked = (paymentTiming === "start" || paymentTiming === "both") && !isStartPaid;
 
   return (
     <div>
@@ -1552,6 +1560,12 @@ function EnrollmentCard({
 
         {/* Projects Section */}
         <div style={{ padding: "1.75rem 2rem" }}>
+          {tasksLocked && (
+            <div style={{ border: "2px solid #EA4335", padding: "1rem 1.25rem", background: "#FFF5F5", marginBottom: "1rem" }}>
+              <strong style={{ color: "#EA4335" }}>🔒 Payment Required</strong>
+              <p style={{ fontSize: "0.85rem", color: "#555", marginTop: "0.35rem" }}>Please complete the payment below to unlock your internship tasks.</p>
+            </div>
+          )}
           <h4
             style={{
               fontSize: "1rem",
@@ -1583,8 +1597,8 @@ function EnrollmentCard({
                 const isQuiz = (project?.type || "text") === "quiz";
 
                 // Sequential unlock: previous task must be submitted
-                let disabled = false;
-                if (idx > 0) {
+                let disabled = tasksLocked;
+                if (idx > 0 && !disabled) {
                   const prev = submissions[idx - 1];
                   const prevProject = projects[idx - 1];
                   const prevIsQuiz = (prevProject?.type || "text") === "quiz";
@@ -1740,162 +1754,55 @@ function EnrollmentCard({
               )}
             </div>
 
-            {/* Conditional Payment QR & Transaction ID entry section */}
+            {/* Conditional Payment section */}
             {enrollment.allowedCertificate !== "yes" && (
               <div>
-                {submittedCount === projects.length ? (
-                  <div
-                    style={{
-                      border: "2px solid #000",
-                      padding: "1.5rem",
-                      background: "#fff",
-                      marginTop: "1rem",
-                    }}
-                  >
-                    <h5
-                      style={{
-                        fontSize: "0.95rem",
-                        fontWeight: 800,
-                        textTransform: "uppercase",
-                        marginBottom: "0.75rem",
-                      }}
-                    >
+                {paymentTiming === "start" && paymentStatus !== "paid" && (
+                  <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
+                    <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
+                      Payment Required
+                    </h5>
+                    <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
+                      Please complete the payment to unlock your internship projects.
+                    </p>
+                    <button className="btn-sharp" onClick={onOpenPayment} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                      Pay ₹{paymentAmount || 99}
+                    </button>
+                  </div>
+                )}
+                {submittedCount === projects.length && projects.length > 0 && (
+                  <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
+                    <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
                       Unlock Completion Certificate
                     </h5>
-
-                    {enrollment.transactionId ? (
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "0.5rem",
-                        }}
-                      >
-                        <div style={{ fontSize: "0.85rem", color: "#333" }}>
-                          <strong>Transaction ID Submitted:</strong>{" "}
-                          <code>{enrollment.transactionId}</code>
-                        </div>
-                        <div
-                          style={{
-                            padding: "0.75rem 1rem",
-                            background: "#fffbea",
-                            borderLeft: "4px solid #FBBC05",
-                            fontSize: "0.82rem",
-                            color: "#7a6000",
-                          }}
-                        >
-                          ⏳ <strong>Pending Admin Review:</strong> Our team is
-                          verifying your payment. Once approved, your
-                          certificate download will be enabled here instantly.
-                        </div>
+                    {paymentStatus === "paid" && allVerified ? (
+                      <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
+                        <strong style={{ color: "#1a5c2e" }}>✓ Certificate Unlocked!</strong>
+                        <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>All tasks verified and payment confirmed.</p>
+                      </div>
+                    ) : paymentStatus === "paid" && !allVerified ? (
+                      <div style={{ padding: "0.75rem 1rem", background: "#fffbea", borderLeft: "4px solid #FBBC05", fontSize: "0.82rem", color: "#7a6000" }}>
+                        ⏳ <strong>Waiting for task verification:</strong> Your payment is confirmed. Your certificate will unlock once all your projects are verified by our team.
+                      </div>
+                    ) : paymentStatus !== "paid" && (paymentTiming === "end" || paymentTiming === "both") ? (
+                      <div>
+                        <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
+                          Complete the payment to unlock your certificate.
+                        </p>
+                        <button className="btn-sharp" onClick={onOpenPayment} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                          Pay ₹{paymentAmount || 99}
+                        </button>
                       </div>
                     ) : (
-                      <div>
-                        <p
-                          style={{
-                            fontSize: "0.85rem",
-                            color: "#555",
-                            marginBottom: "1rem",
-                            lineHeight: "1.5",
-                          }}
-                        >
-                          To download your official Internship Completion
-                          Certificate, please scan the QR code below using
-                          Google Pay to complete the verification payment, then
-                          enter the payment Transaction ID to submit for
-                          approval.
-                        </p>
-                        <div style={{ marginBottom: "1.25rem" }}>
-                          <img
-                            src={paymentQrUrl}
-                            alt="Google Pay QR Code"
-                            style={{
-                              width: "220px",
-                              border: "2px solid #000",
-                              display: "block",
-                            }}
-                          />
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "0.5rem",
-                            flexWrap: "wrap",
-                            alignItems: "flex-end",
-                            maxWidth: "450px",
-                          }}
-                        >
-                          <div style={{ flex: 1, minWidth: "200px" }}>
-                            <label
-                              style={{
-                                fontSize: "0.72rem",
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                                display: "block",
-                                marginBottom: "0.25rem",
-                                color: "#333",
-                              }}
-                            >
-                              Transaction ID *
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="Enter 12-digit UPI / Transaction ID"
-                              value={txnInput}
-                              onChange={(e) => onTxnInputChange(e.target.value)}
-                              style={{
-                                width: "100%",
-                                padding: "0.55rem 0.75rem",
-                                border: "2px solid #000",
-                                fontSize: "0.88rem",
-                                outline: "none",
-                                fontFamily: "inherit",
-                                boxSizing: "border-box",
-                              }}
-                            />
-                          </div>
-                          <button
-                            onClick={onSubmitTxn}
-                            disabled={txnSubmitting || !txnInput.trim()}
-                            className="btn-sharp"
-                            style={{
-                              padding: "0.55rem 1.25rem",
-                              fontSize: "0.85rem",
-                              height: "37px",
-                              opacity: !txnInput.trim() ? 0.5 : 1,
-                              borderRadius: 0,
-                            }}
-                          >
-                            {txnSubmitting ? "Submitting…" : "Submit ID"}
-                          </button>
-                        </div>
-                        <p
-                          style={{
-                            fontSize: "0.72rem",
-                            color: "#777",
-                            marginTop: "0.5rem",
-                          }}
-                        >
-                          * Required to unlock download certificate. You cannot
-                          move forward without entering this.
-                        </p>
+                      <div style={{ padding: "0.75rem 1rem", background: "#fffbea", borderLeft: "4px solid #FBBC05", fontSize: "0.82rem", color: "#7a6000" }}>
+                        ⏳ Payment not yet completed. Complete payment to unlock your certificate.
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div
-                    style={{
-                      marginTop: "1rem",
-                      padding: "0.75rem 1rem",
-                      background: "#f5f5f5",
-                      borderLeft: "4px solid #ccc",
-                      fontSize: "0.82rem",
-                      color: "#666",
-                    }}
-                  >
-                    Please complete and submit all{" "}
-                    <strong>{projects.length}</strong> projects to unlock the
-                    payment QR and certificate download.
+                )}
+                {submittedCount < projects.length && paymentTiming !== "start" && paymentStatus !== "paid" && (
+                  <div style={{ marginTop: "1rem", padding: "0.75rem 1rem", background: "#f5f5f5", borderLeft: "4px solid #ccc", fontSize: "0.82rem", color: "#666" }}>
+                    Complete and submit all <strong>{projects.length}</strong> projects to unlock payment and certificate download.
                   </div>
                 )}
               </div>

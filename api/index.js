@@ -1,7 +1,12 @@
 import admin from "firebase-admin";
+import Stripe from "stripe";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
+const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
+const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 
 function send(res, status, payload) {
   res.status(status).json(payload);
@@ -307,13 +312,131 @@ async function handleQuiz(req, res) {
   return send(res, 200, match ? JSON.parse(match[0]) : { correct: false, reason: "Invalid AI response" });
 }
 
+async function handleCreatePaymentIntent(req, res) {
+  if (req.method !== "POST") return send(res, 405, { success: false, message: "Method not allowed." });
+  if (!stripe) return send(res, 500, { success: false, message: "Stripe not configured." });
+  const { enrollmentId, amount, currency = "inr", paymentStage = "full" } = req.body || {};
+  if (!enrollmentId || !amount) return send(res, 400, { success: false, message: "Missing enrollmentId or amount." });
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency: currency.toLowerCase(),
+      metadata: { enrollmentId, paymentStage },
+      automatic_payment_methods: { enabled: true },
+    });
+    return send(res, 200, { success: true, data: { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id } });
+  } catch (err) {
+    return send(res, 500, { success: false, message: "Stripe error: " + err.message });
+  }
+}
+
+async function handleStripeWebhook(req, res) {
+  const sig = req.headers["stripe-signature"];
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET);
+  } catch {
+    return send(res, 400, { success: false, message: "Webhook signature verification failed." });
+  }
+  if (event.type === "payment_intent.succeeded") {
+    const pi = event.data.object;
+    const enrollmentId = pi.metadata?.enrollmentId;
+    const paymentStage = pi.metadata?.paymentStage || "full";
+    if (enrollmentId) {
+      const db = initFirebase();
+      const enrollment = await getDoc(db, "enrollments", enrollmentId, null);
+      const timing = enrollment?.paymentTiming || "end";
+      let stage = "start_paid";
+      let status = "paid";
+      if (timing === "both") {
+        if (paymentStage === "start") {
+          stage = "start_paid";
+        } else {
+          stage = "fully_paid";
+          status = "paid";
+        }
+      }
+      const patch = {
+        paymentStatus: status,
+        paymentStage: stage,
+        paymentIntentId: pi.id,
+        paymentAmount: pi.amount / 100,
+        paymentCurrency: pi.currency,
+        paidAt: now(),
+        updatedAt: now(),
+      };
+      if (stage === "fully_paid" || timing !== "both") {
+        patch.allowedCertificate = "yes";
+      }
+      await db.collection("enrollments").doc(enrollmentId).set(patch, { merge: true });
+      // Auto-check if certificate should unlock (all tasks verified + payment fully done)
+      if ((stage === "fully_paid" || timing !== "both") && enrollment) {
+        const submissions = enrollment.submissions || {};
+        const projectCount = (enrollment.projects || []).length;
+        const allVerified = projectCount > 0 && enrollment.projects.every((_, i) => submissions[i]?.verified);
+        if (allVerified) {
+          await db.collection("enrollments").doc(enrollmentId).set({ allowedCertificate: "yes", updatedAt: now() }, { merge: true });
+        }
+      }
+    }
+  }
+  return send(res, 200, { received: true });
+}
+
+async function handleAiGradeQuiz(req, res) {
+  if (req.method !== "POST") return send(res, 405, { error: "Method not allowed" });
+  const { questions, answers } = req.body || {};
+  if (!questions || !answers) return send(res, 400, { error: "Missing questions or answers" });
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) return send(res, 503, { error: "AI grading not configured" });
+  const results = [];
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const ans = answers[i];
+    if (ans === undefined || String(ans).trim() === "") {
+      results.push({ index: i, correct: false, reason: "No answer provided" });
+      continue;
+    }
+    try {
+      const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "meta/llama-3.3-70b-instruct",
+          messages: [
+            { role: "system", content: 'You grade quiz answers. Respond ONLY with JSON: {"correct": boolean, "reason": "brief explanation"}' },
+            { role: "user", content: `Question: ${q.question || q}\nStudent's Answer: ${ans}\n\nIs this answer correct?` },
+          ],
+          temperature: 0.2,
+          max_tokens: 300,
+        }),
+      });
+      const ai = await response.json();
+      const content = ai.choices?.[0]?.message?.content || "";
+      const match = content.match(/\{[\s\S]*\}/);
+      const parsed = match ? JSON.parse(match[0]) : { correct: false, reason: "AI parse error" };
+      results.push({ index: i, ...parsed });
+    } catch {
+      results.push({ index: i, correct: false, reason: "AI service error" });
+    }
+  }
+  const allCorrect = results.every((r) => r.correct);
+  return send(res, 200, { success: true, data: { results, allCorrect } });
+}
+
 async function handleData(req, res, routeParts) {
   const db = initFirebase();
   const [resource, id, sub, extra, extra2] = routeParts;
 
   if (resource === "career-paths") {
-    if (req.method === "GET") return send(res, 200, { success: true, data: await listCollection(db, "careerPaths") });
-    return send(res, 200, { success: true, data: await replaceKeyedCollection(db, "careerPaths", req.body.paths || [], "path") });
+    if (req.method === "GET") {
+      const paths = await listCollection(db, "careerPaths");
+      const categories = (await getDoc(db, "siteConfig", "domainCategories", null))?.value || [];
+      return send(res, 200, { success: true, data: { paths, categories } });
+    }
+    await replaceKeyedCollection(db, "careerPaths", req.body.paths || [], "path");
+    if (req.body.categories) await setDoc(db, "siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
+    return send(res, 200, { success: true, data: { paths: req.body.paths || [], categories: req.body.categories || [] } });
   }
   if (resource === "how-it-works") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "howItWorks")).sort((a, b) => (a.step || 0) - (b.step || 0)) });
@@ -331,6 +454,8 @@ async function handleData(req, res, routeParts) {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "config", "aboutText", null))?.value || "" });
     return send(res, 200, { success: true, data: (await setDoc(db, "config", "aboutText", { value: req.body.text || "", updatedAt: now() })).value });
   }
+  if (resource === "payment-settings") return getSetConfig(db, req, res, "paymentSettings", req.body);
+  if (resource === "stripe-config") return send(res, 200, { success: true, data: { publishableKey: STRIPE_PUBLISHABLE_KEY || "" } });
   if (resource === "users") return handleUsers(db, req, res, id, sub, extra);
   if (resource === "enrollments") return handleEnrollments(db, req, res, id, sub, extra, extra2);
   if (resource === "admin-data") {
@@ -363,6 +488,29 @@ async function handleData(req, res, routeParts) {
     await ref.set({ id: ref.id, ...req.body, createdAt: now() });
     return send(res, 201, { success: true, data: { id: ref.id } });
   }
+  if (resource === "payment-stats") {
+    const enrollments = await listCollection(db, "enrollments");
+    const paidEnrollments = enrollments.filter((e) => e.paymentStatus === "paid");
+    const referrals = await listCollection(db, "referrals");
+    const totalCollected = paidEnrollments.reduce((sum, e) => sum + (e.paymentAmount || 0), 0);
+    let totalDistribute = 0;
+    const referralPayouts = referrals.map((r) => {
+      const interns = enrollments.filter((e) => e.referralCode === codeId(r.code || r.id) && e.status === "Completed");
+      const completedPaid = interns.filter((i) => i.paymentStatus === "paid");
+      const earnings = completedPaid.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
+      return { code: r.code || r.id, name: r.name, email: r.email, earned: earnings, interns: interns.length, completedPaid: completedPaid.length, payoutStatus: r.payoutStatus || "pending", payoutAt: r.payoutAt || null, payoutAmount: r.payoutAmount || null };
+    });
+    totalDistribute = referralPayouts.reduce((s, r) => s + r.earned, 0);
+    return send(res, 200, { success: true, data: { totalCollected, totalDistribute, netTotal: totalCollected - totalDistribute, paidEnrollments: paidEnrollments.length, referralPayouts } });
+  }
+  if (resource === "user-types") {
+    if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", "userTypes", null))?.value || [] });
+    return send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", "userTypes", { value: req.body || [], updatedAt: now() })).value });
+  }
+  if (resource === "payout-config") {
+    if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", "payoutConfig", null))?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 } });
+    return send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", "payoutConfig", { value: req.body || {}, updatedAt: now() })).value });
+  }
   return send(res, 404, { success: false, message: "Unknown API route." });
 }
 
@@ -388,6 +536,16 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     const domain = req.body.domain || {};
     const profile = req.body.profile || {};
     const ref = db.collection("enrollments").doc();
+    // Look up payment settings for this domain
+      const paymentSettings = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || { defaultAmount: 200, defaultAmountReferral: 170 };
+    const refCode = codeId(req.body.referralCode);
+    const isReferral = Boolean(refCode);
+    const domainAmount = domain.paymentAmount || (isReferral ? (paymentSettings.defaultAmountReferral || 170) : paymentSettings.defaultAmount || 200);
+    const paymentTiming = domain.paymentTiming || paymentSettings.defaultTiming || "end";
+    // For "both" timing, split amount: start = half, end = remaining
+    const splitPercent = domain.paymentSplitPercent || paymentSettings.defaultSplitPercent || 50;
+    const paymentStartAmount = paymentTiming === "both" ? Math.round(domainAmount * splitPercent / 100) : 0;
+    const paymentEndAmount = paymentTiming === "both" ? domainAmount - paymentStartAmount : domainAmount;
     const enrollment = {
       id: ref.id,
       uid: req.body.uid,
@@ -402,10 +560,18 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       domain: domain.title || domain.name || "",
       domainId: domain.id || "",
       projects: domain.projects || [],
-      referralCode: codeId(req.body.referralCode),
+      referralCode: refCode,
       status: "Active",
       allowedCertificate: "no",
       submissions: {},
+      paymentStatus: "none",
+      paymentStage: "none",
+      paymentAmount: domainAmount,
+      paymentStartAmount: paymentStartAmount,
+      paymentEndAmount: paymentEndAmount,
+      paymentTiming: paymentTiming,
+      paymentIntentId: "",
+      overrideCompleted: false,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -420,20 +586,76 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
   if (sub === "status") patch.status = req.body.status;
   if (sub === "transaction") patch.transactionId = req.body.transactionId;
   if (sub === "certificate") patch.allowedCertificate = req.body.allowed;
-  if (sub === "complete") Object.assign(patch, { status: "Completed", allowedCertificate: "yes", completedAt: now() });
+  if (sub === "complete") {
+    patch.status = "Completed";
+    patch.allowedCertificate = "yes";
+    patch.completedAt = now();
+  }
+  if (sub === "override-complete") {
+    patch.status = "Completed";
+    patch.allowedCertificate = "yes";
+    patch.completedAt = now();
+    patch.overrideCompleted = true;
+    patch.overriddenBy = req.body.adminEmail || "admin";
+  }
   if (sub === "completion-reject" && extra === "clear") Object.assign(patch, { completionRejectedAt: null, completionRejectReason: null });
   else if (sub === "completion-reject") Object.assign(patch, { completionRejectedAt: now(), completionRejectReason: req.body.reason || "" });
+  if (sub === "payment-status") {
+    patch.paymentStatus = req.body.paymentStatus;
+    patch.paymentStage = req.body.paymentStage || "none";
+    if (req.body.paymentStatus === "paid") {
+      if (req.body.paymentStage === "start" || !req.body.paymentStage) {
+        patch.paidAt = now();
+        patch.paymentStage = "start_paid";
+      }
+      if (req.body.paymentStage === "end" || (req.body.paymentStage === "full")) {
+        patch.paidAt = now();
+        patch.allowedCertificate = "yes";
+        patch.paymentStage = "fully_paid";
+      }
+    }
+    if (req.body.paymentAmount != null) patch.paymentAmount = req.body.paymentAmount;
+    if (req.body.paymentStartAmount != null) patch.paymentStartAmount = req.body.paymentStartAmount;
+    if (req.body.paymentEndAmount != null) patch.paymentEndAmount = req.body.paymentEndAmount;
+  }
+  if (sub === "payment-amount") {
+    patch.paymentAmount = req.body.paymentAmount;
+    if (req.body.paymentStartAmount != null) patch.paymentStartAmount = req.body.paymentStartAmount;
+    if (req.body.paymentEndAmount != null) patch.paymentEndAmount = req.body.paymentEndAmount;
+  }
+  if (sub === "unverify-payment") {
+    patch.paymentStatus = "none";
+    patch.paymentStage = "none";
+    patch.paidAt = null;
+    patch.paymentIntentId = "";
+    patch.allowedCertificate = "no";
+    if (req.body.reason) patch.paymentUnverifyReason = req.body.reason;
+  }
   if (sub === "projects") {
     const projectIndex = Number(extra);
     const base = `submissions.${projectIndex}`;
     if (extra2 === "submit") Object.assign(patch, { [base]: { text: req.body.submissionText || "", url: req.body.submissionUrl || "", submittedAt: now(), verified: false } });
     if (extra2 === "quiz") Object.assign(patch, { [base]: { answers: req.body.answers || {}, project: req.body.project || null, submittedAt: now(), verified: false, type: "quiz" } });
-    if (extra2 === "verify") Object.assign(patch, { [`${base}.verified`]: true, [`${base}.verifiedAt`]: now(), [`${base}.rejected`]: false });
+    if (extra2 === "verify") Object.assign(patch, { [`${base}.verified`]: true, [`${base}.verifiedAt`]: now(), [`${base}.rejected`]: false, [`${base}.aiVerified`]: req.body.aiVerified || false });
+    if (extra2 === "unverify") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.verifiedAt`]: null, [`${base}.aiVerified`]: false });
     if (extra2 === "feedback") Object.assign(patch, { [`${base}.feedback`]: req.body.feedback || "" });
     if (extra2 === "reject") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.rejected`]: true, [`${base}.feedback`]: req.body.feedback || "", [`${base}.rejectedAt`]: now() });
   }
   await ref.set(patch, { merge: true });
-  return send(res, 200, { success: true, data: await getDoc(db, "enrollments", id, null) });
+  // Auto-check certificate after update
+  const updated = await getDoc(db, "enrollments", id, null);
+  if (updated) {
+    const isPaid = updated.paymentTiming === "both" ? updated.paymentStage === "fully_paid" : updated.paymentStatus === "paid";
+    if (isPaid) {
+      const subs = updated.submissions || {};
+      const projs = updated.projects || [];
+      const allVerified = projs.length > 0 && projs.every((_, i) => subs[i]?.verified);
+      if (allVerified && updated.allowedCertificate !== "yes") {
+        await db.collection("enrollments").doc(id).set({ allowedCertificate: "yes", certificateUnlockedAt: now(), updatedAt: now() }, { merge: true });
+      }
+    }
+  }
+  return send(res, 200, { success: true, data: updated || patch });
 }
 
 async function handleReferrals(db, req, res, id, sub) {
@@ -450,6 +672,16 @@ async function handleReferrals(db, req, res, id, sub) {
   }
   if (sub === "achieved") return send(res, 200, { success: true, data: await setDoc(db, "referrals", codeId(id), { achieved: Boolean(req.body.achieved), achievedAt: req.body.achieved ? now() : null, updatedAt: now() }) });
   if (sub === "auto-unachieve") return send(res, 200, { success: true, data: { unachieved: false } });
+  if (sub === "mark-payout") {
+    const payoutAmount = req.body.payoutAmount || 0;
+    const payoutNote = req.body.payoutNote || "";
+    await db.collection("referrals").doc(codeId(id)).set({ payoutStatus: "done", payoutAmount, payoutNote, payoutAt: now(), updatedAt: now() }, { merge: true });
+    return send(res, 200, { success: true, data: await getDoc(db, "referrals", codeId(id), null) });
+  }
+  if (sub === "clear-payout") {
+    await db.collection("referrals").doc(codeId(id)).set({ payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: now() }, { merge: true });
+    return send(res, 200, { success: true, data: await getDoc(db, "referrals", codeId(id), null) });
+  }
   return send(res, 404, { success: false, message: "Unknown referral route." });
 }
 
@@ -542,16 +774,25 @@ async function handleNotices(db, req, res, id, sub) {
 }
 
 async function buildReferralUsers(db) {
-  const referrals = await listCollection(db, "referrals");
+  const [referrals, allEnrollments, payoutConfig] = await Promise.all([
+    listCollection(db, "referrals"),
+    listCollection(db, "enrollments"),
+    (await getDoc(db, "siteConfig", "payoutConfig", null))?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 },
+  ]);
   return Promise.all(referrals.map(async (referral) => {
     const code = codeId(referral.code || referral.id);
     const interns = await listReferralInterns(db, code);
+    const paidCompleted = interns.filter((i) => i.status === "Completed" && i.paymentStatus === "paid");
+    const earnings = paidCompleted.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
     return {
       ...referral,
       code,
       internCount: interns.length,
       internIds: interns.map((i) => i.internId || i.id),
       interns,
+      earnings,
+      paidCompletedCount: paidCompleted.length,
+      payoutConfig,
     };
   }));
 }
@@ -565,8 +806,9 @@ async function buildReferralDashboard(db, uid) {
     listReferralInterns(db, code),
     db.collection("referralVisits").where("referralCode", "==", code).get().then((s) => s.docs.map((d) => ({ id: d.id, ...d.data() }))),
   ]);
-  const completed = interns.filter((i) => i.status === "Completed").length;
-  return { referral, interns, visits, totals: { visits: visits.length, interns: interns.length, completed, earnings: completed * 20 } };
+  const paidCompleted = interns.filter((i) => i.status === "Completed" && i.paymentStatus === "paid");
+  const earnings = paidCompleted.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
+  return { referral, interns, visits, totals: { visits: visits.length, interns: interns.length, completed: paidCompleted.length, earnings } };
 }
 
 async function buildEmailReferralStat(db, email) {
@@ -579,10 +821,17 @@ async function buildEmailReferralStat(db, email) {
 
 export default async function handler(req, res) {
   try {
+    // Stripe webhook needs raw body
+    const rawPath = (req.url || "").split("?")[0].replace(/^\/api\/?/, "");
+    const rawParts = rawPath.split("/").filter(Boolean);
+    if (rawParts[0] === "stripe-webhook") return handleStripeWebhook(req, res);
+
     const path = (req.url || "").split("?")[0].replace(/^\/api\/?/, "");
     const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
     if (parts[0] === "auth" && parts[1] === "google") return handleAuth(req, res);
+    if (parts[0] === "create-payment-intent") return handleCreatePaymentIntent(req, res);
     if (parts[0] === "ai" && parts[1] === "verify-task") return handleAiVerify(req, res);
+    if (parts[0] === "ai" && parts[1] === "grade-quiz") return handleAiGradeQuiz(req, res);
     if (parts[0] === "grade-quiz-text") return handleQuiz(req, res);
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
     return send(res, 404, { success: false, message: "API route not found." });

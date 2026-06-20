@@ -1,7 +1,4 @@
-const API_BASE = import.meta.env.VITE_SERVER_URL || "";
-
-export const PAYMENT_QR_DEFAULT = "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png";
-export const PAYMENT_QR_REFERRAL = "https://raw.githubusercontent.com/rutujdhodapkar/Image-Hosting/main/GooglePay_QR.png";
+  const API_BASE = import.meta.env.VITE_SERVER_URL || "https://example.com/api";
 
 function userIdentity(user) {
   if (!user) return null;
@@ -48,8 +45,8 @@ export async function fetchCareerPaths() {
   return getData("career-paths");
 }
 
-export async function saveCareerPaths(paths) {
-  return postData("career-paths", { paths });
+export async function saveCareerPaths(paths, categories) {
+  return postData("career-paths", { paths, categories });
 }
 
 export async function fetchHowItWorks() {
@@ -382,4 +379,81 @@ export async function trackSiteVisit(user) {
     screen: `${window.screen?.width || "?"}x${window.screen?.height || "?"}`,
     viewport: `${window.innerWidth || "?"}x${window.innerHeight || "?"}`,
   });
+}
+
+// Stripe payment functions
+export async function createPaymentIntent(enrollmentId, amount, paymentStage = "full") {
+  const data = await apiFetch("/api/create-payment-intent", {
+    method: "POST",
+    body: JSON.stringify({ enrollmentId, amount, paymentStage }),
+  });
+  return data.data;
+}
+
+export async function fetchStripeConfig() {
+  return getData("stripe-config");
+}
+
+export async function fetchPaymentSettings() {
+  return getData("payment-settings");
+}
+
+export async function savePaymentSettings(settings) {
+  return postData("payment-settings", settings);
+}
+
+export async function overrideCompleteEnrollment(enrollmentId, adminEmail) {
+  return postData(`enrollments/${encodeURIComponent(enrollmentId)}/override-complete`, { adminEmail });
+}
+
+export async function unverifyProject(enrollmentId, projectIndex) {
+  return postData(`enrollments/${encodeURIComponent(enrollmentId)}/projects/${projectIndex}/unverify`);
+}
+
+export async function unverifyPayment(enrollmentId, reason) {
+  return postData(`enrollments/${encodeURIComponent(enrollmentId)}/unverify-payment`, { reason });
+}
+
+export async function updatePaymentStatus(enrollmentId, paymentStatus, paymentStage) {
+  return postData(`enrollments/${encodeURIComponent(enrollmentId)}/payment-status`, { paymentStatus, paymentStage });
+}
+
+export async function setPaymentAmount(enrollmentId, paymentAmount) {
+  return postData(`enrollments/${encodeURIComponent(enrollmentId)}/payment-amount`, { paymentAmount });
+}
+
+export async function aiGradeQuiz(questions, answers) {
+  const data = await apiFetch("/api/ai/grade-quiz", {
+    method: "POST",
+    body: JSON.stringify({ questions, answers }),
+  });
+  return data.data;
+}
+
+export async function fetchPaymentStats() {
+  return getData("payment-stats");
+}
+
+export async function fetchUserTypes() {
+  return getData("user-types");
+}
+
+export async function saveUserTypes(types) {
+  return postData("user-types", types);
+}
+
+export async function fetchPayoutConfig() {
+  return getData("payout-config");
+}
+
+export async function savePayoutConfig(config) {
+  return postData("payout-config", config);
+}
+
+export async function markReferralPayout(code, payoutAmount, payoutNote) {
+  return postData(`referrals/${encodeURIComponent(code)}/mark-payout`, { payoutAmount, payoutNote });
+}
+
+export async function clearReferralPayout(code) {
+  return postData(`referrals/${encodeURIComponent(code)}/clear-payout`);
 }
