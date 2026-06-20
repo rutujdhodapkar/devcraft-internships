@@ -48,11 +48,10 @@ async function dbPutSilent(path, data) {
 }
 
 async function dbPost(path, data) {
-  try {
-    const res = await fetch(dbUrl(path), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-    const result = await res.json();
-    return { id: result.name, ...data };
-  } catch { return { ...data }; }
+  const res = await fetch(dbUrl(path), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+  if (!res.ok) { console.warn("dbPost", path, res.status); return { id: null, ...data }; }
+  const result = await res.json();
+  return { id: result.name, ...data };
 }
 
 async function dbPatch(path, data) {
@@ -298,9 +297,14 @@ export async function createReferral(details) {
 export async function trackReferralVisit(referralCode) {
   if (!referralCode) return null;
   const code = referralCode.toUpperCase().trim();
-  const visit = await dbPost("referralVisits", { referralCode: code, visitedAt: new Date().toISOString(), url: window.location.href, referrer: document.referrer });
+  const now = new Date().toISOString();
+  const visit = await dbPost("referralVisits", {
+    action: "visited", referralCode: code, visitedAt: now, matched: true,
+    link: window.location.href, language: navigator.language || "",
+    browser: navigator.userAgent || "",
+  });
   const ref = await dbGet(`referrals/${code}/visited`);
-  await dbPatch(`referrals/${code}`, { visited: (ref || 0) + 1, lastVisitedAt: visit.visitedAt, updatedAt: new Date().toISOString() });
+  await dbPatch(`referrals/${code}`, { visited: (ref || 0) + 1, lastVisitedAt: now, updatedAt: now });
   return visit;
 }
 
@@ -485,9 +489,9 @@ export async function saveHomepageContent(content) {
   return content;
 }
 
-export async function trackSiteVisit(user) {
+export async function trackSiteVisit() {
   return dbPost("siteVisits", {
-    user: userIdentity(user), visitedAt: new Date().toISOString(),
+    visitedAt: new Date().toISOString(),
     userAgent: navigator.userAgent || "", language: navigator.language || "",
     referrer: document.referrer || "", url: window.location.href || "",
     screen: `${window.screen?.width || "?"}x${window.screen?.height || "?"}`,

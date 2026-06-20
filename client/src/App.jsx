@@ -319,7 +319,7 @@ export default function App() {
       });
     // General site visit tracking (every page load)
     import("./services/data").then(({ trackSiteVisit }) =>
-      trackSiteVisit(user).catch(() => {}),
+      trackSiteVisit().catch(() => {}),
     );
   }, []);
 
