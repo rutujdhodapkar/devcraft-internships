@@ -1109,7 +1109,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Domain</label>
               <select value={filterDomain} onChange={(e) => setFilterDomain(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}>
                 <option value="">All</option>
-                {Array.from(new Set(data.requests.map((r) => r.domain).filter(Boolean))).map((d) => (
+                {Array.from(new Set((data.requests || []).map((r) => r.domain).filter(Boolean))).map((d) => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
@@ -3854,7 +3854,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             >
             </div>
 
-            {data.referrals.length === 0 ? (
+            {(!data.referrals || data.referrals.length === 0) ? (
               <EmptyBox msg="No referral users yet." />
             ) : (
               (() => {
@@ -4354,7 +4354,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   "timezone",
                   "visitedAt",
                 ]}
-                rows={data.visits}
+                rows={data.visits || []}
               />
             </div>
           </div>
@@ -8141,7 +8141,7 @@ function EmptyBox({ msg }) {
 }
 
 function SimpleTable({ columns, rows, empty }) {
-  if (!rows.length) return <EmptyBox msg={empty} />;
+  if (!rows || !rows.length) return <EmptyBox msg={empty} />;
   return (
     <div
       style={{
