@@ -525,12 +525,27 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       await loadData();
       setShowRejectInput((prev) => ({ ...prev, [key]: false }));
       setRejectFeedback((prev) => ({ ...prev, [key]: "" }));
-      setSuccessMsg("Resubmission requested.");
+      setSuccessMsg("Don't Verify - Resubmission requested.");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
       setError("Failed to request resubmission: " + err.message);
     } finally {
       setRejectingProject((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+  const handleVerifyPayment = async (enrollmentId) => {
+    if (!window.confirm(`Verify payment for this intern?`)) return;
+    const key = `verify-pay-${enrollmentId}`;
+    setActionLoading((p) => ({ ...p, [key]: true }));
+    try {
+      await updatePaymentStatus(enrollmentId, "paid", "full");
+      await loadData();
+      setSuccessMsg("Payment verified.");
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err) {
+      setError("Verify payment failed: " + err.message);
+    } finally {
+      setActionLoading((p) => ({ ...p, [key]: false }));
     }
   };
 
@@ -1533,7 +1548,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   .filter(
                     (item) =>
                       item.submission?.submittedAt &&
-                      !item.submission?.verified,
+                      !item.submission?.verified &&
+                      !item.submission?.rejected,
                   );
               });
 
@@ -2734,6 +2750,34 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           />
                         </div>
                       )}
+                    </div>
+                    <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                          Payment Amount (₹) — Normal
+                        </label>
+                        <input type="number" min="0" value={path.paymentAmount || ""} onChange={(e) => { const u = [...careerPaths]; u[idx].paymentAmount = e.target.value ? +e.target.value : null; setCareerPaths(u); }}
+                          placeholder="Use global default" style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "120px" }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                          Payment Amount (₹) — Referred
+                        </label>
+                        <input type="number" min="0" value={path.paymentAmountReferral || ""} onChange={(e) => { const u = [...careerPaths]; u[idx].paymentAmountReferral = e.target.value ? +e.target.value : null; setCareerPaths(u); }}
+                          placeholder="Use global default" style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "120px" }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                          Payment Timing
+                        </label>
+                        <select value={path.paymentTiming || ""} onChange={(e) => { const u = [...careerPaths]; u[idx].paymentTiming = e.target.value; setCareerPaths(u); }}
+                          style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}>
+                          <option value="">Use global default</option>
+                          <option value="start">Start (pay before projects)</option>
+                          <option value="end">End (pay after all tasks verified)</option>
+                          <option value="both">Both (pay at end for certificate)</option>
+                        </select>
+                      </div>
                     </div>
                     <div
                       style={{

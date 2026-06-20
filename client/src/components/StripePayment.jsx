@@ -54,7 +54,13 @@ export default function StripePaymentModal({ enrollmentId, amount, paymentStage 
       try {
         const config = await fetchStripeConfig();
         setStripePromise(loadStripe(config.publishableKey));
-        const pi = await createPaymentIntent(enrollmentId, amount, paymentStage);
+        const safeAmount = amount && !isNaN(amount) && amount > 0 ? amount : 99;
+        if (!enrollmentId) {
+          setError("Missing enrollment ID. Please try again.");
+          setLoading(false);
+          return;
+        }
+        const pi = await createPaymentIntent(enrollmentId, safeAmount, paymentStage);
         setClientSecret(pi.clientSecret);
       } catch (err) {
         setError("Failed to initialize payment: " + err.message);

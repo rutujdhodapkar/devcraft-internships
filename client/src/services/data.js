@@ -98,8 +98,28 @@ export async function fetchCareerPaths() {
   const paths = await dbList("careerPaths");
   const catData = await dbGet("siteConfig/domainCategories");
   const categories = catData?.value || [];
-  if (!paths.length && !categories.length) return { paths: FALLBACK_PATHS, categories: [] };
-  return { paths, categories };
+  // Also fetch payment settings to merge domain-specific amounts
+  const psData = await dbGet("siteConfig/paymentSettings");
+  const ps = psData?.value || { defaultAmount: 200, defaultAmountReferral: 170, defaultTiming: "end" };
+  // Merge payment overrides into each path if they exist
+  const domainOverrides = (ps.domains || []).reduce((acc, d) => {
+    if (d.domain) acc[d.domain.toLowerCase()] = d;
+    return acc;
+  }, {});
+  const mergedPaths = paths.map((p) => {
+    const override = domainOverrides[(p.title || "").toLowerCase()];
+    if (override) {
+      return {
+        ...p,
+        paymentAmount: override.amount || p.paymentAmount,
+        paymentAmountReferral: override.amountReferral || p.paymentAmountReferral,
+        paymentTiming: override.timing || p.paymentTiming || ps.defaultTiming,
+      };
+    }
+    return p;
+  });
+  if (!mergedPaths.length && !categories.length) return { paths: FALLBACK_PATHS, categories: [] };
+  return { paths: mergedPaths, categories };
 }
 
 export async function saveCareerPaths(paths, categories) {
@@ -111,6 +131,17 @@ export async function saveCareerPaths(paths, categories) {
   });
   await dbPut("careerPaths", obj);
   if (categories) await dbPut("siteConfig/domainCategories", { value: categories, updatedAt: now });
+  // Also sync domain payment overrides to paymentSettings
+  const psData = await dbGet("siteConfig/paymentSettings");
+  const ps = psData?.value || { defaultAmount: 200, defaultAmountReferral: 170, defaultTiming: "end" };
+  const domainOverrides = paths.filter(p => p.paymentAmount || p.paymentTiming).map(p => ({
+    domain: p.title,
+    amount: p.paymentAmount || null,
+    amountReferral: p.paymentAmountReferral || null,
+    timing: p.paymentTiming || "",
+  }));
+  ps.domains = domainOverrides;
+  await dbPut("siteConfig/paymentSettings", { value: ps, updatedAt: now });
   return { paths, categories };
 }
 
