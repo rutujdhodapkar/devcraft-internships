@@ -843,6 +843,7 @@ export default async function handler(req, res) {
 
     const path = (req.url || "").split("?")[0].replace(/^\/api\/?/, "");
     const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
+    if (parts[0] === "ping") return send(res, 200, { success: true, message: "pong", env: { hasStripe: !!STRIPE_SECRET_KEY, hasGoogle: !!GOOGLE_CLIENT_ID, hasWebhook: !!WEBHOOK_SECRET, node: process.version } });
     if (parts[0] === "auth" && parts[1] === "google") return handleAuth(req, res);
     if (parts[0] === "create-payment-intent") return handleCreatePaymentIntent(req, res);
     if (parts[0] === "ai" && parts[1] === "verify-task") return handleAiVerify(req, res);
