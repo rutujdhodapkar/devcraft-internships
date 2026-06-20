@@ -838,20 +838,22 @@ async function buildEmailReferralStat(db, email) {
 
 export default async function handler(req, res) {
   try {
-    const rawPath = (req.url || "").split("?")[0].replace(/^\/api\/?/, "");
-    const rawParts = rawPath.split("/").filter(Boolean);
-    if (rawParts[0] === "stripe-webhook") return handleStripeWebhook(req, res);
+  const rawUrl = (req.url || "");
+  const rawPath = rawUrl.split("?")[0].replace(/^\/api\/?/, "");
+  const rawParts = rawPath.split("/").filter(Boolean);
+  if (rawParts[0] === "stripe-webhook") return handleStripeWebhook(req, res);
 
-    const path = (req.url || "").split("?")[0].replace(/^\/api\/?/, "");
-    const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
-    if (parts[0] === "ping") return send(res, 200, { success: true, message: "pong", env: { hasStripe: !!STRIPE_SECRET_KEY, hasGoogle: !!GOOGLE_CLIENT_ID, hasWebhook: !!WEBHOOK_SECRET, node: process.version } });
+  const reqPath = rawUrl.split("?")[0].replace(/^\/api\/?/, "");
+  const parts = reqPath.split("/").filter(Boolean).map(decodeURIComponent);
+  if (parts[0] === "ping") return send(res, 200, { success: true, message: "pong", env: { hasStripe: !!STRIPE_SECRET_KEY, hasGoogle: !!GOOGLE_CLIENT_ID, hasWebhook: !!WEBHOOK_SECRET, node: process.version, url: rawUrl, method: req.method } });
     if (parts[0] === "auth" && parts[1] === "google") return handleAuth(req, res);
     if (parts[0] === "create-payment-intent") return handleCreatePaymentIntent(req, res);
     if (parts[0] === "ai" && parts[1] === "verify-task") return handleAiVerify(req, res);
     if (parts[0] === "ai" && parts[1] === "grade-quiz") return handleAiGradeQuiz(req, res);
     if (parts[0] === "grade-quiz-text") return handleQuiz(req, res);
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
-    return send(res, 404, { success: false, message: "API route not found." });
+    console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts });
+    return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})` });
   } catch (error) {
     console.error("API error:", error);
     return send(res, 500, { success: false, message: error.message || "Server error." });

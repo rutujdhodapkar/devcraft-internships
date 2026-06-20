@@ -4604,8 +4604,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             marginBottom: "0.75rem",
                           }}
                         >
-                          Assigned Interns ({referral.internIds.length}{" "}
-                          {referral.internIds.length === 1
+                          Assigned Interns ({(referral.internIds || referral.interns || []).length}{" "}
+                          {(referral.internIds || referral.interns || []).length === 1
                             ? "Intern"
                             : "Interns"}
                           )
