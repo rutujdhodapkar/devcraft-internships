@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { getDatabase } from "firebase/database";
+import { getDatabase, ref, get, set, push, update, remove, query, orderByChild, equalTo } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCn_dJ21ga0CuErOdvnYxO7mwIm9elFie8",
@@ -13,10 +13,18 @@ const firebaseConfig = {
   measurementId: "G-01L51YR23L"
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getDatabase(app);
-export const googleProvider = new GoogleAuthProvider();
+let app, auth, db, googleProvider;
+
+try {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getDatabase(app);
+  googleProvider = new GoogleAuthProvider();
+} catch (e) {
+  console.warn("Firebase init failed:", e);
+}
+
+export { db, ref, get, set, push, update, remove, query, orderByChild, equalTo };
 
 export const googleClientId = "455530891300-dshhdihvkt21jacnh596j8hn6talsg29.apps.googleusercontent.com";
 export const isFirebaseConfigured = true;
@@ -47,6 +55,7 @@ function clearStoredGoogleUser() {
 }
 
 export async function openGoogleLogin() {
+  if (!auth || !googleProvider) throw new Error("Firebase Auth not initialized");
   const result = await signInWithPopup(auth, googleProvider);
   const user = mapFirebaseUser(result.user);
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
@@ -56,26 +65,31 @@ export async function openGoogleLogin() {
 
 export function onGoogleAuthStateChanged(callback) {
   callback(getStoredGoogleUser());
-  const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
-    if (firebaseUser) {
-      const user = mapFirebaseUser(firebaseUser);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-      callback(user);
-    } else {
-      clearStoredGoogleUser();
-      callback(null);
-    }
-  });
+  if (auth) {
+    const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const user = mapFirebaseUser(firebaseUser);
+        localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+        callback(user);
+      } else {
+        clearStoredGoogleUser();
+        callback(null);
+      }
+    });
+    const handler = (event) => callback(event.detail);
+    window.addEventListener("devcraft-auth", handler);
+    return () => {
+      unsubAuth();
+      window.removeEventListener("devcraft-auth", handler);
+    };
+  }
   const handler = (event) => callback(event.detail);
   window.addEventListener("devcraft-auth", handler);
-  return () => {
-    unsubAuth();
-    window.removeEventListener("devcraft-auth", handler);
-  };
+  return () => window.removeEventListener("devcraft-auth", handler);
 }
 
 export function signOutGoogle() {
-  signOut(auth);
+  if (auth) signOut(auth);
   clearStoredGoogleUser();
   window.dispatchEvent(new CustomEvent("devcraft-auth", { detail: null }));
 }

@@ -1,5 +1,4 @@
-import { ref, get, set, push, update, remove, query, orderByChild, equalTo } from "firebase/database";
-import { db } from "../firebase";
+import { db, ref, get, set, push, update, remove, query, orderByChild, equalTo } from "../firebase";
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
 
@@ -34,28 +33,58 @@ function userIdentity(user) {
   };
 }
 
+async function safeUpdate(path, data) {
+  if (!db) return;
+  try { await update(ref(db, path), data); } catch {}
+}
+
+async function safeSet(path, data) {
+  if (!db) return;
+  try { await set(ref(db, path), data); } catch {}
+}
+
+async function safeRemove(path) {
+  if (!db) return;
+  try { await remove(ref(db, path)); } catch {}
+}
+
+async function safeGet(path) {
+  if (!db) return null;
+  try { const snap = await get(ref(db, path)); return snap.exists() ? snap.val() : null; } catch { return null; }
+}
+
 async function listCollection(path) {
-  const snap = await get(ref(db, path));
-  if (!snap.exists()) return [];
-  const result = [];
-  snap.forEach(child => result.push({ id: child.key, ...child.val() }));
-  return result;
+  if (!db) return [];
+  try {
+    const snap = await get(ref(db, path));
+    if (!snap.exists()) return [];
+    const result = [];
+    snap.forEach(child => result.push({ id: child.key, ...child.val() }));
+    return result;
+  } catch { return []; }
 }
 
 async function getDoc(path) {
-  const snap = await get(ref(db, path));
-  return snap.exists() ? snap.val() : null;
+  if (!db) return null;
+  try {
+    const snap = await get(ref(db, path));
+    return snap.exists() ? snap.val() : null;
+  } catch { return null; }
 }
 
 async function pushDoc(path, data) {
-  const newRef = push(ref(db, path));
-  const item = { id: newRef.key, ...data };
-  await set(newRef, item);
-  return item;
+  if (!db) return { ...data };
+  try {
+    const newRef = push(ref(db, path));
+    const item = { id: newRef.key, ...data };
+    await set(newRef, item);
+    return item;
+  } catch { return { ...data }; }
 }
 
 async function deleteDoc(path) {
-  await remove(ref(db, path));
+  if (!db) return;
+  try { await remove(ref(db, path)); } catch {}
 }
 
 async function apiFetch(path, options = {}) {
