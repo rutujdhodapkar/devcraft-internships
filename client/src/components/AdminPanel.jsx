@@ -369,8 +369,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setHomepageLoading(true);
       import("../services/data").then(({ fetchHomepageContent }) =>
         fetchHomepageContent()
-          .then(setHomepageContent)
-          .catch(() => {})
+          .then((data) => setHomepageContent(data || { headline: "", description: "", badges: [], buttons: [], features: [] }))
+          .catch(() => setHomepageContent({ headline: "", description: "", badges: [], buttons: [], features: [] }))
           .finally(() => setHomepageLoading(false)),
       );
     }
