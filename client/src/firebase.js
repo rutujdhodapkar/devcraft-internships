@@ -1,23 +1,33 @@
-export const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCn_dJ21ga0CuErOdvnYxO7mwIm9elFie8",
+  authDomain: "login-data-680b9.firebaseapp.com",
+  databaseURL: "https://login-data-680b9-default-rtdb.firebaseio.com",
+  projectId: "login-data-680b9",
+  storageBucket: "login-data-680b9.firebasestorage.app",
+  messagingSenderId: "153701949407",
+  appId: "1:153701949407:web:166741a11eb5c58385ae6a",
+  measurementId: "G-01L51YR23L"
+};
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+
+export const googleClientId = "455530891300-dshhdihvkt21jacnh596j8hn6talsg29.apps.googleusercontent.com";
 export const isFirebaseConfigured = true;
 
 const AUTH_STORAGE_KEY = "devcraft_google_user";
 
-function decodeJwtPayload(token) {
-  const [, payload] = String(token || "").split(".");
-  if (!payload) throw new Error("Invalid Google credential.");
-  const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-  return JSON.parse(atob(normalized));
-}
-
-function mapGooglePayload(payload, credential) {
+function mapFirebaseUser(firebaseUser) {
   return {
-    uid: payload.sub,
-    id: payload.sub,
-    email: payload.email || "",
-    displayName: payload.name || payload.email || "Google User",
-    photoURL: payload.picture || "",
-    credential,
+    uid: firebaseUser.uid,
+    id: firebaseUser.uid,
+    email: firebaseUser.email || "",
+    displayName: firebaseUser.displayName || firebaseUser.email || "Google User",
+    photoURL: firebaseUser.photoURL || "",
   };
 }
 
@@ -30,13 +40,13 @@ export function getStoredGoogleUser() {
   }
 }
 
-export function clearStoredGoogleUser() {
+function clearStoredGoogleUser() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
-export async function signInWithGoogleCredential(credential) {
-  const payload = decodeJwtPayload(credential);
-  const user = mapGooglePayload(payload, credential);
+export async function openGoogleLogin() {
+  const result = await signInWithPopup(auth, googleProvider);
+  const user = mapFirebaseUser(result.user);
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
   window.dispatchEvent(new CustomEvent("devcraft-auth", { detail: user }));
   return user;
@@ -44,60 +54,36 @@ export async function signInWithGoogleCredential(credential) {
 
 export function onGoogleAuthStateChanged(callback) {
   callback(getStoredGoogleUser());
-  const handler = (event) => callback(event.detail || getStoredGoogleUser());
+  const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+    if (firebaseUser) {
+      const user = mapFirebaseUser(firebaseUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+      callback(user);
+    } else {
+      clearStoredGoogleUser();
+      callback(null);
+    }
+  });
+  const handler = (event) => callback(event.detail);
   window.addEventListener("devcraft-auth", handler);
-  window.addEventListener("storage", handler);
   return () => {
+    unsubAuth();
     window.removeEventListener("devcraft-auth", handler);
-    window.removeEventListener("storage", handler);
   };
 }
 
 export function signOutGoogle() {
+  signOut(auth);
   clearStoredGoogleUser();
   window.dispatchEvent(new CustomEvent("devcraft-auth", { detail: null }));
 }
 
-export async function openGoogleLogin() {
-  if (!googleClientId) {
-    throw new Error("Google login is not configured.");
-  }
-  if (!window.google?.accounts?.id) {
-    await new Promise((resolve, reject) => {
-      const existing = document.querySelector("script[data-google-identity]");
-      if (existing) {
-        existing.addEventListener("load", resolve, { once: true });
-        existing.addEventListener("error", reject, { once: true });
-        return;
-      }
-      const script = document.createElement("script");
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      script.dataset.googleIdentity = "true";
-      script.onload = resolve;
-      script.onerror = () => reject(new Error("Could not load Google login."));
-      document.head.appendChild(script);
-    });
-  }
-  return new Promise((resolve, reject) => {
-    window.google.accounts.id.initialize({
-      client_id: googleClientId,
-      callback: async (response) => {
-        try {
-          resolve(await signInWithGoogleCredential(response.credential));
-        } catch (err) {
-          reject(err);
-        }
-      },
-    });
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
-        reject(new Error("Google login prompt was closed or blocked."));
-      }
-    });
-  });
+export async function signInWithGoogleCredential(credential) {
+  const { GoogleAuthProvider, signInWithCredential } = await import("firebase/auth");
+  const cred = GoogleAuthProvider.credential(credential);
+  const result = await signInWithCredential(auth, cred);
+  const user = mapFirebaseUser(result.user);
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+  window.dispatchEvent(new CustomEvent("devcraft-auth", { detail: user }));
+  return user;
 }
-
-export const auth = null;
-export const googleProvider = null;
