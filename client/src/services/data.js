@@ -1,5 +1,4 @@
-import { db, ref, get, set, push, update, remove, query, orderByChild, equalTo } from "../firebase";
-
+const DB_URL = "https://login-data-680b9-default-rtdb.firebaseio.com";
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
 
 const FALLBACK_PATHS = [
@@ -23,195 +22,173 @@ const FALLBACK_FAQS = [
   { id: "faq_5", question: "How long does the internship last?", answer: "Each domain is designed for 4 weeks, but you can work at your own pace." },
 ];
 
-function userIdentity(user) {
-  if (!user) return null;
-  return {
-    uid: user.uid || user.id || "",
-    email: user.email || "",
-    displayName: user.displayName || user.name || "",
-    photoURL: user.photoURL || "",
-  };
+function dbUrl(path) {
+  return `${DB_URL}/${path}.json`;
 }
 
-async function safeUpdate(path, data) {
-  if (!db) return;
-  try { await update(ref(db, path), data); } catch {}
-}
-
-async function safeSet(path, data) {
-  if (!db) return;
-  try { await set(ref(db, path), data); } catch {}
-}
-
-async function safeRemove(path) {
-  if (!db) return;
-  try { await remove(ref(db, path)); } catch {}
-}
-
-async function safeGet(path) {
-  if (!db) return null;
-  try { const snap = await get(ref(db, path)); return snap.exists() ? snap.val() : null; } catch { return null; }
-}
-
-async function listCollection(path) {
-  if (!db) return [];
+async function dbGet(path) {
   try {
-    const snap = await get(ref(db, path));
-    if (!snap.exists()) return [];
-    const result = [];
-    snap.forEach(child => result.push({ id: child.key, ...child.val() }));
-    return result;
-  } catch { return []; }
+    const res = await fetch(dbUrl(path));
+    if (!res.ok) { console.warn("dbGet", path, res.status); return null; }
+    const data = await res.json();
+    if (data === null) return null;
+    if (data.error) { console.warn("dbGet", path, data.error); return null; }
+    return data;
+  } catch (e) { console.warn("dbGet", path, e.message); return null; }
 }
 
-async function getDoc(path) {
-  if (!db) return null;
-  try {
-    const snap = await get(ref(db, path));
-    return snap.exists() ? snap.val() : null;
-  } catch { return null; }
+async function dbPut(path, data) {
+  const res = await fetch(dbUrl(path), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+  if (!res.ok) throw new Error(`Firebase PUT ${path} failed: ${res.status} ${await res.text()}`);
+  return res.json();
 }
 
-async function pushDoc(path, data) {
-  if (!db) return { ...data };
+async function dbPutSilent(path, data) {
+  try { return await dbPut(path, data); } catch (e) { console.warn("dbPut:", e.message); return null; }
+}
+
+async function dbPost(path, data) {
   try {
-    const newRef = push(ref(db, path));
-    const item = { id: newRef.key, ...data };
-    await set(newRef, item);
-    return item;
+    const res = await fetch(dbUrl(path), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    const result = await res.json();
+    return { id: result.name, ...data };
   } catch { return { ...data }; }
 }
 
-async function deleteDoc(path) {
-  if (!db) return;
-  try { await remove(ref(db, path)); } catch {}
+async function dbPatch(path, data) {
+  const res = await fetch(dbUrl(path), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+  if (!res.ok) throw new Error(`Firebase PATCH ${path} failed: ${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+async function dbDelete(path) {
+  try { await fetch(dbUrl(path), { method: "DELETE" }); } catch {}
+}
+
+async function dbList(path) {
+  const data = await dbGet(path);
+  if (!data || typeof data !== "object") return [];
+  return Object.entries(data).map(([key, val]) => ({ id: key, ...val }));
+}
+
+async function dbQueryList(path, field, value) {
+  const data = await dbGet(path);
+  if (!data || typeof data !== "object") return [];
+  return Object.entries(data)
+    .filter(([, val]) => val[field] === value)
+    .map(([key, val]) => ({ id: key, ...val }));
+}
+
+function userIdentity(user) {
+  if (!user) return null;
+  return { uid: user.uid || user.id || "", email: user.email || "", displayName: user.displayName || user.name || "", photoURL: user.photoURL || "" };
 }
 
 async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options,
   });
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
-  if (!response.ok || data.success === false) {
-    throw new Error(data.message || data.error || "Request failed.");
-  }
+  if (!response.ok || data.success === false) throw new Error(data.message || data.error || "Request failed.");
   return data;
-}
-
-async function getData(path) {
-  const data = await apiFetch(`/api/data/${path}`);
-  return data.data ?? null;
-}
-
-async function postData(path, payload) {
-  const data = await apiFetch(`/api/data/${path}`, {
-    method: "POST",
-    body: JSON.stringify(payload || {}),
-  });
-  return data.data;
-}
-
-async function deleteApiData(path) {
-  const data = await apiFetch(`/api/data/${path}`, { method: "DELETE" });
-  return data.data;
 }
 
 // Career Paths
 export async function fetchCareerPaths() {
-  const paths = await listCollection("careerPaths");
-  const categories = (await getDoc("siteConfig/domainCategories"))?.value || [];
-  if (!paths.length && !categories.length) {
-    return { paths: FALLBACK_PATHS, categories: [] };
-  }
+  const paths = await dbList("careerPaths");
+  const catData = await dbGet("siteConfig/domainCategories");
+  const categories = catData?.value || [];
+  if (!paths.length && !categories.length) return { paths: FALLBACK_PATHS, categories: [] };
   return { paths, categories };
 }
 
 export async function saveCareerPaths(paths, categories) {
-  await remove(ref(db, "careerPaths"));
-  const updates = {};
+  const now = new Date().toISOString();
+  const obj = {};
   paths.forEach((item, idx) => {
     const id = item.id || `path_${idx + 1}`;
-    updates[`careerPaths/${id}`] = { ...item, id, updatedAt: new Date().toISOString() };
+    obj[id] = { ...item, id, updatedAt: now };
   });
-  if (Object.keys(updates).length) await update(ref(db), updates);
-  if (categories) await set(ref(db, "siteConfig/domainCategories"), { value: categories, updatedAt: new Date().toISOString() });
+  await dbPut("careerPaths", obj);
+  if (categories) await dbPut("siteConfig/domainCategories", { value: categories, updatedAt: now });
   return { paths, categories };
 }
 
 // How It Works
 export async function fetchHowItWorks() {
-  const steps = await listCollection("howItWorks");
+  const steps = await dbList("howItWorks");
   const sorted = steps.sort((a, b) => (a.step || 0) - (b.step || 0));
   return sorted.length ? sorted : FALLBACK_STEPS;
 }
 
 export async function saveHowItWorks(steps) {
-  await remove(ref(db, "howItWorks"));
-  const updates = {};
-  steps.forEach((step) => { updates[`howItWorks/${step.id}`] = { ...step, updatedAt: new Date().toISOString() }; });
-  if (Object.keys(updates).length) await update(ref(db), updates);
+  const now = new Date().toISOString();
+  const obj = {};
+  steps.forEach(step => { obj[step.id] = { ...step, updatedAt: now }; });
+  if (Object.keys(obj).length) await dbPut("howItWorks", obj);
   return steps;
 }
 
 // FAQs
 export async function fetchFAQs() {
-  const faqs = await listCollection("faqs");
+  const faqs = await dbList("faqs");
   return faqs.length ? faqs : FALLBACK_FAQS;
 }
 
 export async function saveFAQs(faqs) {
-  await remove(ref(db, "faqs"));
-  const updates = {};
-  faqs.forEach((faq) => { updates[`faqs/${faq.id}`] = { ...faq, updatedAt: new Date().toISOString() }; });
-  if (Object.keys(updates).length) await update(ref(db), updates);
+  const now = new Date().toISOString();
+  const obj = {};
+  faqs.forEach(faq => { obj[faq.id] = { ...faq, updatedAt: now }; });
+  if (Object.keys(obj).length) await dbPut("faqs", obj);
   return faqs;
 }
 
 // Templates
 export async function fetchTemplates() {
-  return (await getDoc("config/templates"))?.value || null;
+  const d = await dbGet("config/templates");
+  return d?.value || null;
 }
 
 export async function saveTemplates(templates) {
-  await set(ref(db, "config/templates"), { value: templates, updatedAt: new Date().toISOString() });
+  await dbPut("config/templates", { value: templates, updatedAt: new Date().toISOString() });
   return templates;
 }
 
 // About Text
 export async function fetchAboutText() {
-  return (await getDoc("config/aboutText"))?.value || "";
+  const d = await dbGet("config/aboutText");
+  return d?.value || "";
 }
 
 export async function saveAboutText(text) {
-  await set(ref(db, "config/aboutText"), { value: text, updatedAt: new Date().toISOString() });
+  await dbPut("config/aboutText", { value: text, updatedAt: new Date().toISOString() });
   return text;
 }
 
-// Inquiries (stored in RTDB under "inquiries")
+// Inquiries
 export async function saveInquiry(inquiry) {
-  return pushDoc("inquiries", inquiry);
+  return dbPost("inquiries", inquiry);
 }
 
 // User Profile
 export async function fetchUserProfile(uid) {
   if (!uid) return null;
-  return getDoc(`users/${uid}`);
+  return dbGet(`users/${uid}`);
 }
 
 export async function saveUserProfile(uid, profile) {
-  await update(ref(db, `users/${uid}`), { ...profile, updatedAt: new Date().toISOString() });
+  const data = await dbPatch(`users/${uid}`, { ...profile, updatedAt: new Date().toISOString() });
   return { ...profile, uid };
 }
 
 // Enrollment
 export async function enrollStudent(uid, profile, domainObj) {
   const detectedReferralCode = localStorage.getItem("detected_referral_code") || "";
-  const permanentReferralCode = await fetchPermanentReferralCode(uid);
-  const refCode = (detectedReferralCode || permanentReferralCode || "").toUpperCase().trim();
-  const paymentSettings = await getDoc("siteConfig/paymentSettings");
-  const ps = paymentSettings?.value || { defaultAmount: 200, defaultAmountReferral: 170 };
+  const permanentRefCode = await fetchPermanentReferralCode(uid);
+  const refCode = (detectedReferralCode || permanentRefCode || "").toUpperCase().trim();
+  const psData = await dbGet("siteConfig/paymentSettings");
+  const ps = psData?.value || { defaultAmount: 200, defaultAmountReferral: 170 };
   const isReferral = !!refCode;
   const domainAmount = domainObj.paymentAmount || (isReferral ? ps.defaultAmountReferral : ps.defaultAmount);
   const paymentTiming = domainObj.paymentTiming || ps.defaultTiming || "end";
@@ -219,116 +196,79 @@ export async function enrollStudent(uid, profile, domainObj) {
   const pmtStart = paymentTiming === "both" ? Math.round(domainAmount * splitPercent / 100) : 0;
   const pmtEnd = paymentTiming === "both" ? domainAmount - pmtStart : domainAmount;
   const enrollment = {
-    uid,
-    name: profile.name || profile.displayName || "Student",
-    email: profile.email || "",
-    photoURL: profile.photoURL || "",
-    phone: profile.phone || "",
-    college: profile.college || "",
-    city: profile.city || "",
-    country: profile.country || "",
-    upiId: profile.upiId || "",
-    domain: domainObj.title || domainObj.name || "",
-    domainId: domainObj.id || "",
-    projects: domainObj.projects || [],
-    referralCode: refCode,
-    status: "Active",
-    allowedCertificate: "no",
-    submissions: {},
-    paymentStatus: "none",
-    paymentStage: "none",
-    paymentAmount: domainAmount,
-    paymentStartAmount: pmtStart,
-    paymentEndAmount: pmtEnd,
-    paymentTiming,
-    paymentIntentId: "",
-    overrideCompleted: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    uid, name: profile.name || profile.displayName || "Student", email: profile.email || "", photoURL: profile.photoURL || "",
+    phone: profile.phone || "", college: profile.college || "", city: profile.city || "", country: profile.country || "", upiId: profile.upiId || "",
+    domain: domainObj.title || domainObj.name || "", domainId: domainObj.id || "", projects: domainObj.projects || [],
+    referralCode: refCode, status: "Active", allowedCertificate: "no", submissions: {},
+    paymentStatus: "none", paymentStage: "none", paymentAmount: domainAmount,
+    paymentStartAmount: pmtStart, paymentEndAmount: pmtEnd, paymentTiming, paymentIntentId: "", overrideCompleted: false,
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   };
-  const newRef = push(ref(db, "enrollments"));
-  enrollment.id = newRef.key;
-  await set(newRef, enrollment);
+  const result = await dbPost("enrollments", enrollment);
+  enrollment.id = result.id;
   if (refCode) {
-    const refSnap = await get(ref(db, `referrals/${refCode}/contacted`));
-    await update(ref(db, `referrals/${refCode}`), { contacted: (refSnap.val() || 0) + 1, updatedAt: new Date().toISOString() });
+    const ref = await dbGet(`referrals/${refCode}/contacted`);
+    await dbPatch(`referrals/${refCode}`, { contacted: (ref || 0) + 1, updatedAt: new Date().toISOString() });
   }
   if (detectedReferralCode) localStorage.removeItem("detected_referral_code");
   return enrollment;
 }
 
-export async function fetchEnrollments() {
-  return listCollection("enrollments");
-}
+export async function fetchEnrollments() { return dbList("enrollments"); }
 
 export async function fetchUserEnrollments(uid) {
-  const snap = await get(query(ref(db, "enrollments"), orderByChild("uid"), equalTo(uid)));
-  if (!snap.exists()) return [];
-  const result = [];
-  snap.forEach(child => result.push({ id: child.key, ...child.val() }));
-  return result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const list = await dbQueryList("enrollments", "uid", uid);
+  return list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 }
 
 export async function updateEnrollmentStatus(enrollmentId, status) {
-  await update(ref(db, `enrollments/${enrollmentId}`), { status, updatedAt: new Date().toISOString() });
+  await dbPatch(`enrollments/${enrollmentId}`, { status, updatedAt: new Date().toISOString() });
 }
 
 export async function submitTransactionId(enrollmentId, transactionId) {
-  await update(ref(db, `enrollments/${enrollmentId}`), { transactionId, updatedAt: new Date().toISOString() });
+  await dbPatch(`enrollments/${enrollmentId}`, { transactionId, updatedAt: new Date().toISOString() });
 }
 
 export async function recordReferralLogin(referralCode, user) {
   if (!referralCode || !user?.uid) return null;
   const code = referralCode.toUpperCase().trim();
-  const data = { ...userIdentity(user), code, loginAt: new Date().toISOString() };
-  await set(ref(db, `referralUsers/${code}_${user.uid}`), { ...data, updatedAt: new Date().toISOString() });
-  await update(ref(db, `referrals/${code}`), { lastActivityAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  await dbPut(`referralUsers/${code}_${user.uid}`, { ...userIdentity(user), code, loginAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  await dbPatch(`referrals/${code}`, { lastActivityAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   return { code };
 }
 
 export async function allowCertificate(enrollmentId, allowed) {
-  await update(ref(db, `enrollments/${enrollmentId}`), { allowedCertificate: allowed, updatedAt: new Date().toISOString() });
+  await dbPatch(`enrollments/${enrollmentId}`, { allowedCertificate: allowed, updatedAt: new Date().toISOString() });
 }
 
 export async function verifyInternship(enrollmentId) {
-  await update(ref(db, `enrollments/${enrollmentId}`), { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
 }
 
 export async function submitProject(enrollmentId, projectIndex, submissionText, submissionUrl = "") {
-  const now = new Date().toISOString();
-  await update(ref(db, `enrollments/${enrollmentId}/submissions/${projectIndex}`), { text: submissionText, url: submissionUrl, submittedAt: now, verified: false });
+  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { text: submissionText, url: submissionUrl, submittedAt: new Date().toISOString(), verified: false });
 }
 
 export async function submitQuizAnswer(enrollmentId, projectIndex, answers, project) {
-  const now = new Date().toISOString();
-  await set(ref(db, `enrollments/${enrollmentId}/submissions/${projectIndex}`), { answers, project, submittedAt: now, verified: false, type: "quiz" });
+  await dbPut(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { answers, project, submittedAt: new Date().toISOString(), verified: false, type: "quiz" });
 }
 
 export async function verifyProject(enrollmentId, projectIndex) {
-  const now = new Date().toISOString();
-  await update(ref(db, `enrollments/${enrollmentId}/submissions/${projectIndex}`), { verified: true, verifiedAt: now, rejected: false });
+  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: true, verifiedAt: new Date().toISOString(), rejected: false });
 }
 
 export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) {
-  await update(ref(db, `enrollments/${enrollmentId}/submissions/${projectIndex}`), { feedback });
+  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { feedback });
 }
 
 export async function rejectProject(enrollmentId, projectIndex, feedback) {
-  const now = new Date().toISOString();
-  await update(ref(db, `enrollments/${enrollmentId}/submissions/${projectIndex}`), { verified: false, rejected: true, feedback, rejectedAt: now });
+  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: false, rejected: true, feedback, rejectedAt: new Date().toISOString() });
 }
 
-export async function fetchEnrollmentById(enrollmentId) {
-  return getDoc(`enrollments/${enrollmentId}`);
-}
+export async function fetchEnrollmentById(enrollmentId) { return dbGet(`enrollments/${enrollmentId}`); }
 
-// Admin
 export async function fetchAdminData() {
-  const [requests, referrals, visits] = await Promise.all([
-    listCollection("enrollments"),
-    listCollection("referrals"),
-    listCollection("referralVisits"),
-  ]);
+  const [requests, referrals, visits] = await Promise.all([dbList("enrollments"), dbList("referrals"), dbList("referralVisits")]);
   return {
     requests: requests.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
     referrals,
@@ -336,34 +276,29 @@ export async function fetchAdminData() {
   };
 }
 
-// Referrals
 export async function isReferralCodeMatched(referralCode) {
   if (!referralCode) return false;
-  const snap = await get(ref(db, `referrals/${referralCode.toUpperCase().trim()}`));
-  return snap.exists();
+  const data = await dbGet(`referrals/${referralCode.toUpperCase().trim()}`);
+  return !!data;
 }
 
-export async function deleteReferral(code) {
-  await remove(ref(db, `referrals/${code.toUpperCase().trim()}`));
-}
+export async function deleteReferral(code) { await dbDelete(`referrals/${code.toUpperCase().trim()}`); }
 
-export async function deleteEnrollment(enrollmentId) {
-  await remove(ref(db, `enrollments/${enrollmentId}`));
-}
+export async function deleteEnrollment(enrollmentId) { await dbDelete(`enrollments/${enrollmentId}`); }
 
 export async function createReferral(details) {
   const code = (details.code || `REF-${Date.now().toString(36).toUpperCase()}`).toUpperCase().trim();
   const referral = { id: code, code, ...details, visited: 0, contacted: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-  await set(ref(db, `referrals/${code}`), referral);
+  await dbPut(`referrals/${code}`, referral);
   return referral;
 }
 
 export async function trackReferralVisit(referralCode) {
   if (!referralCode) return null;
   const code = referralCode.toUpperCase().trim();
-  const visit = await pushDoc("referralVisits", { referralCode: code, visitedAt: new Date().toISOString(), url: window.location.href, referrer: document.referrer });
-  const refSnap = await get(ref(db, `referrals/${code}/visited`));
-  await update(ref(db, `referrals/${code}`), { visited: (refSnap.val() || 0) + 1, lastVisitedAt: visit.visitedAt, updatedAt: new Date().toISOString() });
+  const visit = await dbPost("referralVisits", { referralCode: code, visitedAt: new Date().toISOString(), url: window.location.href, referrer: document.referrer });
+  const ref = await dbGet(`referrals/${code}/visited`);
+  await dbPatch(`referrals/${code}`, { visited: (ref || 0) + 1, lastVisitedAt: visit.visitedAt, updatedAt: new Date().toISOString() });
   return visit;
 }
 
@@ -372,90 +307,77 @@ export async function processReferralFromUrl() {
   const code = (params.get("ref") || params.get("referral") || "").trim().toUpperCase();
   if (!code) return { code: "", matched: false };
   const matched = await isReferralCodeMatched(code);
-  if (matched) {
-    localStorage.setItem("detected_referral_code", code);
-    await trackReferralVisit(code);
-  }
+  if (matched) { localStorage.setItem("detected_referral_code", code); await trackReferralVisit(code); }
   return { code, matched };
 }
 
 export async function markReferralContacted(referralCode) {
   const code = referralCode.toUpperCase().trim();
-  const refSnap = await get(ref(db, `referrals/${code}/contacted`));
-  await update(ref(db, `referrals/${code}`), { contacted: (refSnap.val() || 0) + 1, lastContactedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  const ref = await dbGet(`referrals/${code}/contacted`);
+  await dbPatch(`referrals/${code}`, { contacted: (ref || 0) + 1, lastContactedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
 }
 
-// Admins
 export async function checkAdminStatus(email) {
   const cleanEmail = (email || "").toLowerCase().trim();
   if (cleanEmail === "rutujdhodapkar@gmail.com") return { isAdmin: true };
   const emailId = cleanEmail.replace(/\./g, ",");
-  const snap = await get(ref(db, `admins/${emailId}`));
-  return { isAdmin: snap.exists() };
+  const data = await dbGet(`admins/${emailId}`);
+  return { isAdmin: !!data };
 }
 
 export async function fetchAdmins() {
-  const list = await listCollection("admins");
+  const list = await dbList("admins");
   return list.map(a => a.email || a.id);
 }
 
 export async function addAdmin(email) {
   const cleanEmail = email.toLowerCase().trim();
   const emailId = cleanEmail.replace(/\./g, ",");
-  await set(ref(db, `admins/${emailId}`), { email: cleanEmail, createdAt: new Date().toISOString() });
+  await dbPut(`admins/${emailId}`, { email: cleanEmail, createdAt: new Date().toISOString() });
 }
 
 export async function removeAdmin(email) {
-  const emailId = email.toLowerCase().trim().replace(/\./g, ",");
-  await remove(ref(db, `admins/${emailId}`));
+  await dbDelete(`admins/${email.toLowerCase().trim().replace(/\./g, ",")}`);
 }
 
-// Self Referrals
 export async function createSelfReferral(details, uid) {
   const code = (details.code || `REF-${String(uid).slice(-6).toUpperCase()}-${Date.now().toString(36).slice(-4).toUpperCase()}`).toUpperCase();
   const now = new Date().toISOString();
-  await set(ref(db, `referrals/${code}`), { id: code, code, ...details, uid, selfCreated: true, createdAt: now, updatedAt: now });
-  await set(ref(db, `selfReferralOwners/${uid}`), { uid, code, createdAt: now });
-  await update(ref(db, `users/${uid}`), { selfReferralCode: code, updatedAt: now });
+  await dbPut(`referrals/${code}`, { id: code, code, ...details, uid, selfCreated: true, createdAt: now, updatedAt: now });
+  await dbPut(`selfReferralOwners/${uid}`, { uid, code, createdAt: now });
+  await dbPatch(`users/${uid}`, { selfReferralCode: code, updatedAt: now });
   return { code };
 }
 
 export async function fetchSelfReferralCode(uid) {
-  const data = await getDoc(`selfReferralOwners/${uid}`);
+  const data = await dbGet(`selfReferralOwners/${uid}`);
   return data?.code || null;
 }
 
 export async function fetchReferralDashboardData(uid) {
-  const owner = await getDoc(`selfReferralOwners/${uid}`);
+  const owner = await dbGet(`selfReferralOwners/${uid}`);
   if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 } };
   const code = owner.code.toUpperCase().trim();
-  const visitSnap = await get(query(ref(db, "referralVisits"), orderByChild("referralCode"), equalTo(code)));
-  const visits = [];
-  if (visitSnap.exists()) visitSnap.forEach(child => visits.push({ id: child.key, ...child.val() }));
-  const referral = await getDoc(`referrals/${code}`);
-  const internSnap = await get(query(ref(db, "enrollments"), orderByChild("referralCode"), equalTo(code)));
-  const interns = [];
-  if (internSnap.exists()) internSnap.forEach(child => interns.push({ id: child.key, ...child.val() }));
+  const visits = await dbQueryList("referralVisits", "referralCode", code);
+  const referral = await dbGet(`referrals/${code}`);
+  const interns = await dbQueryList("enrollments", "referralCode", code);
   const completed = interns.filter(i => i.status === "Completed" && i.paymentStatus === "paid");
   const earnings = completed.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
   return { referral, visits, interns, totals: { visits: visits.length, interns: interns.length, completed: completed.length, earnings } };
 }
 
 export async function fetchUserReferralStat(email) {
-  const snap = await get(query(ref(db, "referrals"), orderByChild("email"), equalTo(email)));
-  if (!snap.exists()) return null;
-  let referral = null;
-  snap.forEach(c => { if (!referral) referral = { id: c.key, ...c.val() }; });
+  const list = await dbQueryList("referrals", "email", email);
+  if (!list.length) return null;
+  const referral = list[0];
   const code = (referral.code || referral.id || "").toUpperCase().trim();
-  const internSnap = await get(query(ref(db, "enrollments"), orderByChild("referralCode"), equalTo(code)));
-  const interns = [];
-  if (internSnap.exists()) internSnap.forEach(child => interns.push({ id: child.key, ...child.val() }));
+  const interns = await dbQueryList("enrollments", "referralCode", code);
   return { referral, interns, internCount: interns.length, completed: interns.filter(i => i.status === "Completed").length };
 }
 
 export async function fetchAdminReferralUsersWithInterns() {
-  const referrals = await listCollection("referrals");
-  const allEnrollments = await listCollection("enrollments");
+  const referrals = await dbList("referrals");
+  const allEnrollments = await dbList("enrollments");
   return referrals.map(r => {
     const code = (r.code || r.id || "").toUpperCase().trim();
     const interns = allEnrollments.filter(e => (e.referralCode || "").toUpperCase().trim() === code);
@@ -467,57 +389,53 @@ export async function fetchAdminReferralUsersWithInterns() {
 
 export async function savePermanentReferralCode(uid, code) {
   if (!uid || !code) return null;
-  const now = new Date().toISOString();
-  await update(ref(db, `users/${uid}`), { permanentReferralCode: code.toUpperCase().trim(), permanentReferralDetectedAt: now, updatedAt: now });
+  await dbPatch(`users/${uid}`, { permanentReferralCode: code.toUpperCase().trim(), permanentReferralDetectedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   return { code: code.toUpperCase().trim() };
 }
 
 export async function fetchPermanentReferralCode(uid) {
-  const user = await getDoc(`users/${uid}`);
+  const user = await dbGet(`users/${uid}`);
   return user?.permanentReferralCode || null;
 }
 
 export async function fetchEarnSettings() {
-  return (await getDoc("siteConfig/earnSettings"))?.value || null;
+  const d = await dbGet("siteConfig/earnSettings");
+  return d?.value || null;
 }
 
 export async function saveEarnSettings(settings) {
-  await set(ref(db, "siteConfig/earnSettings"), { value: settings, updatedAt: new Date().toISOString() });
+  await dbPut("siteConfig/earnSettings", { value: settings, updatedAt: new Date().toISOString() });
   return settings;
 }
 
 export async function fetchEarnDetails() {
-  return (await getDoc("siteConfig/earnDetails"))?.value || null;
+  const d = await dbGet("siteConfig/earnDetails");
+  return d?.value || null;
 }
 
 export async function saveEarnDetails(details) {
-  await set(ref(db, "siteConfig/earnDetails"), { value: details, updatedAt: new Date().toISOString() });
+  await dbPut("siteConfig/earnDetails", { value: details, updatedAt: new Date().toISOString() });
   return details;
 }
 
-// Banned Users
-export async function fetchBannedUsers() {
-  return listCollection("bannedUsers");
-}
+export async function fetchBannedUsers() { return dbList("bannedUsers"); }
 
 export async function checkUserBan(email) {
   const emailId = (email || "").toLowerCase().trim().replace(/\./g, ",");
-  return getDoc(`bannedUsers/${emailId}`);
+  return dbGet(`bannedUsers/${emailId}`);
 }
 
 export async function banUser(email, banType, reason, bannedBy) {
   const emailId = email.toLowerCase().trim().replace(/\./g, ",");
-  await set(ref(db, `bannedUsers/${emailId}`), { email: email.toLowerCase().trim(), banType, reason, bannedBy, bannedAt: new Date().toISOString() });
+  await dbPut(`bannedUsers/${emailId}`, { email: email.toLowerCase().trim(), banType, reason, bannedBy, bannedAt: new Date().toISOString() });
 }
 
 export async function unbanUser(email) {
-  const emailId = email.toLowerCase().trim().replace(/\./g, ",");
-  await remove(ref(db, `bannedUsers/${emailId}`));
+  await dbDelete(`bannedUsers/${email.toLowerCase().trim().replace(/\./g, ",")}`);
 }
 
-// Admin Messages
 export async function fetchAdminMessages(userEmail, { context, uid } = {}) {
-  const msgs = await listCollection("adminMessages");
+  const msgs = await dbList("adminMessages");
   const now = new Date();
   return msgs.filter(m => {
     if (m.expiresAt && new Date(m.expiresAt) < now) return false;
@@ -528,124 +446,107 @@ export async function fetchAdminMessages(userEmail, { context, uid } = {}) {
   });
 }
 
-export async function fetchAllAdminMessages() {
-  return listCollection("adminMessages");
-}
+export async function fetchAllAdminMessages() { return dbList("adminMessages"); }
 
 export async function saveAdminMessage(message) {
-  return pushDoc("adminMessages", { ...message, acknowledgedBy: {} });
+  return dbPost("adminMessages", { ...message, acknowledgedBy: {} });
 }
 
 export async function acknowledgeAdminMessage(messageId, uid, userInfo = {}) {
-  await set(ref(db, `adminMessages/${messageId}/acknowledgedBy/${uid}`), { ...userInfo, uid, acknowledgedAt: new Date().toISOString() });
+  await dbPut(`adminMessages/${messageId}/acknowledgedBy/${uid}`, { ...userInfo, uid, acknowledgedAt: new Date().toISOString() });
 }
 
-export async function deleteAdminMessage(id) {
-  await remove(ref(db, `adminMessages/${id}`));
-}
+export async function deleteAdminMessage(id) { await dbDelete(`adminMessages/${id}`); }
 
-// Site Notices
 export async function saveSiteNotice(notice) {
-  return pushDoc("siteNotices", { ...notice, active: true });
+  return dbPost("siteNotices", { ...notice, active: true });
 }
 
 export async function fetchSiteNotices() {
-  return (await listCollection("siteNotices")).filter(n => n.active !== false);
+  const list = await dbList("siteNotices");
+  return list.filter(n => n.active !== false);
 }
 
 export async function toggleSiteNotice(id, active) {
-  await update(ref(db, `siteNotices/${id}`), { active, updatedAt: new Date().toISOString() });
+  await dbPatch(`siteNotices/${id}`, { active, updatedAt: new Date().toISOString() });
 }
 
-export async function deleteSiteNotice(id) {
-  await remove(ref(db, `siteNotices/${id}`));
-}
+export async function deleteSiteNotice(id) { await dbDelete(`siteNotices/${id}`); }
 
-// Homepage
 export async function fetchHomepageContent() {
-  return (await getDoc("siteConfig/homepage"))?.value || null;
+  const d = await dbGet("siteConfig/homepage");
+  return d?.value || null;
 }
 
 export async function saveHomepageContent(content) {
-  await set(ref(db, "siteConfig/homepage"), { value: content, updatedAt: new Date().toISOString() });
+  await dbPut("siteConfig/homepage", { value: content, updatedAt: new Date().toISOString() });
   return content;
 }
 
-// Site Visit Tracking
 export async function trackSiteVisit(user) {
-  return pushDoc("siteVisits", {
-    user: userIdentity(user),
-    visitedAt: new Date().toISOString(),
-    userAgent: navigator.userAgent || "",
-    language: navigator.language || "",
-    referrer: document.referrer || "",
-    url: window.location.href || "",
+  return dbPost("siteVisits", {
+    user: userIdentity(user), visitedAt: new Date().toISOString(),
+    userAgent: navigator.userAgent || "", language: navigator.language || "",
+    referrer: document.referrer || "", url: window.location.href || "",
     screen: `${window.screen?.width || "?"}x${window.screen?.height || "?"}`,
     viewport: `${window.innerWidth || "?"}x${window.innerHeight || "?"}`,
   });
 }
 
-// Referral achieved / auto-unachieve
 export async function markReferralAchieved(referralCode, achieved) {
   const code = referralCode.toUpperCase().trim();
-  await update(ref(db, `referrals/${code}`), { achieved, achievedAt: achieved ? new Date().toISOString() : null, updatedAt: new Date().toISOString() });
+  await dbPatch(`referrals/${code}`, { achieved, achievedAt: achieved ? new Date().toISOString() : null, updatedAt: new Date().toISOString() });
 }
 
 export async function markEnrollmentComplete(enrollmentId) {
-  const now = new Date().toISOString();
-  await update(ref(db, `enrollments/${enrollmentId}`), { status: "Completed", allowedCertificate: "yes", completedAt: now, updatedAt: now });
+  await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
 }
 
 export async function rejectEnrollmentCompletion(enrollmentId, reason) {
-  const now = new Date().toISOString();
-  await update(ref(db, `enrollments/${enrollmentId}`), { completionRejectedAt: now, completionRejectReason: reason, updatedAt: now });
+  await dbPatch(`enrollments/${enrollmentId}`, { completionRejectedAt: new Date().toISOString(), completionRejectReason: reason, updatedAt: new Date().toISOString() });
 }
 
 export async function clearCompletionRejection(enrollmentId) {
-  await update(ref(db, `enrollments/${enrollmentId}`), { completionRejectedAt: null, completionRejectReason: null, updatedAt: new Date().toISOString() });
+  await dbPatch(`enrollments/${enrollmentId}`, { completionRejectedAt: null, completionRejectReason: null, updatedAt: new Date().toISOString() });
 }
 
-export async function autoUnachieveIfActivity(referralCode) {
-  return { unachieved: false };
-}
+export async function autoUnachieveIfActivity() { return { unachieved: false }; }
 
-// AI Verification (still uses API for NVIDIA)
 export async function verifyTaskWithAI(params) {
   const data = await apiFetch("/api/ai/verify-task", { method: "POST", body: JSON.stringify(params) });
   return { success: true, data: data.data };
 }
 
-// Stripe (still uses API)
 export async function createPaymentIntent(enrollmentId, amount, paymentStage = "full") {
   const data = await apiFetch("/api/create-payment-intent", { method: "POST", body: JSON.stringify({ enrollmentId, amount, paymentStage }) });
   return data.data;
 }
 
 export async function fetchStripeConfig() {
-  return (await getDoc("siteConfig/stripe-config"))?.data || { publishableKey: "" };
+  const d = await dbGet("siteConfig/stripe-config");
+  return d?.data || { publishableKey: "" };
 }
 
 export async function fetchPaymentSettings() {
-  return (await getDoc("siteConfig/paymentSettings"))?.value || null;
+  const d = await dbGet("siteConfig/paymentSettings");
+  return d?.value || null;
 }
 
 export async function savePaymentSettings(settings) {
-  await set(ref(db, "siteConfig/paymentSettings"), { value: settings, updatedAt: new Date().toISOString() });
+  await dbPut("siteConfig/paymentSettings", { value: settings, updatedAt: new Date().toISOString() });
   return settings;
 }
 
-// Enrollment Override / Payment
 export async function overrideCompleteEnrollment(enrollmentId, adminEmail) {
-  const now = new Date().toISOString();
-  await update(ref(db, `enrollments/${enrollmentId}`), { status: "Completed", allowedCertificate: "yes", completedAt: now, overrideCompleted: true, overriddenBy: adminEmail, updatedAt: now });
+  await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), overrideCompleted: true, overriddenBy: adminEmail, updatedAt: new Date().toISOString() });
 }
 
 export async function unverifyProject(enrollmentId, projectIndex) {
-  await update(ref(db, `enrollments/${enrollmentId}/submissions/${projectIndex}`), { verified: false, verifiedAt: null });
+  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: false, verifiedAt: null });
 }
 
 export async function unverifyPayment(enrollmentId, reason) {
-  await update(ref(db, `enrollments/${enrollmentId}`), { paymentStatus: "none", paymentStage: "none", paidAt: null, paymentIntentId: "", allowedCertificate: "no", paymentUnverifyReason: reason, updatedAt: new Date().toISOString() });
+  await dbPatch(`enrollments/${enrollmentId}`, { paymentStatus: "none", paymentStage: "none", paidAt: null, paymentIntentId: "", allowedCertificate: "no", paymentUnverifyReason: reason, updatedAt: new Date().toISOString() });
 }
 
 export async function updatePaymentStatus(enrollmentId, paymentStatus, paymentStage) {
@@ -654,16 +555,13 @@ export async function updatePaymentStatus(enrollmentId, paymentStatus, paymentSt
   if (paymentStatus === "paid") {
     patch.paidAt = now;
     if (paymentStage === "start" || !paymentStage) patch.paymentStage = "start_paid";
-    if (paymentStage === "end" || paymentStage === "full") {
-      patch.allowedCertificate = "yes";
-      patch.paymentStage = "fully_paid";
-    }
+    if (paymentStage === "end" || paymentStage === "full") { patch.allowedCertificate = "yes"; patch.paymentStage = "fully_paid"; }
   }
-  await update(ref(db, `enrollments/${enrollmentId}`), patch);
+  await dbPatch(`enrollments/${enrollmentId}`, patch);
 }
 
 export async function setPaymentAmount(enrollmentId, paymentAmount) {
-  await update(ref(db, `enrollments/${enrollmentId}`), { paymentAmount, updatedAt: new Date().toISOString() });
+  await dbPatch(`enrollments/${enrollmentId}`, { paymentAmount, updatedAt: new Date().toISOString() });
 }
 
 export async function aiGradeQuiz(questions, answers) {
@@ -671,11 +569,10 @@ export async function aiGradeQuiz(questions, answers) {
   return data.data;
 }
 
-// Payment Stats
 export async function fetchPaymentStats() {
-  const enrollments = await listCollection("enrollments");
+  const enrollments = await dbList("enrollments");
   const paidEnrollments = enrollments.filter(e => e.paymentStatus === "paid");
-  const referrals = await listCollection("referrals");
+  const referrals = await dbList("referrals");
   const totalCollected = paidEnrollments.reduce((sum, e) => sum + (e.paymentAmount || 0), 0);
   const referralPayouts = referrals.map(r => {
     const code = (r.code || r.id || "").toUpperCase().trim();
@@ -688,33 +585,30 @@ export async function fetchPaymentStats() {
   return { totalCollected, totalDistribute, netTotal: totalCollected - totalDistribute, paidEnrollments: paidEnrollments.length, referralPayouts };
 }
 
-// User Types
 export async function fetchUserTypes() {
-  return (await getDoc("siteConfig/userTypes"))?.value || [];
+  const d = await dbGet("siteConfig/userTypes");
+  return d?.value || [];
 }
 
 export async function saveUserTypes(types) {
-  await set(ref(db, "siteConfig/userTypes"), { value: types, updatedAt: new Date().toISOString() });
+  await dbPut("siteConfig/userTypes", { value: types, updatedAt: new Date().toISOString() });
   return types;
 }
 
-// Payout Config
 export async function fetchPayoutConfig() {
-  return (await getDoc("siteConfig/payoutConfig"))?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 };
+  const d = await dbGet("siteConfig/payoutConfig");
+  return d?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 };
 }
 
 export async function savePayoutConfig(config) {
-  await set(ref(db, "siteConfig/payoutConfig"), { value: config, updatedAt: new Date().toISOString() });
+  await dbPut("siteConfig/payoutConfig", { value: config, updatedAt: new Date().toISOString() });
   return config;
 }
 
-// Referral Payout
 export async function markReferralPayout(code, payoutAmount, payoutNote) {
-  const c = code.toUpperCase().trim();
-  await update(ref(db, `referrals/${c}`), { payoutStatus: "done", payoutAmount, payoutNote, payoutAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  await dbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "done", payoutAmount, payoutNote, payoutAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
 }
 
 export async function clearReferralPayout(code) {
-  const c = code.toUpperCase().trim();
-  await update(ref(db, `referrals/${c}`), { payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: new Date().toISOString() });
+  await dbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: new Date().toISOString() });
 }
