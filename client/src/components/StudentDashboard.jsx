@@ -180,7 +180,7 @@ export default function StudentDashboard({
     setLoading(true);
     setError("");
     try {
-      const [data, tmpl, paths, refStat] = await Promise.all([
+      const [data, tmpl, cpResult, refStat] = await Promise.all([
         fetchUserEnrollments(user.uid),
         fetchTemplates(),
         fetchCareerPaths(),
@@ -189,7 +189,7 @@ export default function StudentDashboard({
       const activeEnrollments = data.filter((e) => e.status !== "Archived");
       setEnrollments(activeEnrollments);
       setTemplates(tmpl);
-      setCareerPaths(paths);
+      setCareerPaths(cpResult.paths || []);
       setReferralStat(refStat);
 
       const matchResults = {};
