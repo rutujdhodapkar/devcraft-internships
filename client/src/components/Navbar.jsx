@@ -458,7 +458,7 @@ export default function Navbar({
               <input
                 type="text"
                 className="input-sharp"
-                placeholder="Enter Intern ID (dev-craft-XXXXX) or Enrollment ID"
+                placeholder="Enter Intern ID (DEV-CRAFT-XXXXXX) or Enrollment ID"
                 value={verifyId}
                 onChange={(e) => setVerifyId(e.target.value)}
                 style={{

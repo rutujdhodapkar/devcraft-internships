@@ -548,7 +548,6 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
   if (!id && req.method === "POST") {
     const domain = req.body.domain || {};
     const profile = req.body.profile || {};
-    const newRef = db.ref("enrollments").push();
     const paymentSettings = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || { defaultAmount: 200, defaultAmountReferral: 170 };
     const refCode = codeId(req.body.referralCode);
     const isReferral = Boolean(refCode);
@@ -557,8 +556,10 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     const splitPercent = domain.paymentSplitPercent || paymentSettings.defaultSplitPercent || 50;
     const paymentStartAmount = paymentTiming === "both" ? Math.round(domainAmount * splitPercent / 100) : 0;
     const paymentEndAmount = paymentTiming === "both" ? domainAmount - paymentStartAmount : domainAmount;
+    const internId = `DEV-CRAFT-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, '0')}`;
     const enrollment = {
-      id: newRef.key,
+      id: internId,
+      internId,
       uid: req.body.uid,
       name: profile.name || profile.displayName || "Student",
       email: profile.email || "",
@@ -586,7 +587,7 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       createdAt: now(),
       updatedAt: now(),
     };
-    await newRef.set(enrollment);
+    await setDoc(db, "enrollments", internId, enrollment, false);
     if (enrollment.referralCode) {
       await db.ref(`referrals/${enrollment.referralCode}/contacted`).transaction(current => (current || 0) + 1);
       await db.ref(`referrals/${enrollment.referralCode}`).update({ updatedAt: now() });

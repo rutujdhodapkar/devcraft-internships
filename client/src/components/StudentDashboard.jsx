@@ -188,7 +188,7 @@ export default function StudentDashboard({
       ]);
       const activeEnrollments = data.filter((e) => e.status !== "Archived");
       setEnrollments(activeEnrollments);
-      setTemplates(tmpl);
+      setTemplates(tmpl?.templates || tmpl || null);
       setCareerPaths(cpResult.paths || []);
       setReferralStat(refStat);
 
@@ -321,19 +321,27 @@ export default function StudentDashboard({
     }
   };
 
+  const getTemplate = (name) => (templates && templates[name]) || null;
+
   const handleDownloadOffer = (enrollment) => {
-    if (!templates?.offer_letter) {
-      alert("Offer letter template not available. Please contact support.");
-      return;
-    }
-    generateAndPrint(templates.offer_letter, {
+    const html = getTemplate("Offer Letter");
+    if (!html) { alert("Offer letter template not available. Please contact support."); return; }
+    generateAndPrint(html, {
       name: enrollment.name || user.displayName || "Student",
       domain: enrollment.domain,
-      date: new Date(enrollment.createdAt).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
+      date: new Date(enrollment.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
+      id: enrollment.id,
+      internId: enrollment.internId || enrollment.id,
+    });
+  };
+
+  const handleDownloadFromTemplate = (enrollment, templateName) => {
+    const html = getTemplate(templateName);
+    if (!html) { alert(`Template "${templateName}" not available. Please contact support.`); return; }
+    generateAndPrint(html, {
+      name: enrollment.name || user.displayName || "Student",
+      domain: enrollment.domain,
+      date: new Date(enrollment.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
       id: enrollment.id,
       internId: enrollment.internId || enrollment.id,
     });
@@ -1277,6 +1285,8 @@ export default function StudentDashboard({
                     onSubmitQuiz={handleSubmitQuiz}
                     onDownloadOffer={handleDownloadOffer}
                     onDownloadCertificate={handleDownloadCertificate}
+                    onDownloadFromTemplate={handleDownloadFromTemplate}
+                    domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId) || {}).buttons || []}
                     onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
                     paymentStatus={enrollment.paymentStatus}
                     paymentStage={enrollment.paymentStage || "none"}
@@ -1322,6 +1332,8 @@ function EnrollmentCard({
   onSubmitQuiz,
   onDownloadOffer,
   onDownloadCertificate,
+  onDownloadFromTemplate,
+  domainButtons,
   onOpenPayment,
   paymentStatus,
   paymentStage,
@@ -1697,64 +1709,32 @@ function EnrollmentCard({
           <div
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              {/* Offer Letter — always available */}
-              <button
-                className="btn-sharp"
-                onClick={() => onDownloadOffer(enrollment)}
-                style={{
-                  padding: "0.6rem 1.5rem",
-                  fontSize: "0.85rem",
-                  borderRadius: 0,
-                }}
-              >
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <button className="btn-sharp" onClick={() => onDownloadOffer(enrollment)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                 ⬇ Download Offer Letter
               </button>
-
-              {/* Certificate Button — unlocks only if allowedCertificate is 'yes' */}
+              {(domainButtons || []).filter((b) => b.showWhen === "before").map((btn, bi) => (
+                <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                  {btn.label}
+                </button>
+              ))}
               {enrollment.allowedCertificate === "yes" ? (
-                <button
-                  className="btn-sharp"
-                  onClick={() => onDownloadCertificate(enrollment)}
-                  style={{
-                    padding: "0.6rem 1.5rem",
-                    fontSize: "0.85rem",
-                    backgroundColor: "#34A853",
-                    color: "#fff",
-                    border: "2px solid #34A853",
-                    borderRadius: 0,
-                  }}
-                >
+                <button className="btn-sharp" onClick={() => onDownloadCertificate(enrollment)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", backgroundColor: "#34A853", color: "#fff", border: "2px solid #34A853", borderRadius: 0 }}>
                   🏆 Download Certificate
                 </button>
               ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                  }}
-                >
-                  <button
-                    disabled
-                    style={{
-                      padding: "0.6rem 1.5rem",
-                      fontSize: "0.85rem",
-                      border: "2px solid #ccc",
-                      background: "#f5f5f5",
-                      color: "#999",
-                      cursor: "not-allowed",
-                      fontWeight: 700,
-                      borderRadius: 0,
-                    }}
-                  >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <button disabled style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", border: "2px solid #ccc", background: "#f5f5f5", color: "#999", cursor: "not-allowed", fontWeight: 700, borderRadius: 0 }}>
                     🔒 Certificate Locked
                   </button>
-                  <span style={{ fontSize: "0.75rem", color: "#888" }}>
-                    Unlocked after payment & admin approval
-                  </span>
+                  <span style={{ fontSize: "0.75rem", color: "#888" }}>Unlocked after payment & admin approval</span>
                 </div>
               )}
+              {(domainButtons || []).filter((b) => b.showWhen === "after").map((btn, bi) => (
+                <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                  {btn.label}
+                </button>
+              ))}
             </div>
 
             {/* Conditional Payment section */}
@@ -1768,7 +1748,7 @@ function EnrollmentCard({
                     <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                       Please complete the payment to unlock your internship projects.
                     </p>
-                    <button className="btn-sharp" onClick={onOpenPayment} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                    <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
                       Pay ₹{paymentAmount || 99}
                     </button>
                   </div>
@@ -1792,7 +1772,7 @@ function EnrollmentCard({
                         <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                           Complete the payment to unlock your certificate.
                         </p>
-                        <button className="btn-sharp" onClick={onOpenPayment} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                        <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
                           Pay ₹{paymentAmount || 99}
                         </button>
                       </div>

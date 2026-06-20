@@ -305,10 +305,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [domainCategories, setDomainCategories] = useState([]);
   const [howItWorksSteps, setHowItWorksSteps] = useState([]);
   const [faqsList, setFaqsList] = useState([]);
-  const [templates, setTemplates] = useState({
-    offer_letter: "",
-    certificate: "",
-  });
+  const [templates, setTemplates] = useState({ templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] });
   const [contentLoading, setContentLoading] = useState(false);
   const [contentSaving, setContentSaving] = useState(false);
 
@@ -442,7 +439,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       } else if (tabName === "faq") {
         setFaqsList(JSON.parse(JSON.stringify(await fetchFAQs())));
       } else if (tabName === "html templates") {
-        setTemplates(await fetchTemplates());
+        setTemplates(await fetchTemplates() || { templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] });
       }
     } catch (err) {
       setError("Failed to fetch content: " + err.message);
@@ -2498,7 +2495,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   setCareerPaths([
                     ...careerPaths,
                     {
-                      id: "path_" + Date.now(),
+                      id: "DEV-CRAFT-" + Date.now().toString(36).toUpperCase(),
                       title: "New Domain",
                       duration: "4 Weeks",
                       description: "Brief description.",
@@ -3225,6 +3222,31 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           + Add Task
                         </button>
                       </div>
+                      <div style={{ marginTop: "1.5rem", borderTop: "2px solid #ddd", paddingTop: "1rem" }}>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.5rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                          Action Buttons
+                        </label>
+                        {(path.buttons || []).map((btn, bi) => (
+                          <div key={bi} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap" }}>
+                            <input value={btn.label || ""} onChange={(e) => { const u = [...careerPaths]; u[idx].buttons = [...(u[idx].buttons || [])]; u[idx].buttons[bi] = { ...u[idx].buttons[bi], label: e.target.value }; setCareerPaths(u); }}
+                              placeholder="Button label" style={{ border: "1px solid #000", padding: "0.25rem 0.5rem", fontSize: "0.8rem", fontFamily: "inherit", outline: "none", width: "160px" }} />
+                            <select value={btn.templateName || ""} onChange={(e) => { const u = [...careerPaths]; u[idx].buttons = [...(u[idx].buttons || [])]; u[idx].buttons[bi] = { ...u[idx].buttons[bi], templateName: e.target.value }; setCareerPaths(u); }}
+                              style={{ border: "1px solid #000", padding: "0.25rem 0.5rem", fontSize: "0.8rem", fontFamily: "inherit", outline: "none", background: "#fff" }}>
+                              <option value="">-- Select Template --</option>
+                              {(templates.templateOrder || []).map((tKey) => <option key={tKey} value={tKey}>{tKey}</option>)}
+                            </select>
+                            <select value={btn.showWhen || "after"} onChange={(e) => { const u = [...careerPaths]; u[idx].buttons = [...(u[idx].buttons || [])]; u[idx].buttons[bi] = { ...u[idx].buttons[bi], showWhen: e.target.value }; setCareerPaths(u); }}
+                              style={{ border: "1px solid #000", padding: "0.25rem 0.5rem", fontSize: "0.8rem", fontFamily: "inherit", outline: "none", background: "#fff" }}>
+                              <option value="before">Before Tasks</option>
+                              <option value="after">After Tasks</option>
+                            </select>
+                            <button type="button" onClick={() => { const u = [...careerPaths]; u[idx].buttons = (u[idx].buttons || []).filter((_, i) => i !== bi); setCareerPaths(u); }}
+                              style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.4rem", fontSize: "0.8rem" }}>Remove</button>
+                          </div>
+                        ))}
+                        <button type="button" className="btn-sharp-outline" onClick={() => { const u = [...careerPaths]; u[idx].buttons = [...(u[idx].buttons || []), { label: "Download", templateName: "", showWhen: "after" }]; setCareerPaths(u); }}
+                          style={{ fontSize: "0.75rem", padding: "0.25rem 0.75rem", marginTop: "0.25rem" }}>+ Add Button</button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -3709,107 +3731,58 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
         {/* ── 7. HTML TEMPLATES ── */}
         {activeTab === "html templates" && (
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
-          >
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
             <div>
-              <h3
-                style={{
-                  fontSize: "1.2rem",
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  margin: "0 0 0.5rem",
-                }}
-              >
+              <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", margin: "0 0 0.5rem" }}>
                 Credential HTML Templates
               </h3>
               <p style={{ color: "#666", fontSize: "0.82rem", margin: 0 }}>
-                Edit the HTML below. Available variables:{" "}
-                <code>{"{{name}}"}</code> <code>{"{{domain}}"}</code>{" "}
-                <code>{"{{date}}"}</code> <code>{"{{id}}"}</code>{" "}
-                <code>{"{{internId}}"}</code>. When an intern clicks "Download",
-                the HTML is auto-filled with their data and a print dialog opens
-                — they can save it as a PDF.
+                Edit the HTML below. Available variables: <code>{"{{name}}"}</code> <code>{"{{domain}}"}</code>{" "}
+                <code>{"{{date}}"}</code> <code>{"{{id}}"}</code> <code>{"{{internId}}"}</code>. When an intern clicks a button,
+                the HTML is auto-filled with their data and a print dialog opens.
               </p>
             </div>
             {contentLoading ? (
               <div style={{ color: "#888" }}>Loading templates…</div>
             ) : (
               <>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "1.5rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <strong style={{ fontSize: "0.9rem" }}>
-                      📄 Offer Letter Template
-                    </strong>
-                    <textarea
-                      rows={22}
-                      value={templates.offer_letter}
-                      onChange={(e) =>
-                        setTemplates({
-                          ...templates,
-                          offer_letter: e.target.value,
-                        })
-                      }
-                      style={{
-                        fontFamily: "monospace",
-                        fontSize: "0.75rem",
-                        border: "2px solid #000",
-                        padding: "0.5rem",
-                        resize: "vertical",
-                        width: "100%",
-                        boxSizing: "border-box",
-                      }}
+                <button type="button" className="btn-sharp-outline" onClick={() => {
+                  const name = prompt("New template name:");
+                  if (!name) return;
+                  const key = name.trim();
+                  if (templates.templates[key]) { alert("Template name already exists."); return; }
+                  setTemplates({ ...templates, templates: { ...templates.templates, [key]: "" }, templateOrder: [...templates.templateOrder, key] });
+                }} style={{ alignSelf: "flex-start", fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}>
+                  + Add Template
+                </button>
+                {templates.templateOrder.map((key) => (
+                  <div key={key} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", border: "1px solid #ddd", padding: "1rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <input value={key} onChange={(e) => {
+                        const newKey = e.target.value.trim();
+                        if (!newKey || (newKey !== key && templates.templates[newKey])) return;
+                        const tmpl = { ...templates.templates };
+                        tmpl[newKey] = tmpl[key];
+                        delete tmpl[key];
+                        const order = templates.templateOrder.map((k) => k === key ? newKey : k);
+                        setTemplates({ ...templates, templates: tmpl, templateOrder: order });
+                      }} style={{ border: "1px solid #000", padding: "0.25rem 0.5rem", fontSize: "0.85rem", fontWeight: 700, fontFamily: "inherit", outline: "none", width: "200px" }} />
+                      <button type="button" onClick={() => {
+                        if (!window.confirm(`Delete template "${key}"?`)) return;
+                        const tmpl = { ...templates.templates };
+                        delete tmpl[key];
+                        const order = templates.templateOrder.filter((k) => k !== key);
+                        setTemplates({ ...templates, templates: tmpl, templateOrder: order });
+                      }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.4rem", fontSize: "0.8rem" }}>
+                        Delete
+                      </button>
+                    </div>
+                    <textarea rows={14} value={templates.templates[key] || ""} onChange={(e) => setTemplates({ ...templates, templates: { ...templates.templates, [key]: e.target.value } })}
+                      style={{ fontFamily: "monospace", fontSize: "0.75rem", border: "2px solid #000", padding: "0.5rem", resize: "vertical", width: "100%", boxSizing: "border-box" }}
                     />
                   </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <strong style={{ fontSize: "0.9rem" }}>
-                      🏆 Certificate Template
-                    </strong>
-                    <textarea
-                      rows={22}
-                      value={templates.certificate}
-                      onChange={(e) =>
-                        setTemplates({
-                          ...templates,
-                          certificate: e.target.value,
-                        })
-                      }
-                      style={{
-                        fontFamily: "monospace",
-                        fontSize: "0.75rem",
-                        border: "2px solid #000",
-                        padding: "0.5rem",
-                        resize: "vertical",
-                        width: "100%",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                </div>
-                <button
-                  onClick={handleSaveTemplates}
-                  className="btn-sharp"
-                  disabled={contentSaving}
-                  style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}
-                >
+                ))}
+                <button onClick={handleSaveTemplates} className="btn-sharp" disabled={contentSaving} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
                   {contentSaving ? "Saving…" : "Save Templates"}
                 </button>
               </>
@@ -6982,7 +6955,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       month: "long",
                       day: "numeric",
                     });
-                    generateAndPrint(templates.offer_letter, {
+                    generateAndPrint(templates.templates?.["Offer Letter"] || "", {
                       name: selectedIntern.name,
                       domain: selectedIntern.domain,
                       date,

@@ -106,7 +106,7 @@ export async function saveCareerPaths(paths, categories) {
   const now = new Date().toISOString();
   const obj = {};
   paths.forEach((item, idx) => {
-    const id = item.id || `path_${idx + 1}`;
+    const id = (item.id || `DEV-CRAFT-${String(idx + 1).padStart(3, '0')}`).toUpperCase();
     obj[id] = { ...item, id, updatedAt: now };
   });
   await dbPut("careerPaths", obj);
@@ -146,12 +146,16 @@ export async function saveFAQs(faqs) {
 // Templates
 export async function fetchTemplates() {
   const d = await dbGet("config/templates");
-  return d?.value || null;
+  const raw = d?.value || null;
+  if (!raw) return { templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] };
+  if (raw.templates) return raw;
+  const old = raw;
+  return { templates: { "Offer Letter": old.offer_letter || "", "Certificate": old.certificate || "" }, templateOrder: ["Offer Letter", "Certificate"] };
 }
 
-export async function saveTemplates(templates) {
-  await dbPut("config/templates", { value: templates, updatedAt: new Date().toISOString() });
-  return templates;
+export async function saveTemplates(data) {
+  await dbPut("config/templates", { value: data, updatedAt: new Date().toISOString() });
+  return data;
 }
 
 // About Text
@@ -194,8 +198,9 @@ export async function enrollStudent(uid, profile, domainObj) {
   const splitPercent = domainObj.paymentSplitPercent || ps.defaultSplitPercent || 50;
   const pmtStart = paymentTiming === "both" ? Math.round(domainAmount * splitPercent / 100) : 0;
   const pmtEnd = paymentTiming === "both" ? domainAmount - pmtStart : domainAmount;
+  const internId = `DEV-CRAFT-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, '0')}`;
   const enrollment = {
-    uid, name: profile.name || profile.displayName || "Student", email: profile.email || "", photoURL: profile.photoURL || "",
+    internId, uid, name: profile.name || profile.displayName || "Student", email: profile.email || "", photoURL: profile.photoURL || "",
     phone: profile.phone || "", college: profile.college || "", city: profile.city || "", country: profile.country || "", upiId: profile.upiId || "",
     domain: domainObj.title || domainObj.name || "", domainId: domainObj.id || "", projects: domainObj.projects || [],
     referralCode: refCode, status: "Active", allowedCertificate: "no", submissions: {},
@@ -203,8 +208,8 @@ export async function enrollStudent(uid, profile, domainObj) {
     paymentStartAmount: pmtStart, paymentEndAmount: pmtEnd, paymentTiming, paymentIntentId: "", overrideCompleted: false,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   };
-  const result = await dbPost("enrollments", enrollment);
-  enrollment.id = result.id;
+  await dbPut(`enrollments/${internId}`, enrollment);
+  enrollment.id = internId;
   if (refCode) {
     const ref = await dbGet(`referrals/${refCode}/contacted`);
     await dbPatch(`referrals/${refCode}`, { contacted: (ref || 0) + 1, updatedAt: new Date().toISOString() });
@@ -243,7 +248,10 @@ export async function allowCertificate(enrollmentId, allowed) {
 }
 
 export async function verifyInternship(enrollmentId) {
+  const enrollment = await dbGet(`enrollments/${enrollmentId}`);
+  if (!enrollment) return null;
   await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  return { ...enrollment, status: "Completed", allowedCertificate: "yes" };
 }
 
 export async function submitProject(enrollmentId, projectIndex, submissionText, submissionUrl = "") {
@@ -269,11 +277,12 @@ export async function rejectProject(enrollmentId, projectIndex, feedback) {
 export async function fetchEnrollmentById(enrollmentId) { return dbGet(`enrollments/${enrollmentId}`); }
 
 export async function fetchAdminData() {
-  const [requests, referrals, visits] = await Promise.all([dbList("enrollments"), dbList("referrals"), dbList("referralVisits")]);
+  const [requests, referrals, visits, siteVisits] = await Promise.all([dbList("enrollments"), dbList("referrals"), dbList("referralVisits"), dbList("siteVisits")]);
   return {
     requests: requests.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
     referrals,
     visits: visits.sort((a, b) => new Date(b.visitedAt || 0) - new Date(a.visitedAt || 0)).slice(0, 100),
+    siteVisits: siteVisits.sort((a, b) => new Date(b.visitedAt || 0) - new Date(a.visitedAt || 0)).slice(0, 100),
   };
 }
 
@@ -288,7 +297,8 @@ export async function deleteReferral(code) { await dbDelete(`referrals/${code.to
 export async function deleteEnrollment(enrollmentId) { await dbDelete(`enrollments/${enrollmentId}`); }
 
 export async function createReferral(details) {
-  const code = (details.code || `REF-${Date.now().toString(36).toUpperCase()}`).toUpperCase().trim();
+  const namePart = (details.name || "REF").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5) || "REF";
+  const code = (details.code || `${namePart}-${Date.now().toString(36).toUpperCase().slice(-4)}`).toUpperCase().trim();
   const referral = { id: code, code, ...details, visited: 0, contacted: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   await dbPut(`referrals/${code}`, referral);
   return referral;
