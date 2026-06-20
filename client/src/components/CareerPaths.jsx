@@ -9,7 +9,7 @@ export default function CareerPaths({ onApplyDomain }) {
     let active = true;
     fetchCareerPaths()
       .then((data) => {
-        if (active) setPaths(data);
+        if (active) setPaths(data.paths || data || []);
       })
       .catch((err) => console.error(err))
       .finally(() => {
