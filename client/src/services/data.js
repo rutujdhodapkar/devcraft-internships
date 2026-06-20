@@ -232,8 +232,10 @@ export async function submitTransactionId(enrollmentId, transactionId) {
 export async function recordReferralLogin(referralCode, user) {
   if (!referralCode || !user?.uid) return null;
   const code = referralCode.toUpperCase().trim();
-  await dbPut(`referralUsers/${code}_${user.uid}`, { ...userIdentity(user), code, loginAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-  await dbPatch(`referrals/${code}`, { lastActivityAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  const now = new Date().toISOString();
+  const existing = await dbGet(`referralUsers/${code}/${user.uid}`);
+  await dbPut(`referralUsers/${code}/${user.uid}`, { ...userIdentity(user), code, uid: user.uid, firstLoginAt: existing?.firstLoginAt || now, lastLoginAt: now, updatedAt: now });
+  await dbPatch(`referrals/${code}`, { lastActivityAt: now, updatedAt: now });
   return { code };
 }
 
