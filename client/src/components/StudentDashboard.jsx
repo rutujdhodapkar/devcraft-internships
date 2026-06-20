@@ -1285,6 +1285,7 @@ export default function StudentDashboard({
                     hasMatchedReferral={!!referralMatchedMap[enrollment.id]}
                     showBackButton={enrollments.length > 1}
                     onBackClick={() => setSelectedEnrollment(null)}
+                    careerPaths={careerPaths}
                   />
                 );
               })()
@@ -1332,7 +1333,12 @@ function EnrollmentCard({
   hasMatchedReferral,
   showBackButton,
   onBackClick,
+  careerPaths,
 }) {
+  const domainPath = careerPaths?.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain);
+  const displayAmount = domainPath?.paymentAmount || paymentAmount;
+  const displayStartAmount = domainPath?.paymentStartAmount || paymentStartAmount;
+  const displayEndAmount = domainPath?.paymentEndAmount || paymentEndAmount;
   const verifiedCount = projects.filter(
     (_, idx) => submissions[idx]?.verified,
   ).length;
@@ -1737,7 +1743,7 @@ function EnrollmentCard({
                       Please complete the payment to unlock your internship projects.
                     </p>
                     <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                      Pay ₹{paymentAmount || 99}
+                      Pay ₹{displayStartAmount || displayAmount || 99}
                     </button>
                   </div>
                 )}
@@ -1761,7 +1767,7 @@ function EnrollmentCard({
                           Complete the payment to unlock your certificate.
                         </p>
                         <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                          Pay ₹{paymentAmount || 99}
+                          Pay ₹{displayEndAmount || displayAmount || 99}
                         </button>
                       </div>
                     ) : (
