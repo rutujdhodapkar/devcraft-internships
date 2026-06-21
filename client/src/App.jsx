@@ -11,6 +11,7 @@ import AdminPanel from "./components/AdminPanel";
 import EarnSection from "./components/EarnSection";
 import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
+import TermsAndServices from "./components/TermsAndServices";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -103,7 +104,12 @@ function detectCountryCode() {
 }
 
 export default function App() {
-  const [currentView, setCurrentView] = useState("site"); // 'site', 'auth', 'dashboard', 'admin'
+  const initialView = (() => {
+    const path = window.location.pathname;
+    if (path === "/tandp") return "tandp";
+    return "site";
+  })();
+  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp'
   const [referralCode, setReferralCode] = useState("");
 
   // Routing Redirection Target
@@ -554,7 +560,7 @@ export default function App() {
                 }, 100);
               }}
             />
-            <Footer />
+            <Footer onTandpClick={() => setCurrentView("tandp")} />
           </>
         );
       case "referralDashboard":
@@ -591,9 +597,15 @@ export default function App() {
                 }, 100);
               }}
             />
-            <Footer />
-            <Footer />
+            <Footer onTandpClick={() => setCurrentView("tandp")} />
+            <Footer onTandpClick={() => setCurrentView("tandp")} />
           </>
+        );
+      case "tandp":
+        return (
+          <TermsAndServices
+            onBackToSite={() => setCurrentView("site")}
+          />
         );
       case "site":
       default:
@@ -642,7 +654,7 @@ export default function App() {
               onLoginClick={handleLoginClick}
               userBan={userBan}
             />
-            <Footer />
+            <Footer onTandpClick={() => setCurrentView("tandp")} />
           </>
         );
     }

@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function Footer() {
+export default function Footer({ onTandpClick }) {
   return (
     <footer
       style={{
@@ -133,6 +133,23 @@ export default function Footer() {
         >
           <div>
             &copy; {new Date().getFullYear()} DEV/CRAFT. All rights reserved.
+          </div>
+          <div style={{ display: "flex", gap: "1.5rem" }}>
+            <button
+              onClick={onTandpClick}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#777",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                textDecoration: "underline",
+                padding: 0,
+                fontFamily: "inherit",
+              }}
+            >
+              Terms & Services
+            </button>
           </div>
         </div>
       </div>
