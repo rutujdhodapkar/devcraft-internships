@@ -8335,7 +8335,10 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
     const allVerified = projects.every((_, i) => subs[i]?.verified);
     if (!allVerified) return { ready: false, reason: "Not all tasks verified" };
     const isPaid = e.paymentTiming === "both" ? e.paymentStage === "fully_paid" : e.paymentStatus === "paid";
-    if (!isPaid) return { ready: false, reason: "Payment not completed" };
+    if (!isPaid) {
+      if (e.transactionId) return { ready: false, reason: "Transaction submitted, awaiting admin verification" };
+      return { ready: false, reason: "Payment not completed — no transaction ID submitted" };
+    }
     return { ready: true, reason: "" };
   };
   const pendingComplete = data.requests.filter((e) => {
@@ -8384,7 +8387,7 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
                       {check.ready ? "✓ READY TO COMPLETE" : "✗ " + check.reason}
                     </div>
                     <div style={{ fontSize: "0.72rem", color: "#555" }}>
-                      Tasks: <strong>{verifiedCount}/{projects.length}</strong> verified | Payment: <strong style={{ color: isPaid ? "#34A853" : "#EA4335" }}>{isPaid ? "Paid" : (enrollment.paymentStage === "start_paid" ? "Partial" : "Not Paid")}</strong>{enrollment.paymentAmount ? <span> (₹{enrollment.paymentAmount})</span> : null} | Certificate: <strong style={{ color: enrollment.allowedCertificate === "yes" ? "#34A853" : "#999" }}>{enrollment.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}</strong>
+                      Tasks: <strong>{verifiedCount}/{projects.length}</strong> verified | Payment: <strong style={{ color: isPaid ? "#34A853" : "#EA4335" }}>{isPaid ? "Paid" : (enrollment.paymentStage === "start_paid" ? "Partial" : enrollment.transactionId ? "Txn Submitted" : "Not Paid")}</strong>{enrollment.paymentAmount ? <span> (₹{enrollment.paymentAmount})</span> : null} | Certificate: <strong style={{ color: enrollment.allowedCertificate === "yes" ? "#34A853" : "#999" }}>{enrollment.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}</strong>
                     </div>
                     {enrollment.transactionId && (
                       <div style={{ border: "2px solid #000", background: "#fff", padding: "0.25rem 0.5rem", fontSize: "0.72rem" }}>
