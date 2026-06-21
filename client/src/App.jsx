@@ -237,41 +237,43 @@ export default function App() {
             } else {
               // Profile is complete!
               // If they already have applied internships, direct open their dashboard
-              try {
-                const userEnrs = await fetchUserEnrollments(currentUser.uid);
-                if (
-                  currentView !== "admin" &&
-                  currentView !== "site" &&
-                  currentView !== "tandp" &&
-                  userEnrs.length > 0
-                ) {
-                  setCurrentView("dashboard");
-                } else if (pendingEnrollmentDomain) {
+              if (pendingEnrollmentDomain) {
+                try {
                   await enrollStudent(
                     currentUser.uid,
                     profile,
                     pendingEnrollmentDomain,
                   );
-                  setPendingEnrollmentDomain(null);
-                  setCurrentView("dashboard");
-                } else if (currentView === "auth") {
-                  setCurrentView(isUserAdmin ? "admin" : authRedirectTarget);
+                } catch (e) {
+                  console.warn("Pending enrollment failed:", e);
                 }
-              } catch (e) {
-                console.warn(
-                  "Error fetching user enrollments on auth change:",
-                  e,
-                );
-                if (pendingEnrollmentDomain) {
-                  await enrollStudent(
-                    currentUser.uid,
-                    profile,
-                    pendingEnrollmentDomain,
+                setPendingEnrollmentDomain(null);
+                setCurrentView("dashboard");
+              } else {
+                try {
+                  const userEnrs = await fetchUserEnrollments(currentUser.uid);
+                  if (
+                    currentView !== "admin" &&
+                    currentView !== "site" &&
+                    currentView !== "tandp" &&
+                    userEnrs.length > 0
+                  ) {
+                    setCurrentView("dashboard");
+                  } else if (currentView === "auth") {
+                    setCurrentView(
+                      isUserAdmin ? "admin" : authRedirectTarget,
+                    );
+                  }
+                } catch (e) {
+                  console.warn(
+                    "Error fetching user enrollments on auth change:",
+                    e,
                   );
-                  setPendingEnrollmentDomain(null);
-                  setCurrentView("dashboard");
-                } else if (currentView === "auth") {
-                  setCurrentView(isUserAdmin ? "admin" : authRedirectTarget);
+                  if (currentView === "auth") {
+                    setCurrentView(
+                      isUserAdmin ? "admin" : authRedirectTarget,
+                    );
+                  }
                 }
               }
             }
