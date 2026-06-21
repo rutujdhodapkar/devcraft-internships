@@ -242,6 +242,7 @@ export default function App() {
                 if (
                   currentView !== "admin" &&
                   currentView !== "site" &&
+                  currentView !== "tandp" &&
                   userEnrs.length > 0
                 ) {
                   setCurrentView("dashboard");
@@ -301,6 +302,25 @@ export default function App() {
 
     return () => unsubscribe();
   }, [currentView, pendingEnrollmentDomain, authRedirectTarget]);
+
+  // Sync URL with current view for deep-linking
+  useEffect(() => {
+    const targetPath = currentView === "tandp" ? "/tandp" : "/";
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, "", targetPath);
+    }
+  }, [currentView]);
+
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePop = () => {
+      const path = window.location.pathname;
+      if (path === "/tandp") setCurrentView("tandp");
+      else if (currentView === "tandp") setCurrentView("site");
+    };
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, [currentView]);
 
   // Reset referral input when profile prompt opens
   useEffect(() => {
@@ -597,7 +617,6 @@ export default function App() {
                 }, 100);
               }}
             />
-            <Footer onTandpClick={() => setCurrentView("tandp")} />
             <Footer onTandpClick={() => setCurrentView("tandp")} />
           </>
         );
