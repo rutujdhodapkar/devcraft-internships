@@ -573,7 +573,7 @@ export default function StudentDashboard({
         ) : activeTab === "referral" ? (
           <div>
             {/* If user already has a referral code, show dashboard. Otherwise show sign-up form */}
-            {referralStat ? (
+            {referralStat && userProfile?.upiId ? (
               <div
                 style={{
                   display: "flex",

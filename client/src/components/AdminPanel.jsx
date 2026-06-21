@@ -4488,6 +4488,27 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               Referral Users & Their Interns ({referralUsersData.length})
             </h3>
             {(() => {
+              const internsWithRef = (data.requests || []).filter((e) => e.referralCode);
+              if (internsWithRef.length === 0) return null;
+              return (
+                <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fafafa", marginBottom: "1.5rem" }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
+                    All Interns with Referral Codes ({internsWithRef.length})
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: "0.5rem" }}>
+                    {internsWithRef.map((intern) => (
+                      <div key={intern.id} style={{ border: "1px solid #ddd", padding: "0.5rem", background: "#fff", cursor: "pointer" }} onClick={() => setSelectedIntern(intern)}>
+                        <div style={{ fontSize: "0.75rem", fontWeight: 800 }}>{intern.name}</div>
+                        <div style={{ fontSize: "0.68rem", color: "#555" }}>{intern.email}</div>
+                        <div style={{ fontSize: "0.65rem", color: "#888", marginTop: "0.15rem" }}>Code: {intern.referralCode}</div>
+                        <div style={{ fontSize: "0.65rem", color: intern.status === "Completed" ? "#34A853" : "#888" }}>{intern.status}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+            {(() => {
               const payoutDays = 30;
               const dueReferrals = referralUsersData.filter((r) => {
                 if ((r.payoutStatus || "pending") === "done") return false;
@@ -8343,8 +8364,21 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
   };
   const pendingComplete = data.requests.filter((e) => {
     if (e.status === "Completed" || e.status === "Archived") return false;
-    const check = isCompletionReady(e);
-    return check.ready || true; // Show all that are eligible OR almost eligible
+    return true;
+  }).sort((a, b) => {
+    const subsA = getSubmissions(a);
+    const subsB = getSubmissions(b);
+    const projA = getProjectsForEnrollment(a);
+    const projB = getProjectsForEnrollment(b);
+    const allVerifiedA = projA.length > 0 && projA.every((_, i) => subsA[i]?.verified);
+    const allVerifiedB = projB.length > 0 && projB.every((_, i) => subsB[i]?.verified);
+    const isPaidA = a.paymentTiming === "both" ? a.paymentStage === "fully_paid" : a.paymentStatus === "paid";
+    const isPaidB = b.paymentTiming === "both" ? b.paymentStage === "fully_paid" : b.paymentStatus === "paid";
+    const hasTxnA = !!a.transactionId;
+    const hasTxnB = !!b.transactionId;
+    const scoreA = isPaidA || hasTxnA ? 0 : allVerifiedA ? 1 : 2;
+    const scoreB = isPaidB || hasTxnB ? 0 : allVerifiedB ? 1 : 2;
+    return scoreA - scoreB;
   });
   return (
     <div style={{ maxWidth: "900px" }}>
