@@ -1,12 +1,7 @@
 import admin from "firebase-admin";
-import Stripe from "stripe";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-const STRIPE_PUBLISHABLE_KEY = process.env.STRIPE_PUBLISHABLE_KEY;
-const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
-const stripe = STRIPE_SECRET_KEY ? new Stripe(STRIPE_SECRET_KEY) : null;
 const DATABASE_URL = "https://login-data-680b9-default-rtdb.firebaseio.com";
 
 function send(res, status, payload) {
@@ -323,79 +318,7 @@ async function handleQuiz(req, res) {
   return send(res, 200, match ? JSON.parse(match[0]) : { correct: false, reason: "Invalid AI response" });
 }
 
-async function handleCreatePaymentIntent(req, res) {
-  if (req.method !== "POST") return send(res, 405, { success: false, message: "Method not allowed." });
-  if (!stripe) return send(res, 500, { success: false, message: "Stripe not configured (STRIPE_SECRET_KEY missing in server env)." });
-  const { enrollmentId, amount, currency = "inr", paymentStage = "full" } = req.body || {};
-  if (!enrollmentId || !amount) return send(res, 400, { success: false, message: "Missing enrollmentId or amount." });
-  try {
-    const paymentMethods = ["card"];
-    if (currency.toLowerCase() === "inr") {
-      paymentMethods.push("upi");
-    }
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100),
-      currency: currency.toLowerCase(),
-      metadata: { enrollmentId, paymentStage },
-      payment_method_types: paymentMethods,
-    });
-    return send(res, 200, { success: true, data: { clientSecret: paymentIntent.client_secret, paymentIntentId: paymentIntent.id } });
-  } catch (err) {
-    return send(res, 500, { success: false, message: "Stripe error: " + err.message });
-  }
-}
 
-async function handleStripeWebhook(req, res) {
-  const sig = req.headers["stripe-signature"];
-  let event;
-  try {
-    event = stripe.webhooks.constructEvent(req.body, sig, WEBHOOK_SECRET);
-  } catch {
-    return send(res, 400, { success: false, message: "Webhook signature verification failed." });
-  }
-  if (event.type === "payment_intent.succeeded") {
-    const pi = event.data.object;
-    const enrollmentId = pi.metadata?.enrollmentId;
-    const paymentStage = pi.metadata?.paymentStage || "full";
-    if (enrollmentId) {
-      const db = initFirebase();
-      const enrollment = await getDoc(db, "enrollments", enrollmentId, null);
-      const timing = enrollment?.paymentTiming || "end";
-      let stage = "start_paid";
-      let status = "paid";
-      if (timing === "both") {
-        if (paymentStage === "start") {
-          stage = "start_paid";
-        } else {
-          stage = "fully_paid";
-          status = "paid";
-        }
-      }
-      const patch = {
-        paymentStatus: status,
-        paymentStage: stage,
-        paymentIntentId: pi.id,
-        paymentAmount: pi.amount / 100,
-        paymentCurrency: pi.currency,
-        paidAt: now(),
-        updatedAt: now(),
-      };
-      if (stage === "fully_paid" || timing !== "both") {
-        patch.allowedCertificate = "yes";
-      }
-      await db.ref(`enrollments/${enrollmentId}`).update(patch);
-      if ((stage === "fully_paid" || timing !== "both") && enrollment) {
-        const submissions = enrollment.submissions || {};
-        const projects = enrollment.projects || [];
-        const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
-        if (allVerified && enrollment.status !== "Completed") {
-          await db.ref(`enrollments/${enrollmentId}`).update({ status: "Completed", allowedCertificate: "yes", completedAt: now(), updatedAt: now() });
-        }
-      }
-    }
-  }
-  return send(res, 200, { received: true });
-}
 
 async function handleAiGradeQuiz(req, res) {
   if (req.method !== "POST") return send(res, 405, { error: "Method not allowed" });
@@ -440,8 +363,6 @@ async function handleAiGradeQuiz(req, res) {
 
 async function handleData(req, res, routeParts) {
   const [resource, id, sub, extra, extra2] = routeParts;
-
-  if (resource === "stripe-config") return send(res, 200, { success: true, data: { publishableKey: STRIPE_PUBLISHABLE_KEY || "" } });
 
   const db = initFirebase();
 
@@ -663,17 +584,6 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
   }
   await db.ref(`enrollments/${id}`).update(patch);
   const updated = await getDoc(db, "enrollments", id, null);
-  if (updated) {
-    const isPaid = updated.paymentTiming === "both" ? updated.paymentStage === "fully_paid" : updated.paymentStatus === "paid";
-    if (isPaid) {
-      const subs = updated.submissions || {};
-      const projs = updated.projects || [];
-      const allVerified = projs.length > 0 && projs.every((_, i) => subs[i]?.verified);
-      if (allVerified && updated.allowedCertificate !== "yes") {
-        await db.ref(`enrollments/${id}`).update({ allowedCertificate: "yes", certificateUnlockedAt: now(), updatedAt: now() });
-      }
-    }
-  }
   return send(res, 200, { success: true, data: updated || patch });
 }
 
@@ -845,19 +755,13 @@ async function buildEmailReferralStat(db, email) {
 export default async function handler(req, res) {
   try {
   const rawUrl = (req.url || "");
-  const rawPath = rawUrl.split("?")[0].replace(/^\/api\/?/, "");
-  const rawParts = rawPath.split("/").filter(Boolean);
-  if (rawParts[0] === "stripe-webhook") return handleStripeWebhook(req, res);
-
   const reqPath = rawUrl.split("?")[0].replace(/^\/api\/?/, "");
   const parts = reqPath.split("/").filter(Boolean).map(decodeURIComponent);
-  if (parts[0] === "ping") return send(res, 200, { success: true, message: "pong", env: { hasStripe: !!STRIPE_SECRET_KEY, hasGoogle: !!GOOGLE_CLIENT_ID, hasWebhook: !!WEBHOOK_SECRET, node: process.version, url: rawUrl, method: req.method } });
+  if (parts[0] === "ping") return send(res, 200, { success: true, message: "pong", env: { hasGoogle: !!GOOGLE_CLIENT_ID, node: process.version, url: rawUrl, method: req.method } });
     if (parts[0] === "auth" && parts[1] === "google") return handleAuth(req, res);
-    if (parts[0] === "create-payment-intent") return handleCreatePaymentIntent(req, res);
     if (parts[0] === "ai" && parts[1] === "verify-task") return handleAiVerify(req, res);
     if (parts[0] === "ai" && parts[1] === "grade-quiz") return handleAiGradeQuiz(req, res);
     if (parts[0] === "grade-quiz-text") return handleQuiz(req, res);
-    if (parts[0] === "stripe-config") return send(res, 200, { success: true, data: { publishableKey: STRIPE_PUBLISHABLE_KEY || "" } });
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });

@@ -304,16 +304,6 @@ export async function submitQuizAnswer(enrollmentId, projectIndex, answers, proj
 
 export async function verifyProject(enrollmentId, projectIndex) {
   await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: true, verifiedAt: new Date().toISOString(), rejected: false });
-  const enrollment = await dbGet(`enrollments/${enrollmentId}`);
-  if (enrollment) {
-    const subs = enrollment.submissions || {};
-    const projects = enrollment.projects || [];
-    const allVerified = projects.length > 0 && projects.every((_, i) => subs[i]?.verified === true);
-    const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
-    if (allVerified && isPaid && enrollment.status !== "Completed") {
-      await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-    }
-  }
 }
 
 export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) {
@@ -586,14 +576,14 @@ export async function verifyTaskWithAI(params) {
   return { success: true, data: data.data };
 }
 
-export async function createPaymentIntent(enrollmentId, amount, paymentStage = "full") {
-  const data = await apiFetch("/api/create-payment-intent", { method: "POST", body: JSON.stringify({ enrollmentId, amount, paymentStage }) });
-  return data.data;
+export async function fetchUPISettings() {
+  const d = await dbGet("siteConfig/upiSettings");
+  return d?.value || null;
 }
 
-export async function fetchStripeConfig() {
-  const d = await apiFetch("/api/stripe-config");
-  return d?.data || { publishableKey: "" };
+export async function saveUPISettings(settings) {
+  await dbPut("siteConfig/upiSettings", { value: settings, updatedAt: new Date().toISOString() });
+  return settings;
 }
 
 export async function fetchPaymentSettings() {
@@ -624,7 +614,7 @@ export async function updatePaymentStatus(enrollmentId, paymentStatus, paymentSt
   if (paymentStatus === "paid") {
     patch.paidAt = now;
     if (paymentStage === "start" || !paymentStage) patch.paymentStage = "start_paid";
-    if (paymentStage === "end" || paymentStage === "full") { patch.allowedCertificate = "yes"; patch.paymentStage = "fully_paid"; }
+    if (paymentStage === "end" || paymentStage === "full") patch.paymentStage = "fully_paid";
   }
   await dbPatch(`enrollments/${enrollmentId}`, patch);
 }

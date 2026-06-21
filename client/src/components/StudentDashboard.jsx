@@ -12,11 +12,10 @@ import {
   fetchAdminMessages,
   acknowledgeAdminMessage,
   fetchSiteNotices,
-  updatePaymentStatus,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 import EarnSection from "./EarnSection";
-import StripePaymentModal from "./StripePayment";
+import UPIPaymentModal from "./UPIPayment";
 
 /** Generate the HTML document from template + variables and open print dialog */
 function generateAndPrint(templateHtml, variables) {
@@ -78,20 +77,6 @@ export default function StudentDashboard({
 
   const handlePaymentSuccess = async () => {
     setShowPaymentModal(false);
-    if (paymentEnrollment) {
-      const stage = paymentEnrollment._paymentStage || "full";
-      const timing = paymentEnrollment.paymentTiming || "end";
-      let statusPayload = { paymentStatus: "paid", paymentStage: stage };
-      if (timing === "both") {
-        if (stage === "start") {
-          statusPayload = { paymentStatus: "paid", paymentStage: "start_paid" };
-        } else {
-          statusPayload = { paymentStatus: "paid", paymentStage: "fully_paid" };
-        }
-      }
-      await updatePaymentStatus(paymentEnrollment.id, statusPayload.paymentStatus, statusPayload.paymentStage);
-      await refreshEnrollment(paymentEnrollment.id);
-    }
     setPaymentEnrollment(null);
   };
 
@@ -1298,10 +1283,9 @@ export default function StudentDashboard({
         )}
       </div>
       {showPaymentModal && paymentEnrollment && (
-        <StripePaymentModal
+        <UPIPaymentModal
           enrollmentId={paymentEnrollment.id}
           amount={paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
-          paymentStage={paymentEnrollment._paymentStage || "full"}
           onSuccess={handlePaymentSuccess}
           onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); }}
         />

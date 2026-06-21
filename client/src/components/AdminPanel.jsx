@@ -42,6 +42,8 @@ import {
   markReferralPayout,
   clearReferralPayout,
   setPaymentAmount,
+  fetchUPISettings,
+  saveUPISettings,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -190,6 +192,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [paymentSettings, setPaymentSettings] = useState(null);
   const [paymentSettingsLoading, setPaymentSettingsLoading] = useState(false);
   const [paymentSettingsSaving, setPaymentSettingsSaving] = useState(false);
+  const [upiSettings, setUpiSettings] = useState(null);
+  const [upiSettingsLoading, setUpiSettingsLoading] = useState(false);
+  const [upiSettingsSaving, setUpiSettingsSaving] = useState(false);
   const [paymentStats, setPaymentStats] = useState(null);
   const [payoutConfig, setPayoutConfig] = useState(null);
   const [payoutConfigLoading, setPayoutConfigLoading] = useState(false);
@@ -379,6 +384,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         })
         .catch(() => {})
         .finally(() => setPaymentSettingsLoading(false));
+      setUpiSettingsLoading(true);
+      fetchUPISettings()
+        .then((s) => {
+          if (s) setUpiSettings(s);
+        })
+        .catch(() => {})
+        .finally(() => setUpiSettingsLoading(false));
       loadPaymentStats();
       setPayoutConfigLoading(true);
       fetchPayoutConfig()
@@ -534,14 +546,14 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     }
   };
   const handleVerifyPayment = async (enrollmentId) => {
-    if (!window.confirm(`Verify payment for this intern?`)) return;
+    if (!window.confirm(`Verify transaction for this intern? Payment will be marked as paid. You can then manually allow the certificate.`)) return;
     const key = `verify-pay-${enrollmentId}`;
     setActionLoading((p) => ({ ...p, [key]: true }));
     try {
       await updatePaymentStatus(enrollmentId, "paid", "full");
       await loadData();
-      setSuccessMsg("Payment verified.");
-      setTimeout(() => setSuccessMsg(""), 3000);
+      setSuccessMsg("Payment verified. Now toggle certificate to allow download.");
+      setTimeout(() => setSuccessMsg(""), 5000);
     } catch (err) {
       setError("Verify payment failed: " + err.message);
     } finally {
@@ -2303,6 +2315,27 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             </strong>
                           )}
                         </div>
+                        {enrollment.transactionId && enrollment.paymentStatus !== "paid" && (
+                          <div style={{ marginTop: "0.5rem" }}>
+                            <button
+                              onClick={() => handleVerifyPayment(enrollment.id)}
+                              disabled={actionLoading[`verify-pay-${enrollment.id}`]}
+                              className="btn-sharp"
+                              style={{
+                                padding: "0.4rem 1rem",
+                                fontSize: "0.8rem",
+                                background: "#4285F4",
+                                color: "#fff",
+                                border: "2px solid #4285F4",
+                              }}
+                            >
+                              {actionLoading[`verify-pay-${enrollment.id}`] ? "Verifying..." : "✓ Verify Transaction"}
+                            </button>
+                            <div style={{ fontSize: "0.72rem", color: "#888", marginTop: "0.25rem" }}>
+                              Only click after confirming the payment in your bank.
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div
@@ -2325,7 +2358,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           <span
                             style={{ fontSize: "0.78rem", fontWeight: 700 }}
                           >
-                            Download Status:
+                            Certificate:
                           </span>
                           <span
                             style={{
@@ -2341,12 +2374,12 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             }}
                           >
                             {enrollment.allowedCertificate === "yes"
-                              ? "Allowed"
+                              ? "Unlocked"
                               : "Locked"}
                           </span>
                         </div>
 
-                        <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
                           <button
                             onClick={() =>
                               handleToggleCertificateAllow(
@@ -2379,6 +2412,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           >
                             Print Certificate
                           </button>
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: "#888", marginTop: "0.1rem" }}>
+                          {enrollment.paymentStatus === "paid"
+                            ? "Payment verified. Toggle certificate above."
+                            : "Verify transaction first, then allow certificate."}
                         </div>
                       </div>
                     </div>
@@ -3640,6 +3678,38 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     </div>
                   ))}
                 </div>
+                {/* UPI Settings */}
+                <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
+                  <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>UPI Payment Configuration</h4>
+                  {upiSettingsLoading ? (
+                    <div style={{ color: "#888" }}>Loading UPI settings…</div>
+                  ) : (
+                    <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+                      <div>
+                        <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>UPI ID</label>
+                        <input type="text" placeholder="e.g. example@paytm" value={upiSettings?.upiId || ""} onChange={(e) => setUpiSettings((p) => ({ ...p, upiId: e.target.value }))} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "220px" }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Payee Name</label>
+                        <input type="text" placeholder="e.g. DEVCRAFT" value={upiSettings?.upiName || ""} onChange={(e) => setUpiSettings((p) => ({ ...p, upiName: e.target.value }))} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "200px" }} />
+                      </div>
+                      <button onClick={async () => {
+                        setUpiSettingsSaving(true);
+                        try {
+                          await saveUPISettings(upiSettings);
+                          alert("UPI settings saved!");
+                        } catch (err) {
+                          alert("Failed to save: " + err.message);
+                        } finally {
+                          setUpiSettingsSaving(false);
+                        }
+                      }} className="btn-sharp" disabled={upiSettingsSaving} style={{ padding: "0.5rem 1.25rem", fontSize: "0.85rem" }}>
+                        {upiSettingsSaving ? "Saving…" : "Save UPI Settings"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Payout Config */}
                 <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
                   <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Referral Payout Config</h4>
