@@ -415,14 +415,27 @@ export async function fetchSelfReferralCode(uid) {
 
 export async function fetchReferralDashboardData(uid) {
   const owner = await dbGet(`selfReferralOwners/${uid}`);
-  if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 } };
+  if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 }, totalVisits: 0, totalLogins: 0, totalEnrolled: 0, completedInterns: 0, enrolledInterns: [] };
   const code = owner.code.toUpperCase().trim();
   const visits = await dbQueryList("referralVisits", "referralCode", code);
   const referral = await dbGet(`referrals/${code}`);
   const interns = await dbQueryList("enrollments", "referralCode", code);
   const completed = interns.filter(i => i.status === "Completed" && i.paymentStatus === "paid");
   const earnings = completed.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
-  return { referral, visits, interns, totals: { visits: visits.length, interns: interns.length, completed: completed.length, earnings } };
+  // Count unique logins from referralUsers/{code}/
+  const loginData = await dbGet(`referralUsers/${code}`);
+  const totalLogins = loginData && typeof loginData === "object" ? Object.keys(loginData).length : 0;
+  return {
+    referral, visits, interns,
+    totals: { visits: visits.length, interns: interns.length, completed: completed.length, earnings },
+    // Flat fields for UI
+    totalVisits: referral?.visited || 0,
+    totalLogins,
+    totalEnrolled: interns.length,
+    completedInterns: completed.length,
+    enrolledInterns: interns,
+    code,
+  };
 }
 
 export async function fetchUserReferralStat(email) {
@@ -431,13 +444,22 @@ export async function fetchUserReferralStat(email) {
   const referral = list[0];
   const code = (referral.code || referral.id || "").toUpperCase().trim();
   const interns = await dbQueryList("enrollments", "referralCode", code);
-  return { referral, interns, internCount: interns.length, completed: interns.filter(i => i.status === "Completed").length };
+  const completed = interns.filter(i => i.status === "Completed").length;
+  return {
+    referral, interns, internCount: interns.length, completed,
+    // Flat fields for UI fallback
+    visited: referral.visited || 0,
+    assignedInternships: interns.length,
+    completedInterns: completed,
+  };
 }
 
 export async function fetchAdminReferralUsersWithInterns() {
   const referrals = await dbList("referrals");
   const allEnrollments = await dbList("enrollments");
-  return referrals.map(r => {
+  return referrals
+    .filter((r) => r.upiId && r.upiId.trim())
+    .map(r => {
     const code = (r.code || r.id || "").toUpperCase().trim();
     const interns = allEnrollments.filter(e => (e.referralCode || "").toUpperCase().trim() === code);
     const paidCompleted = interns.filter(i => i.status === "Completed" && i.paymentStatus === "paid");

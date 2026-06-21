@@ -4501,7 +4501,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         <div style={{ fontSize: "0.75rem", fontWeight: 800 }}>{intern.name}</div>
                         <div style={{ fontSize: "0.68rem", color: "#555" }}>{intern.email}</div>
                         <div style={{ fontSize: "0.65rem", color: "#888", marginTop: "0.15rem" }}>Code: {intern.referralCode}</div>
-                        <div style={{ fontSize: "0.65rem", color: intern.status === "Completed" ? "#34A853" : "#888" }}>{intern.status}</div>
+                        <div style={{ fontSize: "0.65rem", color: intern.status === "Completed" && intern.paymentStatus === "paid" ? "#34A853" : intern.status === "Completed" ? "#1B7A3D" : "#888", fontWeight: intern.status === "Completed" && intern.paymentStatus === "paid" ? 800 : 400 }}>{intern.status === "Completed" && intern.paymentStatus === "paid" ? "Completed (Paid)" : intern.status}</div>
                       </div>
                     ))}
                   </div>
@@ -4635,6 +4635,12 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           </div>
                           <div>
                             <strong>UPI ID:</strong> {referral.upiId || "-"}
+                          </div>
+                          <div>
+                            <strong>Visits:</strong> {referral.visited || 0}
+                          </div>
+                          <div>
+                            <strong>Contacted:</strong> {referral.contacted || 0}
                           </div>
                           <div>
                             <strong>Last Activity:</strong>{" "}
@@ -4797,14 +4803,19 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   style={{
                                     fontSize: "0.7rem",
                                     color:
-                                      intern.status === "Completed"
+                                      intern.status === "Completed" && intern.paymentStatus === "paid"
                                         ? "#34A853"
-                                        : intern.status === "Active"
-                                          ? "#FBBC05"
-                                          : "#888",
+                                        : intern.status === "Completed"
+                                          ? "#1B7A3D"
+                                          : intern.status === "Active"
+                                            ? "#FBBC05"
+                                            : "#888",
+                                    fontWeight: intern.status === "Completed" && intern.paymentStatus === "paid" ? 800 : 400,
                                   }}
                                 >
-                                  {intern.status}
+                                  {intern.status === "Completed" && intern.paymentStatus === "paid"
+                                    ? "Completed (Paid)"
+                                    : intern.status}
                                 </div>
                                 <div
                                   style={{ fontSize: "0.7rem", color: "#888" }}
@@ -4816,7 +4827,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 {intern.completedAt && (
                                   <div
                                     style={{
-                                      fontSize: "0.7rem",
+                                      fontSize: "0.68rem",
                                       color: "#34A853",
                                       marginTop: "0.25rem",
                                     }}
@@ -4830,7 +4841,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 {intern.paymentDate && (
                                   <div
                                     style={{
-                                      fontSize: "0.7rem",
+                                      fontSize: "0.68rem",
                                       color: "#34A853",
                                       marginTop: "0.25rem",
                                     }}
@@ -4947,14 +4958,19 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                       style={{
                                         fontSize: "0.7rem",
                                         color:
-                                          intern.status === "Completed"
+                                          intern.status === "Completed" && intern.paymentStatus === "paid"
                                             ? "#34A853"
-                                            : intern.status === "Active"
-                                              ? "#FBBC05"
-                                              : "#888",
+                                            : intern.status === "Completed"
+                                              ? "#1B7A3D"
+                                              : intern.status === "Active"
+                                                ? "#FBBC05"
+                                                : "#888",
+                                        fontWeight: intern.status === "Completed" && intern.paymentStatus === "paid" ? 800 : 400,
                                       }}
                                     >
-                                      {intern.status}
+                                      {intern.status === "Completed" && intern.paymentStatus === "paid"
+                                        ? "Completed (Paid)"
+                                        : intern.status}
                                     </div>
                                     {intern.submissions && Object.keys(intern.submissions).length > 0 && (
                                       <div style={{ marginTop: "0.4rem", borderTop: "1px solid #eee", paddingTop: "0.3rem" }}>

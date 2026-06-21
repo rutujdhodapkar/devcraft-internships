@@ -904,17 +904,37 @@ export default function StudentDashboard({
                                     fontSize: "0.7rem",
                                     fontWeight: 800,
                                     background:
-                                      e.status === "Completed"
+                                      e.status === "Completed" && e.paymentStatus === "paid"
                                         ? "#34A853"
-                                        : e.status === "Archived"
-                                          ? "#555"
-                                          : "#FBBC05",
+                                        : e.status === "Completed"
+                                          ? "#1B7A3D"
+                                          : e.status === "Archived"
+                                            ? "#555"
+                                            : "#FBBC05",
                                     color: "#fff",
                                     textTransform: "uppercase",
                                   }}
                                 >
-                                  {e.status}
+                                  {e.status === "Completed" && e.paymentStatus === "paid"
+                                    ? "Completed"
+                                    : e.status}
                                 </span>
+                                {e.paymentStatus === "paid" && (
+                                  <span
+                                    style={{
+                                      padding: "0.15rem 0.5rem",
+                                      fontSize: "0.65rem",
+                                      fontWeight: 800,
+                                      background: "#fff",
+                                      color: "#34A853",
+                                      border: "2px solid #34A853",
+                                      textTransform: "uppercase",
+                                      marginLeft: "0.25rem",
+                                    }}
+                                  >
+                                    Paid
+                                  </span>
+                                )}
                               </td>
                               <td style={{ padding: "0.6rem 0.85rem" }}>
                                 <code style={{ fontSize: "0.78rem" }}>

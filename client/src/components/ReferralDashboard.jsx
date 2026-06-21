@@ -142,9 +142,19 @@ export default function ReferralDashboard({ user, onBackClick }) {
                           <td style={td}>
                             <span style={{
                               padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 800,
-                              background: e.status === 'Completed' ? '#34A853' : e.status === 'Archived' ? '#555' : '#FBBC05',
+                              background: e.status === 'Completed' && e.paymentStatus === 'paid' ? '#34A853' : e.status === 'Completed' ? '#1B7A3D' : e.status === 'Archived' ? '#555' : '#FBBC05',
                               color: '#fff', textTransform: 'uppercase',
-                            }}>{e.status}</span>
+                            }}>
+                              {e.status === 'Completed' && e.paymentStatus === 'paid' ? 'Completed' : e.status}
+                            </span>
+                            {e.paymentStatus === 'paid' && (
+                              <span style={{
+                                padding: '0.15rem 0.5rem', fontSize: '0.65rem', fontWeight: 800,
+                                background: '#fff', color: '#34A853',
+                                border: '2px solid #34A853', textTransform: 'uppercase',
+                                marginLeft: '0.25rem',
+                              }}>Paid</span>
+                            )}
                           </td>
                           <td style={td}><code style={{ fontSize: '0.78rem' }}>{e.internId || e.id.slice(0, 8)}</code></td>
                         </tr>
