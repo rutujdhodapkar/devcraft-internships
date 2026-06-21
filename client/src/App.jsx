@@ -150,6 +150,7 @@ export default function App() {
   const [adminMessages, setAdminMessages] = useState([]);
   const [dismissedMessages, setDismissedMessages] = useState(new Set());
   const [dashboardReferralTab, setDashboardReferralTab] = useState(false); // open dashboard with referral tab
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
 
   // Listen to Google Auth state
   useEffect(() => {
@@ -248,6 +249,7 @@ export default function App() {
                   console.warn("Pending enrollment failed:", e);
                 }
                 setPendingEnrollmentDomain(null);
+                setDashboardRefreshKey((k) => k + 1);
                 setCurrentView("dashboard");
               } else {
                 try {
@@ -405,6 +407,7 @@ export default function App() {
         return;
       }
       await enrollStudent(user.uid, profile, domainObj);
+      setDashboardRefreshKey((k) => k + 1);
       setCurrentView("dashboard");
     } catch (err) {
       alert("Enrollment failed: " + err.message);
@@ -481,6 +484,7 @@ export default function App() {
       if (pendingEnrollmentDomain) {
         await enrollStudent(user.uid, updatedProfile, pendingEnrollmentDomain);
         setPendingEnrollmentDomain(null);
+        setDashboardRefreshKey((k) => k + 1);
         setCurrentView("dashboard");
       } else if (currentView === "auth") {
         setCurrentView(isAdmin ? "admin" : authRedirectTarget);
@@ -581,6 +585,7 @@ export default function App() {
                     ?.scrollIntoView({ behavior: "smooth" });
                 }, 100);
               }}
+              dashboardRefreshKey={dashboardRefreshKey}
             />
             <Footer onTandpClick={() => setCurrentView("tandp")} />
           </>
@@ -618,6 +623,7 @@ export default function App() {
                     ?.scrollIntoView({ behavior: "smooth" });
                 }, 100);
               }}
+              dashboardRefreshKey={dashboardRefreshKey}
             />
             <Footer onTandpClick={() => setCurrentView("tandp")} />
           </>

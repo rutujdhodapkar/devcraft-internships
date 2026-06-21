@@ -41,6 +41,7 @@ export default function StudentDashboard({
   onExploreClick,
   initialReferralTab,
   onReferralTabConsumed,
+  dashboardRefreshKey,
 }) {
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -124,7 +125,7 @@ export default function StudentDashboard({
     if (user) {
       loadAll();
     }
-  }, [user]);
+  }, [user, dashboardRefreshKey]);
 
   // Reset the referral tab flag after consumption
   useEffect(() => {

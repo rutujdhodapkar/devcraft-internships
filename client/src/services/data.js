@@ -28,7 +28,7 @@ function dbUrl(path) {
 
 async function dbGet(path) {
   try {
-    const res = await fetch(dbUrl(path));
+    const res = await fetch(`${dbUrl(path)}?t=${Date.now()}`);
     if (!res.ok) { console.warn("dbGet", path, res.status); return null; }
     const data = await res.json();
     if (data === null) return null;
