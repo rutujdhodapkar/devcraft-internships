@@ -8355,6 +8355,26 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
   const [rejecting, setRejecting] = useState({});
   const [overrideLoading, setOverrideLoading] = useState({});
   const [verifySearch, setVerifySearch] = useState("");
+
+  const getTier = (e) => {
+    const projects = getProjectsForEnrollment(e);
+    const subs = getSubmissions(e);
+    if (projects.length === 0) return 3;
+    const allVerified = projects.every((_, i) => subs[i]?.verified);
+    const hasTxn = !!e.transactionId;
+    if (hasTxn && allVerified) return 0;
+    if (hasTxn && !allVerified) return 1;
+    if (!hasTxn && allVerified) return 2;
+    return 3;
+  };
+
+  const TIER_COLORS = [
+    { border: "#34A853", bg: "#f0fdf4", label: "Txn submitted, all tasks verified" },
+    { border: "#1B7A2B", bg: "#e8f5e9", label: "Txn submitted, tasks pending verification" },
+    { border: "#EA4335", bg: "#fff5f5", label: "Tasks done, payment not submitted" },
+    { border: "#999", bg: "#f9f9f9", label: "No payment, no tasks" },
+  ];
+
   const isCompletionReady = (e) => {
     const projects = getProjectsForEnrollment(e);
     if (projects.length === 0) return { ready: false, reason: "No projects assigned" };
@@ -8368,31 +8388,23 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
     }
     return { ready: true, reason: "" };
   };
+
   const pendingComplete = data.requests.filter((e) => {
     if (e.status === "Completed" || e.status === "Archived") return false;
     return true;
   }).sort((a, b) => {
-    const subsA = getSubmissions(a);
-    const subsB = getSubmissions(b);
-    const projA = getProjectsForEnrollment(a);
-    const projB = getProjectsForEnrollment(b);
-    const allVerifiedA = projA.length > 0 && projA.every((_, i) => subsA[i]?.verified);
-    const allVerifiedB = projB.length > 0 && projB.every((_, i) => subsB[i]?.verified);
-    const isPaidA = a.paymentTiming === "both" ? a.paymentStage === "fully_paid" : a.paymentStatus === "paid";
-    const isPaidB = b.paymentTiming === "both" ? b.paymentStage === "fully_paid" : b.paymentStatus === "paid";
-    const hasTxnA = !!a.transactionId;
-    const hasTxnB = !!b.transactionId;
-    const scoreA = isPaidA || hasTxnA ? 0 : allVerifiedA ? 1 : 2;
-    const scoreB = isPaidB || hasTxnB ? 0 : allVerifiedB ? 1 : 2;
-    return scoreA - scoreB;
+    const tierA = getTier(a);
+    const tierB = getTier(b);
+    return tierA - tierB;
   });
+
   return (
     <div style={{ maxWidth: "900px" }}>
       <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.5rem" }}>
         Verify Internship Completion
       </h3>
       <p style={{ color: "#666", fontSize: "0.85rem", marginBottom: "1.5rem" }}>
-        Interns are shown if tasks are fully verified AND payment is done. Incomplete items shown in red.
+        Interns sorted by status: txn+verified (green) → txn pending (dark green) → no txn (red) → inactive (gray).
       </p>
       <div style={{ marginBottom: "1rem" }}>
         <input type="text" placeholder="Search by name, ID, or email..." value={verifySearch} onChange={(e) => setVerifySearch(e.target.value)} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "300px" }} />
@@ -8408,14 +8420,17 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
             const q = verifySearch.trim().toLowerCase();
             return (e.name || "").toLowerCase().includes(q) || (e.internId || e.id || "").toLowerCase().includes(q) || (e.email || "").toLowerCase().includes(q);
           }).map((enrollment) => {
+            const tier = getTier(enrollment);
+            const color = TIER_COLORS[tier];
             const check = isCompletionReady(enrollment);
             const rejected = !!enrollment.completionRejectedAt;
             const projects = getProjectsForEnrollment(enrollment);
             const subs = getSubmissions(enrollment);
             const verifiedCount = projects.filter((_, i) => subs[i]?.verified).length;
+            const hasTxn = !!enrollment.transactionId;
             const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
             return (
-              <div key={enrollment.id} style={{ border: `2px solid ${check.ready ? "#34A853" : "#EA4335"}`, padding: "1.25rem", background: check.ready ? "#f0fdf4" : "#fff5f5" }}>
+              <div key={enrollment.id} style={{ border: `2px solid ${color.border}`, padding: "1.25rem", background: color.bg }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
                   <div style={{ flex: 1, minWidth: "250px" }}>
                     <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#888", marginBottom: "0.15rem" }}>{enrollment.internId || enrollment.id}</div>
@@ -8423,11 +8438,11 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
                     <div style={{ fontSize: "0.82rem", color: "#555", marginTop: "0.25rem" }}>{enrollment.email} | {enrollment.domain} | {enrollment.college || "-"}</div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "flex-end", minWidth: "180px" }}>
-                    <div style={{ fontSize: "0.78rem", fontWeight: 700, padding: "0.25rem 0.5rem", border: `2px solid ${check.ready ? "#34A853" : "#EA4335"}`, background: check.ready ? "#E8F5E9" : "#FFEBEE" }}>
-                      {check.ready ? "✓ READY TO COMPLETE" : "✗ " + check.reason}
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, padding: "0.25rem 0.5rem", border: `2px solid ${check.ready ? "#34A853" : color.border}`, background: check.ready ? "#E8F5E9" : color.bg === "#f9f9f9" ? "#f0f0f0" : color.bg }}>
+                      {check.ready ? "✓ READY TO COMPLETE" : color.label}
                     </div>
                     <div style={{ fontSize: "0.72rem", color: "#555" }}>
-                      Tasks: <strong>{verifiedCount}/{projects.length}</strong> verified | Payment: <strong style={{ color: isPaid ? "#34A853" : "#EA4335" }}>{isPaid ? "Paid" : (enrollment.paymentStage === "start_paid" ? "Partial" : enrollment.transactionId ? "Txn Submitted" : "Not Paid")}</strong>{enrollment.paymentAmount ? <span> (₹{enrollment.paymentAmount})</span> : null} | Certificate: <strong style={{ color: enrollment.allowedCertificate === "yes" ? "#34A853" : "#999" }}>{enrollment.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}</strong>
+                      Tasks: <strong>{verifiedCount}/{projects.length}</strong> verified | Payment: <strong style={{ color: isPaid ? "#34A853" : hasTxn ? "#1B7A2B" : "#EA4335" }}>{isPaid ? "Paid" : (enrollment.paymentStage === "start_paid" ? "Partial" : hasTxn ? "Txn Submitted" : "Not Paid")}</strong>{enrollment.paymentAmount ? <span> (₹{enrollment.paymentAmount})</span> : null} | Certificate: <strong style={{ color: enrollment.allowedCertificate === "yes" ? "#34A853" : "#999" }}>{enrollment.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}</strong>
                     </div>
                     {enrollment.transactionId && (
                       <div style={{ border: "2px solid #000", background: "#fff", padding: "0.25rem 0.5rem", fontSize: "0.72rem" }}>

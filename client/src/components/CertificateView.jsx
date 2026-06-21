@@ -167,14 +167,23 @@ export default function CertificateView() {
         }
 
         const templates = tmplData?.templates || {};
+        const allKeys = Object.keys(templates).filter((k) => k !== "templateOrder");
         let templateHtml = templates[templateName];
+        if (!templateHtml) {
+          const matchedKey = allKeys.find(
+            (k) => k.toLowerCase().replace(/\s+/g, "-") === templateName,
+          );
+          if (matchedKey) templateHtml = templates[matchedKey];
+        }
         const templateNameLower = templateName.toLowerCase();
-
         if (!templateHtml && templateNameLower.includes("certificate")) {
           templateHtml = FALLBACK_CERTIFICATE;
         }
         if (!templateHtml && templateNameLower.includes("offer")) {
-          templateHtml = templates["Offer Letter"];
+          const offerKey = allKeys.find(
+            (k) => k.toLowerCase().replace(/\s+/g, "-") === "offer-letter",
+          );
+          templateHtml = offerKey ? templates[offerKey] : null;
         }
         if (!templateHtml) {
           templateHtml = Object.values(templates).find((v) => v) || FALLBACK_CERTIFICATE;

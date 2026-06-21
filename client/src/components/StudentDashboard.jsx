@@ -171,22 +171,6 @@ export default function StudentDashboard({
     setTabMessages((prev) => prev.filter((m) => m.id !== msgId));
   };
 
-  // Pre-fill submission input with previous text if resubmission is requested
-  useEffect(() => {
-    if (selectedEnrollment) {
-      const projects = getProjectsForEnrollment(selectedEnrollment);
-      const submissions = getSubmissions(selectedEnrollment);
-      const newInputs = {};
-      projects.forEach((_, idx) => {
-        const sub = submissions[idx];
-        if (sub?.resubmit) {
-          newInputs[`${selectedEnrollment.id}_${idx}`] = sub.text || "";
-        }
-      });
-      setSubmissionInputs((prev) => ({ ...prev, ...newInputs }));
-    }
-  }, [selectedEnrollment]);
-
   const getProjectsForEnrollment = (enrollment) => {
     const path = careerPaths.find(
       (p) => p.id === enrollment.domainId || p.title === enrollment.domain,
@@ -208,6 +192,22 @@ export default function StudentDashboard({
     if (!enrollment.submissions) return {};
     return enrollment.submissions;
   };
+
+  // Pre-fill submission input with previous text if resubmission is requested
+  useEffect(() => {
+    if (selectedEnrollment) {
+      const projects = getProjectsForEnrollment(selectedEnrollment);
+      const submissions = getSubmissions(selectedEnrollment);
+      const newInputs = {};
+      projects.forEach((_, idx) => {
+        const sub = submissions[idx];
+        if (sub?.resubmit) {
+          newInputs[`${selectedEnrollment.id}_${idx}`] = sub.text || "";
+        }
+      });
+      setSubmissionInputs((prev) => ({ ...prev, ...newInputs }));
+    }
+  }, [selectedEnrollment]);
 
   /** Refresh a single enrollment after submission */
   const refreshEnrollment = async (enrollmentId) => {
@@ -300,16 +300,8 @@ export default function StudentDashboard({
     window.open(url, "_blank");
   };
 
-  const handleDownloadOffer = (enrollment) => {
-    openCertificateUrl(enrollment, "offer-letter");
-  };
-
   const handleDownloadFromTemplate = (enrollment, templateName) => {
     openCertificateUrl(enrollment, templateName);
-  };
-
-  const handleDownloadCertificate = (enrollment) => {
-    openCertificateUrl(enrollment, "certificate");
   };
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -1254,10 +1246,8 @@ export default function StudentDashboard({
                     submitSuccess={submitSuccess}
                     onSubmitProject={handleSubmitProject}
                     onSubmitQuiz={handleSubmitQuiz}
-                    onDownloadOffer={handleDownloadOffer}
-                    onDownloadCertificate={handleDownloadCertificate}
                     onDownloadFromTemplate={handleDownloadFromTemplate}
-                    domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId) || {}).buttons || []}
+                    domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
                     onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
                     paymentStatus={enrollment.paymentStatus}
                     paymentStage={enrollment.paymentStage || "none"}
@@ -1301,8 +1291,6 @@ function EnrollmentCard({
   submitSuccess,
   onSubmitProject,
   onSubmitQuiz,
-  onDownloadOffer,
-  onDownloadCertificate,
   onDownloadFromTemplate,
   domainButtons,
   onOpenPayment,
@@ -1686,26 +1674,11 @@ function EnrollmentCard({
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
               <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <button className="btn-sharp" onClick={() => onDownloadOffer(enrollment)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
-                ⬇ Download Offer Letter
-              </button>
               {(domainButtons || []).filter((b) => b.showWhen === "before").map((btn, bi) => (
                 <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                   {btn.label}
                 </button>
               ))}
-              {enrollment.allowedCertificate === "yes" ? (
-                <button className="btn-sharp" onClick={() => onDownloadCertificate(enrollment)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", backgroundColor: "#34A853", color: "#fff", border: "2px solid #34A853", borderRadius: 0 }}>
-                  🏆 Download Certificate
-                </button>
-              ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <button disabled style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", border: "2px solid #ccc", background: "#f5f5f5", color: "#999", cursor: "not-allowed", fontWeight: 700, borderRadius: 0 }}>
-                    🔒 Certificate Locked
-                  </button>
-                  <span style={{ fontSize: "0.75rem", color: "#888" }}>Unlocked after payment & admin approval</span>
-                </div>
-              )}
               {(domainButtons || []).filter((b) => b.showWhen === "after").map((btn, bi) => (
                 <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                   {btn.label}

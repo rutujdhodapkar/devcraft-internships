@@ -93,27 +93,17 @@ export default function Footer({ onTandpClick }) {
               <p style={{ fontSize: "0.85rem", color: "#555" }}>
                 Digital Platform - Remote
               </p>
-              <p
-                style={{
-                  fontSize: "0.85rem",
-                  color: "#555",
-                  marginTop: "0.25rem",
-                }}
-              >
-                Support:{" "}
-                <a
-                  href="https://contact.rutujdhodapkar.tech"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    color: "#000",
-                    textDecoration: "underline",
-                    fontWeight: 700,
-                  }}
-                >
+              <div style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                <a href="mailto:support@rutujdhodapkar.tech" style={{ fontSize: "0.85rem", color: "#000", textDecoration: "underline", fontWeight: 700 }}>
+                  support@rutujdhodapkar.tech
+                </a>
+                <a href="https://contact.rutujdhodapkar.tech" target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.85rem", color: "#000", textDecoration: "underline", fontWeight: 700 }}>
                   contact.rutujdhodapkar.tech
                 </a>
-              </p>
+                <a href="https://linkedin.com/company/devcraft-internship" target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.85rem", color: "#000", textDecoration: "underline", fontWeight: 700 }}>
+                  LinkedIn
+                </a>
+              </div>
             </div>
           </div>
         </div>
