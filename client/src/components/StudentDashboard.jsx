@@ -80,6 +80,46 @@ export default function StudentDashboard({
     setPaymentEnrollment(null);
   };
 
+  const loadAll = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [data, tmpl, cpResult, refStat] = await Promise.all([
+        fetchUserEnrollments(user.uid),
+        fetchTemplates(),
+        fetchCareerPaths(),
+        fetchUserReferralStat(user.email),
+      ]);
+      const activeEnrollments = data.filter((e) => e.status !== "Archived");
+      setEnrollments(activeEnrollments);
+      setTemplates(tmpl?.templates || tmpl || null);
+      setCareerPaths(cpResult.paths || []);
+      setReferralStat(refStat);
+
+      const matchResults = {};
+      await Promise.all(
+        activeEnrollments.map(async (enrollment) => {
+          if (enrollment.referralCode) {
+            matchResults[enrollment.id] = await isReferralCodeMatched(
+              enrollment.referralCode,
+            );
+          }
+        }),
+      );
+      setReferralMatchedMap(matchResults);
+
+      // Auto-select if only 1 enrollment
+      if (activeEnrollments.length === 1) {
+        setSelectedEnrollment(activeEnrollments[0]);
+      }
+    } catch (err) {
+      setError("Failed to load your internship data.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       loadAll();
@@ -165,61 +205,6 @@ export default function StudentDashboard({
     }
   }, [selectedEnrollment]);
 
-  const loadAll = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const [data, tmpl, cpResult, refStat] = await Promise.all([
-        fetchUserEnrollments(user.uid),
-        fetchTemplates(),
-        fetchCareerPaths(),
-        fetchUserReferralStat(user.email),
-      ]);
-      const activeEnrollments = data.filter((e) => e.status !== "Archived");
-      setEnrollments(activeEnrollments);
-      setTemplates(tmpl?.templates || tmpl || null);
-      setCareerPaths(cpResult.paths || []);
-      setReferralStat(refStat);
-
-      const matchResults = {};
-      await Promise.all(
-        activeEnrollments.map(async (enrollment) => {
-          if (enrollment.referralCode) {
-            matchResults[enrollment.id] = await isReferralCodeMatched(
-              enrollment.referralCode,
-            );
-          }
-        }),
-      );
-      setReferralMatchedMap(matchResults);
-
-      // Auto-select if only 1 enrollment
-      if (activeEnrollments.length === 1) {
-        setSelectedEnrollment(activeEnrollments[0]);
-      }
-    } catch (err) {
-      setError("Failed to load your internship data.");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /** Refresh a single enrollment after submission */
-  const refreshEnrollment = async (enrollmentId) => {
-    try {
-      const fresh = await fetchEnrollmentById(enrollmentId);
-      if (fresh) {
-        setEnrollments((prev) =>
-          prev.map((e) => (e.id === enrollmentId ? fresh : e)),
-        );
-        setSelectedEnrollment(fresh);
-      }
-    } catch (e) {
-      console.warn("Refresh failed:", e);
-    }
-  };
-
   const getProjectsForEnrollment = (enrollment) => {
     const path = careerPaths.find(
       (p) => p.id === enrollment.domainId || p.title === enrollment.domain,
@@ -240,6 +225,21 @@ export default function StudentDashboard({
   const getSubmissions = (enrollment) => {
     if (!enrollment.submissions) return {};
     return enrollment.submissions;
+  };
+
+  /** Refresh a single enrollment after submission */
+  const refreshEnrollment = async (enrollmentId) => {
+    try {
+      const fresh = await fetchEnrollmentById(enrollmentId);
+      if (fresh) {
+        setEnrollments((prev) =>
+          prev.map((e) => (e.id === enrollmentId ? fresh : e)),
+        );
+        setSelectedEnrollment(fresh);
+      }
+    } catch (e) {
+      console.warn("Refresh failed:", e);
+    }
   };
 
   const getCompletionPercent = (enrollment) => {
