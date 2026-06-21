@@ -13,27 +13,8 @@ import {
   acknowledgeAdminMessage,
   fetchSiteNotices,
 } from "../services/data";
-import { openCertificatePdf } from "../utils/certificatePdf";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
-
-/** Generate the HTML document from template + variables and open print dialog */
-function generateAndPrint(templateHtml, variables) {
-  let html = templateHtml;
-  Object.entries(variables).forEach(([k, v]) => {
-    html = html.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v || "");
-  });
-  const win = window.open("", "_blank");
-  if (!win) {
-    alert("Please allow pop-ups to download your document.");
-    return;
-  }
-  win.document.write(html);
-  win.document.close();
-  setTimeout(() => {
-    win.print();
-  }, 500);
-}
 
 export default function StudentDashboard({
   user,
@@ -311,32 +292,24 @@ export default function StudentDashboard({
     }
   };
 
-  const getTemplate = (name) => (templates && templates[name]) || null;
+  const openCertificateUrl = (enrollment, templateName) => {
+    const id = enrollment.id || enrollment.internId;
+    if (!id) { alert("Enrollment ID not found."); return; }
+    const name = templateName.toLowerCase().replace(/\s+/g, "-");
+    const url = `${window.location.origin}/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`;
+    window.open(url, "_blank");
+  };
 
   const handleDownloadOffer = (enrollment) => {
-    const html = getTemplate("Offer Letter");
-    if (!html) { alert("Offer letter template not available. Please contact support."); return; }
-    generateAndPrint(html, { ...enrollment, date: new Date(enrollment.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) });
+    openCertificateUrl(enrollment, "offer-letter");
   };
 
   const handleDownloadFromTemplate = (enrollment, templateName) => {
-    const html = getTemplate(templateName);
-    if (!html) { alert(`Template "${templateName}" not available. Please contact support.`); return; }
-    generateAndPrint(html, { ...enrollment, date: new Date(enrollment.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }) });
+    openCertificateUrl(enrollment, templateName);
   };
 
   const handleDownloadCertificate = (enrollment) => {
-    openCertificatePdf({
-      name: enrollment.name || user.displayName || "Student",
-      domain: enrollment.domain,
-      date: new Date().toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      }),
-      id: enrollment.id,
-      internId: enrollment.internId || enrollment.id,
-    });
+    openCertificateUrl(enrollment, "certificate");
   };
 
   // ── Render ──────────────────────────────────────────────────────────────

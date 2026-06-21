@@ -12,6 +12,7 @@ import EarnSection from "./components/EarnSection";
 import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
 import TermsAndServices from "./components/TermsAndServices";
+import CertificateView from "./components/CertificateView";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -106,10 +107,11 @@ function detectCountryCode() {
 export default function App() {
   const initialView = (() => {
     const path = window.location.pathname;
+    if (path.startsWith("/certificate/")) return "certificate";
     if (path === "/tandp") return "tandp";
     return "site";
   })();
-  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp'
+  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp', 'certificate'
   const [referralCode, setReferralCode] = useState("");
 
   // Routing Redirection Target
@@ -309,6 +311,7 @@ export default function App() {
 
   // Sync URL with current view for deep-linking
   useEffect(() => {
+    if (currentView === "certificate") return;
     const targetPath = currentView === "tandp" ? "/tandp" : "/";
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, "", targetPath);
@@ -319,8 +322,9 @@ export default function App() {
   useEffect(() => {
     const handlePop = () => {
       const path = window.location.pathname;
-      if (path === "/tandp") setCurrentView("tandp");
-      else if (currentView === "tandp") setCurrentView("site");
+      if (path.startsWith("/certificate/")) setCurrentView("certificate");
+      else if (path === "/tandp") setCurrentView("tandp");
+      else if (currentView === "tandp" || currentView === "certificate") setCurrentView("site");
     };
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
@@ -634,6 +638,8 @@ export default function App() {
             onBackToSite={() => setCurrentView("site")}
           />
         );
+      case "certificate":
+        return <CertificateView />;
       case "site":
       default:
         return (

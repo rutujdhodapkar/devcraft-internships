@@ -868,18 +868,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   };
 
   const handleGenerateCertificate = async (enrollment) => {
-    const date = new Date().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-    openCertificatePdf({
-      name: enrollment.name,
-      domain: enrollment.domain,
-      date,
-      id: enrollment.id,
-      internId: enrollment.internId || enrollment.id,
-    });
+    const id = enrollment.id || enrollment.internId;
+    if (id) {
+      const url = `${window.location.origin}/certificate/${encodeURIComponent(id)}/certificate`;
+      window.open(url, "_blank");
+    }
     // Mark as Completed
     if (enrollment.status !== "Completed") {
       await updateEnrollmentStatus(enrollment.id, "Completed");
@@ -7129,14 +7122,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
                 <button
                   onClick={() => {
-                    const date = new Date(
-                      selectedIntern.createdAt,
-                    ).toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    });
-                    generateAndPrint(templates.templates?.["Offer Letter"] || "", { ...selectedIntern, date });
+                    const id = selectedIntern.id || selectedIntern.internId;
+                    if (id) {
+                      const url = `${window.location.origin}/certificate/${encodeURIComponent(id)}/offer-letter`;
+                      window.open(url, "_blank");
+                    }
                   }}
                   className="btn-sharp-outline"
                   style={{
