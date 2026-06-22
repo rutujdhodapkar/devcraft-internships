@@ -230,6 +230,8 @@ export async function enrollStudent(uid, profile, domainObj) {
   if (refCode) {
     const ref = await dbGet(`referrals/${refCode}/contacted`);
     await dbPatch(`referrals/${refCode}`, { contacted: (ref || 0) + 1, updatedAt: new Date().toISOString() });
+    const existingUser = await dbGet(`referralUsers/${refCode}/${uid}`);
+    await dbPut(`referralUsers/${refCode}/${uid}`, { uid, email: profile.email || "", displayName: profile.name || profile.displayName || "", code: refCode, firstLoginAt: existingUser?.firstLoginAt || new Date().toISOString(), enrolledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
   if (detectedReferralCode) localStorage.removeItem("detected_referral_code");
   return enrollment;
@@ -337,14 +339,15 @@ export async function trackReferralVisit(referralCode) {
   if (!referralCode) return null;
   const code = referralCode.toUpperCase().trim();
   const now = new Date().toISOString();
-  const visit = await dbPost("referralVisits", {
-    action: "visited", referralCode: code, visitedAt: now, matched: true,
-    link: window.location.href, language: navigator.language || "",
-    browser: navigator.userAgent || "",
+  const data = await apiFetch("/api/data/referral-visits", {
+    method: "POST",
+    body: JSON.stringify({
+      action: "visited", referralCode: code, visitedAt: now,
+      link: window.location.href, language: navigator.language || "",
+      browser: navigator.userAgent || "",
+    }),
   });
-  const ref = await dbGet(`referrals/${code}/visited`);
-  await dbPatch(`referrals/${code}`, { visited: (ref || 0) + 1, lastVisitedAt: now, updatedAt: now });
-  return visit;
+  return data.data || null;
 }
 
 export async function processReferralFromUrl() {
@@ -352,7 +355,14 @@ export async function processReferralFromUrl() {
   const code = (params.get("ref") || params.get("referral") || "").trim().toUpperCase();
   if (!code) return { code: "", matched: false };
   const matched = await isReferralCodeMatched(code);
-  if (matched) { localStorage.setItem("detected_referral_code", code); await trackReferralVisit(code); }
+  if (matched) {
+    localStorage.setItem("detected_referral_code", code);
+    const visitedKey = `_ref_visited_${code}`;
+    if (!sessionStorage.getItem(visitedKey)) {
+      sessionStorage.setItem(visitedKey, "1");
+      await trackReferralVisit(code);
+    }
+  }
   return { code, matched };
 }
 
@@ -738,6 +748,15 @@ export async function saveTheme(theme) {
   return saveSiteConfig("theme", theme);
 }
 
+// Terms & Conditions
+export async function fetchTermsContent() {
+  return fetchSiteConfig("terms");
+}
+
+export async function saveTermsContent(html) {
+  return saveSiteConfig("terms", html);
+}
+
 // Coupons
 export async function fetchCoupons() {
   const d = await dbGet("siteConfig/coupons");
@@ -747,6 +766,28 @@ export async function fetchCoupons() {
 export async function saveCoupons(coupons) {
   await dbPut("siteConfig/coupons", { value: coupons, updatedAt: new Date().toISOString() });
   return coupons;
+}
+
+export async function validateCoupon(code) {
+  if (!code || !code.trim()) return { valid: false, message: "Enter a coupon code." };
+  const all = await fetchCoupons();
+  const c = all.find((c) => c.code === code.toUpperCase().trim());
+  if (!c) return { valid: false, message: "Invalid coupon code." };
+  if (!c.active) return { valid: false, message: "This coupon has expired or been deactivated." };
+  if (c.expiryDate && new Date(c.expiryDate) < new Date(new Date().toDateString())) return { valid: false, message: "This coupon has expired." };
+  const used = c.usedCount || 0;
+  if (c.maxUses && used >= c.maxUses) return { valid: false, message: "This coupon has reached its usage limit." };
+  const discountPercent = Math.min(100, Math.max(0, Number(c.discountPercent) || 0));
+  return { valid: true, coupon: c, discountPercent, message: `${discountPercent}% discount applied!` };
+}
+
+export async function incrementCouponUsage(code) {
+  if (!code) return;
+  const all = await fetchCoupons();
+  const idx = all.findIndex((c) => c.code === code.toUpperCase().trim());
+  if (idx === -1) return;
+  all[idx] = { ...all[idx], usedCount: (all[idx].usedCount || 0) + 1 };
+  await saveCoupons(all);
 }
 
 // Receipt

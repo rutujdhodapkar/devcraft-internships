@@ -8,7 +8,8 @@
     "dev": "concurrently \"npm run server\" \"npm run client\""
   },
   "dependencies": {
-    "firebase-admin": "^14.0.0"
+    "firebase-admin": "^14.0.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

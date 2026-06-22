@@ -106,6 +106,7 @@ const TABS = [
   { id: "audit-log", label: "Audit Log" },
   { id: "theme", label: "Theme" },
   { id: "coupons", label: "Coupons" },
+  { id: "terms", label: "Terms" },
   { id: "csv-export", label: "CSV Export" },
   { id: "referral-leaderboard", label: "Referral Leaderboard" },
 ];
@@ -245,6 +246,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [homepageContent, setHomepageContent] = useState(null);
   const [homepageLoading, setHomepageLoading] = useState(false);
   const [homepageSaving, setHomepageSaving] = useState(false);
+
+  // Terms content state
+  const [termsContent, setTermsContent] = useState("");
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termsSaving, setTermsSaving] = useState(false);
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   // Task feedback & certificate approval states
@@ -402,6 +408,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           .then((data) => setHomepageContent(data || { headline: "", description: "", badges: [], buttons: [], features: [] }))
           .catch(() => setHomepageContent({ headline: "", description: "", badges: [], buttons: [], features: [] }))
           .finally(() => setHomepageLoading(false)),
+      );
+    }
+    if (activeTab === "terms") {
+      setTermsLoading(true);
+      import("../services/data").then(({ fetchTermsContent }) =>
+        fetchTermsContent()
+          .then((data) => setTermsContent(data || ""))
+          .catch(() => setTermsContent(""))
+          .finally(() => setTermsLoading(false)),
       );
     }
     if (activeTab === "payment-settings") {
@@ -6928,6 +6943,60 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               </div>
             ) : (
               <EmptyBox msg="Could not load homepage content." />
+            )}
+          </div>
+        )}
+
+        {/* ── TERMS & CONDITIONS EDITOR ── */}
+        {activeTab === "terms" && (
+          <div style={{ maxWidth: "800px" }}>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>
+              Terms & Conditions Editor
+            </h3>
+            <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>
+              Write HTML content below. It will be rendered on the public Terms & Services page. 
+              Include policies about no refunds, paid courses, unregistered status, and certificate limitations.
+            </p>
+            {termsLoading ? (
+              <div style={{ color: "#888" }}>Loading…</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <textarea
+                  value={termsContent}
+                  onChange={(e) => setTermsContent(e.target.value)}
+                  rows={30}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem",
+                    border: "2px solid #000",
+                    borderRadius: 0,
+                    fontFamily: "monospace",
+                    fontSize: "0.85rem",
+                    resize: "vertical",
+                    lineHeight: "1.6",
+                  }}
+                />
+                <button
+                  className="btn-sharp"
+                  disabled={termsSaving}
+                  onClick={async () => {
+                    setTermsSaving(true);
+                    try {
+                      const { saveTermsContent } = await import("../services/data");
+                      await saveTermsContent(termsContent);
+                      setSuccessMsg("Terms & Conditions saved!");
+                      setTimeout(() => setSuccessMsg(""), 3000);
+                    } catch (err) {
+                      setError("Failed to save: " + err.message);
+                    } finally {
+                      setTermsSaving(false);
+                    }
+                  }}
+                  style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}
+                >
+                  {termsSaving ? "Saving…" : "Save Terms"}
+                </button>
+              </div>
             )}
           </div>
         )}

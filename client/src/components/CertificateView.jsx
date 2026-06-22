@@ -202,8 +202,10 @@ export default function CertificateView() {
           day: "numeric",
         });
 
+        const qrCodeUrl = `${window.location.origin}/api/qr/${encodeURIComponent(enrollment.id || enrollment.internId || "")}`;
         const filled = fillTemplate(templateHtml, {
           ...enrollment,
+          qrCodeUrl,
           date,
           internId: enrollment.internId || enrollment.id || "",
           id: enrollment.id || enrollment.internId || "",

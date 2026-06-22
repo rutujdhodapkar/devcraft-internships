@@ -25,13 +25,15 @@ function getServiceAccount() {
 }
 
 let fbInitPromise = null;
+let _FieldValue = null;
 async function initFirebase() {
   if (fbInitPromise) return fbInitPromise;
   fbInitPromise = (async () => {
     const { initializeApp, getApps, cert } = await import("firebase-admin/app");
-    const { getFirestore } = await import("firebase-admin/firestore");
+    const { getFirestore, FieldValue } = await import("firebase-admin/firestore");
+    _FieldValue = FieldValue;
     const apps = getApps();
-    if (apps.length) return getFirestore(apps[0]);
+    if (apps.length) return getFirestore(apps[0], FIRESTORE_DB_ID);
     const sa = getServiceAccount();
     if (!sa) {
       throw new Error("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY on Vercel.");
@@ -408,8 +410,8 @@ async function handleData(req, res, routeParts) {
     const referral = code ? await getDoc(db, "referrals", code, null) : null;
     const data = { ...req.body, referralCode: code, matched: Boolean(referral), visitedAt: req.body.visitedAt || now(), createdAt: now() };
     const newRef = await db.collection("referralVisits").add(data);
-    if (referral) {
-      await db.collection("referrals").doc(code).update({ visited: (referral.visited || 0) + 1, lastVisitedAt: data.visitedAt, updatedAt: now() });
+    if (referral && _FieldValue) {
+      await db.collection("referrals").doc(code).update({ visited: _FieldValue.increment(1), lastVisitedAt: data.visitedAt, updatedAt: now() });
     }
     data.id = newRef.id;
     return send(res, 201, { success: true, data });
@@ -547,6 +549,13 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       const contactSnap = await db.collection("referrals").doc(refCode).get();
       const contactData = contactSnap.data() || {};
       await db.collection("referrals").doc(refCode).update({ contacted: (contactData.contacted || 0) + 1, updatedAt: now() });
+      const uid = enrollment.uid;
+      if (uid) {
+        await db.collection("referralUsers").doc(`${refCode}_${uid}`).set({
+          uid, email: enrollment.email || "", displayName: enrollment.name || "",
+          code: refCode, enrolledAt: now(), updatedAt: now(),
+        }, { merge: true });
+      }
     }
     return send(res, 201, { success: true, data: enrollment });
   }
@@ -912,6 +921,44 @@ const db2 = await initFirebase();
   }
 }
 
+async function handleQR(req, res, enrollmentId) {
+  try {
+    const QRCode = await import("qrcode");
+    const origin = req.headers["x-forwarded-host"] ? `https://${req.headers["x-forwarded-host"]}` : `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "devcraft.rutujdhodapkar.tech"}`;
+    const verifyUrl = `${origin}/api/verify/${encodeURIComponent(enrollmentId)}`;
+    const svg = await QRCode.toString(verifyUrl, { type: "svg", width: 400, margin: 2, color: { dark: "#000", light: "#fff" } });
+    res.setHeader("Content-Type", "image/svg+xml");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    return res.status(200).send(svg);
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
+}
+
+async function handleVerify(req, res, enrollmentId) {
+  try {
+    const db = await initFirebase();
+    const snap = await db.collection("enrollments").doc(enrollmentId).get();
+    let html;
+    if (!snap.exists) {
+      html = `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;background:#f5f5f5}h1{color:#d32f2f}p{font-size:18px}</style></head><body><h1>❌ Not Found</h1><p>No intern found with ID: ${escapeHtml(enrollmentId)}</p></body></html>`;
+    } else {
+      const e = snap.data();
+      const statusColor = e.status === "Completed" ? "#2e7d32" : e.status === "Active" ? "#1565c0" : "#ff8f00";
+      const certStatus = e.allowedCertificate === "yes" ? "✅ Available" : "🔒 Locked";
+      html = `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;background:#f5f5f5}h1{color:#333}h2{color:${statusColor}}table{margin:20px auto;border-collapse:collapse}td{padding:8px 16px;border-bottom:1px solid #ddd;text-align:left}td:first-child{font-weight:700;color:#555}</style></head><body><h1>🏆 ${escapeHtml(e.name || "Intern")}</h1><h2>${escapeHtml(e.domain || "")}</h2><table><tr><td>Status</td><td>${escapeHtml(e.status || "N/A")}</td></tr><tr><td>Intern ID</td><td>${escapeHtml(e.internId || enrollmentId)}</td></tr><tr><td>Certificate</td><td>${certStatus}</td></tr><tr><td>Started</td><td>${e.createdAt ? new Date(e.createdAt).toLocaleDateString() : "N/A"}</td></tr><tr><td>Completed</td><td>${e.completedAt ? new Date(e.completedAt).toLocaleDateString() : "In progress"}</td></tr></table><p style="margin-top:30px;color:#888;font-size:14px">DEV/CRAFT Virtual Internship</p></body></html>`;
+    }
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(html);
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
+}
+
+function escapeHtml(text) {
+  return String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 async function handleFirebaseProxy(req, res) {
   if (req.method !== "POST") return send(res, 405, { success: false, message: "Only POST allowed" });
   try {
@@ -985,9 +1032,9 @@ async function handleFirebaseProxy(req, res) {
             for (const [key, value] of Object.entries(data)) {
               updateData[`${fieldPath}.${key}`] = value;
             }
-            await docRef.update(updateData);
+            await docRef.set(updateData, { merge: true });
           } else {
-            await docRef.update(data);
+            await docRef.set(data, { merge: true });
           }
           result = data;
           break;
@@ -1020,6 +1067,8 @@ export default async function handler(req, res) {
     if (parts[0] === "firebase-proxy") return handleFirebaseProxy(req, res);
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
     if (parts[0] === "dodo") return handleDodo(req, res, parts.slice(1));
+    if (parts[0] === "qr" && parts[1]) return handleQR(req, res, parts[1]);
+    if (parts[0] === "verify" && parts[1]) return handleVerify(req, res, parts[1]);
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {

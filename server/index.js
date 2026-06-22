@@ -53,9 +53,9 @@ async function initFirebase() {
   if (fbInitPromise) return fbInitPromise;
   fbInitPromise = (async () => {
     const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-    const { getFirestore } = await import('firebase-admin/firestore');
+    const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
     const apps = getApps();
-    if (apps.length) return getFirestore(apps[0]);
+    if (apps.length) return getFirestore(apps[0], 'intern');
     const sa = getServiceAccount();
     if (!sa) {
       throw new Error('Firebase Admin credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in .env');
@@ -641,8 +641,8 @@ app.post('/api/firebase-proxy', async (req, res) => {
         case 'update': {
           if (fieldPath) {
             const upd = {}; for (const [k, v] of Object.entries(data)) upd[`${fieldPath}.${k}`] = v;
-            await docRef.update(upd);
-          } else { await docRef.update(data); }
+            await docRef.set(upd, { merge: true });
+          } else { await docRef.set(data, { merge: true }); }
           result = data;
           break;
         }
@@ -665,6 +665,49 @@ app.get('/api/enrollment-status/:id', async (req, res) => {
     return res.json({ paymentStatus: data?.paymentStatus || 'none', paymentIntentId: data?.paymentIntentId || '' });
   } catch {
     return res.json({ paymentStatus: 'none', paymentIntentId: '' });
+  }
+});
+
+// ─── Referral visits (dedicated API via Firestore) ────────────────────────
+app.post('/api/data/referral-visits', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const code = String(req.body.referralCode || '').toUpperCase().trim();
+    const snap = code ? await db.collection('referrals').doc(code).get() : null;
+    const referral = snap?.exists ? { id: snap.id, ...snap.data() } : null;
+    const data = { ...req.body, referralCode: code, matched: Boolean(referral), visitedAt: req.body.visitedAt || new Date().toISOString(), createdAt: new Date().toISOString() };
+    const newRef = await db.collection('referralVisits').add(data);
+    if (referral) {
+      await db.collection('referrals').doc(code).update({ visited: FieldValue.increment(1), lastVisitedAt: data.visitedAt, updatedAt: new Date().toISOString() });
+    }
+    data.id = newRef.id;
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── Audit log (dedicated API via Firestore) ─────────────────────────────
+app.post('/api/data/audit-log', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    const ref = await db.collection('auditLog').add({ ...req.body, createdAt: new Date().toISOString() });
+    return res.json({ success: true, data: { id: ref.id, ...req.body } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/data/audit-log', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    const snap = await db.collection('auditLog').get();
+    const data = snap.empty ? [] : snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    data.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    return res.json({ success: true, data: data.slice(0, 500) });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 });
 

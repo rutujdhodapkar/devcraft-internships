@@ -13,6 +13,11 @@ import {
   acknowledgeAdminMessage,
   fetchSiteNotices,
   fetchPaymentMethods,
+  markEnrollmentComplete,
+  saveUserProfile,
+  fetchUserProfile,
+  validateCoupon,
+  incrementCouponUsage,
 } from "../services/data";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
@@ -45,6 +50,10 @@ export default function StudentDashboard({
   const [paymentMethod, setPaymentMethod] = useState(null); // 'upi' | 'dodo' | null
   const [showPaymentChoice, setShowPaymentChoice] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponError, setCouponError] = useState("");
+  const [couponDiscount, setCouponDiscount] = useState(0); // percent
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "internships");
   const [referralStat, setReferralStat] = useState(null);
@@ -53,6 +62,10 @@ export default function StudentDashboard({
   const [tabMessages, setTabMessages] = useState([]);
   const [siteNotices, setSiteNotices] = useState([]);
 
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({});
+  const [savingProfile, setSavingProfile] = useState(false);
+
   const handleOpenPayment = (enrollment, stage) => {
     if (!enrollment?.id) {
       console.error("handleOpenPayment: enrollment missing id", enrollment);
@@ -60,14 +73,57 @@ export default function StudentDashboard({
     }
     setPaymentEnrollment({ ...enrollment, _paymentStage: stage || "full" });
     setPaymentMethod(null);
+    setCouponCode("");
+    setCouponError("");
+    setCouponDiscount(0);
     setShowPaymentChoice(true);
   };
 
+  const getFullAmount = (enrollment) => {
+    return enrollment._paymentStage === "start"
+      ? (enrollment.paymentStartAmount || Math.round((enrollment.paymentAmount || 99) / 2))
+      : (enrollment.paymentEndAmount || enrollment.paymentAmount || 99);
+  };
+
+  const getDiscountedAmount = (enrollment) => {
+    const full = getFullAmount(enrollment);
+    if (couponDiscount <= 0) return full;
+    return Math.round(full * (100 - couponDiscount) / 100);
+  };
+
+  const handleApplyCoupon = async () => {
+    const code = couponCode.trim();
+    if (!code) { setCouponError("Enter a coupon code."); return; }
+    setValidatingCoupon(true);
+    setCouponError("");
+    try {
+      const result = await validateCoupon(code);
+      if (result.valid) {
+        setCouponDiscount(result.discountPercent);
+        setCouponError("");
+      } else {
+        setCouponDiscount(0);
+        setCouponError(result.message);
+      }
+    } catch (err) {
+      setCouponDiscount(0);
+      setCouponError("Failed to validate coupon.");
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
   const handlePaymentSuccess = async () => {
+    if (couponCode.trim() && couponDiscount > 0) {
+      try { await incrementCouponUsage(couponCode.trim()); } catch {}
+    }
     setShowPaymentModal(false);
     setShowPaymentChoice(false);
     setPaymentEnrollment(null);
     setPaymentMethod(null);
+    setCouponCode("");
+    setCouponDiscount(0);
+    setCouponError("");
     setDashboardRefreshKey((k) => k + 1);
   };
 
@@ -303,6 +359,40 @@ export default function StudentDashboard({
     }
   };
 
+  const handleMarkComplete = async (enrollment) => {
+    if (!window.confirm("Are you sure you want to mark this internship as complete? This action cannot be undone.")) return;
+    try {
+      await markEnrollmentComplete(enrollment.id);
+      await refreshEnrollment(enrollment.id);
+    } catch (err) {
+      alert("Failed to mark as complete: " + err.message);
+    }
+  };
+
+  const handleOpenProfileEdit = () => {
+    setProfileForm({
+      phone: userProfile?.phone || "",
+      college: userProfile?.college || "",
+      city: userProfile?.city || "",
+      country: userProfile?.country || "",
+      upiId: userProfile?.upiId || "",
+    });
+    setShowProfileModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await saveUserProfile(user.uid, profileForm);
+      setShowProfileModal(false);
+      alert("Profile updated successfully.");
+    } catch (err) {
+      alert("Failed to save profile: " + err.message);
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
   const openCertificateUrl = (enrollment, templateName) => {
     const id = enrollment.id || enrollment.internId;
     if (!id) { alert("Enrollment ID not found."); return; }
@@ -366,6 +456,25 @@ export default function StudentDashboard({
                 Manage your active internships, submit your projects, and
                 download your credentials.
               </p>
+              <button
+                onClick={handleOpenProfileEdit}
+                className="btn-sharp"
+                style={{
+                  marginTop: "0.5rem",
+                  padding: "0.4rem 1rem",
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  background: "#fff",
+                  color: "#000",
+                  border: "2px solid #000",
+                  cursor: "pointer",
+                  borderRadius: 0,
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                }}
+              >
+                Edit Profile
+              </button>
             </div>
 
             {/* Tabs for Internships & Referrals */}
@@ -1270,6 +1379,7 @@ export default function StudentDashboard({
                     showBackButton={enrollments.length > 1}
                     onBackClick={() => setSelectedEnrollment(null)}
                     careerPaths={careerPaths}
+                    onMarkComplete={handleMarkComplete}
                   />
                 );
               })()
@@ -1282,22 +1392,54 @@ export default function StudentDashboard({
           <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", width: "90%", maxWidth: "420px", boxShadow: "8px 8px 0 #000", textAlign: "center" }}>
             <div style={{ height: "6px", background: "#000", marginBottom: "1.5rem", margin: "-2rem -2rem 1.5rem -2rem" }} />
             <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.5rem" }}>Choose Payment Method</h3>
-            <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>
-              Amount: <strong>₹{paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}</strong>
-            </p>
+
+            {couponDiscount > 0 ? (
+              <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>
+                Amount: <strong>₹{getDiscountedAmount(paymentEnrollment)}</strong>
+                <span style={{ textDecoration: "line-through", color: "#aaa", marginLeft: "0.5rem" }}>₹{getFullAmount(paymentEnrollment)}</span>
+                <span style={{ color: "#34A853", marginLeft: "0.4rem", fontWeight: 700 }}>({couponDiscount}% off)</span>
+              </p>
+            ) : (
+              <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>
+                Amount: <strong>₹{getFullAmount(paymentEnrollment)}</strong>
+              </p>
+            )}
+
+            {/* Coupon Code Input */}
+            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", alignItems: "center" }}>
+              <input
+                type="text"
+                value={couponCode}
+                onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(""); setCouponDiscount(0); }}
+                placeholder="Discount Code"
+                disabled={couponDiscount > 0}
+                style={{ flex: 1, padding: "0.45rem 0.6rem", border: "2px solid #000", borderRadius: 0, fontSize: "0.85rem", fontFamily: "monospace", fontWeight: 700, textTransform: "uppercase" }}
+              />
+              {couponDiscount > 0 ? (
+                <button onClick={() => { setCouponCode(""); setCouponDiscount(0); setCouponError(""); }} className="btn-sharp" style={{ padding: "0.45rem 0.75rem", fontSize: "0.78rem", background: "#EA4335", color: "#fff", border: "2px solid #c5221f", cursor: "pointer", borderRadius: 0, whiteSpace: "nowrap" }}>
+                  Remove
+                </button>
+              ) : (
+                <button onClick={handleApplyCoupon} disabled={validatingCoupon} className="btn-sharp" style={{ padding: "0.45rem 0.75rem", fontSize: "0.78rem", background: "#000", color: "#fff", border: "2px solid #000", cursor: "pointer", borderRadius: 0, whiteSpace: "nowrap" }}>
+                  {validatingCoupon ? "..." : "Apply"}
+                </button>
+              )}
+            </div>
+            {couponError && <p style={{ fontSize: "0.78rem", color: "#EA4335", marginBottom: "1rem" }}>{couponError}</p>}
+
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {(paymentMethods?.upi !== false) && (
                 <button onClick={() => { setPaymentMethod("upi"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800 }}>
-                  Pay ₹{paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
+                  Pay ₹{getDiscountedAmount(paymentEnrollment)} {couponDiscount > 0 ? "(UPI)" : ""}
                 </button>
               )}
               {(paymentMethods?.dodo === true) && (
                 <button onClick={() => { setPaymentMethod("dodo"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800, background: "#000", color: "#fff" }}>
-                  Pay ₹{paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
+                  Pay ₹{getDiscountedAmount(paymentEnrollment)} {couponDiscount > 0 ? "(Card)" : ""}
                 </button>
               )}
             </div>
-            <button onClick={() => { setShowPaymentChoice(false); setPaymentEnrollment(null); }} className="btn-sharp" style={{ marginTop: "1rem", background: "#fff", color: "#000", border: "2px solid #000", padding: "0.5rem 1.5rem", fontSize: "0.82rem" }}>
+            <button onClick={() => { setShowPaymentChoice(false); setPaymentEnrollment(null); setCouponCode(""); setCouponDiscount(0); setCouponError(""); }} className="btn-sharp" style={{ marginTop: "1rem", background: "#fff", color: "#000", border: "2px solid #000", padding: "0.5rem 1.5rem", fontSize: "0.82rem" }}>
               Cancel
             </button>
           </div>
@@ -1306,20 +1448,70 @@ export default function StudentDashboard({
       {showPaymentModal && paymentEnrollment && paymentMethod === "upi" && (
         <UPIPaymentModal
           enrollmentId={paymentEnrollment.id}
-          amount={paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
+          amount={getDiscountedAmount(paymentEnrollment)}
           onSuccess={handlePaymentSuccess}
-          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
+          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); setCouponCode(""); setCouponDiscount(0); setCouponError(""); }}
         />
       )}
       {showPaymentModal && paymentEnrollment && paymentMethod === "dodo" && (
         <DodoPaymentModal
           enrollmentId={paymentEnrollment.id}
-          amount={paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
+          amount={getDiscountedAmount(paymentEnrollment)}
           onSuccess={handlePaymentSuccess}
-          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
+          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); setCouponCode(""); setCouponDiscount(0); setCouponError(""); }}
           userEmail={user?.email}
           userName={user?.displayName}
         />
+      )}
+
+      {showProfileModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: "#fff", border: "2px solid #000", boxShadow: "8px 8px 0 #000",
+            padding: "2rem", width: "420px", maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto",
+          }}>
+            <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.1rem", marginBottom: "1.5rem" }}>
+              Edit Profile
+            </h3>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Name</label>
+              <input value={user?.displayName || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0 }} />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Email</label>
+              <input value={user?.email || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0 }} />
+            </div>
+
+            {["phone", "college", "city", "country", "upiId"].map((field) => (
+              <div key={field} style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>
+                  {field === "upiId" ? "UPI ID" : field.charAt(0).toUpperCase() + field.slice(1)}
+                </label>
+                <input
+                  value={profileForm[field] || ""}
+                  onChange={(e) => setProfileForm((prev) => ({ ...prev, [field]: e.target.value }))}
+                  placeholder={`Enter your ${field}`}
+                  style={{ width: "100%", padding: "0.5rem", border: "2px solid #000", borderRadius: 0 }}
+                />
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+              <button onClick={() => setShowProfileModal(false)} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", background: "#fff", color: "#000", border: "2px solid #000", fontWeight: 700, cursor: "pointer", borderRadius: 0 }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveProfile} disabled={savingProfile} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", background: "#000", color: "#fff", border: "2px solid #000", fontWeight: 700, cursor: "pointer", borderRadius: 0 }}>
+                {savingProfile ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -1351,6 +1543,7 @@ function EnrollmentCard({
   showBackButton,
   onBackClick,
   careerPaths,
+  onMarkComplete,
 }) {
   const domainPath = careerPaths?.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain);
   const displayAmount = domainPath?.paymentAmount || paymentAmount;
@@ -1726,7 +1919,7 @@ function EnrollmentCard({
                   {btn.label}
                 </button>
               ))}
-              {(domainButtons || []).filter((b) => b.showWhen === "after" && pStatus === "paid").map((btn, bi) => (
+              {(domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted || enrollment.allowedCertificate === "yes")).map((btn, bi) => (
                 <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                   {btn.label}
                 </button>
@@ -1791,6 +1984,32 @@ function EnrollmentCard({
               <strong>⏳ Pending Review:</strong> Our team will review your
               submitted project(s) and verify them shortly. Once all projects
               are verified, your Completion Certificate will be unlocked.
+            </div>
+          )}
+
+          {allVerified && enrollment.transactionId && !isCompleted && (
+            <div style={{ marginTop: "1rem", textAlign: "center" }}>
+              <button
+                onClick={() => onMarkComplete(enrollment)}
+                className="btn-sharp"
+                style={{
+                  padding: "0.85rem 2.5rem",
+                  fontSize: "1rem",
+                  fontWeight: 900,
+                  background: "#34A853",
+                  color: "#fff",
+                  border: "2px solid #1a5c2e",
+                  cursor: "pointer",
+                  borderRadius: 0,
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                }}
+              >
+                Mark as Complete
+              </button>
+              <p style={{ fontSize: "0.78rem", color: "#777", marginTop: "0.5rem" }}>
+                All projects verified and transaction received. Click to finalize.
+              </p>
             </div>
           )}
         </div>
