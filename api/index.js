@@ -1,4 +1,5 @@
-import * as admin from "firebase-admin";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -27,17 +28,20 @@ function getServiceAccount() {
 }
 
 function initFirebase() {
-  if (admin.apps.length) return admin.database();
-  const credential = getServiceAccount();
-  if (!credential) {
+  const { initializeApp, getApps, cert } = require("firebase-admin/app");
+  const { getDatabase } = require("firebase-admin/database");
+  const apps = getApps();
+  if (apps.length) return getDatabase(apps[0]);
+  const sa = getServiceAccount();
+  if (!sa) {
     throw new Error("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY on Vercel.");
   }
-  admin.initializeApp({
-    credential: admin.credential.cert(credential),
+  const app = initializeApp({
+    credential: cert(sa),
     databaseURL: DATABASE_URL,
-    projectId: credential.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
+    projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
   });
-  return admin.database();
+  return getDatabase(app);
 }
 
 function cleanId(value) {
