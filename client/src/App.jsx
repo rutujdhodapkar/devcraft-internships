@@ -263,6 +263,7 @@ export default function App() {
                     currentView !== "admin" &&
                     currentView !== "site" &&
                     currentView !== "tandp" &&
+                    currentView !== "certificate" &&
                     userEnrs.length > 0
                   ) {
                     setCurrentView("dashboard");
