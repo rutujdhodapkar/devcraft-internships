@@ -513,10 +513,24 @@ app.post('/api/dodo/webhook', async (req, res) => {
     if (eventType === 'payment.succeeded' && enrollmentId) {
       const FB = 'https://login-data-680b9-default-rtdb.firebaseio.com';
       try {
-        await fetch(`${FB}/enrollments/${enrollmentId}.json`, {
+        const url = `${FB}/enrollments/${enrollmentId}.json`;
+        await fetch(url, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paymentStatus: 'paid', paymentStage: 'fully_paid', paidAt: new Date().toISOString(), paymentIntentId: paymentId, updatedAt: new Date().toISOString() }),
         });
+        const fbRes = await fetch(url);
+        const enr = await fbRes.json();
+        if (enr) {
+          const projects = enr.projects || [];
+          const submissions = enr.submissions || {};
+          const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
+          if (allVerified) {
+            await fetch(url, {
+              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ allowedCertificate: 'yes', status: 'Completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
+            });
+          }
+        }
         console.log(`Dodo: Payment succeeded for ${enrollmentId}`);
       } catch (fbErr) { console.error('Firebase update failed:', fbErr.message); }
     } else if (eventType === 'payment.failed' && enrollmentId) {

@@ -583,6 +583,21 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     if (extra2 === "reject") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.rejected`]: true, [`${base}.feedback`]: req.body.feedback || "", [`${base}.rejectedAt`]: now() });
   }
   await db.ref(`enrollments/${id}`).update(patch);
+  if (extra2 === "verify") {
+    try {
+      const snap = await db.ref(`enrollments/${id}`).once("value");
+      const enr = snap.val();
+      if (enr) {
+        const projects = enr.projects || [];
+        const submissions = enr.submissions || {};
+        const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
+        const isPaid = enr.paymentStatus === "paid" || enr.paymentStage === "fully_paid";
+        if (allVerified && isPaid) {
+          await db.ref(`enrollments/${id}`).update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
+        }
+      }
+    } catch {}
+  }
   const updated = await getDoc(db, "enrollments", id, null);
   return send(res, 200, { success: true, data: updated || patch });
 }
@@ -837,7 +852,18 @@ async function handleDodo(req, res, parts) {
       if ((eventType === "payment.succeeded") && enrollmentId) {
         try {
           const db = initFirebase();
-          await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, updatedAt: now() });
+          const ref = db.ref(`enrollments/${enrollmentId}`);
+          await ref.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, updatedAt: now() });
+          const snap = await ref.once("value");
+          const enr = snap.val();
+          if (enr) {
+            const projects = enr.projects || [];
+            const submissions = enr.submissions || {};
+            const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
+            if (allVerified) {
+              await ref.update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
+            }
+          }
         } catch (e) { console.error("Dodo webhook update failed:", e.message); }
       } else if (eventType === "payment.failed" && enrollmentId) {
         try { const db = initFirebase(); await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}

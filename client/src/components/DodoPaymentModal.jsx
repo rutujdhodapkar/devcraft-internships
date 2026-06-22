@@ -8,6 +8,7 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
   const [errorMessage, setErrorMessage] = useState("");
   const initRef = useRef(false);
   const pollingRef = useRef(false);
+  const paidRef = useRef(false);
 
   const startPolling = () => {
     if (pollingRef.current) return;
@@ -23,7 +24,7 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         }
       } catch {}
       if (attempts < 30) setTimeout(poll, 2000);
-      else setStatus("completed");
+      else { setStatus("error"); setErrorMessage("Payment confirmation is taking longer than expected. Please check your enrollment status or contact support."); }
     };
     setTimeout(poll, 2000);
   };
@@ -41,12 +42,16 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
           mode,
           displayType: "overlay",
           onEvent: (event) => {
+            if (event.event_type === "payment.succeeded") {
+              paidRef.current = true;
+              setStatus("completed");
+            }
             if (event.event_type === "checkout.error") {
               setStatus("error");
               setErrorMessage(event.data?.message || "Payment error");
             }
-            if (event.event_type === "checkout.closed") {
-              if (status === "processing") startPolling();
+            if (event.event_type === "checkout.closed" && !paidRef.current) {
+              startPolling();
             }
           },
         });
@@ -59,7 +64,6 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         if (!data.success) throw new Error(data.message || "Failed to create checkout");
         setStatus("processing");
         await DodoPayments.Checkout.open({ checkoutUrl: data.data.checkout_url });
-        startPolling();
       } catch (err) {
         setStatus("error");
         setErrorMessage(err.message);
@@ -94,10 +98,10 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         {status === "completed" && (
           <>
             <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.75rem" }}>
-              Payment Submitted
+              Payment Successful
             </h3>
             <p style={{ fontSize: "0.85rem", color: "#555", lineHeight: "1.6" }}>
-              Your payment of <strong>{"\u20B9"}{amount}</strong> has been processed. Once confirmed, your certificate will be unlocked.
+              Your payment of <strong>{"\u20B9"}{amount}</strong> has been confirmed.
             </p>
             <button onClick={onSuccess} className="btn-sharp" style={{ marginTop: "1.5rem", padding: "0.75rem 2rem", fontWeight: 800 }}>
               Done
