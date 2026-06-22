@@ -930,9 +930,9 @@ async function handleFirebaseProxy(req, res) {
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return send(res, 400, { success: false, message: "action and path required" });
 
-    const blocked = ["admins", "users"];
+    const blockedWrites = ["admins", "users"];
     const root = path.split("/")[0];
-    if (blocked.includes(root) && action !== "get") {
+    if (blockedWrites.includes(root) && ["set", "update", "push", "delete"].includes(action)) {
       return send(res, 403, { success: false, message: `Direct write to ${root}/ denied via proxy` });
     }
 

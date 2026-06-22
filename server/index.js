@@ -595,9 +595,9 @@ app.post('/api/firebase-proxy', async (req, res) => {
     const db = await initFirebase();
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return res.status(400).json({ success: false, message: 'action and path required' });
-    const blocked = ['admins', 'users'];
+    const blockedWrites = ['admins', 'users'];
     const root = path.split('/')[0];
-    if (blocked.includes(root) && action !== 'get') {
+    if (blockedWrites.includes(root) && ['set', 'update', 'push', 'delete'].includes(action)) {
       return res.status(403).json({ success: false, message: `Direct write to ${root}/ denied via proxy` });
     }
     let result;
