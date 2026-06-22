@@ -30,8 +30,6 @@ async function loadEnvFile() {
 
 await loadEnvFile();
 
-const DATABASE_URL = 'https://login-data-680b9-default-rtdb.firebaseio.com';
-
 function getServiceAccount() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
   if (raw) {
@@ -55,19 +53,18 @@ async function initFirebase() {
   if (fbInitPromise) return fbInitPromise;
   fbInitPromise = (async () => {
     const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-    const { getDatabase } = await import('firebase-admin/database');
+    const { getFirestore } = await import('firebase-admin/firestore');
     const apps = getApps();
-    if (apps.length) return getDatabase(apps[0]);
+    if (apps.length) return getFirestore(apps[0]);
     const sa = getServiceAccount();
     if (!sa) {
       throw new Error('Firebase Admin credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in .env');
     }
     const app = initializeApp({
       credential: cert(sa),
-      databaseURL: DATABASE_URL,
       projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || 'login-data-680b9',
     });
-    return getDatabase(app);
+    return getFirestore(app);
   })();
   return fbInitPromise;
 }
@@ -502,8 +499,8 @@ app.post('/api/dodo/create-checkout-session', async (req, res) => {
     if (!productId) {
       try {
         const db = await initFirebase();
-        const snap = await db.ref('siteConfig/dodoConfig').once('value');
-        const val = snap.val();
+        const snap = await db.collection('siteConfig').doc('dodoConfig').get();
+        const val = snap.data();
         productId = val?.value?.productId || null;
       } catch {}
     }
@@ -564,16 +561,16 @@ app.post('/api/dodo/webhook', async (req, res) => {
             if (pmtRes?.status !== 'succeeded') return res.json({ received: true, skipped: true });
           } catch (e) { console.warn('Dodo payment verification failed:', e.message); }
         }
-        const ref = db.ref(`enrollments/${enrollmentId}`);
-        await ref.update({ paymentStatus: 'paid', paymentStage: 'fully_paid', paidAt: new Date().toISOString(), paymentIntentId: paymentId, updatedAt: new Date().toISOString() });
-        const snap = await ref.once('value');
-        const enr = snap.val();
+        const enrRef = db.collection('enrollments').doc(enrollmentId);
+        await enrRef.update({ paymentStatus: 'paid', paymentStage: 'fully_paid', paidAt: new Date().toISOString(), paymentIntentId: paymentId, updatedAt: new Date().toISOString() });
+        const snap = await enrRef.get();
+        const enr = snap.data();
         if (enr) {
           const projects = enr.projects || [];
           const submissions = enr.submissions || {};
           const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
           if (allVerified) {
-            await ref.update({ allowedCertificate: 'yes', status: 'Completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+            await enrRef.update({ allowedCertificate: 'yes', status: 'Completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
           }
         }
         console.log(`Dodo: Payment succeeded for ${enrollmentId}`);
@@ -581,7 +578,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
     } else if (eventType === 'payment.failed' && enrollmentId) {
       try {
         const db = await initFirebase();
-        await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: 'failed', updatedAt: new Date().toISOString() });
+        await db.collection('enrollments').doc(enrollmentId).update({ paymentStatus: 'failed', updatedAt: new Date().toISOString() });
       } catch {}
     }
     res.json({ received: true });
@@ -591,7 +588,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
   }
 });
 
-// Firebase proxy (used by client to access RTDB via Admin SDK)
+// Firebase proxy (used by client to access Firestore via Admin SDK)
 app.post('/api/firebase-proxy', async (req, res) => {
   try {
     const db = await initFirebase();
@@ -603,30 +600,55 @@ app.post('/api/firebase-proxy', async (req, res) => {
       return res.status(403).json({ success: false, message: `Direct write to ${root}/ denied via proxy` });
     }
     let result;
-    const ref = db.ref(path);
-    switch (action) {
-      case 'get': { const snap = await ref.once('value'); result = snap.exists() ? snap.val() : null; break; }
-      case 'set': await ref.set(data); result = data; break;
-      case 'update': await ref.update(data); result = data; break;
-      case 'push': { const childRef = ref.push(); await childRef.set(data); result = { id: childRef.key, ...data }; break; }
-      case 'delete': await ref.remove(); result = true; break;
-      case 'list': {
-        const snap = await ref.once('value');
-        if (!snap.exists()) { result = []; break; }
-        const arr = []; snap.forEach((child) => arr.push({ id: child.key, ...child.val() })); result = arr; break;
+    const parts = path.split('/');
+    const collection = parts[0];
+    if (['list', 'query', 'push'].includes(action)) {
+      const colRef = db.collection(collection);
+      if (action === 'list') {
+        const snap = await colRef.get();
+        result = snap.empty ? [] : snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      } else if (action === 'push') {
+        const docRef = await colRef.add(data);
+        result = { id: docRef.id, ...data };
+      } else if (action === 'query') {
+        let q = colRef;
+        if (query?.orderBy && query?.equalTo !== undefined) q = q.where(query.orderBy, '==', query.equalTo);
+        if (query?.limitToLast) q = q.limit(query.limitToLast);
+        if (query?.limitToFirst) q = q.limit(query.limitToFirst);
+        const snap = await q.get();
+        if (snap.empty) { result = query?.single ? null : []; } else if (query?.single) { result = { id: snap.docs[0].id, ...snap.docs[0].data() }; } else { result = snap.docs.map(d => ({ id: d.id, ...d.data() })); }
       }
-      case 'query': {
-        let q = ref;
-        if (query?.orderBy) q = q.orderByChild(query.orderBy);
-        if (query?.limitToLast) q = q.limitToLast(query.limitToLast);
-        if (query?.limitToFirst) q = q.limitToFirst(query.limitToFirst);
-        if (query?.equalTo !== undefined) q = q.equalTo(query.equalTo);
-        const snap = await q.once('value');
-        if (!snap.exists()) { result = query?.single ? null : []; break; }
-        if (query?.single) { result = snap.val(); break; }
-        const arr = []; snap.forEach((child) => arr.push({ id: child.key, ...child.val() })); result = arr; break;
+    } else {
+      let docId = parts[1];
+      let fieldPath = parts.length > 2 ? parts.slice(2).join('.') : null;
+      if (parts.length >= 3 && parts[0] === 'referralUsers') {
+        docId = parts.slice(1).join('_');
+        fieldPath = null;
       }
-      default: return res.status(400).json({ success: false, message: `Unknown action: ${action}` });
+      const docRef = db.collection(collection).doc(docId);
+      switch (action) {
+        case 'get': {
+          const snap = await docRef.get();
+          if (!snap.exists) { result = null; break; }
+          const docData = snap.data();
+          result = fieldPath ? fieldPath.split('.').reduce((o, k) => o?.[k], docData) ?? null : docData;
+          break;
+        }
+        case 'set':
+          await (fieldPath ? docRef.set({ [fieldPath]: data }, { merge: true }) : docRef.set(data));
+          result = data;
+          break;
+        case 'update': {
+          if (fieldPath) {
+            const upd = {}; for (const [k, v] of Object.entries(data)) upd[`${fieldPath}.${k}`] = v;
+            await docRef.update(upd);
+          } else { await docRef.update(data); }
+          result = data;
+          break;
+        }
+        case 'delete': await docRef.delete(); result = true; break;
+        default: return res.status(400).json({ success: false, message: `Unknown action: ${action}` });
+      }
     }
     return res.json({ success: true, data: result });
   } catch (error) {
@@ -638,8 +660,8 @@ app.post('/api/firebase-proxy', async (req, res) => {
 app.get('/api/enrollment-status/:id', async (req, res) => {
   try {
     const db = await initFirebase();
-    const snap = await db.ref(`enrollments/${req.params.id}`).once('value');
-    const data = snap.val();
+    const snap = await db.collection('enrollments').doc(req.params.id).get();
+    const data = snap.data();
     return res.json({ paymentStatus: data?.paymentStatus || 'none', paymentIntentId: data?.paymentIntentId || '' });
   } catch {
     return res.json({ paymentStatus: 'none', paymentIntentId: '' });

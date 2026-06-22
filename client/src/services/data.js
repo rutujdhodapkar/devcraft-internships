@@ -408,9 +408,9 @@ export async function fetchReferralDashboardData(uid) {
   const interns = await dbQueryList("enrollments", "referralCode", code);
   const completed = interns.filter(i => i.status === "Completed" && i.paymentStatus === "paid");
   const earnings = completed.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
-  // Count unique logins from referralUsers/{code}/
-  const loginData = await dbGet(`referralUsers/${code}`);
-  const totalLogins = loginData && typeof loginData === "object" ? Object.keys(loginData).length : 0;
+  // Count unique logins from referralUsers where code == code
+  const loginUsers = await dbQueryList("referralUsers", "code", code);
+  const totalLogins = loginUsers.length;
   return {
     referral, visits, interns,
     totals: { visits: visits.length, interns: interns.length, completed: completed.length, earnings },

@@ -1,6 +1,5 @@
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
-const DATABASE_URL = "https://login-data-680b9-default-rtdb.firebaseio.com";
 
 function send(res, status, payload) {
   res.status(status).json(payload);
@@ -29,19 +28,18 @@ async function initFirebase() {
   if (fbInitPromise) return fbInitPromise;
   fbInitPromise = (async () => {
     const { initializeApp, getApps, cert } = await import("firebase-admin/app");
-    const { getDatabase } = await import("firebase-admin/database");
+    const { getFirestore } = await import("firebase-admin/firestore");
     const apps = getApps();
-    if (apps.length) return getDatabase(apps[0]);
+    if (apps.length) return getFirestore(apps[0]);
     const sa = getServiceAccount();
     if (!sa) {
       throw new Error("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY on Vercel.");
     }
     const app = initializeApp({
       credential: cert(sa),
-      databaseURL: DATABASE_URL,
       projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
     });
-    return getDatabase(app);
+    return getFirestore(app);
   })();
   return fbInitPromise;
 }
@@ -62,67 +60,59 @@ function now() {
   return new Date().toISOString();
 }
 
-// RTDB helpers
+// Firestore helpers
 async function pushDoc(db, name, data) {
-  const ref = db.ref(name).push();
-  await ref.set(data);
-  return { id: ref.key, ...data };
+  const ref = await db.collection(name).add(data);
+  return { id: ref.id, ...data };
 }
 
 async function listCollection(db, name) {
-  const snap = await db.ref(name).get();
-  if (!snap.exists()) return [];
-  const result = [];
-  snap.forEach(child => result.push({ id: child.key, ...child.val() }));
-  return result;
+  const snap = await db.collection(name).get();
+  if (snap.empty) return [];
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 async function getDoc(db, collection, id, fallback = null) {
-  const snap = await db.ref(`${collection}/${id}`).get();
-  return snap.exists() ? { id: snap.key, ...snap.val() } : fallback;
+  const snap = await db.collection(collection).doc(id).get();
+  return snap.exists ? { id: snap.id, ...snap.data() } : fallback;
 }
 
 async function setDoc(db, collection, id, data, merge = true) {
-  const ref = db.ref(`${collection}/${id}`);
-  if (merge) {
-    await ref.update(data);
-  } else {
-    await ref.set(data);
-  }
-  const snap = await ref.get();
-  return { id: snap.key, ...snap.val() };
+  await db.collection(collection).doc(id).set(data, { merge });
+  return { id, ...data };
 }
 
 async function deleteDoc(db, collection, id) {
-  await db.ref(`${collection}/${id}`).remove();
+  await db.collection(collection).doc(id).delete();
   return { id };
 }
 
 async function replaceKeyedCollection(db, collection, items, fallbackPrefix) {
-  await db.ref(collection).remove();
-  const updates = {};
+  const batch = db.batch();
+  const ids = new Set();
   items.forEach((item, idx) => {
     const id = cleanId(item.id) || `${fallbackPrefix}_${idx + 1}`;
-    updates[`${collection}/${id}`] = { ...item, id, updatedAt: now() };
+    ids.add(id);
+    batch.set(db.collection(collection).doc(id), { ...item, id, updatedAt: now() }, { merge: true });
   });
-  if (Object.keys(updates).length) await db.ref().update(updates);
+  const existing = await db.collection(collection).listDocuments();
+  for (const doc of existing) {
+    if (!ids.has(doc.id)) batch.delete(doc);
+  }
+  await batch.commit();
   return items;
 }
 
 async function listUserEnrollments(db, uid) {
-  const snap = await db.ref("enrollments").orderByChild("uid").equalTo(uid).get();
-  if (!snap.exists()) return [];
-  const result = [];
-  snap.forEach(child => result.push({ id: child.key, ...child.val() }));
-  return result.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  const snap = await db.collection("enrollments").where("uid", "==", uid).get();
+  if (snap.empty) return [];
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 }
 
 async function listReferralInterns(db, code) {
-  const snap = await db.ref("enrollments").orderByChild("referralCode").equalTo(code).get();
-  if (!snap.exists()) return [];
-  const result = [];
-  snap.forEach(child => result.push({ id: child.key, ...child.val() }));
-  return result;
+  const snap = await db.collection("enrollments").where("referralCode", "==", code).get();
+  if (snap.empty) return [];
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
 async function handleAuth(req, res) {
@@ -415,13 +405,12 @@ async function handleData(req, res, routeParts) {
   if (resource === "referral-visits") {
     const code = codeId(req.body.referralCode);
     const referral = code ? await getDoc(db, "referrals", code, null) : null;
-    const newRef = db.ref("referralVisits").push();
-    const data = { id: newRef.key, ...req.body, referralCode: code, matched: Boolean(referral), visitedAt: req.body.visitedAt || now() };
-    await newRef.set(data);
+    const data = { ...req.body, referralCode: code, matched: Boolean(referral), visitedAt: req.body.visitedAt || now(), createdAt: now() };
+    const newRef = await db.collection("referralVisits").add(data);
     if (referral) {
-      await db.ref(`referrals/${code}/visited`).transaction(current => (current || 0) + 1);
-      await db.ref(`referrals/${code}`).update({ lastVisitedAt: data.visitedAt, updatedAt: now() });
+      await db.collection("referrals").doc(code).update({ visited: (referral.visited || 0) + 1, lastVisitedAt: data.visitedAt, updatedAt: now() });
     }
+    data.id = newRef.id;
     return send(res, 201, { success: true, data });
   }
   if (resource === "referral-logins") return handleReferralLogin(db, req, res);
@@ -436,9 +425,8 @@ async function handleData(req, res, routeParts) {
   if (resource === "site-notices") return handleNotices(db, req, res, id, sub);
   if (resource === "homepage") return getSetConfig(db, req, res, "homepage", req.body.content);
   if (resource === "site-visits") {
-    const newRef = db.ref("siteVisits").push();
-    await newRef.set({ id: newRef.key, ...req.body, createdAt: now() });
-    return send(res, 201, { success: true, data: { id: newRef.key } });
+    const newRef = await db.collection("siteVisits").add({ ...req.body, createdAt: now() });
+    return send(res, 201, { success: true, data: { id: newRef.id } });
   }
   if (resource === "payment-stats") {
     const enrollments = await listCollection(db, "enrollments");
@@ -554,8 +542,10 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     };
     await setDoc(db, "enrollments", internId, enrollment, false);
     if (enrollment.referralCode) {
-      await db.ref(`referrals/${enrollment.referralCode}/contacted`).transaction(current => (current || 0) + 1);
-      await db.ref(`referrals/${enrollment.referralCode}`).update({ updatedAt: now() });
+      const refCode = enrollment.referralCode;
+      const contactSnap = await db.collection("referrals").doc(refCode).get();
+      const contactData = contactSnap.data() || {};
+      await db.collection("referrals").doc(refCode).update({ contacted: (contactData.contacted || 0) + 1, updatedAt: now() });
     }
     return send(res, 201, { success: true, data: enrollment });
   }
@@ -620,18 +610,18 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     if (extra2 === "feedback") Object.assign(patch, { [`${base}.feedback`]: req.body.feedback || "" });
     if (extra2 === "reject") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.rejected`]: true, [`${base}.feedback`]: req.body.feedback || "", [`${base}.rejectedAt`]: now() });
   }
-  await db.ref(`enrollments/${id}`).update(patch);
+  await db.collection("enrollments").doc(id).update(patch);
   if (extra2 === "verify") {
     try {
-      const snap = await db.ref(`enrollments/${id}`).once("value");
-      const enr = snap.val();
+      const snap = await db.collection("enrollments").doc(id).get();
+      const enr = snap.data();
       if (enr) {
         const projects = enr.projects || [];
         const submissions = enr.submissions || {};
         const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
         const isPaid = enr.paymentStatus === "paid" || enr.paymentStage === "fully_paid";
         if (allVerified && isPaid) {
-          await db.ref(`enrollments/${id}`).update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
+          await db.collection("enrollments").doc(id).update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
         }
       }
     } catch {}
@@ -649,8 +639,9 @@ async function handleReferrals(db, req, res, id, sub) {
   if (id && req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(db, "referrals", codeId(id)) });
   if (sub === "matched") return send(res, 200, { success: true, data: { matched: Boolean(await getDoc(db, "referrals", codeId(id), null)) } });
   if (sub === "contacted") {
-    await db.ref(`referrals/${codeId(id)}/contacted`).transaction(current => (current || 0) + 1);
-    await db.ref(`referrals/${codeId(id)}`).update({ lastContactedAt: now(), updatedAt: now() });
+    const snap = await db.collection("referrals").doc(codeId(id)).get();
+    const refData = snap.data() || {};
+    await db.collection("referrals").doc(codeId(id)).update({ contacted: (refData.contacted || 0) + 1, lastContactedAt: now(), updatedAt: now() });
     return send(res, 200, { success: true, data: await getDoc(db, "referrals", codeId(id), null) });
   }
   if (sub === "achieved") return send(res, 200, { success: true, data: await setDoc(db, "referrals", codeId(id), { achieved: Boolean(req.body.achieved), achievedAt: req.body.achieved ? now() : null, updatedAt: now() }) });
@@ -658,11 +649,11 @@ async function handleReferrals(db, req, res, id, sub) {
   if (sub === "mark-payout") {
     const payoutAmount = req.body.payoutAmount || 0;
     const payoutNote = req.body.payoutNote || "";
-    await db.ref(`referrals/${codeId(id)}`).update({ payoutStatus: "done", payoutAmount, payoutNote, payoutAt: now(), updatedAt: now() });
+    await db.collection("referrals").doc(codeId(id)).update({ payoutStatus: "done", payoutAmount, payoutNote, payoutAt: now(), updatedAt: now() });
     return send(res, 200, { success: true, data: await getDoc(db, "referrals", codeId(id), null) });
   }
   if (sub === "clear-payout") {
-    await db.ref(`referrals/${codeId(id)}`).update({ payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: now() });
+    await db.collection("referrals").doc(codeId(id)).update({ payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: now() });
     return send(res, 200, { success: true, data: await getDoc(db, "referrals", codeId(id), null) });
   }
   return send(res, 404, { success: false, message: "Unknown referral route." });
@@ -671,8 +662,8 @@ async function handleReferrals(db, req, res, id, sub) {
 async function handleReferralLogin(db, req, res) {
   const code = codeId(req.body.referralCode);
   const user = req.body.user || {};
-  await db.ref(`referralUsers/${code}_${user.uid}`).set({ ...user, code, loginAt: now(), updatedAt: now() });
-  await db.ref(`referrals/${code}`).update({ lastActivityAt: now(), updatedAt: now() });
+  await db.collection("referralUsers").doc(`${code}_${user.uid}`).set({ ...user, code, uid: user.uid, loginAt: now(), updatedAt: now() }, { merge: true });
+  await db.collection("referrals").doc(code).update({ lastActivityAt: now(), updatedAt: now() });
   return send(res, 201, { success: true, data: { code } });
 }
 
@@ -683,14 +674,13 @@ async function handleCheckAdmin(db, req, res) {
   return send(res, 200, { success: true, isAdmin: Boolean(adminDoc) });
 }
 
-async function handleAdmins(dbIgnored, req, res, id) {
-  const dbAdm = await initFirebase();
-  if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(dbAdm, "admins")).map((a) => a.email || a.id) });
+async function handleAdmins(db, req, res, id) {
+  if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "admins")).map((a) => a.email || a.id) });
   if (req.method === "POST") {
     const email = cleanId(req.body.email).toLowerCase();
-    return send(res, 200, { success: true, data: await setDoc(dbAdm, "admins", emailId(email), { email, createdAt: now() }) });
+    return send(res, 200, { success: true, data: await setDoc(db, "admins", emailId(email), { email, createdAt: now() }) });
   }
-  if (req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(dbAdm, "admins", emailId(id)) });
+  if (req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(db, "admins", emailId(id)) });
 }
 
 async function handleSelfReferrals(db, req, res) {
@@ -733,13 +723,12 @@ async function handleMessages(db, req, res, id, sub) {
     return send(res, 200, { success: true, data: msgs });
   }
   if (!id && req.method === "POST") {
-    const newRef = db.ref("adminMessages").push();
-    const data = { id: newRef.key, ...req.body.message, acknowledgedBy: {}, createdAt: now() };
-    await newRef.set(data);
+    const newRef = await db.collection("adminMessages").add({ ...req.body.message, acknowledgedBy: {}, createdAt: now() });
+    const data = { id: newRef.id, ...req.body.message, acknowledgedBy: {}, createdAt: now() };
     return send(res, 201, { success: true, data });
   }
   if (sub === "ack") {
-    await db.ref(`adminMessages/${id}/acknowledgedBy/${req.body.uid}`).set({ ...(req.body.userInfo || {}), uid: req.body.uid, acknowledgedAt: now() });
+    await db.collection("adminMessages").doc(id).update({ [`acknowledgedBy.${req.body.uid}`]: { ...(req.body.userInfo || {}), uid: req.body.uid, acknowledgedAt: now() } });
     return send(res, 200, { success: true, data: { id } });
   }
   if (req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(db, "adminMessages", id) });
@@ -748,9 +737,8 @@ async function handleMessages(db, req, res, id, sub) {
 async function handleNotices(db, req, res, id, sub) {
   if (!id && req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "siteNotices")).filter((n) => n.active !== false) });
   if (!id && req.method === "POST") {
-    const newRef = db.ref("siteNotices").push();
-    const data = { id: newRef.key, ...req.body.notice, active: true, createdAt: now() };
-    await newRef.set(data);
+    const newRef = await db.collection("siteNotices").add({ ...req.body.notice, active: true, createdAt: now() });
+    const data = { id: newRef.id, ...req.body.notice, active: true, createdAt: now() };
     return send(res, 201, { success: true, data });
   }
   if (sub === "toggle") return send(res, 200, { success: true, data: await setDoc(db, "siteNotices", id, { active: Boolean(req.body.active), updatedAt: now() }) });
@@ -785,8 +773,8 @@ async function buildReferralDashboard(db, uid) {
   const owner = await getDoc(db, "selfReferralOwners", uid, null);
   if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 } };
   const code = codeId(owner.code);
-  const snap = await db.ref("referralVisits").orderByChild("referralCode").equalTo(code).get();
-  const visits = snap.exists() ? (() => { const r = []; snap.forEach(c => r.push({ id: c.key, ...c.val() })); return r; })() : [];
+  const visitSnap = await db.collection("referralVisits").where("referralCode", "==", code).get();
+  const visits = visitSnap.empty ? [] : visitSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const [referral, interns] = await Promise.all([
     getDoc(db, "referrals", code, null),
     listReferralInterns(db, code),
@@ -797,11 +785,9 @@ async function buildReferralDashboard(db, uid) {
 }
 
 async function buildEmailReferralStat(db, email) {
-  const snap = await db.ref("referrals").orderByChild("email").equalTo(email).get();
-  if (!snap.exists()) return null;
-  let first = null;
-  snap.forEach(c => { if (!first) first = { id: c.key, ...c.val() }; });
-  const referral = first;
+  const snap = await db.collection("referrals").where("email", "==", email).get();
+  if (snap.empty) return null;
+  const referral = { id: snap.docs[0].id, ...snap.docs[0].data() };
   const interns = await listReferralInterns(db, codeId(referral.code || referral.id));
   return { referral, interns, internCount: interns.length, completed: interns.filter((i) => i.status === "Completed").length };
 }
@@ -849,9 +835,9 @@ async function handleDodo(req, res, parts) {
       let productId = DODO_PRODUCT_ID;
       if (!productId) {
         try {
-const db = await initFirebase();
-      const snap = await db.ref("siteConfig/dodoConfig").once("value");
-          const val = snap.val();
+const db2 = await initFirebase();
+      const snap2 = await db2.collection("siteConfig").doc("dodoConfig").get();
+          const val = snap2.data();
           productId = val?.value?.productId || null;
         } catch {}
       }
@@ -900,26 +886,125 @@ const db = await initFirebase();
           if (!verifiedStatus) {
             console.warn("Dodo webhook: payment verification skipped or failed for", paymentId);
           }
-          const db = await initFirebase();
-          const ref = db.ref(`enrollments/${enrollmentId}`);
-          await ref.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, updatedAt: now() });
-          const snap = await ref.once("value");
-          const enr = snap.val();
+          const db3 = await initFirebase();
+          const enrRef = db3.collection("enrollments").doc(enrollmentId);
+          await enrRef.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, updatedAt: now() });
+          const snap3 = await enrRef.get();
+          const enr = snap3.data();
           if (enr) {
             const projects = enr.projects || [];
             const submissions = enr.submissions || {};
             const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
             if (allVerified) {
-              await ref.update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
+              await enrRef.update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
             }
           }
         } catch (e) { console.error("Dodo webhook update failed:", e.message); }
       } else if (eventType === "payment.failed" && enrollmentId) {
-        try { const db = await initFirebase(); await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}
+        try { const db4 = await initFirebase(); await db4.collection("enrollments").doc(enrollmentId).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}
       }
       return send(res, 200, { received: true });
     }
     return send(res, 404, { success: false, message: `Unknown Dodo endpoint: ${sub}` });
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
+}
+
+// One-time endpoint: copies all RTDB data to Firestore
+// Call POST /api/migrate once after deploy, then remove this route
+async function handleMigrate(req, res) {
+  if (req.method !== "POST") return send(res, 405, { success: false, message: "POST only" });
+  // Simple secret check to prevent accidental triggers
+  if (req.headers["x-migrate-secret"] !== process.env.MIGRATE_SECRET) {
+    return send(res, 401, { success: false, message: "Invalid or missing x-migrate-secret header" });
+  }
+  try {
+    // Init RTDB for reading old data
+    const { initializeApp, getApps, cert } = await import("firebase-admin/app");
+    const { getDatabase } = await import("firebase-admin/database");
+    const { getFirestore } = await import("firebase-admin/firestore");
+    const apps = getApps();
+    let rtdb, firestore;
+    if (apps.length) {
+      firestore = getFirestore(apps[0]);
+      rtdb = getDatabase(apps[0]);
+    } else {
+      const sa = getServiceAccount();
+      if (!sa) return send(res, 500, { success: false, message: "Service account not configured" });
+      const app = initializeApp({
+        credential: cert(sa),
+        databaseURL: "https://login-data-680b9-default-rtdb.firebaseio.com",
+        projectId: sa.project_id || "login-data-680b9",
+      });
+      rtdb = getDatabase(app);
+      firestore = getFirestore(app);
+    }
+
+    const col = (n) => firestore.collection(n);
+    const readRtdb = async (path) => { const s = await rtdb.ref(path).get(); return s.exists() ? s.val() : null; };
+    const migrateMap = async (rt, fs) => {
+      const data = await readRtdb(rt); if (!data || typeof data !== "object") return 0;
+      let batch = firestore.batch(); let c = 0;
+      for (const [k, v] of Object.entries(data)) {
+        batch.set(col(fs).doc(k), (v && typeof v === "object" && !Array.isArray(v)) ? { id: k, ...v } : { id: k, value: v });
+        c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); }
+      }
+      if (c % 400 !== 0) await batch.commit(); return c;
+    };
+
+    let total = 0;
+    total += await migrateMap("admins", "admins");
+    total += await migrateMap("careerPaths", "careerPaths");
+    total += await migrateMap("faqs", "faqs");
+    total += await migrateMap("howItWorks", "howItWorks");
+    total += await migrateMap("inquiries", "inquiries");
+    total += await migrateMap("referralVisits", "referralVisits");
+    total += await migrateMap("referrals", "referrals");
+    total += await migrateMap("selfReferralOwners", "selfReferralOwners");
+    total += await migrateMap("sentEmails", "sentEmails");
+    total += await migrateMap("serviceRequests", "serviceRequests");
+    total += await migrateMap("siteConfig", "siteConfig");
+    total += await migrateMap("siteNotices", "siteNotices");
+    total += await migrateMap("siteVisits", "siteVisits");
+    total += await migrateMap("users", "users");
+    total += await migrateMap("bannedUsers", "bannedUsers");
+    total += await migrateMap("auditLog", "auditLog");
+    total += await migrateMap("adminMessages", "adminMessages");
+    total += await migrateMap("emailtamp", "emailtamp");
+
+    const t = await readRtdb("config/templates");
+    if (t) { await col("config").doc("templates").set(t); total++; }
+    const a = await readRtdb("config/aboutText");
+    if (a) { await col("config").doc("aboutText").set(a); total++; }
+
+    const enrs = await readRtdb("enrollments");
+    if (enrs) {
+      let batch = firestore.batch(); let c = 0;
+      for (const [id, e] of Object.entries(enrs)) { batch.set(col("enrollments").doc(id), { id, ...e }); c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); } }
+      if (c % 400 !== 0) await batch.commit(); total += c;
+    }
+
+    const ru = await readRtdb("referralUsers");
+    if (ru) {
+      let batch = firestore.batch(); let c = 0;
+      for (const [code, users] of Object.entries(ru)) {
+        if (users && typeof users === "object") {
+          for (const [uid, d] of Object.entries(users)) {
+            batch.set(col("referralUsers").doc(`${code}_${uid}`), { ...((typeof d === "object" && d) ? d : {}), code, uid });
+            c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); }
+          }
+        }
+      }
+      if (c % 400 !== 0) await batch.commit(); total += c;
+    }
+
+    const cp = await readRtdb("coupons");
+    if (cp) { await col("coupons").doc("config").set({ value: cp, updatedAt: new Date().toISOString() }); total++; }
+    const rc = await readRtdb("referralCodes");
+    if (rc) { await col("referralCodes").doc("config").set({ value: rc }); total++; }
+
+    return send(res, 200, { success: true, data: { total, message: `Migrated ${total} documents from RTDB to Firestore` } });
   } catch (error) {
     return send(res, 500, { success: false, message: error.message });
   }
@@ -939,59 +1024,80 @@ async function handleFirebaseProxy(req, res) {
     }
 
     let result;
-    const ref = db.ref(path);
+    const parts = path.split("/");
+    const collection = parts[0];
 
-    switch (action) {
-      case "get": {
-        const snap = await ref.get();
-        result = snap.exists() ? snap.val() : null;
-        break;
-      }
-      case "set": {
-        await ref.set(data);
-        result = data;
-        break;
-      }
-      case "update": {
-        await ref.update(data);
-        result = data;
-        break;
-      }
-      case "push": {
-        const childRef = ref.push();
-        await childRef.set(data);
-        result = { id: childRef.key, ...data };
-        break;
-      }
-      case "delete": {
-        await ref.remove();
-        result = true;
-        break;
-      }
-      case "list": {
-        const snap = await ref.get();
-        if (!snap.exists()) { result = []; break; }
-        const arr = [];
-        snap.forEach((child) => arr.push({ id: child.key, ...child.val() }));
-        result = arr;
-        break;
-      }
-      case "query": {
-        let q = ref;
-        if (query?.orderBy) q = q.orderByChild(query.orderBy);
-        if (query?.limitToLast) q = q.limitToLast(query.limitToLast);
-        if (query?.limitToFirst) q = q.limitToFirst(query.limitToFirst);
-        if (query?.equalTo !== undefined) q = q.equalTo(query.equalTo);
+    // For list/query/push: path is a collection (1 segment)
+    if (action === "list" || action === "query" || action === "push") {
+      const colRef = db.collection(collection);
+      if (action === "list") {
+        const snap = await colRef.get();
+        if (snap.empty) { result = []; } else { result = snap.docs.map(d => ({ id: d.id, ...d.data() })); }
+      } else if (action === "push") {
+        const docRef = await colRef.add(data);
+        result = { id: docRef.id, ...data };
+      } else if (action === "query") {
+        let q = colRef;
+        if (query?.orderBy && query?.equalTo !== undefined) q = q.where(query.orderBy, "==", query.equalTo);
+        if (query?.limitToLast) q = q.limit(query.limitToLast);
+        if (query?.limitToFirst) q = q.limit(query.limitToFirst);
         const snap = await q.get();
-        if (!snap.exists()) { result = query?.single ? null : []; break; }
-        if (query?.single) { result = snap.val(); break; }
-        const arr = [];
-        snap.forEach((child) => arr.push({ id: child.key, ...child.val() }));
-        result = arr;
-        break;
+        if (snap.empty) { result = query?.single ? null : []; } else if (query?.single) { result = { id: snap.docs[0].id, ...snap.docs[0].data() }; } else { result = snap.docs.map(d => ({ id: d.id, ...d.data() })); }
       }
-      default:
-        return send(res, 400, { success: false, message: `Unknown action: ${action}` });
+    } else {
+      // For get/set/update/delete: path is collection/doc, possibly with nested field
+      let docId = parts[1];
+      let fieldPath = parts.length > 2 ? parts.slice(2).join(".") : null;
+      // Special case: referralUsers uses composite doc ID code_uid
+      if (parts.length >= 3 && parts[0] === "referralUsers") {
+        docId = parts.slice(1).join("_");
+        fieldPath = null;
+      }
+      const docRef = db.collection(collection).doc(docId);
+
+      switch (action) {
+        case "get": {
+          const snap = await docRef.get();
+          if (!snap.exists) { result = null; break; }
+          const docData = snap.data();
+          if (fieldPath) {
+            const val = fieldPath.split(".").reduce((obj, key) => obj?.[key], docData);
+            result = val !== undefined ? val : null;
+          } else {
+            result = docData;
+          }
+          break;
+        }
+        case "set": {
+          if (fieldPath) {
+            await docRef.set({ [fieldPath]: data }, { merge: true });
+          } else {
+            await docRef.set(data);
+          }
+          result = data;
+          break;
+        }
+        case "update": {
+          if (fieldPath) {
+            const updateData = {};
+            for (const [key, value] of Object.entries(data)) {
+              updateData[`${fieldPath}.${key}`] = value;
+            }
+            await docRef.update(updateData);
+          } else {
+            await docRef.update(data);
+          }
+          result = data;
+          break;
+        }
+        case "delete": {
+          await docRef.delete();
+          result = true;
+          break;
+        }
+        default:
+          return send(res, 400, { success: false, message: `Unknown action: ${action}` });
+      }
     }
     return send(res, 200, { success: true, data: result });
   } catch (error) {
@@ -1010,6 +1116,7 @@ export default async function handler(req, res) {
     if (parts[0] === "ai" && parts[1] === "grade-quiz") return handleAiGradeQuiz(req, res);
     if (parts[0] === "grade-quiz-text") return handleQuiz(req, res);
     if (parts[0] === "firebase-proxy") return handleFirebaseProxy(req, res);
+    if (parts[0] === "migrate") return handleMigrate(req, res);
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
     if (parts[0] === "dodo") return handleDodo(req, res, parts.slice(1));
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
