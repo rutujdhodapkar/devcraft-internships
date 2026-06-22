@@ -729,7 +729,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      {/* Admin Messages Banner */
+      {/* Admin Messages Banner */}
       {adminMessages
         .filter((m) => m.type !== "notice")
         .filter((m) => !dismissedMessages.has(m.id))
