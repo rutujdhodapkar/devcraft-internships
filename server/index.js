@@ -513,6 +513,12 @@ app.post('/api/dodo/webhook', async (req, res) => {
     if (eventType === 'payment.succeeded' && enrollmentId) {
       const FB = 'https://login-data-680b9-default-rtdb.firebaseio.com';
       try {
+        if (DODO_KEY && paymentId) {
+          try {
+            const pmtRes = await dodoApi(`/payments/${paymentId}`);
+            if (pmtRes?.status !== 'succeeded') return res.json({ received: true, skipped: true });
+          } catch (e) { console.warn('Dodo payment verification failed:', e.message); }
+        }
         const url = `${FB}/enrollments/${enrollmentId}.json`;
         await fetch(url, {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },

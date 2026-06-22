@@ -851,6 +851,16 @@ async function handleDodo(req, res, parts) {
       const paymentId = payload.id || payload.payment_id || "";
       if ((eventType === "payment.succeeded") && enrollmentId) {
         try {
+          let verifiedStatus = false;
+          if (DODO_KEY && paymentId) {
+            try {
+              const payment = await dodoApi(`/payments/${paymentId}`);
+              verifiedStatus = payment?.status === "succeeded";
+            } catch {}
+          }
+          if (!verifiedStatus) {
+            console.warn("Dodo webhook: payment verification skipped or failed for", paymentId);
+          }
           const db = initFirebase();
           const ref = db.ref(`enrollments/${enrollmentId}`);
           await ref.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, updatedAt: now() });
