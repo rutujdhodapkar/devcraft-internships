@@ -3767,7 +3767,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
                         <div>
                           <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Product ID</label>
-                          <input type="text" placeholder="prod_xxx" value={dodoConfig?.productId || ""} onChange={(e) => setDodoConfig((p) => ({ ...p, productId: e.target.value }))} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "280px" }} />
+                          <input type="text" placeholder="pdt_xxx" value={dodoConfig?.productId || ""} onChange={(e) => setDodoConfig((p) => ({ ...p, productId: e.target.value }))} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "280px" }} />
                         </div>
                         <div>
                           <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Mode</label>

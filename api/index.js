@@ -788,6 +788,7 @@ async function handleDodo(req, res, parts) {
       });
       return send(res, 200, { success: true, data: { product_id: product.product_id } });
     }
+    if (!DODO_KEY) return send(res, 400, { success: false, message: "Dodo API key not configured in Vercel env" });
     if (sub === "create-checkout-session") {
       const { amount, enrollmentId, customerEmail, customerName } = req.body || {};
       if (!amount || amount <= 0 || !enrollmentId) return send(res, 400, { success: false, message: "Valid amount and enrollmentId required" });

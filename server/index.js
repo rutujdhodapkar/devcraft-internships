@@ -449,6 +449,7 @@ app.post('/api/dodo/setup', async (req, res) => {
 // Checkout session: Create a session and return checkout URL
 app.post('/api/dodo/create-checkout-session', async (req, res) => {
   try {
+    if (!DODO_KEY) return res.status(400).json({ success: false, message: 'Dodo API key not configured' });
     const { amount, enrollmentId, customerEmail, customerName } = req.body;
     if (!amount || amount <= 0 || !enrollmentId) {
       return res.status(400).json({ success: false, message: 'Valid amount and enrollmentId required' });
