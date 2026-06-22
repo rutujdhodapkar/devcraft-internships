@@ -41,6 +41,17 @@ export default function EarnSection({
   const [showDetails, setShowDetails] = useState(false);
   const [earnDetails, setEarnDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (!countryDropdownOpen) return;
+    const handler = (e) => {
+      if (!e.target.closest('[data-earn-country]')) setCountryDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [countryDropdownOpen]);
 
   // Check if user already has a referral code
   useEffect(() => {
@@ -661,7 +672,7 @@ export default function EarnSection({
                 </div>
               )}
               {!userProfile?.country && (
-                <div>
+                <div data-earn-country style={{ position: "relative" }}>
                   <label
                     style={{
                       fontWeight: 800,
@@ -673,23 +684,111 @@ export default function EarnSection({
                   >
                     Country *
                   </label>
-                  <select
-                    value={formData.country}
-                    onChange={(e) => handleChange("country", e.target.value)}
+                  <div
                     style={{
                       ...inputStyle,
+                      display: "flex",
+                      alignItems: "center",
                       cursor: "pointer",
-                      background: "#fff",
+                      padding: 0,
+                      overflow: "hidden",
                     }}
-                    required
                   >
-                    <option value="">Select your country…</option>
-                    {COUNTRY_NAMES.map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
+                    <input
+                      type="text"
+                      placeholder="Search your country…"
+                      value={countryDropdownOpen ? countrySearch : formData.country}
+                      onFocus={() => {
+                        setCountryDropdownOpen(true);
+                        setCountrySearch("");
+                      }}
+                      onChange={(e) => {
+                        setCountrySearch(e.target.value);
+                        setCountryDropdownOpen(true);
+                        if (!e.target.value) handleChange("country", "");
+                      }}
+                      style={{
+                        border: "none",
+                        outline: "none",
+                        padding: "0.55rem 0.65rem",
+                        fontSize: "0.85rem",
+                        fontFamily: "inherit",
+                        width: "100%",
+                        boxSizing: "border-box",
+                        background: "transparent",
+                      }}
+                    />
+                    <span
+                      onClick={() => {
+                        setCountryDropdownOpen(!countryDropdownOpen);
+                        setCountrySearch("");
+                      }}
+                      style={{
+                        padding: "0 0.65rem",
+                        fontSize: "0.65rem",
+                        color: "#888",
+                        cursor: "pointer",
+                        userSelect: "none",
+                      }}
+                    >
+                      {countryDropdownOpen ? "▲" : "▼"}
+                    </span>
+                  </div>
+                  {countryDropdownOpen && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        zIndex: 1200,
+                        background: "#fff",
+                        border: "2px solid #000",
+                        maxHeight: "250px",
+                        overflowY: "auto",
+                        boxShadow: "4px 4px 0 rgba(0,0,0,0.1)",
+                      }}
+                    >
+                      {COUNTRY_NAMES.filter((n) =>
+                        n.toLowerCase().includes(countrySearch.toLowerCase()),
+                      ).length === 0 ? (
+                        <div style={{ padding: "0.65rem", color: "#888", fontSize: "0.82rem" }}>
+                          No countries match
+                        </div>
+                      ) : (
+                        COUNTRY_NAMES.filter((n) =>
+                          n.toLowerCase().includes(countrySearch.toLowerCase()),
+                        ).map((n) => (
+                          <div
+                            key={n}
+                            onClick={() => {
+                              handleChange("country", n);
+                              setCountrySearch("");
+                              setCountryDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: "0.5rem 0.65rem",
+                              fontSize: "0.82rem",
+                              cursor: "pointer",
+                              background:
+                                formData.country === n ? "#f0f0f0" : "transparent",
+                              fontWeight: formData.country === n ? 700 : 400,
+                              borderBottom: "1px solid #eee",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "#f5f5f5")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background =
+                                formData.country === n ? "#f0f0f0" : "transparent")
+                            }
+                          >
+                            {n}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

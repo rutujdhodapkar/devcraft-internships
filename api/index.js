@@ -752,6 +752,103 @@ async function buildEmailReferralStat(db, email) {
   return { referral, interns, internCount: interns.length, completed: interns.filter((i) => i.status === "Completed").length };
 }
 
+// ─── Dodo Payments ──────────────────────────────────────────────────────────
+const DODO_KEY = process.env.DODO_PAYMENTS_API_KEY || "";
+const DODO_WH_SECRET = process.env.DODO_PAYMENTS_WEBHOOK_SECRET || "";
+const DODO_PRODUCT_ID = process.env.DODO_PAYMENTS_PRODUCT_ID || "";
+const DODO_ENV = process.env.DODO_PAYMENTS_ENVIRONMENT === "live" ? "live" : "test";
+
+async function dodoApi(path, options = {}) {
+  const base = DODO_ENV === "live" ? "https://live.dodopayments.com" : "https://test.dodopayments.com";
+  const response = await fetch(`${base}${path}`, {
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${DODO_KEY}`, ...(options.headers || {}) },
+    ...options,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Dodo API error ${response.status}: ${text.slice(0, 300)}`);
+  }
+  return response.json();
+}
+
+async function handleDodo(req, res, parts) {
+  if (req.method !== "POST") return send(res, 405, { success: false, message: "Method not allowed" });
+  const sub = parts[0] || "";
+  try {
+    if (sub === "setup") {
+      if (!DODO_KEY) return send(res, 400, { success: false, message: "Dodo API key not configured" });
+      const product = await dodoApi("/products", {
+        method: "POST",
+        body: JSON.stringify({
+          name: "DEV/CRAFT Internship Payment",
+          description: "Internship enrollment payment",
+          price: { type: "one_time_price", currency: "INR", price: 0, discount: 0, purchasing_power_parity: false, pay_what_you_want: true, suggested_price: 20000, tax_inclusive: true },
+          tax_category: "digital_products",
+        }),
+      });
+      return send(res, 200, { success: true, data: { product_id: product.product_id } });
+    }
+    if (sub === "create-checkout-session") {
+      const { amount, enrollmentId, customerEmail, customerName } = req.body || {};
+      if (!amount || amount <= 0 || !enrollmentId) return send(res, 400, { success: false, message: "Valid amount and enrollmentId required" });
+      let productId = DODO_PRODUCT_ID;
+      if (!productId) {
+        try {
+          const db = initFirebase();
+          const snap = await db.ref("siteConfig/dodoConfig").once("value");
+          const val = snap.val();
+          productId = val?.value?.productId || null;
+        } catch {}
+      }
+      if (!productId) return send(res, 400, { success: false, message: "Dodo product not configured" });
+      const amountPaise = Math.round(amount * 100);
+      const body = {
+        product_cart: [{ product_id: productId, quantity: 1, amount: amountPaise }],
+        metadata: { enrollment_id: enrollmentId },
+        return_url: `${req.headers.origin || "https://devcraft.rutujdhodapkar.tech"}/dashboard?dodo_success=1`,
+        cancel_url: `${req.headers.origin || "https://devcraft.rutujdhodapkar.tech"}/dashboard?dodo_cancelled=1`,
+        billing_address: { country: "IN" },
+        feature_flags: { allow_currency_selection: true, redirect_immediately: false },
+      };
+      if (customerEmail) body.customer = { email: customerEmail, name: customerName || "" };
+      const session = await dodoApi("/checkouts", { method: "POST", body: JSON.stringify(body) });
+      return send(res, 200, { success: true, data: { checkout_url: session.checkout_url, session_id: session.session_id } });
+    }
+    if (sub === "webhook") {
+      const rawBody = JSON.stringify(req.body);
+      if (!DODO_WH_SECRET) return send(res, 500, { received: false });
+      const webhookId = req.headers["webhook-id"];
+      const webhookSignature = req.headers["webhook-signature"];
+      const webhookTimestamp = req.headers["webhook-timestamp"];
+      if (!webhookId || !webhookSignature || !webhookTimestamp) return send(res, 401, { received: false });
+      const { createHmac, timingSafeEqual } = await import("crypto");
+      const signedContent = `${webhookId}.${webhookTimestamp}.${rawBody}`;
+      const computedSig = createHmac("sha256", DODO_WH_SECRET).update(signedContent).digest("base64");
+      const expectedSigs = webhookSignature.split(" ").map(s => { const p = s.split(",").find(x => x.trim().startsWith("v1=")); return p ? p.trim().slice(3) : null; }).filter(Boolean);
+      let valid = false;
+      for (const sig of expectedSigs) { try { if (timingSafeEqual(Buffer.from(computedSig), Buffer.from(sig))) { valid = true; break; } } catch {} }
+      if (!valid) return send(res, 401, { received: false });
+      const eventType = req.body.type || req.body.event_type || "";
+      const payload = req.body.data || req.body;
+      const metadata = payload.metadata || {};
+      const enrollmentId = metadata.enrollment_id;
+      const paymentId = payload.id || payload.payment_id || "";
+      if ((eventType === "payment.succeeded") && enrollmentId) {
+        try {
+          const db = initFirebase();
+          await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, updatedAt: now() });
+        } catch (e) { console.error("Dodo webhook update failed:", e.message); }
+      } else if (eventType === "payment.failed" && enrollmentId) {
+        try { const db = initFirebase(); await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}
+      }
+      return send(res, 200, { received: true });
+    }
+    return send(res, 404, { success: false, message: `Unknown Dodo endpoint: ${sub}` });
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
+}
+
 export default async function handler(req, res) {
   try {
   const rawUrl = (req.url || "");
@@ -763,6 +860,7 @@ export default async function handler(req, res) {
     if (parts[0] === "ai" && parts[1] === "grade-quiz") return handleAiGradeQuiz(req, res);
     if (parts[0] === "grade-quiz-text") return handleQuiz(req, res);
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
+    if (parts[0] === "dodo") return handleDodo(req, res, parts.slice(1));
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {

@@ -136,6 +136,9 @@ export default function App() {
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileErrors, setProfileErrors] = useState({});
+  const [countrySearch, setCountrySearch] = useState("");
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [referralCodeInput, setReferralCodeInput] = useState("");
   const [referralCheckStatus, setReferralCheckStatus] = useState("idle"); // 'idle' | 'checking' | 'matched' | 'not_matched'
 
@@ -330,6 +333,16 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePop);
   }, [currentView]);
 
+  // Close country dropdown on outside click
+  useEffect(() => {
+    if (!countryDropdownOpen) return;
+    const handler = (e) => {
+      if (!e.target.closest('[data-country-dropdown]')) setCountryDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [countryDropdownOpen]);
+
   // Reset referral input when profile prompt opens
   useEffect(() => {
     if (showProfilePrompt) {
@@ -436,6 +449,9 @@ export default function App() {
     }
     if (!profileForm.country) {
       errors.country = "Please select your country.";
+    }
+    if (!termsAccepted) {
+      errors.terms = "You must accept the Terms & Services.";
     }
     // UPI is only required when the user is applying for an internship via referral
     if (pendingEnrollmentDomain) {
@@ -1028,7 +1044,7 @@ export default function App() {
               </div>
 
               {/* Country */}
-              <div style={{ marginBottom: "1.25rem" }}>
+              <div data-country-dropdown style={{ marginBottom: "1.25rem", position: "relative" }}>
                 <label
                   style={{
                     fontWeight: 800,
@@ -1040,24 +1056,131 @@ export default function App() {
                 >
                   Country *
                 </label>
-                <select
-                  value={profileForm.country}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, country: e.target.value })
-                  }
+                <div
                   style={{
                     ...inputStyle,
+                    display: "flex",
+                    alignItems: "center",
                     cursor: "pointer",
-                    background: "#fff",
+                    padding: 0,
+                    overflow: "hidden",
                   }}
                 >
-                  <option value="">Select your country…</option>
-                  {COUNTRY_NAMES.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
+                  <input
+                    type="text"
+                    placeholder="Search your country…"
+                    value={
+                      countryDropdownOpen
+                        ? countrySearch
+                        : profileForm.country
+                    }
+                    onFocus={() => {
+                      setCountryDropdownOpen(true);
+                      setCountrySearch("");
+                    }}
+                    onChange={(e) => {
+                      setCountrySearch(e.target.value);
+                      setCountryDropdownOpen(true);
+                      if (!e.target.value) {
+                        setProfileForm({ ...profileForm, country: "" });
+                      }
+                    }}
+                    style={{
+                      border: "none",
+                      outline: "none",
+                      padding: "0.65rem 0.75rem",
+                      fontSize: "0.88rem",
+                      fontFamily: "inherit",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      background: "transparent",
+                    }}
+                  />
+                  <span
+                    onClick={() => {
+                      setCountryDropdownOpen(!countryDropdownOpen);
+                      setCountrySearch("");
+                    }}
+                    style={{
+                      padding: "0 0.75rem",
+                      fontSize: "0.7rem",
+                      color: "#888",
+                      cursor: "pointer",
+                      userSelect: "none",
+                    }}
+                  >
+                    {countryDropdownOpen ? "▲" : "▼"}
+                  </span>
+                </div>
+                {countryDropdownOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      zIndex: 1200,
+                      background: "#fff",
+                      border: "2px solid #000",
+                      borderTop: "none",
+                      maxHeight: "250px",
+                      overflowY: "auto",
+                      boxShadow: "4px 4px 0 rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    {COUNTRY_NAMES.filter((name) =>
+                      name.toLowerCase().includes(countrySearch.toLowerCase()),
+                    ).length === 0 ? (
+                      <div
+                        style={{
+                          padding: "0.75rem",
+                          color: "#888",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        No countries match
+                      </div>
+                    ) : (
+                      COUNTRY_NAMES.filter((name) =>
+                        name.toLowerCase().includes(
+                          countrySearch.toLowerCase(),
+                        ),
+                      ).map((name) => (
+                        <div
+                          key={name}
+                          onClick={() => {
+                            setProfileForm({ ...profileForm, country: name });
+                            setCountrySearch("");
+                            setCountryDropdownOpen(false);
+                          }}
+                          style={{
+                            padding: "0.6rem 0.75rem",
+                            fontSize: "0.85rem",
+                            cursor: "pointer",
+                            background:
+                              profileForm.country === name
+                                ? "#f0f0f0"
+                                : "transparent",
+                            fontWeight:
+                              profileForm.country === name ? 700 : 400,
+                            borderBottom: "1px solid #eee",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "#f5f5f5")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background =
+                              profileForm.country === name
+                                ? "#f0f0f0"
+                                : "transparent")
+                          }
+                        >
+                          {name}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
                 {profileErrors.country && (
                   <div style={errorStyle}>{profileErrors.country}</div>
                 )}
@@ -1193,6 +1316,46 @@ export default function App() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Terms & Services */}
+              <div style={{ marginBottom: "1.25rem" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    cursor: "pointer",
+                    fontSize: "0.82rem",
+                    color: "#333",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      cursor: "pointer",
+                      accentColor: "#000",
+                    }}
+                  />
+                  <span>
+                    I accept the{" "}
+                    <a
+                      href="/terms-and-services"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: "#000", fontWeight: 700, textDecoration: "underline" }}
+                    >
+                      Terms & Services
+                    </a>
+                  </span>
+                </label>
+                {profileErrors.terms && (
+                  <div style={errorStyle}>{profileErrors.terms}</div>
+                )}
               </div>
 
               <button

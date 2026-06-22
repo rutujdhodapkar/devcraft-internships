@@ -44,6 +44,10 @@ import {
   setPaymentAmount,
   fetchUPISettings,
   saveUPISettings,
+  fetchDodoConfig,
+  saveDodoConfig,
+  fetchPaymentMethods,
+  savePaymentMethods,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -196,6 +200,14 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [upiSettingsLoading, setUpiSettingsLoading] = useState(false);
   const [upiSettingsSaving, setUpiSettingsSaving] = useState(false);
   const [paymentStats, setPaymentStats] = useState(null);
+  const [dodoConfig, setDodoConfig] = useState(null);
+  const [dodoConfigLoading, setDodoConfigLoading] = useState(false);
+  const [dodoConfigSaving, setDodoConfigSaving] = useState(false);
+  const [dodoSetupLoading, setDodoSetupLoading] = useState(false);
+  const [dodoSetupResult, setDodoSetupResult] = useState("");
+  const [paymentMethods, setPaymentMethods] = useState(null);
+  const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
+  const [paymentMethodsSaving, setPaymentMethodsSaving] = useState(false);
   const [payoutConfig, setPayoutConfig] = useState(null);
   const [payoutConfigLoading, setPayoutConfigLoading] = useState(false);
   const [payoutConfigSaving, setPayoutConfigSaving] = useState(false);
@@ -392,6 +404,16 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         .catch(() => {})
         .finally(() => setUpiSettingsLoading(false));
       loadPaymentStats();
+      setDodoConfigLoading(true);
+      fetchDodoConfig()
+        .then((c) => { if (c) setDodoConfig(c); })
+        .catch(() => {})
+        .finally(() => setDodoConfigLoading(false));
+      setPaymentMethodsLoading(true);
+      fetchPaymentMethods()
+        .then((m) => setPaymentMethods(m))
+        .catch(() => {})
+        .finally(() => setPaymentMethodsLoading(false));
       setPayoutConfigLoading(true);
       fetchPayoutConfig()
         .then((c) => {
@@ -3699,6 +3721,98 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       }} className="btn-sharp" disabled={upiSettingsSaving} style={{ padding: "0.5rem 1.25rem", fontSize: "0.85rem" }}>
                         {upiSettingsSaving ? "Saving…" : "Save UPI Settings"}
                       </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Payment Methods Toggles */}
+                <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
+                  <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Active Payment Methods</h4>
+                  {paymentMethodsLoading ? (
+                    <div style={{ color: "#888" }}>Loading…</div>
+                  ) : (
+                    <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", alignItems: "center" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.88rem", fontWeight: 600 }}>
+                        <input type="checkbox" checked={paymentMethods?.upi !== false} onChange={(e) => setPaymentMethods((p) => ({ ...(p || {}), upi: e.target.checked }))} style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#000" }} />
+                        Enable UPI (QR Code)
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.88rem", fontWeight: 600 }}>
+                        <input type="checkbox" checked={paymentMethods?.dodo === true} onChange={(e) => setPaymentMethods((p) => ({ ...(p || {}), dodo: e.target.checked }))} style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#000" }} />
+                        Enable Dodo Payments (Card / International)
+                      </label>
+                      <button onClick={async () => {
+                        setPaymentMethodsSaving(true);
+                        try {
+                          await savePaymentMethods(paymentMethods || {});
+                          alert("Payment methods saved!");
+                        } catch (err) {
+                          alert("Failed to save: " + err.message);
+                        } finally {
+                          setPaymentMethodsSaving(false);
+                        }
+                      }} className="btn-sharp" disabled={paymentMethodsSaving} style={{ padding: "0.5rem 1.25rem", fontSize: "0.85rem" }}>
+                        {paymentMethodsSaving ? "Saving…" : "Save Payment Methods"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Dodo Payments Config */}
+                <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
+                  <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Dodo Payments (Card / International)</h4>
+                  {dodoConfigLoading ? (
+                    <div style={{ color: "#888" }}>Loading Dodo config…</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+                        <div>
+                          <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Product ID</label>
+                          <input type="text" placeholder="prod_xxx" value={dodoConfig?.productId || ""} onChange={(e) => setDodoConfig((p) => ({ ...p, productId: e.target.value }))} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "280px" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Mode</label>
+                          <select value={dodoConfig?.mode || "test"} onChange={(e) => setDodoConfig((p) => ({ ...p, mode: e.target.value }))} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}>
+                            <option value="test">Test Mode</option>
+                            <option value="live">Live Mode</option>
+                          </select>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: "0.75rem", color: "#888", margin: 0 }}>
+                        Set up your API keys in the server .env file. Create a product in the Dodo dashboard with Pay What You Want pricing, or click "Auto-Setup" to create one via API.
+                      </p>
+                      <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                        <button onClick={async () => {
+                          setDodoConfigSaving(true);
+                          try {
+                            await saveDodoConfig(dodoConfig || {});
+                            alert("Dodo config saved! Restart server to apply.");
+                          } catch (err) {
+                            alert("Failed to save: " + err.message);
+                          } finally { setDodoConfigSaving(false); }
+                        }} className="btn-sharp" disabled={dodoConfigSaving} style={{ padding: "0.5rem 1.25rem", fontSize: "0.85rem" }}>
+                          {dodoConfigSaving ? "Saving…" : "Save Config"}
+                        </button>
+                        <button onClick={async () => {
+                          setDodoSetupLoading(true);
+                          setDodoSetupResult("");
+                          try {
+                            const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
+                            const res = await fetch(`${API_BASE}/api/dodo/setup`, { method: "POST" });
+                            const data = await res.json();
+                            if (data.success) {
+                              setDodoSetupResult(`Product created: ${data.data.product_id}`);
+                              setDodoConfig((p) => ({ ...p, productId: data.data.product_id }));
+                            } else {
+                              setDodoSetupResult("Error: " + data.message);
+                            }
+                          } catch (err) {
+                            setDodoSetupResult("Error: " + err.message);
+                          } finally { setDodoSetupLoading(false); }
+                        }} className="btn-sharp-outline" disabled={dodoSetupLoading} style={{ fontSize: "0.75rem", padding: "0.35rem 0.75rem" }}>
+                          {dodoSetupLoading ? "Setting up…" : "Auto-Setup Product"}
+                        </button>
+                      </div>
+                      {dodoSetupResult && <div style={{ fontSize: "0.78rem", color: dodoSetupResult.startsWith("Product") ? "#34A853" : "#EA4335", fontWeight: 600 }}>{dodoSetupResult}</div>}
                     </div>
                   )}
                 </div>

@@ -693,3 +693,23 @@ export async function markReferralPayout(code, payoutAmount, payoutNote) {
 export async function clearReferralPayout(code) {
   await dbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: new Date().toISOString() });
 }
+
+export async function fetchDodoConfig() {
+  const d = await dbGet("siteConfig/dodoConfig");
+  return d?.value || null;
+}
+
+export async function saveDodoConfig(config) {
+  await dbPut("siteConfig/dodoConfig", { value: config, updatedAt: new Date().toISOString() });
+  return config;
+}
+
+export async function fetchPaymentMethods() {
+  const d = await dbGet("siteConfig/paymentMethods");
+  return d?.value || { upi: true, dodo: false };
+}
+
+export async function savePaymentMethods(config) {
+  await dbPut("siteConfig/paymentMethods", { value: config, updatedAt: new Date().toISOString() });
+  return config;
+}

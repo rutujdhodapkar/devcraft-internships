@@ -396,6 +396,155 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
   }
 });
 
+// ─── Dodo Payments ─────────────────────────────────────────────────────────
+const DODO_API_KEY = process.env.DODO_PAYMENTS_API_KEY;
+const DODO_WEBHOOK_SECRET = process.env.DODO_PAYMENTS_WEBHOOK_SECRET;
+const DODO_PRODUCT_ID = process.env.DODO_PAYMENTS_PRODUCT_ID;
+const DODO_ENV = process.env.DODO_PAYMENTS_ENVIRONMENT === 'live' ? 'live' : 'test';
+
+async function dodoApi(path, options = {}) {
+  const base = DODO_ENV === 'live' ? 'https://live.dodopayments.com' : 'https://test.dodopayments.com';
+  const response = await fetch(`${base}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${DODO_API_KEY}`,
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Dodo API error ${response.status}: ${text.slice(0, 300)}`);
+  }
+  return response.json();
+}
+
+// Setup: Create Pay-What-You-Want product (run once from admin panel)
+app.post('/api/dodo/setup', async (req, res) => {
+  try {
+    const product = await dodoApi('/products', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: 'DEV/CRAFT Internship Payment',
+        description: 'Internship enrollment payment',
+        price: {
+          type: 'one_time_price',
+          currency: 'INR',
+          price: 0,
+          discount: 0,
+          purchasing_power_parity: false,
+          pay_what_you_want: true,
+          suggested_price: 20000,
+          tax_inclusive: true,
+        },
+        tax_category: 'digital_products',
+      }),
+    });
+    return res.json({ success: true, data: { product_id: product.product_id } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Checkout session: Create a session and return checkout URL
+app.post('/api/dodo/create-checkout-session', async (req, res) => {
+  try {
+    const { amount, enrollmentId, customerEmail, customerName } = req.body;
+    if (!amount || amount <= 0 || !enrollmentId) {
+      return res.status(400).json({ success: false, message: 'Valid amount and enrollmentId required' });
+    }
+    let productId = DODO_PRODUCT_ID;
+    if (!productId) {
+      try {
+        const fbRes = await fetch('https://login-data-680b9-default-rtdb.firebaseio.com/siteConfig/dodoConfig.json');
+        const fbData = await fbRes.json();
+        productId = fbData?.value?.productId || null;
+      } catch {}
+    }
+    if (!productId) {
+      return res.status(400).json({ success: false, message: 'Dodo Payments product not configured. Admin must run Dodo setup first.' });
+    }
+    const amountPaise = Math.round(amount * 100);
+    const body = {
+      product_cart: [{ product_id: productId, quantity: 1, amount: amountPaise }],
+      metadata: { enrollment_id: enrollmentId },
+      return_url: `${req.headers.origin || 'http://localhost:5173'}/dashboard?dodo_success=1`,
+      cancel_url: `${req.headers.origin || 'http://localhost:5173'}/dashboard?dodo_cancelled=1`,
+      billing_address: { country: 'IN' },
+      feature_flags: { allow_currency_selection: true, redirect_immediately: false },
+    };
+    if (customerEmail) body.customer = { email: customerEmail, name: customerName || '' };
+    const session = await dodoApi('/checkouts', { method: 'POST', body: JSON.stringify(body) });
+    return res.json({ success: true, data: { checkout_url: session.checkout_url, session_id: session.session_id } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Webhook: Handle payment events from Dodo
+app.post('/api/dodo/webhook', async (req, res) => {
+  try {
+    const rawBody = JSON.stringify(req.body);
+    if (!DODO_WEBHOOK_SECRET) return res.status(500).json({ received: false });
+    const webhookId = req.headers['webhook-id'];
+    const webhookSignature = req.headers['webhook-signature'];
+    const webhookTimestamp = req.headers['webhook-timestamp'];
+    if (!webhookId || !webhookSignature || !webhookTimestamp) {
+      return res.status(401).json({ received: false });
+    }
+    const { createHmac, timingSafeEqual } = await import('crypto');
+    const signedContent = `${webhookId}.${webhookTimestamp}.${rawBody}`;
+    const computedSig = createHmac('sha256', DODO_WEBHOOK_SECRET).update(signedContent).digest('base64');
+    const expectedSigs = webhookSignature.split(' ').map(s => {
+      const p = s.split(',').find(x => x.trim().startsWith('v1='));
+      return p ? p.trim().slice(3) : null;
+    }).filter(Boolean);
+    let valid = false;
+    for (const sig of expectedSigs) {
+      try { if (timingSafeEqual(Buffer.from(computedSig), Buffer.from(sig))) { valid = true; break; } } catch {}
+    }
+    if (!valid) return res.status(401).json({ received: false });
+    const eventType = req.body.type || req.body.event_type || '';
+    const payload = req.body.data || req.body;
+    const metadata = payload.metadata || {};
+    const enrollmentId = metadata.enrollment_id;
+    const paymentId = payload.id || payload.payment_id || '';
+    if (eventType === 'payment.succeeded' && enrollmentId) {
+      const FB = 'https://login-data-680b9-default-rtdb.firebaseio.com';
+      try {
+        await fetch(`${FB}/enrollments/${enrollmentId}.json`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentStatus: 'paid', paymentStage: 'fully_paid', paidAt: new Date().toISOString(), paymentIntentId: paymentId, updatedAt: new Date().toISOString() }),
+        });
+        console.log(`Dodo: Payment succeeded for ${enrollmentId}`);
+      } catch (fbErr) { console.error('Firebase update failed:', fbErr.message); }
+    } else if (eventType === 'payment.failed' && enrollmentId) {
+      const FB = 'https://login-data-680b9-default-rtdb.firebaseio.com';
+      try {
+        await fetch(`${FB}/enrollments/${enrollmentId}.json`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentStatus: 'failed', updatedAt: new Date().toISOString() }),
+        });
+      } catch {}
+    }
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Dodo webhook error:', error);
+    res.status(500).json({ received: false, error: error.message });
+  }
+});
+
+// Enrollment status (used by client for polling after Dodo payment)
+app.get('/api/enrollment-status/:id', async (req, res) => {
+  try {
+    const FB = 'https://login-data-680b9-default-rtdb.firebaseio.com';
+    const data = await (await fetch(`${FB}/enrollments/${req.params.id}.json`)).json();
+    return res.json({ paymentStatus: data?.paymentStatus || 'none', paymentIntentId: data?.paymentIntentId || '' });
+  } catch {
+    return res.json({ paymentStatus: 'none', paymentIntentId: '' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);
 });

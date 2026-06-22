@@ -12,9 +12,11 @@ import {
   fetchAdminMessages,
   acknowledgeAdminMessage,
   fetchSiteNotices,
+  fetchPaymentMethods,
 } from "../services/data";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
+import DodoPaymentModal from "./DodoPaymentModal";
 
 export default function StudentDashboard({
   user,
@@ -40,6 +42,9 @@ export default function StudentDashboard({
   const [referralMatchedMap, setReferralMatchedMap] = useState({});
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentEnrollment, setPaymentEnrollment] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState(null); // 'upi' | 'dodo' | null
+  const [showPaymentChoice, setShowPaymentChoice] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState(null);
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "internships");
   const [referralStat, setReferralStat] = useState(null);
@@ -54,24 +59,30 @@ export default function StudentDashboard({
       return;
     }
     setPaymentEnrollment({ ...enrollment, _paymentStage: stage || "full" });
-    setShowPaymentModal(true);
+    setPaymentMethod(null);
+    setShowPaymentChoice(true);
   };
 
   const handlePaymentSuccess = async () => {
     setShowPaymentModal(false);
+    setShowPaymentChoice(false);
     setPaymentEnrollment(null);
+    setPaymentMethod(null);
+    setDashboardRefreshKey((k) => k + 1);
   };
 
   const loadAll = async () => {
     setLoading(true);
     setError("");
     try {
-      const [data, tmpl, cpResult, refStat] = await Promise.all([
+      const [data, tmpl, cpResult, refStat, pm] = await Promise.all([
         fetchUserEnrollments(user.uid),
         fetchTemplates(),
         fetchCareerPaths(),
         fetchUserReferralStat(user.email),
+        fetchPaymentMethods(),
       ]);
+      setPaymentMethods(pm);
       const activeEnrollments = data.filter((e) => e.status !== "Archived");
       setEnrollments(activeEnrollments);
       setTemplates(tmpl?.templates || tmpl || null);
@@ -1266,12 +1277,48 @@ export default function StudentDashboard({
           </div>
         )}
       </div>
-      {showPaymentModal && paymentEnrollment && (
+      {showPaymentChoice && paymentEnrollment && !paymentMethod && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, overflowY: "auto", padding: "2rem 0" }}>
+          <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", width: "90%", maxWidth: "420px", boxShadow: "8px 8px 0 #000", textAlign: "center" }}>
+            <div style={{ height: "6px", background: "#000", marginBottom: "1.5rem", margin: "-2rem -2rem 1.5rem -2rem" }} />
+            <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.5rem" }}>Choose Payment Method</h3>
+            <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>
+              Amount: <strong>₹{paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}</strong>
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {(paymentMethods?.upi !== false) && (
+                <button onClick={() => { setPaymentMethod("upi"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800 }}>
+                  Pay with UPI (QR Code)
+                </button>
+              )}
+              {(paymentMethods?.dodo === true) && (
+                <button onClick={() => { setPaymentMethod("dodo"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800, background: "#6C63FF", color: "#fff" }}>
+                  Pay with Card / International
+                </button>
+              )}
+            </div>
+            <button onClick={() => { setShowPaymentChoice(false); setPaymentEnrollment(null); }} className="btn-sharp" style={{ marginTop: "1rem", background: "#fff", color: "#000", border: "2px solid #000", padding: "0.5rem 1.5rem", fontSize: "0.82rem" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {showPaymentModal && paymentEnrollment && paymentMethod === "upi" && (
         <UPIPaymentModal
           enrollmentId={paymentEnrollment.id}
           amount={paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
           onSuccess={handlePaymentSuccess}
-          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); }}
+          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
+        />
+      )}
+      {showPaymentModal && paymentEnrollment && paymentMethod === "dodo" && (
+        <DodoPaymentModal
+          enrollmentId={paymentEnrollment.id}
+          amount={paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
+          userEmail={user?.email}
+          userName={user?.displayName}
         />
       )}
     </section>
