@@ -3,8 +3,7 @@ import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,11 +50,13 @@ function getServiceAccount() {
   return null;
 }
 
-function initFirebase() {
-  const { initializeApp, getApps, cert } = require('firebase-admin/app');
-  const { getDatabase } = require('firebase-admin/database');
+let fbDb = null;
+async function initFirebase() {
+  if (fbDb) return fbDb;
+  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
+  const { getDatabase } = await import('firebase-admin/database');
   const apps = getApps();
-  if (apps.length) return getDatabase(apps[0]);
+  if (apps.length) { fbDb = getDatabase(apps[0]); return fbDb; }
   const sa = getServiceAccount();
   if (!sa) {
     throw new Error('Firebase Admin credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in .env');
@@ -65,7 +66,8 @@ function initFirebase() {
     databaseURL: DATABASE_URL,
     projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || 'login-data-680b9',
   });
-  return getDatabase(app);
+  fbDb = getDatabase(app);
+  return fbDb;
 }
 
 const INQUIRIES_FILE = path.join(__dirname, 'inquiries.json');
@@ -497,7 +499,7 @@ app.post('/api/dodo/create-checkout-session', async (req, res) => {
     let productId = DODO_PRODUCT_ID;
     if (!productId) {
       try {
-        const db = initFirebase();
+        const db = await initFirebase();
         const snap = await db.ref('siteConfig/dodoConfig').once('value');
         const val = snap.val();
         productId = val?.value?.productId || null;
@@ -553,7 +555,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
     const paymentId = payload.id || payload.payment_id || '';
     if (eventType === 'payment.succeeded' && enrollmentId) {
       try {
-        const db = initFirebase();
+        const db = await initFirebase();
         if (DODO_KEY && paymentId) {
           try {
             const pmtRes = await dodoApi(`/payments/${paymentId}`);
@@ -576,7 +578,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
       } catch (fbErr) { console.error('Firebase update failed:', fbErr.message); }
     } else if (eventType === 'payment.failed' && enrollmentId) {
       try {
-        const db = initFirebase();
+        const db = await initFirebase();
         await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: 'failed', updatedAt: new Date().toISOString() });
       } catch {}
     }
@@ -590,7 +592,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
 // Firebase proxy (used by client to access RTDB via Admin SDK)
 app.post('/api/firebase-proxy', async (req, res) => {
   try {
-    const db = initFirebase();
+    const db = await initFirebase();
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return res.status(400).json({ success: false, message: 'action and path required' });
     const blocked = ['admins', 'users'];
@@ -633,7 +635,7 @@ app.post('/api/firebase-proxy', async (req, res) => {
 // Enrollment status (used by client for polling after Dodo payment)
 app.get('/api/enrollment-status/:id', async (req, res) => {
   try {
-    const db = initFirebase();
+    const db = await initFirebase();
     const snap = await db.ref(`enrollments/${req.params.id}`).once('value');
     const data = snap.val();
     return res.json({ paymentStatus: data?.paymentStatus || 'none', paymentIntentId: data?.paymentIntentId || '' });

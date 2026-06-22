@@ -1,6 +1,3 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
 const DATABASE_URL = "https://login-data-680b9-default-rtdb.firebaseio.com";
@@ -27,11 +24,13 @@ function getServiceAccount() {
   return null;
 }
 
-function initFirebase() {
-  const { initializeApp, getApps, cert } = require("firebase-admin/app");
-  const { getDatabase } = require("firebase-admin/database");
+let fbDb = null;
+async function initFirebase() {
+  if (fbDb) return fbDb;
+  const { initializeApp, getApps, cert } = await import("firebase-admin/app");
+  const { getDatabase } = await import("firebase-admin/database");
   const apps = getApps();
-  if (apps.length) return getDatabase(apps[0]);
+  if (apps.length) { fbDb = getDatabase(apps[0]); return fbDb; }
   const sa = getServiceAccount();
   if (!sa) {
     throw new Error("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY on Vercel.");
@@ -41,7 +40,8 @@ function initFirebase() {
     databaseURL: DATABASE_URL,
     projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
   });
-  return getDatabase(app);
+  fbDb = getDatabase(app);
+  return fbDb;
 }
 
 function cleanId(value) {
@@ -374,7 +374,7 @@ async function handleAiGradeQuiz(req, res) {
 async function handleData(req, res, routeParts) {
   const [resource, id, sub, extra, extra2] = routeParts;
 
-  const db = initFirebase();
+  const db = await initFirebase();
 
   if (resource === "career-paths") {
     if (req.method === "GET") {
@@ -681,13 +681,14 @@ async function handleCheckAdmin(db, req, res) {
   return send(res, 200, { success: true, isAdmin: Boolean(adminDoc) });
 }
 
-async function handleAdmins(db, req, res, id) {
-  if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(initFirebase(), "admins")).map((a) => a.email || a.id) });
+async function handleAdmins(dbIgnored, req, res, id) {
+  const dbAdm = await initFirebase();
+  if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(dbAdm, "admins")).map((a) => a.email || a.id) });
   if (req.method === "POST") {
     const email = cleanId(req.body.email).toLowerCase();
-    return send(res, 200, { success: true, data: await setDoc(initFirebase(), "admins", emailId(email), { email, createdAt: now() }) });
+    return send(res, 200, { success: true, data: await setDoc(dbAdm, "admins", emailId(email), { email, createdAt: now() }) });
   }
-  if (req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(initFirebase(), "admins", emailId(id)) });
+  if (req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(dbAdm, "admins", emailId(id)) });
 }
 
 async function handleSelfReferrals(db, req, res) {
@@ -846,8 +847,8 @@ async function handleDodo(req, res, parts) {
       let productId = DODO_PRODUCT_ID;
       if (!productId) {
         try {
-          const db = initFirebase();
-          const snap = await db.ref("siteConfig/dodoConfig").once("value");
+const db = await initFirebase();
+      const snap = await db.ref("siteConfig/dodoConfig").once("value");
           const val = snap.val();
           productId = val?.value?.productId || null;
         } catch {}
@@ -897,7 +898,7 @@ async function handleDodo(req, res, parts) {
           if (!verifiedStatus) {
             console.warn("Dodo webhook: payment verification skipped or failed for", paymentId);
           }
-          const db = initFirebase();
+          const db = await initFirebase();
           const ref = db.ref(`enrollments/${enrollmentId}`);
           await ref.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, updatedAt: now() });
           const snap = await ref.once("value");
@@ -912,7 +913,7 @@ async function handleDodo(req, res, parts) {
           }
         } catch (e) { console.error("Dodo webhook update failed:", e.message); }
       } else if (eventType === "payment.failed" && enrollmentId) {
-        try { const db = initFirebase(); await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}
+        try { const db = await initFirebase(); await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}
       }
       return send(res, 200, { received: true });
     }
@@ -925,7 +926,7 @@ async function handleDodo(req, res, parts) {
 async function handleFirebaseProxy(req, res) {
   if (req.method !== "POST") return send(res, 405, { success: false, message: "Only POST allowed" });
   try {
-    const db = initFirebase();
+    const db = await initFirebase();
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return send(res, 400, { success: false, message: "action and path required" });
 
