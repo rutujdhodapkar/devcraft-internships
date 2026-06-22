@@ -1726,7 +1726,7 @@ function EnrollmentCard({
                   {btn.label}
                 </button>
               ))}
-              {(domainButtons || []).filter((b) => b.showWhen === "after").map((btn, bi) => (
+              {(domainButtons || []).filter((b) => b.showWhen === "after" && pStatus === "paid").map((btn, bi) => (
                 <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                   {btn.label}
                 </button>
@@ -1749,21 +1749,17 @@ function EnrollmentCard({
                     </button>
                   </div>
                 )}
-                {submittedCount === projects.length && projects.length > 0 && (
+                {pTiming !== "start" && (
                   <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
                     <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
                       Unlock Completion Certificate
                     </h5>
-                    {pStatus === "paid" && allVerified ? (
+                    {pStatus === "paid" ? (
                       <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
-                        <strong style={{ color: "#1a5c2e" }}>✓ Certificate Unlocked!</strong>
-                        <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>All tasks verified and payment confirmed.</p>
+                        <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked!</strong>
+                        <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Payment confirmed. You can now download your certificate from the buttons above.</p>
                       </div>
-                    ) : pStatus === "paid" && !allVerified ? (
-                      <div style={{ padding: "0.75rem 1rem", background: "#fffbea", borderLeft: "4px solid #FBBC05", fontSize: "0.82rem", color: "#7a6000" }}>
-                        ⏳ <strong>Waiting for task verification:</strong> Your payment is confirmed. Your certificate will unlock once all your projects are verified by our team.
-                      </div>
-                    ) : pStatus !== "paid" && (pTiming === "end" || pTiming === "both") ? (
+                    ) : (
                       <div>
                         <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                           Complete the payment to unlock your certificate.
@@ -1772,16 +1768,7 @@ function EnrollmentCard({
                           Pay ₹{displayEndAmount || displayAmount || 99}
                         </button>
                       </div>
-                    ) : (
-                      <div style={{ padding: "0.75rem 1rem", background: "#fffbea", borderLeft: "4px solid #FBBC05", fontSize: "0.82rem", color: "#7a6000" }}>
-                        ⏳ Payment not yet completed. Complete payment to unlock your certificate.
-                      </div>
                     )}
-                  </div>
-                )}
-                {submittedCount < projects.length && pTiming !== "start" && pStatus !== "paid" && (
-                  <div style={{ marginTop: "1rem", padding: "0.75rem 1rem", background: "#f5f5f5", borderLeft: "4px solid #ccc", fontSize: "0.82rem", color: "#666" }}>
-                    Complete and submit all <strong>{projects.length}</strong> projects to unlock payment and certificate download.
                   </div>
                 )}
               </div>
