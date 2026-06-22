@@ -1,4 +1,3 @@
-const DB_URL = "https://login-data-680b9-default-rtdb.firebaseio.com";
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
 
 const FALLBACK_PATHS = [
@@ -22,60 +21,47 @@ const FALLBACK_FAQS = [
   { id: "faq_5", question: "How long does the internship last?", answer: "Each domain is designed for 4 weeks, but you can work at your own pace." },
 ];
 
-function dbUrl(path) {
-  return `${DB_URL}/${path}.json`;
+async function dbProxy(action, path, data, query) {
+  const res = await fetch(`${API_BASE}/api/firebase-proxy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, path, data, query }),
+  });
+  const json = await res.json();
+  if (!res.ok || json.success === false) throw new Error(json.message || `Proxy ${action} ${path} failed`);
+  return json.data;
 }
 
 async function dbGet(path) {
-  try {
-    const res = await fetch(`${dbUrl(path)}?t=${Date.now()}`);
-    if (!res.ok) { console.warn("dbGet", path, res.status); return null; }
-    const data = await res.json();
-    if (data === null) return null;
-    if (data.error) { console.warn("dbGet", path, data.error); return null; }
-    return data;
-  } catch (e) { console.warn("dbGet", path, e.message); return null; }
+  try { return await dbProxy("get", path); } catch (e) { console.warn("dbGet", path, e.message); return null; }
 }
 
 async function dbPut(path, data) {
-  const res = await fetch(dbUrl(path), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-  if (!res.ok) throw new Error(`Firebase PUT ${path} failed: ${res.status} ${await res.text()}`);
-  return res.json();
+  try { return await dbProxy("set", path, data); } catch (e) { throw new Error(`Firebase PUT ${path} failed: ${e.message}`); }
 }
 
 async function dbPutSilent(path, data) {
-  try { return await dbPut(path, data); } catch (e) { console.warn("dbPut:", e.message); return null; }
+  try { return await dbProxy("set", path, data); } catch (e) { console.warn("dbPut:", e.message); return null; }
 }
 
 async function dbPost(path, data) {
-  const res = await fetch(dbUrl(path), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-  if (!res.ok) { console.warn("dbPost", path, res.status); return { id: null, ...data }; }
-  const result = await res.json();
-  return { id: result.name, ...data };
+  try { return await dbProxy("push", path, data); } catch (e) { console.warn("dbPost", path, e.message); return { id: null, ...data }; }
 }
 
 async function dbPatch(path, data) {
-  const res = await fetch(dbUrl(path), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-  if (!res.ok) throw new Error(`Firebase PATCH ${path} failed: ${res.status} ${await res.text()}`);
-  return res.json();
+  try { return await dbProxy("update", path, data); } catch (e) { throw new Error(`Firebase PATCH ${path} failed: ${e.message}`); }
 }
 
 async function dbDelete(path) {
-  try { await fetch(dbUrl(path), { method: "DELETE" }); } catch {}
+  try { await dbProxy("delete", path); } catch {}
 }
 
 async function dbList(path) {
-  const data = await dbGet(path);
-  if (!data || typeof data !== "object") return [];
-  return Object.entries(data).map(([key, val]) => ({ id: key, ...val }));
+  try { return await dbProxy("list", path); } catch (e) { console.warn("dbList", path, e.message); return []; }
 }
 
 async function dbQueryList(path, field, value) {
-  const data = await dbGet(path);
-  if (!data || typeof data !== "object") return [];
-  return Object.entries(data)
-    .filter(([, val]) => val[field] === value)
-    .map(([key, val]) => ({ id: key, ...val }));
+  try { return await dbProxy("query", path, null, { orderBy: field, equalTo: value }); } catch (e) { console.warn("dbQueryList", path, e.message); return []; }
 }
 
 function userIdentity(user) {
@@ -712,4 +698,114 @@ export async function fetchPaymentMethods() {
 export async function savePaymentMethods(config) {
   await dbPut("siteConfig/paymentMethods", { value: config, updatedAt: new Date().toISOString() });
   return config;
+}
+
+// Audit log
+export async function fetchAuditLog() {
+  const data = await apiFetch("/api/data/audit-log");
+  return data.data || [];
+}
+
+export async function logAdminAction(action, details = {}) {
+  try {
+    await apiFetch("/api/data/audit-log", {
+      method: "POST",
+      body: JSON.stringify({ action, ...details, timestamp: new Date().toISOString() }),
+    });
+  } catch {}
+}
+
+// Site config (generic key-value)
+export async function fetchSiteConfig(key) {
+  const data = await apiFetch(`/api/data/site-config?key=${encodeURIComponent(key)}`);
+  return data.data || null;
+}
+
+export async function saveSiteConfig(key, value) {
+  await apiFetch(`/api/data/site-config?key=${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: JSON.stringify(value),
+  });
+  return value;
+}
+
+// Theme
+export async function fetchTheme() {
+  return fetchSiteConfig("theme");
+}
+
+export async function saveTheme(theme) {
+  return saveSiteConfig("theme", theme);
+}
+
+// Coupons
+export async function fetchCoupons() {
+  const d = await dbGet("siteConfig/coupons");
+  return d?.value || [];
+}
+
+export async function saveCoupons(coupons) {
+  await dbPut("siteConfig/coupons", { value: coupons, updatedAt: new Date().toISOString() });
+  return coupons;
+}
+
+// Receipt
+export async function fetchReceipt(enrollmentId) {
+  return apiFetch(`/api/data/receipt/${enrollmentId}`);
+}
+
+// Leaderboard
+export async function fetchReferralLeaderboard() {
+  const referrals = await dbList("referrals");
+  const enrollments = await dbList("enrollments");
+  return referrals
+    .filter((r) => r.name && r.code)
+    .map((r) => {
+      const interns = enrollments.filter((e) => (e.referralCode || "").toUpperCase().trim() === (r.code || "").toUpperCase().trim());
+      const completedPaid = interns.filter((i) => i.status === "Completed" && i.paymentStatus === "paid");
+      return { name: r.name, code: r.code, interns: interns.length, completed: completedPaid.length, earnings: completedPaid.length * 30 };
+    })
+    .sort((a, b) => b.completed - a.completed);
+}
+
+// Progress timeline
+export async function fetchProgressTimeline(enrollmentId) {
+  const enr = await fetchEnrollmentById(enrollmentId);
+  if (!enr) return [];
+  const timeline = [];
+  const projects = enr.projects || [];
+  const submissions = enr.submissions || {};
+  projects.forEach((p, i) => {
+    const sub = submissions[i];
+    if (sub?.submittedAt) timeline.push({ type: "submitted", projectIndex: i, projectTitle: p.title, date: sub.submittedAt });
+    if (sub?.verifiedAt) timeline.push({ type: "verified", projectIndex: i, projectTitle: p.title, date: sub.verifiedAt });
+    if (sub?.rejectedAt) timeline.push({ type: "rejected", projectIndex: i, projectTitle: p.title, date: sub.rejectedAt, feedback: sub.feedback });
+  });
+  if (enr.paidAt) timeline.push({ type: "paid", date: enr.paidAt, amount: enr.paymentAmount });
+  if (enr.createdAt) timeline.push({ type: "enrolled", date: enr.createdAt });
+  if (enr.completedAt) timeline.push({ type: "completed", date: enr.completedAt });
+  return timeline.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+}
+
+// CSV export
+export async function exportEnrollmentsCSV() {
+  const enrollments = await dbList("enrollments");
+  const headers = ["Intern ID", "Name", "Email", "Phone", "College", "Domain", "Status", "Payment Status", "Payment Amount", "Paid At", "Completed At", "Referral Code", "Certificate Allowed"];
+  const rows = enrollments.map((e) => [
+    e.internId || e.id || "",
+    e.name || "",
+    e.email || "",
+    e.phone || "",
+    e.college || "",
+    e.domain || "",
+    e.status || "",
+    e.paymentStatus || "",
+    e.paymentAmount || "",
+    e.paidAt || "",
+    e.completedAt || "",
+    e.referralCode || "",
+    e.allowedCertificate || "",
+  ]);
+  const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+  return csv;
 }

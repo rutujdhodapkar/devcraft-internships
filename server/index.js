@@ -3,6 +3,7 @@ import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import admin from 'firebase-admin';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +29,41 @@ async function loadEnvFile() {
 }
 
 await loadEnvFile();
+
+const DATABASE_URL = 'https://login-data-680b9-default-rtdb.firebaseio.com';
+
+function getServiceAccount() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (raw) {
+    const json = raw.trim().startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8');
+    const parsed = JSON.parse(json);
+    if (parsed.private_key) parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+    return parsed;
+  }
+  if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    return {
+      project_id: process.env.FIREBASE_PROJECT_ID || 'login-data-680b9',
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    };
+  }
+  return null;
+}
+
+function initFirebase() {
+  if (admin.apps.length) return admin.database();
+  const credential = getServiceAccount();
+  if (!credential) {
+    throw new Error('Firebase Admin credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in .env');
+  }
+  admin.initializeApp({
+    credential: admin.credential.cert(credential),
+    databaseURL: DATABASE_URL,
+    projectId: credential.project_id || process.env.FIREBASE_PROJECT_ID || 'login-data-680b9',
+  });
+  return admin.database();
+}
+
 const INQUIRIES_FILE = path.join(__dirname, 'inquiries.json');
 const REFERRALS_FILE = path.join(__dirname, 'referrals.json');
 const VISITS_FILE = path.join(__dirname, 'referral-visits.json');
@@ -457,9 +493,10 @@ app.post('/api/dodo/create-checkout-session', async (req, res) => {
     let productId = DODO_PRODUCT_ID;
     if (!productId) {
       try {
-        const fbRes = await fetch('https://login-data-680b9-default-rtdb.firebaseio.com/siteConfig/dodoConfig.json');
-        const fbData = await fbRes.json();
-        productId = fbData?.value?.productId || null;
+        const db = initFirebase();
+        const snap = await db.ref('siteConfig/dodoConfig').once('value');
+        const val = snap.val();
+        productId = val?.value?.productId || null;
       } catch {}
     }
     if (!productId) {
@@ -511,41 +548,32 @@ app.post('/api/dodo/webhook', async (req, res) => {
     const enrollmentId = metadata.enrollment_id;
     const paymentId = payload.id || payload.payment_id || '';
     if (eventType === 'payment.succeeded' && enrollmentId) {
-      const FB = 'https://login-data-680b9-default-rtdb.firebaseio.com';
       try {
+        const db = initFirebase();
         if (DODO_KEY && paymentId) {
           try {
             const pmtRes = await dodoApi(`/payments/${paymentId}`);
             if (pmtRes?.status !== 'succeeded') return res.json({ received: true, skipped: true });
           } catch (e) { console.warn('Dodo payment verification failed:', e.message); }
         }
-        const url = `${FB}/enrollments/${enrollmentId}.json`;
-        await fetch(url, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentStatus: 'paid', paymentStage: 'fully_paid', paidAt: new Date().toISOString(), paymentIntentId: paymentId, updatedAt: new Date().toISOString() }),
-        });
-        const fbRes = await fetch(url);
-        const enr = await fbRes.json();
+        const ref = db.ref(`enrollments/${enrollmentId}`);
+        await ref.update({ paymentStatus: 'paid', paymentStage: 'fully_paid', paidAt: new Date().toISOString(), paymentIntentId: paymentId, updatedAt: new Date().toISOString() });
+        const snap = await ref.once('value');
+        const enr = snap.val();
         if (enr) {
           const projects = enr.projects || [];
           const submissions = enr.submissions || {};
           const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
           if (allVerified) {
-            await fetch(url, {
-              method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ allowedCertificate: 'yes', status: 'Completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }),
-            });
+            await ref.update({ allowedCertificate: 'yes', status: 'Completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
           }
         }
         console.log(`Dodo: Payment succeeded for ${enrollmentId}`);
       } catch (fbErr) { console.error('Firebase update failed:', fbErr.message); }
     } else if (eventType === 'payment.failed' && enrollmentId) {
-      const FB = 'https://login-data-680b9-default-rtdb.firebaseio.com';
       try {
-        await fetch(`${FB}/enrollments/${enrollmentId}.json`, {
-          method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentStatus: 'failed', updatedAt: new Date().toISOString() }),
-        });
+        const db = initFirebase();
+        await db.ref(`enrollments/${enrollmentId}`).update({ paymentStatus: 'failed', updatedAt: new Date().toISOString() });
       } catch {}
     }
     res.json({ received: true });
@@ -555,11 +583,55 @@ app.post('/api/dodo/webhook', async (req, res) => {
   }
 });
 
+// Firebase proxy (used by client to access RTDB via Admin SDK)
+app.post('/api/firebase-proxy', async (req, res) => {
+  try {
+    const db = initFirebase();
+    const { action, path, data, query } = req.body || {};
+    if (!action || !path) return res.status(400).json({ success: false, message: 'action and path required' });
+    const blocked = ['admins', 'users'];
+    const root = path.split('/')[0];
+    if (blocked.includes(root) && action !== 'get') {
+      return res.status(403).json({ success: false, message: `Direct write to ${root}/ denied via proxy` });
+    }
+    let result;
+    const ref = db.ref(path);
+    switch (action) {
+      case 'get': { const snap = await ref.once('value'); result = snap.exists() ? snap.val() : null; break; }
+      case 'set': await ref.set(data); result = data; break;
+      case 'update': await ref.update(data); result = data; break;
+      case 'push': { const childRef = ref.push(); await childRef.set(data); result = { id: childRef.key, ...data }; break; }
+      case 'delete': await ref.remove(); result = true; break;
+      case 'list': {
+        const snap = await ref.once('value');
+        if (!snap.exists()) { result = []; break; }
+        const arr = []; snap.forEach((child) => arr.push({ id: child.key, ...child.val() })); result = arr; break;
+      }
+      case 'query': {
+        let q = ref;
+        if (query?.orderBy) q = q.orderByChild(query.orderBy);
+        if (query?.limitToLast) q = q.limitToLast(query.limitToLast);
+        if (query?.limitToFirst) q = q.limitToFirst(query.limitToFirst);
+        if (query?.equalTo !== undefined) q = q.equalTo(query.equalTo);
+        const snap = await q.once('value');
+        if (!snap.exists()) { result = query?.single ? null : []; break; }
+        if (query?.single) { result = snap.val(); break; }
+        const arr = []; snap.forEach((child) => arr.push({ id: child.key, ...child.val() })); result = arr; break;
+      }
+      default: return res.status(400).json({ success: false, message: `Unknown action: ${action}` });
+    }
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Enrollment status (used by client for polling after Dodo payment)
 app.get('/api/enrollment-status/:id', async (req, res) => {
   try {
-    const FB = 'https://login-data-680b9-default-rtdb.firebaseio.com';
-    const data = await (await fetch(`${FB}/enrollments/${req.params.id}.json`)).json();
+    const db = initFirebase();
+    const snap = await db.ref(`enrollments/${req.params.id}`).once('value');
+    const data = snap.val();
     return res.json({ paymentStatus: data?.paymentStatus || 'none', paymentIntentId: data?.paymentIntentId || '' });
   } catch {
     return res.json({ paymentStatus: 'none', paymentIntentId: '' });

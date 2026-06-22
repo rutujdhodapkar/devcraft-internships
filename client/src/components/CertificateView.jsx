@@ -166,6 +166,12 @@ export default function CertificateView() {
           return;
         }
 
+        const templateNameLower = templateName.toLowerCase();
+        if (templateNameLower.includes("certificate") && enrollment.allowedCertificate !== "yes") {
+          setError("Certificate is not yet available. Complete payment and task verification first.");
+          return;
+        }
+
         const templates = tmplData?.templates || {};
         const allKeys = Object.keys(templates).filter((k) => k !== "templateOrder");
         let templateHtml = templates[templateName];
@@ -175,7 +181,6 @@ export default function CertificateView() {
           );
           if (matchedKey) templateHtml = templates[matchedKey];
         }
-        const templateNameLower = templateName.toLowerCase();
         if (!templateHtml && templateNameLower.includes("certificate")) {
           templateHtml = FALLBACK_CERTIFICATE;
         }

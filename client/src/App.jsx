@@ -13,6 +13,7 @@ import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
 import TermsAndServices from "./components/TermsAndServices";
 import CertificateView from "./components/CertificateView";
+import ErrorBoundary from "./components/ErrorBoundary";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -727,8 +728,8 @@ export default function App() {
   };
 
   return (
-    <>
-      {/* Admin Messages Banner */}
+    <ErrorBoundary>
+      {/* Admin Messages Banner */
       {adminMessages
         .filter((m) => m.type !== "notice")
         .filter((m) => !dismissedMessages.has(m.id))
@@ -1376,6 +1377,6 @@ export default function App() {
           </div>
         </div>
       )}
-    </>
+    </ErrorBoundary>
   );
 }

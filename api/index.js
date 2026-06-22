@@ -57,6 +57,12 @@ function now() {
 }
 
 // RTDB helpers
+async function pushDoc(db, name, data) {
+  const ref = db.ref(name).push();
+  await ref.set(data);
+  return { id: ref.key, ...data };
+}
+
 async function listCollection(db, name) {
   const snap = await db.ref(name).get();
   if (!snap.exists()) return [];
@@ -450,6 +456,32 @@ async function handleData(req, res, routeParts) {
   if (resource === "payout-config") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", "payoutConfig", null))?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 } });
     return send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", "payoutConfig", { value: req.body || {}, updatedAt: now() })).value });
+  }
+  if (resource === "audit-log") {
+    if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "auditLog")).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 500) });
+    return send(res, 200, { success: true, data: (await pushDoc(db, "auditLog", { ...req.body, createdAt: now() })) });
+  }
+  if (resource === "site-config") {
+    const key = req.query?.key || id;
+    if (req.method === "GET" && key) return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", key, null))?.value || null });
+    if (req.method === "PUT" && key) return send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value: req.body, updatedAt: now() })).value });
+  }
+  if (resource === "receipt" && id) {
+    const enr = await getDoc(db, "enrollments", id, null);
+    if (!enr) return send(res, 404, { success: false, message: "Enrollment not found." });
+    return send(res, 200, {
+      success: true, data: {
+        receiptNo: `RCP-${String(enr.internId || id).slice(0, 8).toUpperCase()}`,
+        date: enr.paidAt || enr.updatedAt || enr.createdAt,
+        name: enr.name || "",
+        email: enr.email || "",
+        domain: enr.domain || "",
+        amount: enr.paymentAmount || 0,
+        paymentMethod: enr.paymentMethod || "UPI",
+        transactionId: enr.transactionId || enr.dodoPaymentId || "",
+        status: enr.paymentStatus || "",
+      }
+    });
   }
   return send(res, 404, { success: false, message: "Unknown API route." });
 }
@@ -886,6 +918,80 @@ async function handleDodo(req, res, parts) {
   }
 }
 
+async function handleFirebaseProxy(req, res) {
+  if (req.method !== "POST") return send(res, 405, { success: false, message: "Only POST allowed" });
+  try {
+    const db = initFirebase();
+    const { action, path, data, query } = req.body || {};
+    if (!action || !path) return send(res, 400, { success: false, message: "action and path required" });
+
+    const blocked = ["admins", "users"];
+    const root = path.split("/")[0];
+    if (blocked.includes(root) && action !== "get") {
+      return send(res, 403, { success: false, message: `Direct write to ${root}/ denied via proxy` });
+    }
+
+    let result;
+    const ref = db.ref(path);
+
+    switch (action) {
+      case "get": {
+        const snap = await ref.get();
+        result = snap.exists() ? snap.val() : null;
+        break;
+      }
+      case "set": {
+        await ref.set(data);
+        result = data;
+        break;
+      }
+      case "update": {
+        await ref.update(data);
+        result = data;
+        break;
+      }
+      case "push": {
+        const childRef = ref.push();
+        await childRef.set(data);
+        result = { id: childRef.key, ...data };
+        break;
+      }
+      case "delete": {
+        await ref.remove();
+        result = true;
+        break;
+      }
+      case "list": {
+        const snap = await ref.get();
+        if (!snap.exists()) { result = []; break; }
+        const arr = [];
+        snap.forEach((child) => arr.push({ id: child.key, ...child.val() }));
+        result = arr;
+        break;
+      }
+      case "query": {
+        let q = ref;
+        if (query?.orderBy) q = q.orderByChild(query.orderBy);
+        if (query?.limitToLast) q = q.limitToLast(query.limitToLast);
+        if (query?.limitToFirst) q = q.limitToFirst(query.limitToFirst);
+        if (query?.equalTo !== undefined) q = q.equalTo(query.equalTo);
+        const snap = await q.get();
+        if (!snap.exists()) { result = query?.single ? null : []; break; }
+        if (query?.single) { result = snap.val(); break; }
+        const arr = [];
+        snap.forEach((child) => arr.push({ id: child.key, ...child.val() }));
+        result = arr;
+        break;
+      }
+      default:
+        return send(res, 400, { success: false, message: `Unknown action: ${action}` });
+    }
+    return send(res, 200, { success: true, data: result });
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
+}
+
 export default async function handler(req, res) {
   try {
   const rawUrl = (req.url || "");
@@ -896,6 +1002,7 @@ export default async function handler(req, res) {
     if (parts[0] === "ai" && parts[1] === "verify-task") return handleAiVerify(req, res);
     if (parts[0] === "ai" && parts[1] === "grade-quiz") return handleAiGradeQuiz(req, res);
     if (parts[0] === "grade-quiz-text") return handleQuiz(req, res);
+    if (parts[0] === "firebase-proxy") return handleFirebaseProxy(req, res);
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
     if (parts[0] === "dodo") return handleDodo(req, res, parts.slice(1));
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
