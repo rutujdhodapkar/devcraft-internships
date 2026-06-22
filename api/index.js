@@ -912,111 +912,6 @@ const db2 = await initFirebase();
   }
 }
 
-// One-time endpoint: copies all RTDB data to Firestore
-// Call POST /api/migrate once after deploy, then remove this route
-async function handleMigrate(req, res) {
-  if (req.method !== "POST") return send(res, 405, { success: false, message: "POST only" });
-  // Simple secret check to prevent accidental triggers
-  if (req.headers["x-migrate-secret"] !== process.env.MIGRATE_SECRET) {
-    return send(res, 401, { success: false, message: "Invalid or missing x-migrate-secret header" });
-  }
-  try {
-    const { initializeApp, getApps, cert } = await import("firebase-admin/app");
-    const { getDatabase } = await import("firebase-admin/database");
-    const { getFirestore } = await import("firebase-admin/firestore");
-    const sa = getServiceAccount();
-    if (!sa) return send(res, 500, { success: false, message: "Service account not configured" });
-
-    // Step 1: get Firestore instance (with named database "intern")
-    let firestore;
-    try {
-      const apps = getApps();
-      firestore = apps.length ? getFirestore(apps[0], FIRESTORE_DB_ID) : (() => { const a = initializeApp({ credential: cert(sa), projectId: sa.project_id || "login-data-680b9" }); return getFirestore(a, FIRESTORE_DB_ID); })();
-    } catch (e) { return send(res, 500, { success: false, message: "Firestore init failed", detail: e.message }); }
-
-    // Step 2: init RTDB separately
-    let rtdb;
-    try {
-      const existing = getApps().find(a => a.name === "rtdb-migration");
-      const rtdbApp = existing || initializeApp({ credential: cert(sa), databaseURL: "https://login-data-680b9-default-rtdb.firebaseio.com" }, "rtdb-migration");
-      rtdb = getDatabase(rtdbApp);
-    } catch (e) { return send(res, 500, { success: false, message: "RTDB init failed", detail: e.message }); }
-
-    // Step 3: test RTDB read
-    try {
-      const test = await rtdb.ref("admins").get();
-      if (!test.exists()) { return send(res, 500, { success: false, message: "RTDB read test: admins node is empty or not found" }); }
-    } catch (e) { return send(res, 500, { success: false, message: "RTDB read test failed", detail: e.message }); }
-
-    // Step 4: test Firestore write
-    try {
-      await firestore.collection("_migrate_test").doc("_ping").set({ ts: new Date().toISOString() });
-      await firestore.collection("_migrate_test").doc("_ping").delete();
-    } catch (e) { return send(res, 500, { success: false, message: "Firestore write test failed", detail: e.message }); }
-
-    // Begin actual migration
-    const col = (n) => firestore.collection(n);
-    const readRtdb = async (path) => { const s = await rtdb.ref(path).get(); return s.exists() ? s.val() : null; };
-    const migrateMap = async (rt, fs) => {
-      const data = await readRtdb(rt); if (!data || typeof data !== "object") return 0;
-      let batch = firestore.batch(); let c = 0;
-      for (const [k, v] of Object.entries(data)) {
-        batch.set(col(fs).doc(k), (v && typeof v === "object" && !Array.isArray(v)) ? { id: k, ...v } : { id: k, value: v });
-        c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); }
-      }
-      if (c % 400 !== 0) await batch.commit(); return c;
-    };
-
-    let total = 0;
-    for (const [rt, fs] of [["admins","admins"],["careerPaths","careerPaths"],["faqs","faqs"],["howItWorks","howItWorks"],["inquiries","inquiries"],["referralVisits","referralVisits"],["referrals","referrals"],["selfReferralOwners","selfReferralOwners"],["sentEmails","sentEmails"],["serviceRequests","serviceRequests"],["siteConfig","siteConfig"],["siteNotices","siteNotices"],["siteVisits","siteVisits"],["users","users"],["bannedUsers","bannedUsers"],["auditLog","auditLog"],["adminMessages","adminMessages"],["emailtamp","emailtamp"]]) {
-      total += await migrateMap(rt, fs);
-    }
-
-    try {
-      const t = await readRtdb("config/templates");
-      if (t) { await col("config").doc("templates").set(t); total++; }
-      const aVal = await readRtdb("config/aboutText");
-      if (aVal) { await col("config").doc("aboutText").set(aVal); total++; }
-    } catch (e) { return send(res, 500, { success: false, message: "Config migration failed", detail: e.message }); }
-
-    try {
-      const enrs = await readRtdb("enrollments");
-      if (enrs) {
-        let batch = firestore.batch(); let c = 0;
-        for (const [id, e] of Object.entries(enrs)) { batch.set(col("enrollments").doc(id), { id, ...e }); c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); } }
-        if (c % 400 !== 0) await batch.commit(); total += c;
-      }
-    } catch (e) { return send(res, 500, { success: false, message: "Enrollments migration failed", detail: e.message }); }
-
-    try {
-      const ru = await readRtdb("referralUsers");
-      if (ru) {
-        let batch = firestore.batch(); let c = 0;
-        for (const [code, users] of Object.entries(ru)) {
-          if (users && typeof users === "object") {
-            for (const [uid, d] of Object.entries(users)) {
-              batch.set(col("referralUsers").doc(`${code}_${uid}`), { ...((typeof d === "object" && d) ? d : {}), code, uid });
-              c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); }
-            }
-          }
-        }
-        if (c % 400 !== 0) await batch.commit(); total += c;
-      }
-    } catch (e) { return send(res, 500, { success: false, message: "ReferralUsers migration failed", detail: e.message }); }
-
-    try {
-      const cp = await readRtdb("coupons");
-      if (cp) { await col("coupons").doc("config").set({ value: cp, updatedAt: new Date().toISOString() }); total++; }
-      const rc = await readRtdb("referralCodes");
-      if (rc) { await col("referralCodes").doc("config").set({ value: rc }); total++; }
-    } catch (e) { return send(res, 500, { success: false, message: "Coupons/referralCodes migration failed", detail: e.message }); }
-
-    return send(res, 200, { success: true, data: { total, message: `Migrated ${total} documents from RTDB to Firestore` } });
-  } catch (error) {
-    return send(res, 500, { success: false, message: error.message, stack: error.stack?.split('\n').slice(0, 3).join(' | '), code: error.code || error.name });
-  }
-}
-
 async function handleFirebaseProxy(req, res) {
   if (req.method !== "POST") return send(res, 405, { success: false, message: "Only POST allowed" });
   try {
@@ -1123,7 +1018,6 @@ export default async function handler(req, res) {
     if (parts[0] === "ai" && parts[1] === "grade-quiz") return handleAiGradeQuiz(req, res);
     if (parts[0] === "grade-quiz-text") return handleQuiz(req, res);
     if (parts[0] === "firebase-proxy") return handleFirebaseProxy(req, res);
-    if (parts[0] === "migrate") return handleMigrate(req, res);
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
     if (parts[0] === "dodo") return handleDodo(req, res, parts.slice(1));
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
