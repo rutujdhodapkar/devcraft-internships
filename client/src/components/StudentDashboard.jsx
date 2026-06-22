@@ -1288,12 +1288,12 @@ export default function StudentDashboard({
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {(paymentMethods?.upi !== false) && (
                 <button onClick={() => { setPaymentMethod("upi"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800 }}>
-                  Pay with UPI (QR Code)
+                  Pay ₹{paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
                 </button>
               )}
               {(paymentMethods?.dodo === true) && (
-                <button onClick={() => { setPaymentMethod("dodo"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800, background: "#6C63FF", color: "#fff" }}>
-                  Pay with Card / International
+                <button onClick={() => { setPaymentMethod("dodo"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800, background: "#000", color: "#fff" }}>
+                  Pay ₹{paymentEnrollment._paymentStage === "start" ? (paymentEnrollment.paymentStartAmount || Math.round((paymentEnrollment.paymentAmount || 99) / 2)) : (paymentEnrollment.paymentEndAmount || paymentEnrollment.paymentAmount || 99)}
                 </button>
               )}
             </div>
