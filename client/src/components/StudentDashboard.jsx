@@ -1756,7 +1756,7 @@ function EnrollmentCard({
                     </h5>
                     {pStatus === "paid" ? (
                       <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
-                        <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked!</strong>
+                        <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked</strong>
                         <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Payment confirmed. You can now download your certificate from the buttons above.</p>
                       </div>
                     ) : (

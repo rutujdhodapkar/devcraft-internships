@@ -73,9 +73,8 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         <div style={{ height: "6px", background: "#000", marginBottom: "1.5rem", margin: "-2rem -2rem 1.5rem -2rem" }} />
         {(status === "creating" || status === "processing") && (
           <>
-            <div style={{ fontSize: "2.5rem", marginBottom: "1rem" }}>{"\u23F3"}</div>
             <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.5rem" }}>
-              {status === "creating" ? "Preparing Checkout\u2026" : "Complete Payment"}
+              {status === "creating" ? "Preparing Checkout..." : "Complete Payment"}
             </h3>
             <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "0.5rem" }}>
               {status === "creating"
@@ -94,7 +93,6 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         )}
         {status === "completed" && (
           <>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>{"\u2705"}</div>
             <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.75rem" }}>
               Payment Submitted
             </h3>
@@ -108,7 +106,6 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         )}
         {status === "error" && (
           <>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>{"\u274C"}</div>
             <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.75rem", color: "#EA4335" }}>
               Payment Error
             </h3>
