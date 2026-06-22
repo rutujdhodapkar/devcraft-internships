@@ -920,26 +920,19 @@ async function handleMigrate(req, res) {
     return send(res, 401, { success: false, message: "Invalid or missing x-migrate-secret header" });
   }
   try {
-    // Init RTDB for reading old data
     const { initializeApp, getApps, cert } = await import("firebase-admin/app");
     const { getDatabase } = await import("firebase-admin/database");
     const { getFirestore } = await import("firebase-admin/firestore");
+    const sa = getServiceAccount();
+    if (!sa) return send(res, 500, { success: false, message: "Service account not configured" });
+
+    // Use existing Firestore app
     const apps = getApps();
-    let rtdb, firestore;
-    if (apps.length) {
-      firestore = getFirestore(apps[0]);
-      rtdb = getDatabase(apps[0]);
-    } else {
-      const sa = getServiceAccount();
-      if (!sa) return send(res, 500, { success: false, message: "Service account not configured" });
-      const app = initializeApp({
-        credential: cert(sa),
-        databaseURL: "https://login-data-680b9-default-rtdb.firebaseio.com",
-        projectId: sa.project_id || "login-data-680b9",
-      });
-      rtdb = getDatabase(app);
-      firestore = getFirestore(app);
-    }
+    const firestore = apps.length ? getFirestore(apps[0]) : (() => { const a = initializeApp({ credential: cert(sa), projectId: sa.project_id || "login-data-680b9" }); return getFirestore(a); })();
+
+    // Init separate RTDB app for reading old data (needs databaseURL)
+    const rtdbApp = initializeApp({ credential: cert(sa), databaseURL: "https://login-data-680b9-default-rtdb.firebaseio.com", projectId: sa.project_id || "login-data-680b9" }, "rtdb-migration");
+    const rtdb = getDatabase(rtdbApp);
 
     const col = (n) => firestore.collection(n);
     const readRtdb = async (path) => { const s = await rtdb.ref(path).get(); return s.exists() ? s.val() : null; };
