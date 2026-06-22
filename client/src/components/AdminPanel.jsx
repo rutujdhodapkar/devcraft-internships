@@ -7320,6 +7320,42 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               </div>
             </div>
 
+            {/* Status Summary Bar */}
+            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", padding: "1rem 2rem", borderBottom: "2px solid #000", background: "#f9f9f9", fontSize: "0.85rem" }}>
+              {(() => {
+                const pjs = getProjectsForEnrollment(selectedIntern);
+                const subs = getSubmissions(selectedIntern);
+                const verifiedCount = pjs.filter((_, i) => subs[i]?.verified).length;
+                return (
+                  <>
+                    <span><strong>Tasks:</strong> {verifiedCount}/{pjs.length} verified</span>
+                    <span style={{ color: verifiedCount === pjs.length && pjs.length > 0 ? "#34A853" : "#EA4335", fontWeight: 700 }}>
+                      {verifiedCount === pjs.length && pjs.length > 0 ? "All tasks verified" : "Pending"}
+                    </span>
+                  </>
+                );
+              })()}
+              {selectedIntern.paymentStatus && (
+                <span>
+                  <strong>Payment:</strong>{" "}
+                  <span style={{ color: selectedIntern.paymentStatus === "paid" ? "#34A853" : "#EA4335", fontWeight: 700 }}>
+                    {selectedIntern.paymentStatus.toUpperCase()}
+                  </span>
+                  {selectedIntern.paymentAmount && <span> (₹{selectedIntern.paymentAmount})</span>}
+                </span>
+              )}
+              {selectedIntern.paymentIntentId && (
+                <span style={{ fontSize: "0.78rem", color: "#555" }}>
+                  <strong>Payment ID:</strong> <code>{selectedIntern.paymentIntentId}</code>
+                </span>
+              )}
+              {selectedIntern.transactionId && (
+                <span style={{ fontSize: "0.78rem", color: "#555" }}>
+                  <strong>Transaction ID:</strong> <code>{selectedIntern.transactionId}</code>
+                </span>
+              )}
+            </div>
+
             {/* Submissions Task list (Separate boxes for each task) */}
             <div style={{ padding: "2rem" }}>
               <h4
@@ -7868,6 +7904,111 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   Set Amount
                 </button>
               </div>
+
+              {(() => {
+                const pjs = getProjectsForEnrollment(selectedIntern);
+                const subs = getSubmissions(selectedIntern);
+                const allVerified = pjs.length > 0 && pjs.every((_, i) => subs[i]?.verified);
+                const isPaid = selectedIntern.paymentStatus === "paid" || selectedIntern.paymentStage === "fully_paid";
+                const canComplete = allVerified && isPaid;
+                const isRejected = selectedIntern.completionRejectedAt;
+                const isCompleted = selectedIntern.status === "Completed";
+                return (
+                  <>
+                    {canComplete && !isCompleted && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            if (isRejected) await clearCompletionRejection(selectedIntern.id);
+                            await markEnrollmentComplete(selectedIntern.id);
+                            const updated = await fetchEnrollmentById(selectedIntern.id);
+                            if (updated) setSelectedIntern(updated);
+                            await loadData();
+                            setSuccessMsg("Intern marked as completed.");
+                            setTimeout(() => setSuccessMsg(""), 3000);
+                          } catch (err) { setError("Failed: " + err.message); }
+                        }}
+                        className="btn-sharp"
+                        style={{
+                          padding: "0.55rem 1.25rem",
+                          fontSize: "0.85rem",
+                          borderRadius: 0,
+                          background: "#34A853",
+                          border: "2px solid #34A853",
+                          color: "#fff",
+                        }}
+                      >
+                        Mark as Complete
+                      </button>
+                    )}
+                    {!isCompleted && (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="Rejection reason (optional)"
+                          value={selectedIntern._rejectReason || ""}
+                          onChange={(e) => { selectedIntern._rejectReason = e.target.value; setSelectedIntern({ ...selectedIntern }); }}
+                          style={{ border: "2px solid #EA4335", padding: "0.4rem 0.6rem", fontSize: "0.78rem", fontFamily: "inherit", outline: "none", width: "180px" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await rejectEnrollmentCompletion(selectedIntern.id, selectedIntern._rejectReason || "");
+                              const updated = await fetchEnrollmentById(selectedIntern.id);
+                              if (updated) setSelectedIntern(updated);
+                              await loadData();
+                              setSuccessMsg("Completion rejected.");
+                              setTimeout(() => setSuccessMsg(""), 3000);
+                            } catch (err) { setError("Failed: " + err.message); }
+                          }}
+                          className="btn-sharp-outline"
+                          style={{
+                            padding: "0.55rem 1.25rem",
+                            fontSize: "0.85rem",
+                            borderRadius: 0,
+                            borderColor: "#EA4335",
+                            color: "#EA4335",
+                          }}
+                        >
+                          Reject Completion
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!window.confirm("Override-complete this intern regardless of task/payment status?")) return;
+                        try {
+                          await overrideCompleteEnrollment(selectedIntern.id, user?.email || "admin");
+                          const updated = await fetchEnrollmentById(selectedIntern.id);
+                          if (updated) setSelectedIntern(updated);
+                          await loadData();
+                          setSuccessMsg("Intern override-completed.");
+                          setTimeout(() => setSuccessMsg(""), 3000);
+                        } catch (err) { setError("Failed: " + err.message); }
+                      }}
+                      className="btn-sharp"
+                      style={{
+                        padding: "0.55rem 1.25rem",
+                        fontSize: "0.85rem",
+                        borderRadius: 0,
+                        background: "#9334E6",
+                        border: "2px solid #9334E6",
+                        color: "#fff",
+                      }}
+                    >
+                      Override Complete
+                    </button>
+                    {isRejected && (
+                      <span style={{ fontSize: "0.75rem", color: "#EA4335", fontWeight: 600 }}>
+                        Rejected: {selectedIntern.completionRejectReason || "No reason given"}
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
 
               <button
                 type="button"
