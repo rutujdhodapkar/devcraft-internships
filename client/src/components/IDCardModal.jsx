@@ -213,6 +213,36 @@ export default function IDCardModal({
           <InfoField label="Email" value={email} fullWidth />
         </div>
 
+        {/* QR Code */}
+        {internId && internId !== "Pending" && (
+          <div
+            style={{
+              padding: "0 1.4rem 1rem",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <img
+              src={`${window.location.origin}/api/qr/${encodeURIComponent(internId)}`}
+              alt="Verify QR"
+              style={{ width: "90px", height: "90px", border: "2px solid #000" }}
+            />
+            <div
+              style={{
+                fontSize: "0.55rem",
+                color: "#888",
+                marginTop: "0.25rem",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                fontWeight: 600,
+              }}
+            >
+              Scan to Verify
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div
           style={{
