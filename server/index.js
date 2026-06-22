@@ -64,7 +64,7 @@ async function initFirebase() {
       credential: cert(sa),
       projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || 'login-data-680b9',
     });
-    return getFirestore(app);
+    return getFirestore(app, 'intern');
   })();
   return fbInitPromise;
 }

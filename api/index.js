@@ -1,5 +1,6 @@
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
+const FIRESTORE_DB_ID = "intern";
 
 function send(res, status, payload) {
   res.status(status).json(payload);
@@ -39,7 +40,7 @@ async function initFirebase() {
       credential: cert(sa),
       projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
     });
-    return getFirestore(app);
+    return getFirestore(app, FIRESTORE_DB_ID);
   })();
   return fbInitPromise;
 }
@@ -926,11 +927,11 @@ async function handleMigrate(req, res) {
     const sa = getServiceAccount();
     if (!sa) return send(res, 500, { success: false, message: "Service account not configured" });
 
-    // Step 1: get Firestore instance
+    // Step 1: get Firestore instance (with named database "intern")
     let firestore;
     try {
       const apps = getApps();
-      firestore = apps.length ? getFirestore(apps[0]) : (() => { const a = initializeApp({ credential: cert(sa), projectId: sa.project_id || "login-data-680b9" }); return getFirestore(a); })();
+      firestore = apps.length ? getFirestore(apps[0], FIRESTORE_DB_ID) : (() => { const a = initializeApp({ credential: cert(sa), projectId: sa.project_id || "login-data-680b9" }); return getFirestore(a, FIRESTORE_DB_ID); })();
     } catch (e) { return send(res, 500, { success: false, message: "Firestore init failed", detail: e.message }); }
 
     // Step 2: init RTDB separately
