@@ -22,6 +22,7 @@ import {
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
 import DodoPaymentModal from "./DodoPaymentModal";
+import VerifyModal from "./VerifyModal";
 
 export default function StudentDashboard({
   user,
@@ -65,6 +66,8 @@ export default function StudentDashboard({
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileForm, setProfileForm] = useState({});
   const [savingProfile, setSavingProfile] = useState(false);
+
+  const [verifyEnrollment, setVerifyEnrollment] = useState(null);
 
   const handleOpenPayment = (enrollment, stage) => {
     if (!enrollment?.id) {
@@ -369,6 +372,10 @@ export default function StudentDashboard({
     }
   };
 
+  const handleVerifyInternship = (enrollment) => {
+    setVerifyEnrollment(enrollment);
+  };
+
   const handleOpenProfileEdit = () => {
     setProfileForm({
       phone: userProfile?.phone || "",
@@ -450,7 +457,7 @@ export default function StudentDashboard({
                   margin: "0 0 0.5rem",
                 }}
               >
-                Welcome, {user.displayName?.split(" ")[0] || "Intern"} 👋
+                Welcome, {user.displayName?.split(" ")[0] || "Intern"}
               </h2>
               <p style={{ color: "#666", fontSize: "0.93rem" }}>
                 Manage your active internships, submit your projects, and
@@ -1380,6 +1387,7 @@ export default function StudentDashboard({
                     onBackClick={() => setSelectedEnrollment(null)}
                     careerPaths={careerPaths}
                     onMarkComplete={handleMarkComplete}
+                    onVerifyInternship={handleVerifyInternship}
                   />
                 );
               })()
@@ -1513,6 +1521,7 @@ export default function StudentDashboard({
           </div>
         </div>
       )}
+      {verifyEnrollment && <VerifyModal enrollment={verifyEnrollment} onClose={() => setVerifyEnrollment(null)} />}
     </section>
   );
 }
@@ -1544,6 +1553,7 @@ function EnrollmentCard({
   onBackClick,
   careerPaths,
   onMarkComplete,
+  onVerifyInternship,
 }) {
   const domainPath = careerPaths?.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain);
   const displayAmount = domainPath?.paymentAmount || paymentAmount;
@@ -1781,7 +1791,7 @@ function EnrollmentCard({
         <div style={{ padding: "1.75rem 2rem" }}>
           {tasksLocked && (
             <div style={{ border: "2px solid #EA4335", padding: "1rem 1.25rem", background: "#FFF5F5", marginBottom: "1rem" }}>
-              <strong style={{ color: "#EA4335" }}>🔒 Payment Required</strong>
+              <strong style={{ color: "#EA4335" }}>Payment Required</strong>
               <p style={{ fontSize: "0.85rem", color: "#555", marginTop: "0.35rem" }}>Please complete the payment below to unlock your internship tasks.</p>
             </div>
           )}
@@ -1795,7 +1805,7 @@ function EnrollmentCard({
               color: "#000",
             }}
           >
-            📋 Project Submissions
+            Project Submissions
           </h4>
 
           {projects.length === 0 ? (
@@ -1914,6 +1924,9 @@ function EnrollmentCard({
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
               <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                <button className="btn-sharp" onClick={() => onVerifyInternship(enrollment)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                  Verify Internship
+                </button>
               {(domainButtons || []).filter((b) => b.showWhen === "before").map((btn, bi) => (
                 <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                   {btn.label}
@@ -2333,7 +2346,7 @@ function ProjectBox({
                 color: "#7a6000",
               }}
             >
-              📬 Our team will review and verify your submission shortly.
+              Our team will review and verify your submission shortly.
             </div>
           )}
           {!isVerified && isQuiz && (
@@ -2347,7 +2360,7 @@ function ProjectBox({
                 color: "#7a6000",
               }}
             >
-              📬 Our team will review and verify your submission shortly.
+              Our team will review and verify your submission shortly.
             </div>
           )}
         </div>
@@ -2374,7 +2387,7 @@ function ProjectBox({
                   marginBottom: "0.25rem",
                 }}
               >
-                ⚠️ Revision Requested by Admin
+                Revision Requested by Admin
               </strong>
               {sub.feedback ||
                 "Please update your submission and submit again."}

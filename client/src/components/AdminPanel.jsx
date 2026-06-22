@@ -58,6 +58,7 @@ import {
   fetchReferralLeaderboard,
   fetchProgressTimeline,
   fetchReceipt,
+  updatePaymentStatus,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
