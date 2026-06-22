@@ -1,6 +1,27 @@
 {
   "rules": {
     ".read": false,
-    ".write": false
+    ".write": false,
+    "enrollments": {
+      ".indexOn": ["uid", "referralCode"]
+    },
+    "referrals": {
+      ".indexOn": ["email"]
+    },
+    "referralVisits": {
+      ".indexOn": ["referralCode"]
+    },
+    "users": {
+      ".indexOn": ["email"]
+    },
+    "auditLog": {
+      ".indexOn": ["action", "createdAt"]
+    },
+    "selfReferralOwners": {
+      ".indexOn": ["uid"]
+    },
+    "bannedUsers": {
+      ".indexOn": ["email"]
+    }
   }
 }
