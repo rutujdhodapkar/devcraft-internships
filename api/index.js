@@ -926,14 +926,34 @@ async function handleMigrate(req, res) {
     const sa = getServiceAccount();
     if (!sa) return send(res, 500, { success: false, message: "Service account not configured" });
 
-    // Use existing Firestore app
-    const apps = getApps();
-    const firestore = apps.length ? getFirestore(apps[0]) : (() => { const a = initializeApp({ credential: cert(sa), projectId: sa.project_id || "login-data-680b9" }); return getFirestore(a); })();
+    // Step 1: get Firestore instance
+    let firestore;
+    try {
+      const apps = getApps();
+      firestore = apps.length ? getFirestore(apps[0]) : (() => { const a = initializeApp({ credential: cert(sa), projectId: sa.project_id || "login-data-680b9" }); return getFirestore(a); })();
+    } catch (e) { return send(res, 500, { success: false, message: "Firestore init failed", detail: e.message }); }
 
-    // Init separate RTDB app for reading old data (needs databaseURL)
-    const rtdbApp = initializeApp({ credential: cert(sa), databaseURL: "https://login-data-680b9-default-rtdb.firebaseio.com", projectId: sa.project_id || "login-data-680b9" }, "rtdb-migration");
-    const rtdb = getDatabase(rtdbApp);
+    // Step 2: init RTDB separately
+    let rtdb;
+    try {
+      const existing = getApps().find(a => a.name === "rtdb-migration");
+      const rtdbApp = existing || initializeApp({ credential: cert(sa), databaseURL: "https://login-data-680b9-default-rtdb.firebaseio.com" }, "rtdb-migration");
+      rtdb = getDatabase(rtdbApp);
+    } catch (e) { return send(res, 500, { success: false, message: "RTDB init failed", detail: e.message }); }
 
+    // Step 3: test RTDB read
+    try {
+      const test = await rtdb.ref("admins").get();
+      if (!test.exists()) { return send(res, 500, { success: false, message: "RTDB read test: admins node is empty or not found" }); }
+    } catch (e) { return send(res, 500, { success: false, message: "RTDB read test failed", detail: e.message }); }
+
+    // Step 4: test Firestore write
+    try {
+      await firestore.collection("_migrate_test").doc("_ping").set({ ts: new Date().toISOString() });
+      await firestore.collection("_migrate_test").doc("_ping").delete();
+    } catch (e) { return send(res, 500, { success: false, message: "Firestore write test failed", detail: e.message }); }
+
+    // Begin actual migration
     const col = (n) => firestore.collection(n);
     const readRtdb = async (path) => { const s = await rtdb.ref(path).get(); return s.exists() ? s.val() : null; };
     const migrateMap = async (rt, fs) => {
@@ -947,59 +967,52 @@ async function handleMigrate(req, res) {
     };
 
     let total = 0;
-    total += await migrateMap("admins", "admins");
-    total += await migrateMap("careerPaths", "careerPaths");
-    total += await migrateMap("faqs", "faqs");
-    total += await migrateMap("howItWorks", "howItWorks");
-    total += await migrateMap("inquiries", "inquiries");
-    total += await migrateMap("referralVisits", "referralVisits");
-    total += await migrateMap("referrals", "referrals");
-    total += await migrateMap("selfReferralOwners", "selfReferralOwners");
-    total += await migrateMap("sentEmails", "sentEmails");
-    total += await migrateMap("serviceRequests", "serviceRequests");
-    total += await migrateMap("siteConfig", "siteConfig");
-    total += await migrateMap("siteNotices", "siteNotices");
-    total += await migrateMap("siteVisits", "siteVisits");
-    total += await migrateMap("users", "users");
-    total += await migrateMap("bannedUsers", "bannedUsers");
-    total += await migrateMap("auditLog", "auditLog");
-    total += await migrateMap("adminMessages", "adminMessages");
-    total += await migrateMap("emailtamp", "emailtamp");
-
-    const t = await readRtdb("config/templates");
-    if (t) { await col("config").doc("templates").set(t); total++; }
-    const a = await readRtdb("config/aboutText");
-    if (a) { await col("config").doc("aboutText").set(a); total++; }
-
-    const enrs = await readRtdb("enrollments");
-    if (enrs) {
-      let batch = firestore.batch(); let c = 0;
-      for (const [id, e] of Object.entries(enrs)) { batch.set(col("enrollments").doc(id), { id, ...e }); c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); } }
-      if (c % 400 !== 0) await batch.commit(); total += c;
+    for (const [rt, fs] of [["admins","admins"],["careerPaths","careerPaths"],["faqs","faqs"],["howItWorks","howItWorks"],["inquiries","inquiries"],["referralVisits","referralVisits"],["referrals","referrals"],["selfReferralOwners","selfReferralOwners"],["sentEmails","sentEmails"],["serviceRequests","serviceRequests"],["siteConfig","siteConfig"],["siteNotices","siteNotices"],["siteVisits","siteVisits"],["users","users"],["bannedUsers","bannedUsers"],["auditLog","auditLog"],["adminMessages","adminMessages"],["emailtamp","emailtamp"]]) {
+      total += await migrateMap(rt, fs);
     }
 
-    const ru = await readRtdb("referralUsers");
-    if (ru) {
-      let batch = firestore.batch(); let c = 0;
-      for (const [code, users] of Object.entries(ru)) {
-        if (users && typeof users === "object") {
-          for (const [uid, d] of Object.entries(users)) {
-            batch.set(col("referralUsers").doc(`${code}_${uid}`), { ...((typeof d === "object" && d) ? d : {}), code, uid });
-            c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); }
+    try {
+      const t = await readRtdb("config/templates");
+      if (t) { await col("config").doc("templates").set(t); total++; }
+      const aVal = await readRtdb("config/aboutText");
+      if (aVal) { await col("config").doc("aboutText").set(aVal); total++; }
+    } catch (e) { return send(res, 500, { success: false, message: "Config migration failed", detail: e.message }); }
+
+    try {
+      const enrs = await readRtdb("enrollments");
+      if (enrs) {
+        let batch = firestore.batch(); let c = 0;
+        for (const [id, e] of Object.entries(enrs)) { batch.set(col("enrollments").doc(id), { id, ...e }); c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); } }
+        if (c % 400 !== 0) await batch.commit(); total += c;
+      }
+    } catch (e) { return send(res, 500, { success: false, message: "Enrollments migration failed", detail: e.message }); }
+
+    try {
+      const ru = await readRtdb("referralUsers");
+      if (ru) {
+        let batch = firestore.batch(); let c = 0;
+        for (const [code, users] of Object.entries(ru)) {
+          if (users && typeof users === "object") {
+            for (const [uid, d] of Object.entries(users)) {
+              batch.set(col("referralUsers").doc(`${code}_${uid}`), { ...((typeof d === "object" && d) ? d : {}), code, uid });
+              c++; if (c % 400 === 0) { await batch.commit(); batch = firestore.batch(); }
+            }
           }
         }
+        if (c % 400 !== 0) await batch.commit(); total += c;
       }
-      if (c % 400 !== 0) await batch.commit(); total += c;
-    }
+    } catch (e) { return send(res, 500, { success: false, message: "ReferralUsers migration failed", detail: e.message }); }
 
-    const cp = await readRtdb("coupons");
-    if (cp) { await col("coupons").doc("config").set({ value: cp, updatedAt: new Date().toISOString() }); total++; }
-    const rc = await readRtdb("referralCodes");
-    if (rc) { await col("referralCodes").doc("config").set({ value: rc }); total++; }
+    try {
+      const cp = await readRtdb("coupons");
+      if (cp) { await col("coupons").doc("config").set({ value: cp, updatedAt: new Date().toISOString() }); total++; }
+      const rc = await readRtdb("referralCodes");
+      if (rc) { await col("referralCodes").doc("config").set({ value: rc }); total++; }
+    } catch (e) { return send(res, 500, { success: false, message: "Coupons/referralCodes migration failed", detail: e.message }); }
 
     return send(res, 200, { success: true, data: { total, message: `Migrated ${total} documents from RTDB to Firestore` } });
   } catch (error) {
-    return send(res, 500, { success: false, message: error.message });
+    return send(res, 500, { success: false, message: error.message, stack: error.stack?.split('\n').slice(0, 3).join(' | '), code: error.code || error.name });
   }
 }
 
