@@ -24,24 +24,26 @@ function getServiceAccount() {
   return null;
 }
 
-let fbDb = null;
+let fbInitPromise = null;
 async function initFirebase() {
-  if (fbDb) return fbDb;
-  const { initializeApp, getApps, cert } = await import("firebase-admin/app");
-  const { getDatabase } = await import("firebase-admin/database");
-  const apps = getApps();
-  if (apps.length) { fbDb = getDatabase(apps[0]); return fbDb; }
-  const sa = getServiceAccount();
-  if (!sa) {
-    throw new Error("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY on Vercel.");
-  }
-  const app = initializeApp({
-    credential: cert(sa),
-    databaseURL: DATABASE_URL,
-    projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
-  });
-  fbDb = getDatabase(app);
-  return fbDb;
+  if (fbInitPromise) return fbInitPromise;
+  fbInitPromise = (async () => {
+    const { initializeApp, getApps, cert } = await import("firebase-admin/app");
+    const { getDatabase } = await import("firebase-admin/database");
+    const apps = getApps();
+    if (apps.length) return getDatabase(apps[0]);
+    const sa = getServiceAccount();
+    if (!sa) {
+      throw new Error("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY on Vercel.");
+    }
+    const app = initializeApp({
+      credential: cert(sa),
+      databaseURL: DATABASE_URL,
+      projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
+    });
+    return getDatabase(app);
+  })();
+  return fbInitPromise;
 }
 
 function cleanId(value) {
