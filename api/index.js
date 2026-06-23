@@ -25,13 +25,11 @@ function getServiceAccount() {
 }
 
 let fbInitPromise = null;
-let _FieldValue = null;
 async function initFirebase() {
   if (fbInitPromise) return fbInitPromise;
   fbInitPromise = (async () => {
     const { initializeApp, getApps, cert } = await import("firebase-admin/app");
-    const { getFirestore, FieldValue } = await import("firebase-admin/firestore");
-    _FieldValue = FieldValue;
+    const { getFirestore } = await import("firebase-admin/firestore");
     const apps = getApps();
     if (apps.length) return getFirestore(apps[0], FIRESTORE_DB_ID);
     const sa = getServiceAccount();
@@ -410,11 +408,32 @@ async function handleData(req, res, routeParts) {
     const referral = code ? await getDoc(db, "referrals", code, null) : null;
     const data = { ...req.body, referralCode: code, matched: Boolean(referral), visitedAt: req.body.visitedAt || now(), createdAt: now() };
     const newRef = await db.collection("referralVisits").add(data);
-    if (referral && _FieldValue) {
-      await db.collection("referrals").doc(code).update({ visited: _FieldValue.increment(1), lastVisitedAt: data.visitedAt, updatedAt: now() });
+    if (referral) {
+      await db.collection("referrals").doc(code).update({ visited: (referral.visited || 0) + 1, lastVisitedAt: data.visitedAt, updatedAt: now() });
     }
     data.id = newRef.id;
     return send(res, 201, { success: true, data });
+  }
+  if (resource === "associate-visits") {
+    const { fingerprint, email, name, uid } = req.body || {};
+    if (!fingerprint) return send(res, 400, { success: false, message: "Fingerprint required" });
+    const updateData = { userId: uid || null, userEmail: email || null, userName: name || null, associatedAt: now() };
+    let updated = 0;
+    const refSnap = await db.collection("referralVisits").where("fingerprint", "==", fingerprint).get();
+    if (!refSnap.empty) {
+      const batch = db.batch();
+      refSnap.docs.forEach((doc) => batch.update(doc.ref, updateData));
+      await batch.commit();
+      updated += refSnap.size;
+    }
+    const siteSnap = await db.collection("siteVisits").where("fingerprint", "==", fingerprint).get();
+    if (!siteSnap.empty) {
+      const batch = db.batch();
+      siteSnap.docs.forEach((doc) => batch.update(doc.ref, updateData));
+      await batch.commit();
+      updated += siteSnap.size;
+    }
+    return send(res, 200, { success: true, data: { updated } });
   }
   if (resource === "referral-logins") return handleReferralLogin(db, req, res);
   if (resource === "check-admin") return handleCheckAdmin(db, req, res);

@@ -335,19 +335,58 @@ export async function createReferral(details) {
   return referral;
 }
 
+export function getDeviceFingerprint() {
+  const KEY = "_device_fp";
+  let fp = localStorage.getItem(KEY);
+  if (fp) return fp;
+  const components = [
+    navigator.userAgent,
+    navigator.language,
+    screen.width + "x" + screen.height + "x" + screen.colorDepth,
+    new Date().getTimezoneOffset(),
+    navigator.hardwareConcurrency || "",
+    navigator.deviceMemory || "",
+  ];
+  let hash = 0;
+  const str = components.join("|||");
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  fp = "fp_" + Math.abs(hash).toString(36);
+  localStorage.setItem(KEY, fp);
+  return fp;
+}
+
 export async function trackReferralVisit(referralCode) {
   if (!referralCode) return null;
   const code = referralCode.toUpperCase().trim();
   const now = new Date().toISOString();
+  const fingerprint = getDeviceFingerprint();
   const data = await apiFetch("/api/data/referral-visits", {
     method: "POST",
     body: JSON.stringify({
       action: "visited", referralCode: code, visitedAt: now,
       link: window.location.href, language: navigator.language || "",
       browser: navigator.userAgent || "",
+      fingerprint,
+      screen: `${screen.width}x${screen.height}`,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
     }),
   });
   return data.data || null;
+}
+
+export async function associateVisitsWithUser(fingerprint, email, name, uid) {
+  if (!fingerprint) return;
+  try {
+    await apiFetch("/api/data/associate-visits", {
+      method: "POST",
+      body: JSON.stringify({ fingerprint, email, name, uid }),
+    });
+  } catch (e) {
+    console.warn("Could not associate visits:", e.message);
+  }
 }
 
 export async function processReferralFromUrl() {
@@ -567,6 +606,8 @@ export async function trackSiteVisit() {
     referrer: document.referrer || "", url: window.location.href || "",
     screen: `${window.screen?.width || "?"}x${window.screen?.height || "?"}`,
     viewport: `${window.innerWidth || "?"}x${window.innerHeight || "?"}`,
+    fingerprint: getDeviceFingerprint(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
   });
 }
 

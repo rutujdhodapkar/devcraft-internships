@@ -1924,9 +1924,6 @@ function EnrollmentCard({
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
               <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                <button className="btn-sharp" onClick={() => onVerifyInternship(enrollment)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
-                  Verify Internship
-                </button>
               {(domainButtons || []).filter((b) => b.showWhen === "before").map((btn, bi) => (
                 <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                   {btn.label}
@@ -1955,7 +1952,7 @@ function EnrollmentCard({
                     </button>
                   </div>
                 )}
-                {pTiming !== "start" && (
+                {pTiming !== "start" && allVerified && (
                   <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
                     <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
                       Unlock Completion Certificate

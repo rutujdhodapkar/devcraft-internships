@@ -55,6 +55,7 @@ import {
   fetchCoupons,
   saveCoupons,
   exportEnrollmentsCSV,
+  fetchEnrollments,
   fetchReferralLeaderboard,
   fetchProgressTimeline,
   fetchReceipt,
@@ -91,7 +92,6 @@ const TABS = [
   { id: "faq", label: "FAQ" },
   { id: "payment-settings", label: "Payment Settings" },
   { id: "user-types", label: "User Types" },
-  { id: "override-validate", label: "Override Validate" },
   { id: "html templates", label: "Templates" },
   { id: "referrals", label: "Referrals" },
   { id: "add referral", label: "+ Add Referral" },
@@ -232,7 +232,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [userTypes, setUserTypes] = useState([]);
   const [userTypesLoading, setUserTypesLoading] = useState(false);
   const [userTypesSaving, setUserTypesSaving] = useState(false);
-  const [overrideSearch, setOverrideSearch] = useState("");
+
 
   // Action loading states
   const [actionLoading, setActionLoading] = useState({});
@@ -3528,91 +3528,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           </div>
         )}
 
-        {/* ── 6. FAQ ── */}
-        {/* ── OVERRIDE VALIDATE TAB ── */}
-        {activeTab === "override-validate" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", margin: 0 }}>Override Validate</h3>
-            <p style={{ color: "#666", fontSize: "0.85rem" }}>All interns listed below. Use search to filter. Override-complete bypasses task/payment checks.</p>
-            <div>
-              <input type="text" placeholder="Search by name, intern ID, email, or domain..." value={overrideSearch} onChange={(e) => setOverrideSearch(e.target.value)} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "400px", maxWidth: "100%", boxSizing: "border-box" }} />
-            </div>
-            {dataLoading ? <div style={{ color: "#888" }}>Loading interns…</div> : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.83rem" }}>
-                  <thead>
-                    <tr style={{ background: "#000", color: "#fff", borderBottom: "2px solid #000" }}>
-                      <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 700 }}>Intern ID</th>
-                      <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 700 }}>Name</th>
-                      <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 700 }}>Email</th>
-                      <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 700 }}>Domain</th>
-                      <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Tasks</th>
-                          <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Payment</th>
-                          <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Certificate</th>
-                          <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Status</th>
-                          <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 700 }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.requests.filter((r) => {
-                      if (!overrideSearch.trim()) return true;
-                      const q = overrideSearch.trim().toLowerCase();
-                      return (r.name || "").toLowerCase().includes(q) || (r.internId || r.id || "").toLowerCase().includes(q) || (r.email || "").toLowerCase().includes(q) || (r.domain || "").toLowerCase().includes(q);
-                    }).map((row, i) => {
-                      const projs = getProjectsForEnrollment(row);
-                      const subs = getSubmissions(row);
-                      const verifiedCount = projs.filter((_, idx) => subs[idx]?.verified).length;
-                      const isPaid = row.paymentTiming === "both" ? row.paymentStage === "fully_paid" : row.paymentStatus === "paid";
-                      const canComplete = verifiedCount === projs.length && projs.length > 0 && isPaid;
-                      return (
-                        <tr key={row.id} style={{ borderBottom: "1px solid #e0e0e0", background: i % 2 === 0 ? "#fafafa" : "#fff" }}>
-                          <td style={{ padding: "0.5rem 0.75rem" }}><code style={{ fontSize: "0.75rem", fontWeight: 700 }}>{row.internId || row.id.slice(0, 8)}</code></td>
-                          <td style={{ padding: "0.5rem 0.75rem", fontWeight: 700 }}>{row.name}</td>
-                          <td style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem" }}>{row.email}</td>
-                          <td style={{ padding: "0.5rem 0.75rem" }}>{row.domain}</td>
-                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
-                            <span style={{ color: verifiedCount === projs.length && projs.length > 0 ? "#34A853" : "#EA4335", fontWeight: 700 }}>
-                              {verifiedCount}/{projs.length}
-                            </span>
-                          </td>
-                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
-                            <span style={{ color: isPaid ? "#34A853" : "#EA4335", fontWeight: 700 }}>
-                              {isPaid ? "Paid" : (row.paymentStage === "start_paid" ? "Partial" : "Not Paid")}
-                            </span>
-                            {row.paymentAmount ? <span style={{ marginLeft: "0.2rem", fontSize: "0.72rem" }}>₹{row.paymentAmount}</span> : null}
-                          </td>
-                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
-                            <span style={{ fontWeight: 700, fontSize: "0.72rem", color: row.allowedCertificate === "yes" ? "#34A853" : "#999" }}>
-                              {row.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}
-                            </span>
-                          </td>
-                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
-                            <span style={{ display: "inline-block", padding: "0.15rem 0.5rem", fontSize: "0.72rem", fontWeight: 800, background: row.status === "Completed" ? "#34A853" : "#FBBC05", color: "#fff" }}>{row.status}</span>
-                          </td>
-                          <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
-                            {canComplete ? (
-                              <span style={{ color: "#34A853", fontWeight: 700, fontSize: "0.78rem" }}>✓ Ready</span>
-                            ) : (
-                              <button onClick={() => {
-                                if (!window.confirm(`Override-complete "${row.name}" (${row.internId || row.id.slice(0, 8)})? This will force-complete regardless of task/payment status.`)) return;
-                                (async () => {
-                                  try { await overrideCompleteEnrollment(row.id, user?.email || "admin"); await loadData(); setSuccessMsg(`${row.name} override-completed!`); setTimeout(() => setSuccessMsg(""), 3000); } catch (err) { setError(err.message); }
-                                })();
-                              }} style={{ padding: "0.3rem 0.85rem", fontSize: "0.75rem", fontWeight: 800, border: "2px solid #9334E6", background: "#9334E6", color: "#fff", cursor: "pointer", borderRadius: 0 }}>
-                                Override Complete
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ── USER TYPES TAB ── */}
         {activeTab === "user-types" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -4574,6 +4489,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 empty="No general site visits yet."
                 columns={[
                   "visitedAt",
+                  "userName",
                   "name",
                   "email",
                   "referrer",
@@ -4583,7 +4499,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   "screen",
                   "viewport",
                 ]}
-                rows={data.siteVisits || []}
+                rows={(data.siteVisits || []).map((v) => ({ ...v, userName: v.userName || v.userEmail || "-" }))}
               />
             </div>
             <div>
@@ -4595,6 +4511,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 columns={[
                   "referralCode",
                   "matched",
+                  "userName",
                   "browser",
                   "device",
                   "os",
@@ -4607,7 +4524,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   "timezone",
                   "visitedAt",
                 ]}
-                rows={data.visits || []}
+                rows={(data.visits || []).map((v) => ({ ...v, userName: v.userName || v.userEmail || "-" }))}
               />
             </div>
           </div>
@@ -8681,7 +8598,7 @@ function SimpleTable({ columns, rows, empty }) {
           <tr style={{ background: "#000", color: "#fff" }}>
             {columns.map((c) => (
               <th key={c} style={th}>
-                {c === "selected" ? "Enrolled" : c}
+                {c === "selected" ? "Enrolled" : c === "userName" ? "User" : c}
               </th>
             ))}
           </tr>
@@ -8734,6 +8651,7 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
   const [rejecting, setRejecting] = useState({});
   const [overrideLoading, setOverrideLoading] = useState({});
   const [verifySearch, setVerifySearch] = useState("");
+  const [selectedIntern, setSelectedIntern] = useState(null);
 
   const getTier = (e) => {
     const projects = getProjectsForEnrollment(e);
@@ -8760,11 +8678,7 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
     const subs = getSubmissions(e);
     const allVerified = projects.every((_, i) => subs[i]?.verified);
     if (!allVerified) return { ready: false, reason: "Not all tasks verified" };
-    const isPaid = e.paymentTiming === "both" ? e.paymentStage === "fully_paid" : e.paymentStatus === "paid";
-    if (!isPaid) {
-      if (e.transactionId) return { ready: false, reason: "Transaction submitted, awaiting admin verification" };
-      return { ready: false, reason: "Payment not completed — no transaction ID submitted" };
-    }
+    if (!e.transactionId) return { ready: false, reason: "Payment not completed — no transaction ID submitted" };
     return { ready: true, reason: "" };
   };
 
@@ -8813,7 +8727,7 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
                   <div style={{ flex: 1, minWidth: "250px" }}>
                     <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#888", marginBottom: "0.15rem" }}>{enrollment.internId || enrollment.id}</div>
-                    <div style={{ fontWeight: 900, fontSize: "1.1rem" }}>{enrollment.name}</div>
+                    <div style={{ fontWeight: 900, fontSize: "1.1rem", cursor: "pointer", textDecoration: "underline", textDecorationColor: color.border }} onClick={() => setSelectedIntern(enrollment)}>{enrollment.name}</div>
                     <div style={{ fontSize: "0.82rem", color: "#555", marginTop: "0.25rem" }}>{enrollment.email} | {enrollment.domain} | {enrollment.college || "-"}</div>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem", alignItems: "flex-end", minWidth: "180px" }}>
@@ -8890,6 +8804,30 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
           })}
         </div>
       )}
+
+      {selectedIntern && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={() => setSelectedIntern(null)}>
+          <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", maxWidth: "500px", width: "90%", maxHeight: "80vh", overflowY: "auto", boxShadow: "8px 8px 0 #000" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
+              <h4 style={{ fontWeight: 900, textTransform: "uppercase", margin: 0 }}>{selectedIntern.name}</h4>
+              <button onClick={() => setSelectedIntern(null)} style={{ background: "none", border: "none", fontSize: "1.5rem", fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>&times;</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.88rem" }}>
+              <div><strong>Intern ID:</strong> <code>{selectedIntern.internId || selectedIntern.id}</code></div>
+              <div><strong>Email:</strong> {selectedIntern.email}</div>
+              <div><strong>Domain:</strong> {selectedIntern.domain}</div>
+              <div><strong>College:</strong> {selectedIntern.college || "-"}</div>
+              <div><strong>Status:</strong> {selectedIntern.status || "Active"}</div>
+              <div><strong>Payment:</strong> {selectedIntern.paymentTiming === "both" ? selectedIntern.paymentStage === "fully_paid" ? "Fully Paid" : selectedIntern.paymentStage === "start_paid" ? "Partially Paid" : "Not Paid" : selectedIntern.paymentStatus === "paid" ? "Paid" : "Not Paid"} {selectedIntern.paymentAmount ? <span>(₹{selectedIntern.paymentAmount})</span> : null}</div>
+              <div><strong>Transaction ID:</strong> <code>{selectedIntern.transactionId || "-"}</code></div>
+              <div><strong>Certificate:</strong> {selectedIntern.allowedCertificate === "yes" ? "Unlocked" : "Locked"}</div>
+              <div><strong>Tasks:</strong> {getProjectsForEnrollment(selectedIntern).length > 0 ? `${getProjectsForEnrollment(selectedIntern).filter((_, i) => getSubmissions(selectedIntern)[i]?.verified).length}/${getProjectsForEnrollment(selectedIntern).length} verified` : "None assigned"}</div>
+              <div><strong>Enrolled:</strong> {selectedIntern.createdAt ? new Date(selectedIntern.createdAt).toLocaleDateString() : "-"}</div>
+              {selectedIntern.referralCode && <div><strong>Referred by:</strong> {selectedIntern.referralCode}</div>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -8933,6 +8871,10 @@ function AuditLogSection() {
   const [loading, setLoading] = useState(true);
   useEffect(() => { fetchAuditLog().then(setLogs).catch(() => {}).finally(() => setLoading(false)); }, []);
   const filtered = logs.filter((l) => !filter || JSON.stringify(l).toLowerCase().includes(filter.toLowerCase()));
+  const formatTime = (entry) => {
+    const ts = entry.timestamp || entry.createdAt || entry.date;
+    return ts ? new Date(ts).toLocaleString() : "-";
+  };
   return (
     <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
       <input
@@ -8945,13 +8887,27 @@ function AuditLogSection() {
       ) : filtered.length === 0 ? (
         <div style={{ color: "#888", fontSize: "0.85rem" }}>No entries found.</div>
       ) : (
-        <div style={{ maxHeight: "60vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-          {filtered.map((entry, i) => (
-            <div key={i} style={{ display: "flex", gap: "0.75rem", padding: "0.5rem 0.75rem", background: i % 2 === 0 ? "#fafafa" : "#fff", border: "1px solid #eee", fontSize: "0.82rem" }}>
-              <span style={{ fontWeight: 700, whiteSpace: "nowrap", color: "#555", minWidth: "150px" }}>{entry.timestamp ? new Date(entry.timestamp).toLocaleString() : "-"}</span>
-              <span style={{ color: "#222" }}>{entry.action || entry.message || JSON.stringify(entry)}</span>
-            </div>
-          ))}
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+            <thead>
+              <tr style={{ background: "#000", color: "#fff", textTransform: "uppercase", fontSize: "0.72rem" }}>
+                <th style={{ padding: "0.45rem 0.6rem", textAlign: "left", border: "1px solid #000" }}>Time</th>
+                <th style={{ padding: "0.45rem 0.6rem", textAlign: "left", border: "1px solid #000" }}>Action</th>
+                <th style={{ padding: "0.45rem 0.6rem", textAlign: "left", border: "1px solid #000" }}>Admin / User</th>
+                <th style={{ padding: "0.45rem 0.6rem", textAlign: "left", border: "1px solid #000" }}>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((entry, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "#fff", borderBottom: "1px solid #eee" }}>
+                  <td style={{ padding: "0.4rem 0.6rem", whiteSpace: "nowrap", fontWeight: 700, color: "#555" }}>{formatTime(entry)}</td>
+                  <td style={{ padding: "0.4rem 0.6rem", fontWeight: 600 }}>{entry.action || "-"}</td>
+                  <td style={{ padding: "0.4rem 0.6rem" }}>{entry.admin || entry.email || entry.userId || "-"}</td>
+                  <td style={{ padding: "0.4rem 0.6rem", color: "#555" }}>{entry.message || entry.details || entry.description || entry.note || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -9008,12 +8964,23 @@ function ThemeSection() {
 /* ── Coupons ── */
 function CouponsSection() {
   const [coupons, setCoupons] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newCode, setNewCode] = useState("");
   const [newDiscount, setNewDiscount] = useState(10);
   const [newMaxUses, setNewMaxUses] = useState(1);
   const [newExpiry, setNewExpiry] = useState("");
-  useEffect(() => { fetchCoupons().then(setCoupons).catch(() => {}).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    Promise.all([fetchCoupons(), fetchEnrollments()]).then(([c, e]) => {
+      setCoupons(c);
+      setEnrollments(e);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  const getCouponStats = (code) => {
+    const applied = enrollments.filter((e) => e.couponCode === code || e.appliedCoupon?.code === code);
+    const paid = applied.filter((e) => e.paymentStatus === "paid" || e.paymentStage === "fully_paid");
+    return { applied: applied.length, paid: paid.length };
+  };
   const addCoupon = () => {
     if (!newCode.trim()) return alert("Enter a coupon code.");
     setCoupons([...coupons, { code: newCode.toUpperCase().trim(), discountPercent: Math.min(100, Math.max(0, Number(newDiscount))), maxUses: Number(newMaxUses), expiryDate: newExpiry, active: true, createdAt: new Date().toISOString() }]);
@@ -9043,13 +9010,17 @@ function CouponsSection() {
           <div style={{ padding: "1.5rem", color: "#888", textAlign: "center", fontSize: "0.85rem" }}>No coupons yet.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {coupons.map((c, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.6rem 1rem", borderBottom: "1px solid #eee", gap: "0.75rem", flexWrap: "wrap" }}>
-                <span style={{ fontWeight: 800, fontFamily: "monospace", fontSize: "0.9rem" }}>{c.code}</span>
-                <span style={{ fontSize: "0.82rem", color: "#555" }}>{c.discountPercent}% off | Max {c.maxUses} uses{c.expiryDate ? ` | Expires ${new Date(c.expiryDate).toLocaleDateString()}` : ""}</span>
-                <button onClick={() => toggleCoupon(i)} style={{ padding: "0.25rem 0.65rem", fontSize: "0.72rem", fontWeight: 700, border: "2px solid #000", background: c.active ? "#34A853" : "#EA4335", color: "#fff", cursor: "pointer", borderRadius: 0 }}>{c.active ? "Active" : "Inactive"}</button>
-              </div>
-            ))}
+            {coupons.map((c, i) => {
+              const stats = getCouponStats(c.code);
+              return (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.6rem 1rem", borderBottom: "1px solid #eee", gap: "0.75rem", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 800, fontFamily: "monospace", fontSize: "0.9rem" }}>{c.code}</span>
+                  <span style={{ fontSize: "0.82rem", color: "#555" }}>{c.discountPercent}% off | Max {c.maxUses} uses{c.expiryDate ? ` | Expires ${new Date(c.expiryDate).toLocaleDateString()}` : ""}{c.usedCount !== undefined ? ` | Used ${c.usedCount}x` : ""}</span>
+                  <span style={{ fontSize: "0.8rem", fontWeight: 700 }}>{stats.applied > 0 ? <span style={{ color: "#4285F4" }}>{stats.applied} applied</span> : null}{stats.paid > 0 ? <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>{stats.paid} paid</span> : stats.applied > 0 ? <span style={{ color: "#FBBC05", marginLeft: "0.5rem" }}>0 paid</span> : null}</span>
+                  <button onClick={() => toggleCoupon(i)} style={{ padding: "0.25rem 0.65rem", fontSize: "0.72rem", fontWeight: 700, border: "2px solid #000", background: c.active ? "#34A853" : "#EA4335", color: "#fff", cursor: "pointer", borderRadius: 0 }}>{c.active ? "Active" : "Inactive"}</button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

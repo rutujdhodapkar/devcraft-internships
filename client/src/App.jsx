@@ -27,6 +27,8 @@ import {
   fetchSelfReferralCode,
   checkUserBan,
   fetchAdminMessages,
+  associateVisitsWithUser,
+  getDeviceFingerprint,
 } from "./services/data";
 import {
   onGoogleAuthStateChanged,
@@ -177,6 +179,16 @@ export default function App() {
           recordReferralLogin(storedReferral, currentUser).catch((e) => {
             console.warn("Could not record referral login:", e.message);
           });
+        }
+
+        // Associate device fingerprint with this user for visit tracking
+        try {
+          const fp = getDeviceFingerprint();
+          if (fp) {
+            associateVisitsWithUser(fp, currentUser.email, currentUser.displayName, currentUser.uid);
+          }
+        } catch (e) {
+          console.warn("Could not associate visits:", e.message);
         }
 
         // Check if user has a self-created referral code
