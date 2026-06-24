@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { verifyInternship } from "../services/data";
 import GlassSurface from "./GlassSurface";
 import CircularText from "./CircularText";
-import GooeyNav from "./GooeyNav";
 
 export default function Navbar({
   onAdminClick,
@@ -17,7 +16,6 @@ export default function Navbar({
   hasReferralCode,
   onShowIdCard,
   onEarnClick,
-  currentView = "site",
 }) {
   const [verifyId, setVerifyId] = useState("");
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -26,41 +24,6 @@ export default function Navbar({
   const [verifyError, setVerifyError] = useState("");
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-
-  // Dynamic navigation items for GooeyNav
-  const menuItems = [
-    { label: "Home", href: "#", onClick: onHomeClick },
-    ...(user ? [{ label: "Dashboard", href: "#", onClick: onDashboardClick }] : []),
-    {
-      label: "Earn",
-      href: "#",
-      onClick: () => {
-        if (onEarnClick) {
-          onEarnClick();
-        } else {
-          const el = document.getElementById("earn");
-          if (el) el.scrollIntoView({ behavior: "smooth" });
-        }
-      },
-    },
-    { label: "About", href: "#", onClick: () => setShowAboutModal(true) },
-  ];
-
-  const [localActiveIndex, setLocalActiveIndex] = useState(0);
-
-  // Sync active index when currentView or user login state changes
-  useEffect(() => {
-    if (currentView === "dashboard") {
-      const dbIdx = menuItems.findIndex((item) => item.label === "Dashboard");
-      if (dbIdx !== -1) setLocalActiveIndex(dbIdx);
-    } else if (currentView === "site") {
-      setLocalActiveIndex(0);
-    }
-  }, [currentView, user]);
-
-  const handleActiveIndexChange = (idx) => {
-    setLocalActiveIndex(idx);
-  };
 
   const handleVerifySubmit = async (e) => {
     e.preventDefault();
@@ -106,12 +69,6 @@ export default function Navbar({
           color: var(--text-primary) !important;
           font-weight: 800 !important;
           text-transform: uppercase;
-        }
-        .brand-mark-btn {
-          transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-        }
-        .brand-mark-btn:hover {
-          transform: scale(1.06) rotate(-1.5deg);
         }
       `}</style>
       <nav
@@ -165,7 +122,7 @@ export default function Navbar({
                 className="brand-mark"
                 style={{
                   fontWeight: 900,
-                  fontSize: "1.7rem",
+                  fontSize: "1.65rem",
                   letterSpacing: "2px",
                 }}
               >
@@ -235,11 +192,64 @@ export default function Navbar({
                 whiteSpace: "nowrap",
               }}
             >
-              <GooeyNav
-                items={menuItems}
-                activeIndex={localActiveIndex}
-                onActiveIndexChange={handleActiveIndexChange}
-              />
+              <button
+                onClick={onHomeClick}
+                className="nav-link nav-btn-link"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                Home
+              </button>
+
+              {user && (
+                <button
+                  onClick={onDashboardClick}
+                  className="nav-link nav-btn-link"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  Dashboard
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (onEarnClick) {
+                    onEarnClick();
+                  } else {
+                    const el = document.getElementById("earn");
+                    if (el) el.scrollIntoView({ behavior: "smooth" });
+                  }
+                }}
+                className="nav-link nav-btn-link"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                Earn
+              </button>
+              <button
+                onClick={() => setShowAboutModal(true)}
+                className="nav-link nav-btn-link"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                About
+              </button>
 
               <button
                 onClick={() => setShowVerifyModal(true)}

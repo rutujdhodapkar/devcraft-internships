@@ -414,13 +414,19 @@ export default function StudentDashboard({
 
   // ── Render ──────────────────────────────────────────────────────────────
   return (
-    <section
-      style={{
-        backgroundColor: "#f8f8f8",
-        minHeight: "calc(100vh - 70px)",
-        padding: "3rem 1rem 5rem",
-      }}
-    >
+    <>
+      <style>{`
+        body {
+          background-color: #f8f8f8 !important;
+        }
+      `}</style>
+      <section
+        style={{
+          backgroundColor: "#f8f8f8",
+          minHeight: "calc(100vh - 70px)",
+          padding: "3rem 1rem 5rem",
+        }}
+      >
       <div style={{ maxWidth: "860px", margin: "0 auto" }}>
         {/* Header */}
         <div style={{ marginBottom: "2.5rem" }}>
@@ -1523,6 +1529,7 @@ export default function StudentDashboard({
       )}
       {verifyEnrollment && <VerifyModal enrollment={verifyEnrollment} onClose={() => setVerifyEnrollment(null)} />}
     </section>
+    </>
   );
 }
 

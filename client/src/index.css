@@ -80,10 +80,13 @@ a {
 .nav-link {
   font-family: 'Space Grotesk', sans-serif;
   text-transform: uppercase;
-  font-size: 0.875rem;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   position: relative;
   padding: 0.25rem 0;
-  transition: color 0.2s ease;
+  transition: color 0.25s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: inline-block;
 }
 
 .nav-button-link {
@@ -117,10 +120,27 @@ a {
 }
 
 .brand-mark {
-  font-size: 1.5rem;
-  font-weight: 800;
+  font-size: 1.65rem;
+  font-weight: 900;
   font-family: 'Space Grotesk', sans-serif;
   white-space: nowrap;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: inline-block;
+}
+.brand-mark:hover {
+  transform: scale(1.08) rotate(-1deg);
+  background: linear-gradient(
+    90deg,
+    var(--text-primary) 0%,
+    #ff3e3e 25%,
+    #3b82f6 50%,
+    #ff3e3e 75%,
+    var(--text-primary) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shineSweep 1.5s linear infinite;
 }
 
 .nav-items {
@@ -194,6 +214,27 @@ a {
 .nav-link:hover::after {
   transform: scaleX(1);
   transform-origin: bottom left;
+}
+
+@keyframes shineSweep {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.nav-link:hover {
+  transform: translateY(-3px) scale(1.05);
+  background: linear-gradient(
+    90deg,
+    var(--text-primary) 0%,
+    #ff3e3e 25%,
+    #3b82f6 50%,
+    #ff3e3e 75%,
+    var(--text-primary) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shineSweep 1.5s linear infinite;
 }
 
 /* Sharp UI Design System Components */
