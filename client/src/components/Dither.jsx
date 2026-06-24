@@ -177,7 +177,7 @@ function DitheredWaves({
   mouseRadius
 }) {
   const mesh = useRef(null);
-  const mouseRef = useRef(new THREE.Vector2(-9999, -9999));
+  const mouseRef = useRef(new THREE.Vector2());
   const { viewport, size, gl } = useThree();
 
   const waveUniformsRef = useRef({
@@ -204,15 +204,16 @@ function DitheredWaves({
 
   useEffect(() => {
     if (!enableMouseInteraction) return;
-    const handleMouseMove = (e) => {
+    const handleMove = (e) => {
       const rect = gl.domElement.getBoundingClientRect();
       const dpr = gl.getPixelRatio();
-      mouseRef.current.set((e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
+      mouseRef.current.set(
+        (e.clientX - rect.left) * dpr,
+        (e.clientY - rect.top) * dpr
+      );
     };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
+    window.addEventListener("mousemove", handleMove);
+    return () => window.removeEventListener("mousemove", handleMove);
   }, [enableMouseInteraction, gl]);
 
   const prevColor = useRef([...waveColor]);

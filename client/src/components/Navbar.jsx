@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { verifyInternship } from "../services/data";
 import GlassSurface from "./GlassSurface";
 import CircularText from "./CircularText";
@@ -24,13 +24,6 @@ export default function Navbar({
   const [verifyError, setVerifyError] = useState("");
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 30);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   const handleVerifySubmit = async (e) => {
     e.preventDefault();
@@ -77,38 +70,6 @@ export default function Navbar({
           font-weight: 800 !important;
           text-transform: uppercase;
         }
-        @keyframes navItemIn {
-          from { opacity: 0; transform: translateY(-8px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes logoPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(0,0,0,0); }
-          50%       { box-shadow: 0 0 18px 4px rgba(0,0,0,0.10); }
-        }
-        @keyframes verifyShimmer {
-          0%   { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        .nav-item-animated {
-          opacity: 0;
-          animation: navItemIn 0.45s cubic-bezier(0.16,1,0.3,1) forwards;
-        }
-        .nav-logo-pill {
-          animation: logoPulse 3s ease-in-out infinite;
-        }
-        .nav-verify-shimmer {
-          position: relative;
-          overflow: hidden;
-        }
-        .nav-verify-shimmer::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%);
-          background-size: 200% 100%;
-          animation: verifyShimmer 2.2s linear infinite;
-          pointer-events: none;
-        }
       `}</style>
       <nav
         className="site-nav"
@@ -138,15 +99,11 @@ export default function Navbar({
             borderRadius={12}
             distortionScale={-80}
             brightness={60}
-            opacity={scrolled ? 0.98 : 0.85}
-            blur={scrolled ? 14 : 8}
-            backgroundOpacity={scrolled ? 0.12 : 0.05}
+            opacity={0.85}
+            blur={8}
+            backgroundOpacity={0.05}
             saturation={1.2}
-            className="nav-logo-pill"
-            style={{
-              padding: "0 1.25rem",
-              transition: "opacity 0.3s ease, box-shadow 0.3s ease",
-            }}
+            style={{ padding: "0 1.25rem" }}
           >
             <button
               onClick={onHomeClick}
@@ -217,15 +174,12 @@ export default function Navbar({
             borderRadius={12}
             distortionScale={-80}
             brightness={60}
-            opacity={scrolled ? 0.98 : 0.85}
-            blur={scrolled ? 14 : 8}
-            backgroundOpacity={scrolled ? 0.12 : 0.05}
+            opacity={0.85}
+            blur={8}
+            backgroundOpacity={0.05}
             saturation={1.2}
             className="nav-glass-wrap"
-            style={{
-              padding: "0 0.5rem",
-              transition: "opacity 0.3s ease, box-shadow 0.3s ease",
-            }}
+            style={{ padding: "0 0.5rem" }}
           >
             <div
               className="nav-items"
@@ -240,13 +194,12 @@ export default function Navbar({
             >
               <button
                 onClick={onHomeClick}
-                className="nav-link nav-btn-link nav-item-animated"
+                className="nav-link nav-btn-link"
                 style={{
                   background: "none",
                   border: "none",
                   cursor: "pointer",
                   fontWeight: 600,
-                  animationDelay: "0.05s",
                 }}
               >
                 Home
@@ -255,13 +208,12 @@ export default function Navbar({
               {user && (
                 <button
                   onClick={onDashboardClick}
-                  className="nav-link nav-btn-link nav-item-animated"
+                  className="nav-link nav-btn-link"
                   style={{
                     background: "none",
                     border: "none",
                     cursor: "pointer",
                     fontWeight: 600,
-                    animationDelay: "0.12s",
                   }}
                 >
                   Dashboard
@@ -276,26 +228,24 @@ export default function Navbar({
                     if (el) el.scrollIntoView({ behavior: "smooth" });
                   }
                 }}
-                className="nav-link nav-btn-link nav-item-animated"
+                className="nav-link nav-btn-link"
                 style={{
                   background: "none",
                   border: "none",
                   cursor: "pointer",
                   fontWeight: 600,
-                  animationDelay: "0.19s",
                 }}
               >
                 Earn
               </button>
               <button
                 onClick={() => setShowAboutModal(true)}
-                className="nav-link nav-btn-link nav-item-animated"
+                className="nav-link nav-btn-link"
                 style={{
                   background: "none",
                   border: "none",
                   cursor: "pointer",
                   fontWeight: 600,
-                  animationDelay: "0.26s",
                 }}
               >
                 About
@@ -303,12 +253,11 @@ export default function Navbar({
 
               <button
                 onClick={() => setShowVerifyModal(true)}
-                className="btn-sharp-outline nav-verify-btn nav-verify-shimmer nav-item-animated"
+                className="btn-sharp-outline nav-verify-btn"
                 style={{
                   fontWeight: 700,
                   padding: "0.4rem 1rem",
                   fontSize: "0.85rem",
-                  animationDelay: "0.33s",
                 }}
               >
                 Verify Internship
