@@ -60,6 +60,8 @@ import {
   fetchProgressTimeline,
   fetchReceipt,
   updatePaymentStatus,
+  fetchHeaderSettings,
+  saveHeaderSettings,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -7193,7 +7195,12 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
         {activeTab === "dashboard" && <DashboardSection data={data} />}
         {activeTab === "audit-log" && <AuditLogSection />}
-        {activeTab === "theme" && <ThemeSection />}
+        {activeTab === "theme" && (
+          <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", alignItems: "flex-start" }}>
+            <ThemeSection />
+            <HeaderSettingsSection />
+          </div>
+        )}
         {activeTab === "coupons" && <CouponsSection />}
         {activeTab === "csv-export" && <CSVExportSection />}
         {activeTab === "referral-leaderboard" && <ReferralLeaderboardSection />}
@@ -9111,6 +9118,73 @@ function ThemeSection() {
         ))}
       </div>
       <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ width: "100%", marginTop: "1.25rem" }}>{saving ? "Saving..." : "Save Theme"}</button>
+    </div>
+  );
+}
+
+/* ── Header Settings ── */
+function HeaderSettingsSection() {
+  const [settings, setSettings] = useState({ animation: "slide-down", effect: "solid" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchHeaderSettings()
+      .then((s) => { if (s) setSettings(s); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await saveHeaderSettings(settings);
+      alert("Header settings saved! Please reload the page to see changes.");
+    } catch (err) {
+      alert("Failed to save header settings: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div style={{ color: "#888" }}>Loading header settings...</div>;
+
+  return (
+    <div style={{ border: "2px solid #000", padding: "1.75rem", boxShadow: "4px 4px 0 #000", maxWidth: "480px", width: "100%", boxSizing: "border-box", background: "#fff" }}>
+      <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.2rem", marginTop: 0, marginBottom: "1.25rem", borderBottom: "2px solid #000", paddingBottom: "0.5rem" }}>Header Settings</h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div>
+          <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Header Animation</label>
+          <select
+            value={settings.animation}
+            onChange={(e) => setSettings({ ...settings, animation: e.target.value })}
+            style={{ width: "100%", border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}
+          >
+            <option value="slide-down">Slide Down (Smooth)</option>
+            <option value="fade-in">Fade In</option>
+            <option value="scale-up">Scale Up</option>
+            <option value="blur-reveal">Blur Reveal</option>
+            <option value="none">No Animation</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Header Visual Effect</label>
+          <select
+            value={settings.effect}
+            onChange={(e) => setSettings({ ...settings, effect: e.target.value })}
+            style={{ width: "100%", border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer" }}
+          >
+            <option value="solid">Solid Box</option>
+            <option value="glass-subtle">Subtle Glass (SVG Distortion)</option>
+            <option value="glass-distorted">Heavy Distorted Glass</option>
+            <option value="glass-frost">Frosted Glass</option>
+            <option value="glass-chromatic">Chromatic Aberration Glass</option>
+          </select>
+        </div>
+      </div>
+      <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ width: "100%", marginTop: "1.25rem" }}>
+        {saving ? "Saving..." : "Save Header Settings"}
+      </button>
     </div>
   );
 }
