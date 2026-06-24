@@ -273,15 +273,35 @@ export async function verifyInternship(enrollmentId) {
 }
 
 export async function submitProject(enrollmentId, projectIndex, submissionText, submissionUrl = "") {
-  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { text: submissionText, url: submissionUrl, submittedAt: new Date().toISOString(), verified: false });
+  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, {
+    text: submissionText,
+    url: submissionUrl,
+    submittedAt: new Date().toISOString(),
+    verified: false,
+    rejected: false,
+    resubmit: false
+  });
 }
 
 export async function submitQuizAnswer(enrollmentId, projectIndex, answers, project) {
-  await dbPut(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { answers, project, submittedAt: new Date().toISOString(), verified: false, type: "quiz" });
+  await dbPut(`enrollments/${enrollmentId}/submissions/${projectIndex}`, {
+    answers,
+    project,
+    submittedAt: new Date().toISOString(),
+    verified: false,
+    type: "quiz",
+    rejected: false,
+    resubmit: false
+  });
 }
 
 export async function verifyProject(enrollmentId, projectIndex) {
-  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: true, verifiedAt: new Date().toISOString(), rejected: false });
+  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, {
+    verified: true,
+    verifiedAt: new Date().toISOString(),
+    rejected: false,
+    resubmit: false
+  });
 }
 
 export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) {
