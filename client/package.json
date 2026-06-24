@@ -12,10 +12,12 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "@react-three/postprocessing": "^3.0.4",
     "dodopayments-checkout": "^1.9.4",
     "firebase": "^12.15.0",
     "firebase-admin": "^14.0.0",
     "meshline": "^3.3.1",
+    "postprocessing": "^6.39.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "three": "^0.184.0"

@@ -2,6 +2,7 @@
   "name": "freelancing-platform-root",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "server": "npm start --prefix server",
     "client": "npm run dev --prefix client",

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchHomepageContent } from '../services/data';
+import Dither from './Dither';
 
 export default function Hero({ onApplyClick, onExploreClick }) {
   const [content, setContent] = useState(null);
@@ -19,8 +20,19 @@ export default function Hero({ onApplyClick, onExploreClick }) {
   };
 
   return (
-    <header className="section-padding hero-section" style={{ borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '6rem 0 5rem' }}>
-      <div className="container">
+    <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '6rem 0 5rem' }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
+        <Dither
+          waveColor={[0, 0, 0]}
+          colorNum={2}
+          pixelSize={4}
+          waveAmplitude={0.12}
+          waveFrequency={2}
+          waveSpeed={0.03}
+          mouseRadius={0.3}
+        />
+      </div>
+      <div className="container" style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ maxWidth: '950px', margin: '0 auto', textAlign: 'center' }}>
           {/* Badge Taglines */}
           {badges.length > 0 && (

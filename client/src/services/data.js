@@ -109,26 +109,13 @@ export async function fetchCareerPaths() {
 }
 
 export async function saveCareerPaths(paths, categories) {
-  const now = new Date().toISOString();
-  const obj = {};
-  paths.forEach((item, idx) => {
-    const id = (item.id || `DEV-CRAFT-${String(idx + 1).padStart(3, '0')}`).toUpperCase();
-    obj[id] = { ...item, id, updatedAt: now };
+  const body = { paths: paths || [] };
+  if (categories) body.categories = categories;
+  await apiFetch("/api/data/career-paths", {
+    method: "POST",
+    body: JSON.stringify(body),
   });
-  await dbPut("careerPaths", obj);
-  if (categories) await dbPut("siteConfig/domainCategories", { value: categories, updatedAt: now });
-  // Also sync domain payment overrides to paymentSettings
-  const psData = await dbGet("siteConfig/paymentSettings");
-  const ps = psData?.value || { defaultAmount: 200, defaultAmountReferral: 170, defaultTiming: "end" };
-  const domainOverrides = paths.filter(p => p.paymentAmount || p.paymentTiming).map(p => ({
-    domain: p.title,
-    amount: p.paymentAmount || null,
-    amountReferral: p.paymentAmountReferral || null,
-    timing: p.paymentTiming || "",
-  }));
-  ps.domains = domainOverrides;
-  await dbPut("siteConfig/paymentSettings", { value: ps, updatedAt: now });
-  return { paths, categories };
+  return paths;
 }
 
 // How It Works
@@ -198,8 +185,11 @@ export async function fetchUserProfile(uid) {
 }
 
 export async function saveUserProfile(uid, profile) {
-  const data = await dbPatch(`users/${uid}`, { ...profile, updatedAt: new Date().toISOString() });
-  return { ...profile, uid };
+  const data = await apiFetch(`/api/data/users/${uid}`, {
+    method: "POST",
+    body: JSON.stringify({ profile }),
+  });
+  return data;
 }
 
 // Enrollment
@@ -299,7 +289,7 @@ export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) 
 }
 
 export async function rejectProject(enrollmentId, projectIndex, feedback) {
-  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: false, rejected: true, feedback, rejectedAt: new Date().toISOString() });
+  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: false, rejected: true, resubmit: true, feedback, rejectedAt: new Date().toISOString() });
 }
 
 export async function fetchEnrollmentById(enrollmentId) {
@@ -425,22 +415,24 @@ export async function fetchAdmins() {
 }
 
 export async function addAdmin(email) {
-  const cleanEmail = email.toLowerCase().trim();
-  const emailId = cleanEmail.replace(/\./g, ",");
-  await dbPut(`admins/${emailId}`, { email: cleanEmail, createdAt: new Date().toISOString() });
+  await apiFetch("/api/data/admins", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
 }
 
 export async function removeAdmin(email) {
-  await dbDelete(`admins/${email.toLowerCase().trim().replace(/\./g, ",")}`);
+  const cleanEmail = email.toLowerCase().trim();
+  await apiFetch(`/api/data/admins/${encodeURIComponent(cleanEmail)}`, {
+    method: "DELETE",
+  });
 }
 
 export async function createSelfReferral(details, uid) {
-  const code = (details.code || `REF-${String(uid).slice(-6).toUpperCase()}-${Date.now().toString(36).slice(-4).toUpperCase()}`).toUpperCase();
-  const now = new Date().toISOString();
-  await dbPut(`referrals/${code}`, { id: code, code, ...details, uid, selfCreated: true, createdAt: now, updatedAt: now });
-  await dbPut(`selfReferralOwners/${uid}`, { uid, code, createdAt: now });
-  await dbPatch(`users/${uid}`, { selfReferralCode: code, updatedAt: now });
-  return { code };
+  return apiFetch("/api/data/self-referrals", {
+    method: "POST",
+    body: JSON.stringify({ uid, details }),
+  });
 }
 
 export async function fetchSelfReferralCode(uid) {
@@ -505,7 +497,10 @@ export async function fetchAdminReferralUsersWithInterns() {
 
 export async function savePermanentReferralCode(uid, code) {
   if (!uid || !code) return null;
-  await dbPatch(`users/${uid}`, { permanentReferralCode: code.toUpperCase().trim(), permanentReferralDetectedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+  await apiFetch(`/api/data/users/${uid}/permanent-referral`, {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
   return { code: code.toUpperCase().trim() };
 }
 

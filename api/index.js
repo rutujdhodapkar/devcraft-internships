@@ -375,9 +375,19 @@ async function handleData(req, res, routeParts) {
       const categories = (await getDoc(db, "siteConfig", "domainCategories", null))?.value || [];
       return send(res, 200, { success: true, data: { paths, categories } });
     }
-    await replaceKeyedCollection(db, "careerPaths", req.body.paths || [], "path");
+    const paths = req.body.paths || [];
+    await replaceKeyedCollection(db, "careerPaths", paths, "path");
     if (req.body.categories) await setDoc(db, "siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
-    return send(res, 200, { success: true, data: { paths: req.body.paths || [], categories: req.body.categories || [] } });
+    const ps = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || { defaultAmount: 200, defaultAmountReferral: 170, defaultTiming: "end" };
+    const domainOverrides = paths.filter(p => p.paymentAmount || p.paymentTiming).map(p => ({
+      domain: p.title,
+      amount: p.paymentAmount || null,
+      amountReferral: p.paymentAmountReferral || null,
+      timing: p.paymentTiming || null,
+    }));
+    ps.domains = domainOverrides;
+    await setDoc(db, "siteConfig", "paymentSettings", { value: ps, updatedAt: now() });
+    return send(res, 200, { success: true, data: { paths, categories: req.body.categories || [] } });
   }
   if (resource === "how-it-works") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "howItWorks")).sort((a, b) => (a.step || 0) - (b.step || 0)) });
@@ -632,12 +642,23 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
   if (sub === "projects") {
     const projectIndex = Number(extra);
     const base = `submissions.${projectIndex}`;
-    if (extra2 === "submit") Object.assign(patch, { [base]: { text: req.body.submissionText || "", url: req.body.submissionUrl || "", submittedAt: now(), verified: false } });
-    if (extra2 === "quiz") Object.assign(patch, { [base]: { answers: req.body.answers || {}, project: req.body.project || null, submittedAt: now(), verified: false, type: "quiz" } });
+    if (extra2 === "submit" || extra2 === "quiz") {
+      const snap = await db.collection("enrollments").doc(id).get();
+      const enr = snap.data();
+      const existingSub = enr?.submissions?.[projectIndex];
+      if (existingSub?.submittedAt && !existingSub?.resubmit) {
+        return send(res, 400, { success: false, message: "This task has already been submitted. Only resubmit after admin requests revision." });
+      }
+      if (existingSub?.verified) {
+        return send(res, 400, { success: false, message: "This task is already verified and cannot be resubmitted." });
+      }
+    }
+    if (extra2 === "submit") Object.assign(patch, { [base]: { text: req.body.submissionText || "", url: req.body.submissionUrl || "", submittedAt: now(), verified: false, rejected: false, resubmit: false } });
+    if (extra2 === "quiz") Object.assign(patch, { [base]: { answers: req.body.answers || {}, project: req.body.project || null, submittedAt: now(), verified: false, rejected: false, resubmit: false, type: "quiz" } });
     if (extra2 === "verify") Object.assign(patch, { [`${base}.verified`]: true, [`${base}.verifiedAt`]: now(), [`${base}.rejected`]: false, [`${base}.aiVerified`]: req.body.aiVerified || false });
     if (extra2 === "unverify") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.verifiedAt`]: null, [`${base}.aiVerified`]: false });
     if (extra2 === "feedback") Object.assign(patch, { [`${base}.feedback`]: req.body.feedback || "" });
-    if (extra2 === "reject") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.rejected`]: true, [`${base}.feedback`]: req.body.feedback || "", [`${base}.rejectedAt`]: now() });
+    if (extra2 === "reject") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.rejected`]: true, [`${base}.resubmit`]: true, [`${base}.feedback`]: req.body.feedback || "", [`${base}.rejectedAt`]: now() });
   }
   await db.collection("enrollments").doc(id).update(patch);
   if (extra2 === "verify") {

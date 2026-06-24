@@ -3,6 +3,7 @@ import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import apiHandler from '../api/index.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -710,6 +711,8 @@ app.get('/api/data/audit-log', async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 });
+
+app.all('/api/*', apiHandler);
 
 app.listen(PORT, () => {
   console.log(`Server is running on http://localhost:${PORT}`);

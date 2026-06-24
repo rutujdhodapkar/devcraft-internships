@@ -2187,7 +2187,7 @@ function ProjectBox({
             ✓ VERIFIED
           </span>
         )}
-        {isSubmitted && isQuiz && !isVerified && (
+        {isSubmitted && isQuiz && !isVerified && !sub?.resubmit && (
           <span
             style={{
               background: "#FBBC05",
@@ -2217,7 +2217,7 @@ function ProjectBox({
             ✓ VERIFIED
           </span>
         )}
-        {!isVerified && isSubmitted && !isQuiz && (
+        {!isVerified && isSubmitted && !isQuiz && !sub?.resubmit && (
           <span
             style={{
               background: "#FBBC05",
@@ -2230,6 +2230,21 @@ function ProjectBox({
             }}
           >
             ⏳ SUBMITTED
+          </span>
+        )}
+        {sub?.resubmit && !isVerified && (
+          <span
+            style={{
+              background: "#EA4335",
+              color: "#fff",
+              fontSize: "0.68rem",
+              fontWeight: 900,
+              letterSpacing: "1px",
+              padding: "0.2rem 0.6rem",
+              textTransform: "uppercase",
+            }}
+          >
+            ✏️ REVISION
           </span>
         )}
         {!isSubmitted && !disabled && !isQuiz && (
@@ -2264,8 +2279,8 @@ function ProjectBox({
         )}
       </div>
 
-      {/* Submitted view (read-only) */}
-      {isSubmitted ? (
+      {/* Submitted view (read-only) — skip if resubmit requested */}
+      {isSubmitted && !sub?.resubmit ? (
         <div>
           <div
             style={{
@@ -2364,7 +2379,7 @@ function ProjectBox({
       ) : (
         /* Submit form */
         <div>
-          {!isVerified && !isSubmitted && sub?.resubmit && !isQuiz && (
+          {sub?.resubmit && !isVerified && (
             <div
               style={{
                 marginBottom: "1rem",
@@ -2377,17 +2392,12 @@ function ProjectBox({
                 lineHeight: "1.5",
               }}
             >
-              <strong
-                style={{
-                  textTransform: "uppercase",
-                  display: "block",
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Revision Requested by Admin
-              </strong>
-              {sub.feedback ||
-                "Please update your submission and submit again."}
+              <strong>✏️ Revision Requested by Admin</strong>
+              {sub?.feedback && (
+                <div style={{ marginTop: "0.35rem", fontStyle: "italic" }}>
+                  Feedback: {sub.feedback}
+                </div>
+              )}
             </div>
           )}
           {isQuiz ? (
