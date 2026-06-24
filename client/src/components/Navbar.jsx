@@ -89,6 +89,8 @@ export default function Navbar({
             justifyContent: "space-between",
             alignItems: "center",
             height: "70px",
+            flexWrap: "nowrap",
+            overflow: "hidden",
             pointerEvents: "auto",
           }}
         >
@@ -185,8 +187,10 @@ export default function Navbar({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "1.5rem",
-                padding: "0 0.75rem",
+                gap: "0.75rem",
+                padding: "0 0.5rem",
+                flexWrap: "nowrap",
+                whiteSpace: "nowrap",
               }}
             >
               <button
@@ -403,68 +407,51 @@ export default function Navbar({
           className="mobile-floating-menu"
           style={{
             position: "fixed",
-            top: "70px",
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.3)",
-            backdropFilter: "blur(2px)",
-            zIndex: 99,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "flex-start",
-            paddingTop: "1rem",
+            top: "80px",
+            left: "1rem",
+            right: "1rem",
+            bottom: "auto",
+            zIndex: 1001,
           }}
           onClick={() => setShowMobileMenu(false)}
         >
-          <GlassSurface
-            width="90%"
-            height="auto"
-            borderRadius={16}
-            borderWidth={0.07}
-            brightness={60}
-            opacity={0.85}
-            blur={10}
-            backgroundOpacity={0.08}
-            saturation={1.2}
-            distortionScale={-80}
-            className="mobile-menu-glass"
+          <div
+            onClick={(e) => e.stopPropagation()}
             style={{
-              boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+              background: "rgba(255,255,255,0.75)",
+              backdropFilter: "blur(20px) saturate(1.8)",
+              WebkitBackdropFilter: "blur(20px) saturate(1.8)",
+              borderRadius: "16px",
+              border: "1px solid rgba(255,255,255,0.5)",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.08)",
+              padding: "0.75rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.25rem",
             }}
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                width: "100%",
-                padding: "1rem",
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.5rem",
-              }}
             >
               <button
                 onClick={() => { onHomeClick(); setShowMobileMenu(false); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.5rem", borderBottom: "1px solid rgba(0, 0, 0, 0.08)", color: "var(--text-primary)" }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
               >Home</button>
 
               {user && (
                 <button
                   onClick={() => { onDashboardClick(); setShowMobileMenu(false); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.5rem", borderBottom: "1px solid rgba(0, 0, 0, 0.08)", color: "var(--text-primary)" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
                 >Dashboard</button>
               )}
               <button
                 onClick={() => { onEarnClick ? onEarnClick() : document.getElementById("earn")?.scrollIntoView({ behavior: "smooth" }); setShowMobileMenu(false); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.5rem", borderBottom: "1px solid rgba(0, 0, 0, 0.08)", color: "var(--text-primary)" }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
               >Earn</button>
               <button
                 onClick={() => { setShowAboutModal(true); setShowMobileMenu(false); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.5rem", borderBottom: "1px solid rgba(0, 0, 0, 0.08)", color: "var(--text-primary)" }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
               >About</button>
               <button
                 onClick={() => { setShowVerifyModal(true); setShowMobileMenu(false); }}
-                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.5rem", borderBottom: "1px solid rgba(0, 0, 0, 0.08)", color: "var(--text-primary)" }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
               >Verify Internship</button>
 
               {!authLoading && user && (
@@ -472,29 +459,28 @@ export default function Navbar({
                   {isAdmin && (
                     <button
                       onClick={() => { onAdminClick(); setShowMobileMenu(false); }}
-                      style={{ background: "#000", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.5rem", color: "#fff", marginTop: "0.25rem" }}
+                      style={{ background: "#000", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", color: "#fff", marginTop: "0.25rem" }}
                     >Admin Panel</button>
                   )}
                   <button
                     onClick={() => { onShowIdCard(); setShowMobileMenu(false); }}
-                    style={{ background: "none", border: "2px solid var(--border-primary)", cursor: "pointer", fontWeight: 700, fontSize: "0.9rem", textAlign: "center", padding: "0.5rem", marginTop: "0.25rem", color: "var(--text-primary)" }}
+                    style={{ background: "none", border: "1.5px solid var(--border-primary)", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "0.9rem", textAlign: "center", padding: "0.5rem 0.75rem", marginTop: "0.25rem", color: "var(--text-primary)" }}
                   >ID Card</button>
                   <button
                     onClick={() => { onLogout(); setShowMobileMenu(false); }}
-                    style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.5rem", color: "#EA4335" }}
+                    style={{ background: "none", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", color: "#EA4335" }}
                   >Logout</button>
                 </>
               )}
               {!authLoading && !user && (
                 <button
                   onClick={() => { onLoginClick(); setShowMobileMenu(false); }}
-                  style={{ background: "#000", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.5rem", color: "#fff", marginTop: "0.25rem" }}
+                  style={{ background: "#000", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", color: "#fff", marginTop: "0.25rem" }}
                 >Google Login</button>
               )}
             </div>
-          </GlassSurface>
-        </div>
-      )}
+          </div>
+        )}
 
       {/* Verify Internship Modal */}
       {showVerifyModal && (
