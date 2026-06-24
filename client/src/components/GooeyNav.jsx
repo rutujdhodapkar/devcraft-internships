@@ -9,13 +9,17 @@ const GooeyNav = ({
   particleR = 100,
   timeVariance = 300,
   colors = [1, 2, 3, 1, 2, 3, 1, 4],
+  activeIndex: externalActiveIndex,
+  onActiveIndexChange,
   initialActiveIndex = 0
 }) => {
   const containerRef = useRef(null);
   const navRef = useRef(null);
   const filterRef = useRef(null);
   const textRef = useRef(null);
-  const [activeIndex, setActiveIndex] = useState(initialActiveIndex);
+  const [internalActiveIndex, setInternalActiveIndex] = useState(initialActiveIndex);
+  
+  const activeIndex = externalActiveIndex !== undefined ? externalActiveIndex : internalActiveIndex;
 
   const noise = (n = 1) => n / 2 - Math.random() * n;
 
@@ -57,7 +61,8 @@ const GooeyNav = ({
         particle.style.setProperty('--end-y', `${p.end[1]}px`);
         particle.style.setProperty('--time', `${p.time}ms`);
         particle.style.setProperty('--scale', `${p.scale}`);
-        particle.style.setProperty('--color', `var(--color-${p.color}, white)`);
+        // Use our theme variable for the gooey particle color so it fits perfectly on light/dark mode
+        particle.style.setProperty('--color', 'var(--gooey-color-filter, #000)');
         particle.style.setProperty('--rotate', `${p.rotate}deg`);
 
         point.classList.add('point');
@@ -97,7 +102,10 @@ const GooeyNav = ({
     const liEl = e.currentTarget;
     if (activeIndex === index) return;
 
-    setActiveIndex(index);
+    if (externalActiveIndex === undefined) {
+      setInternalActiveIndex(index);
+    }
+    onActiveIndexChange?.(index);
     updateEffectPosition(liEl);
 
     if (filterRef.current) {
@@ -143,7 +151,7 @@ const GooeyNav = ({
 
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
-  }, [activeIndex]);
+  }, [activeIndex, items]);
 
   return (
     <div className="gooey-nav-container" ref={containerRef}>

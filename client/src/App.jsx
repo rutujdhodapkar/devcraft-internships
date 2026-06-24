@@ -634,6 +634,7 @@ export default function App() {
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => setShowEarnModal(true)}
+              currentView={currentView}
             />
             <StudentDashboard
               user={user}
@@ -672,6 +673,7 @@ export default function App() {
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => setShowEarnModal(true)}
+              currentView={currentView}
             />
             <StudentDashboard
               user={user}
@@ -726,6 +728,7 @@ export default function App() {
                 const el = document.getElementById("earn");
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
+              currentView={currentView}
             />
             <Hero
               onApplyClick={() => {
