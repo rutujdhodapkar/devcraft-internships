@@ -615,9 +615,10 @@ export default function App() {
             onBackToSite={() => setCurrentView("site")}
           />
         );
+
       case "dashboard":
         return (
-          <>
+          <div style={{ backgroundColor: "#f8f8f8", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
             <Navbar
               onAdminClick={() => setCurrentView("admin")}
               user={user}
@@ -651,11 +652,11 @@ export default function App() {
               dashboardRefreshKey={dashboardRefreshKey}
             />
             <Footer onTandpClick={() => setCurrentView("tandp")} />
-          </>
+          </div>
         );
       case "referralDashboard":
         return (
-          <>
+          <div style={{ backgroundColor: "#f8f8f8", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
             <Navbar
               onAdminClick={() => setCurrentView("admin")}
               user={user}
@@ -689,8 +690,9 @@ export default function App() {
               dashboardRefreshKey={dashboardRefreshKey}
             />
             <Footer onTandpClick={() => setCurrentView("tandp")} />
-          </>
+          </div>
         );
+
       case "tandp":
         return (
           <TermsAndServices

@@ -45,13 +45,7 @@ export default function ReferralDashboard({ user, onBackClick }) {
   };
 
   return (
-    <>
-      <style>{`
-        body {
-          background-color: #f8f8f8 !important;
-        }
-      `}</style>
-      <section style={{ backgroundColor: '#f8f8f8', minHeight: 'calc(100vh - 70px)', padding: '3rem 1rem 5rem' }}>
+    <section style={{ backgroundColor: '#f8f8f8', minHeight: 'calc(100vh - 70px)', padding: '3rem 1rem 5rem' }}>
       <div style={{ maxWidth: '960px', margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
           <div>
@@ -213,7 +207,6 @@ export default function ReferralDashboard({ user, onBackClick }) {
         )}
       </div>
     </section>
-    </>
   );
 }
 
