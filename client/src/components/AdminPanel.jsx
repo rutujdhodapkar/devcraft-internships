@@ -6846,6 +6846,160 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   ))}
                 </div>
 
+                {/* Logo Loop Section */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>🔄 Logo Loop Section</span>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={(homepageContent.logoLoop?.enabled) !== false}
+                        onChange={(e) => setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), enabled: e.target.checked } }))}
+                      />
+                      Enabled
+                    </label>
+                  </div>
+
+                  {/* Heading & Subheading */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Heading</label>
+                      <input
+                        value={homepageContent.logoLoop?.heading || ""}
+                        onChange={(e) => setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), heading: e.target.value } }))}
+                        placeholder="Trusted by students worldwide"
+                        style={{ ...s, width: "100%" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Subheading</label>
+                      <input
+                        value={homepageContent.logoLoop?.subheading || ""}
+                        onChange={(e) => setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), subheading: e.target.value } }))}
+                        placeholder="Join thousands of learners"
+                        style={{ ...s, width: "100%" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Speed / Height / Gap */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Speed (px/s)</label>
+                      <input
+                        type="number"
+                        value={homepageContent.logoLoop?.speed ?? 90}
+                        onChange={(e) => setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), speed: Number(e.target.value) } }))}
+                        style={{ ...s, width: "100%" }}
+                        min={10} max={500}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Logo Height (px)</label>
+                      <input
+                        type="number"
+                        value={homepageContent.logoLoop?.logoHeight ?? 40}
+                        onChange={(e) => setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), logoHeight: Number(e.target.value) } }))}
+                        style={{ ...s, width: "100%" }}
+                        min={16} max={200}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Gap (px)</label>
+                      <input
+                        type="number"
+                        value={homepageContent.logoLoop?.gap ?? 64}
+                        onChange={(e) => setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), gap: Number(e.target.value) } }))}
+                        style={{ ...s, width: "100%" }}
+                        min={8} max={300}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Logo entries */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.82rem" }}>Logos</span>
+                    <button
+                      type="button"
+                      onClick={() => setHomepageContent((p) => ({
+                        ...p,
+                        logoLoop: {
+                          ...(p.logoLoop || {}),
+                          logos: [...((p.logoLoop?.logos) || []), { src: "", alt: "Logo", title: "", href: "" }]
+                        }
+                      }))}
+                      style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}
+                    >
+                      + Add Logo
+                    </button>
+                  </div>
+
+                  {((homepageContent.logoLoop?.logos) || []).map((logo, idx) => (
+                    <div key={idx} style={{ border: "1px solid #ddd", padding: "0.75rem", marginBottom: "0.5rem", background: "#fafafa", borderRadius: "2px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: "0.5rem", alignItems: "center" }}>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Image URL</label>
+                          <input
+                            value={logo.src || ""}
+                            onChange={(e) => {
+                              const u = [...(homepageContent.logoLoop?.logos || [])];
+                              u[idx] = { ...u[idx], src: e.target.value };
+                              setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), logos: u } }));
+                            }}
+                            placeholder="https://example.com/logo.png"
+                            style={{ ...s, width: "100%" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Alt / Name</label>
+                          <input
+                            value={logo.alt || ""}
+                            onChange={(e) => {
+                              const u = [...(homepageContent.logoLoop?.logos || [])];
+                              u[idx] = { ...u[idx], alt: e.target.value };
+                              setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), logos: u } }));
+                            }}
+                            placeholder="Company name"
+                            style={{ ...s, width: "100%" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Link (optional)</label>
+                          <input
+                            value={logo.href || ""}
+                            onChange={(e) => {
+                              const u = [...(homepageContent.logoLoop?.logos || [])];
+                              u[idx] = { ...u[idx], href: e.target.value };
+                              setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), logos: u } }));
+                            }}
+                            placeholder="https://..."
+                            style={{ ...s, width: "100%" }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const u = (homepageContent.logoLoop?.logos || []).filter((_, i) => i !== idx);
+                            setHomepageContent((p) => ({ ...p, logoLoop: { ...(p.logoLoop || {}), logos: u } }));
+                          }}
+                          style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.25rem 0.5rem", fontSize: "0.75rem", alignSelf: "flex-end" }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      {logo.src && (
+                        <div style={{ marginTop: "0.5rem" }}>
+                          <img src={logo.src} alt={logo.alt || ""} style={{ height: "32px", objectFit: "contain", border: "1px solid #eee", padding: "2px", borderRadius: "2px" }} onError={(e) => { e.target.style.display = "none"; }} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {(!homepageContent.logoLoop?.logos?.length) && (
+                    <p style={{ color: "#888", fontSize: "0.8rem", fontStyle: "italic" }}>No logos added yet. Click "+ Add Logo" to get started.</p>
+                  )}
+                </div>
+
                 <button className="btn-sharp" disabled={homepageSaving} onClick={async () => {
                   setHomepageSaving(true);
                   try {

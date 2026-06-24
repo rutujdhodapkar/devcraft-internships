@@ -15,6 +15,7 @@ import IDCardModal from "./components/IDCardModal";
 import TermsAndServices from "./components/TermsAndServices";
 import CertificateView from "./components/CertificateView";
 import ErrorBoundary from "./components/ErrorBoundary";
+import LogoLoopSection from "./components/LogoLoopSection";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -736,6 +737,7 @@ export default function App() {
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
             />
+            <LogoLoopSection />
             <CareerPaths onApplyDomain={handleApplyDomain} />
             <HowItWorks />
             <FAQ />
