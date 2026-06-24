@@ -31,6 +31,7 @@ import {
   fetchAdminMessages,
   associateVisitsWithUser,
   getDeviceFingerprint,
+  fetchHeaderSettings,
 } from "./services/data";
 import {
   onGoogleAuthStateChanged,
@@ -161,6 +162,14 @@ export default function App() {
   const [dismissedMessages, setDismissedMessages] = useState(new Set());
   const [dashboardReferralTab, setDashboardReferralTab] = useState(false); // open dashboard with referral tab
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
+  const [headerSettings, setHeaderSettings] = useState({ animation: "slide-down", effect: "solid" });
+
+  // Load header settings from DB on mount
+  useEffect(() => {
+    fetchHeaderSettings()
+      .then((s) => { if (s) setHeaderSettings(s); })
+      .catch(() => {});
+  }, []);
 
   // Initialize Lenis Smooth Scrolling and momentum scroll
   useEffect(() => {
@@ -635,6 +644,7 @@ export default function App() {
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => setShowEarnModal(true)}
+              headerSettings={headerSettings}
             />
             <StudentDashboard
               user={user}
@@ -673,6 +683,7 @@ export default function App() {
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => setShowEarnModal(true)}
+              headerSettings={headerSettings}
             />
             <StudentDashboard
               user={user}
@@ -728,6 +739,7 @@ export default function App() {
                 const el = document.getElementById("earn");
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
+              headerSettings={headerSettings}
             />
             <Hero
               onApplyClick={() => {

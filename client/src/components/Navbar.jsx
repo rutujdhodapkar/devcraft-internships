@@ -1,6 +1,12 @@
 import React, { useState } from "react";
 import { verifyInternship } from "../services/data";
 import CircularText from "./CircularText";
+import GlassSurface from "./GlassSurface";
+
+const DEFAULT_HEADER_SETTINGS = {
+  animation: "slide-down",
+  effect: "solid",
+};
 
 export default function Navbar({
   onAdminClick,
@@ -15,7 +21,20 @@ export default function Navbar({
   hasReferralCode,
   onShowIdCard,
   onEarnClick,
+  headerSettings = DEFAULT_HEADER_SETTINGS,
 }) {
+  const anim = headerSettings?.animation ?? DEFAULT_HEADER_SETTINGS.animation;
+  const effect = headerSettings?.effect ?? DEFAULT_HEADER_SETTINGS.effect;
+  const isGlass = effect !== "solid";
+
+  // Glass props per effect variant
+  const glassProps = {
+    "glass-subtle":    { distortionScale: -60,  blur: 8,  brightness: 70, opacity: 0.85, backgroundOpacity: 0.08, saturation: 1.2, redOffset: 0, greenOffset: 5,  blueOffset: 10 },
+    "glass-distorted": { distortionScale: -180, blur: 11, brightness: 50, opacity: 0.93, backgroundOpacity: 0,    saturation: 1,   redOffset: 0, greenOffset: 10, blueOffset: 20 },
+    "glass-frost":     { distortionScale: -40,  blur: 18, brightness: 80, opacity: 0.95, backgroundOpacity: 0.18, saturation: 1.4, redOffset: 0, greenOffset: 3,  blueOffset: 6  },
+    "glass-chromatic": { distortionScale: -220, blur: 14, brightness: 45, opacity: 0.9,  backgroundOpacity: 0,    saturation: 1.6, redOffset: 8, greenOffset: 16, blueOffset: 28 },
+  };
+  const activeGlassProps = glassProps[effect] || glassProps["glass-subtle"];
   const [verifyId, setVerifyId] = useState("");
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verificationResult, setVerificationResult] = useState(null);
@@ -50,12 +69,26 @@ export default function Navbar({
     <>
       <style>{`
         @keyframes navSlideDown {
-          from { opacity: 0; transform: translateY(-16px); }
+          from { opacity: 0; transform: translateY(-24px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        .site-nav {
-          animation: navSlideDown 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        @keyframes navFadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
         }
+        @keyframes navScaleUp {
+          from { opacity: 0; transform: scaleY(0.7) scaleX(0.95); transform-origin: top center; }
+          to   { opacity: 1; transform: scaleY(1) scaleX(1); }
+        }
+        @keyframes navBlurReveal {
+          from { opacity: 0; filter: blur(12px); transform: translateY(-8px); }
+          to   { opacity: 1; filter: blur(0px); transform: translateY(0); }
+        }
+        .site-nav--slide-down  { animation: navSlideDown  0.55s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .site-nav--fade-in     { animation: navFadeIn      0.6s ease both; }
+        .site-nav--scale-up    { animation: navScaleUp     0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+        .site-nav--blur-reveal { animation: navBlurReveal  0.65s cubic-bezier(0.22, 1, 0.36, 1) both; }
+        .site-nav--none        { animation: none; }
         @media (max-width: 768px) {
           .nav-glass-wrap { display: none !important; }
           .hamburger-glass { display: block !important; }
@@ -76,9 +109,17 @@ export default function Navbar({
           font-weight: 800 !important;
           text-transform: uppercase;
         }
+        /* Glass Navbar Panel Overrides */
+        .nav-glass-panel .glass-surface__content {
+          padding: 0 !important;
+          justify-content: flex-start !important;
+        }
+        .nav-glass-panel-logo .glass-surface__content {
+          padding: 0 1.25rem !important;
+        }
       `}</style>
       <nav
-        className="site-nav"
+        className={`site-nav site-nav--${anim}`}
         style={{
           position: "fixed",
           top: 0,
@@ -100,127 +141,245 @@ export default function Navbar({
             height: "60px",
             flexWrap: "nowrap",
             pointerEvents: "auto",
+            gap: "1.5rem",
           }}
         >
-          <div
-            style={{
-              width: "auto",
-              height: "56px",
-              backgroundColor: "var(--bg-primary)",
-              border: "2px solid var(--border-primary)",
-              boxShadow: "var(--card-shadow)",
-              display: "flex",
-              alignItems: "center",
-              padding: "0 1.25rem",
-              pointerEvents: "auto",
-            }}
-          >
-            <button
-              onClick={onHomeClick}
-              className="brand-mark-btn"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                font: "inherit",
-                display: "flex",
-                alignItems: "center",
-              }}
+          {isGlass ? (
+            <GlassSurface
+              width="auto"
+              height={56}
+              borderRadius={0}
+              className="nav-glass-panel-logo"
+              style={{ pointerEvents: "auto", minWidth: 160 }}
+              {...activeGlassProps}
             >
-              <span
-                className="brand-mark"
+              <button
+                onClick={onHomeClick}
+                className="brand-mark-btn"
                 style={{
-                  fontWeight: 900,
-                  fontSize: "1.65rem",
-                  letterSpacing: "2px",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "0 1.25rem",
+                  font: "inherit",
+                  display: "flex",
+                  alignItems: "center",
+                  height: "100%",
+                  width: "100%",
                 }}
               >
-                DEV/CRAFT
-              </span>
-            </button>
-          </div>
-
-          {/* Hamburger for mobile */}
-          <div className="hamburger-glass" style={{ display: "none" }}>
+                <span
+                  className="brand-mark"
+                  style={{
+                    fontWeight: 900,
+                    fontSize: "1.65rem",
+                    letterSpacing: "2px",
+                  }}
+                >
+                  DEV/CRAFT
+                </span>
+              </button>
+            </GlassSurface>
+          ) : (
             <div
               style={{
-                width: "56px",
+                width: "auto",
                 height: "56px",
                 backgroundColor: "var(--bg-primary)",
                 border: "2px solid var(--border-primary)",
                 boxShadow: "var(--card-shadow)",
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
-                padding: 0,
+                padding: "0 1.25rem",
                 pointerEvents: "auto",
               }}
             >
               <button
-                className="hamburger-btn"
-                onClick={() => setShowMobileMenu(!showMobileMenu)}
+                onClick={onHomeClick}
+                className="brand-mark-btn"
                 style={{
                   background: "none",
                   border: "none",
                   cursor: "pointer",
-                  width: "100%",
-                  height: "100%",
+                  padding: 0,
+                  font: "inherit",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  className="brand-mark"
+                  style={{
+                    fontWeight: 900,
+                    fontSize: "1.65rem",
+                    letterSpacing: "2px",
+                  }}
+                >
+                  DEV/CRAFT
+                </span>
+              </button>
+            </div>
+          )}
+
+          {/* Hamburger for mobile */}
+          <div className="hamburger-glass" style={{ display: "none" }}>
+            {isGlass ? (
+              <GlassSurface
+                width={56}
+                height={56}
+                borderRadius={0}
+                style={{ pointerEvents: "auto" }}
+                {...activeGlassProps}
+              >
+                <button
+                  className="hamburger-btn"
+                  onClick={() => setShowMobileMenu(!showMobileMenu)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "1.8rem",
+                    lineHeight: 1,
+                    fontWeight: 900,
+                    color: "#000",
+                  }}
+                >
+                  {showMobileMenu ? "✕" : "☰"}
+                </button>
+              </GlassSurface>
+            ) : (
+              <div
+                style={{
+                  width: "56px",
+                  height: "56px",
+                  backgroundColor: "var(--bg-primary)",
+                  border: "2px solid var(--border-primary)",
+                  boxShadow: "var(--card-shadow)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "1.8rem",
-                  lineHeight: 1,
-                  fontWeight: 900,
-                  color: "#000",
+                  padding: 0,
+                  pointerEvents: "auto",
                 }}
               >
-                {showMobileMenu ? "✕" : "☰"}
-              </button>
-            </div>
+                <button
+                  className="hamburger-btn"
+                  onClick={() => setShowMobileMenu(!showMobileMenu)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    width: "100%",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "1.8rem",
+                    lineHeight: 1,
+                    fontWeight: 900,
+                    color: "#000",
+                  }}
+                >
+                  {showMobileMenu ? "✕" : "☰"}
+                </button>
+              </div>
+            )}
           </div>
 
-          <div
-            className="nav-glass-wrap"
-            style={{
-              width: "auto",
-              height: "56px",
-              backgroundColor: "var(--bg-primary)",
-              border: "2px solid var(--border-primary)",
-              boxShadow: "var(--card-shadow)",
-              display: "flex",
-              alignItems: "center",
-              padding: "0 0.5rem",
-              pointerEvents: "auto",
-            }}
-          >
-            <div
-              className="nav-items"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                padding: "0 0.5rem",
-                flexWrap: "nowrap",
-                whiteSpace: "nowrap",
-              }}
+          {isGlass ? (
+            <GlassSurface
+              width="auto"
+              height={56}
+              borderRadius={0}
+              className="nav-glass-wrap nav-glass-panel"
+              style={{ pointerEvents: "auto" }}
+              {...activeGlassProps}
             >
-              <button
-                onClick={onHomeClick}
-                className="nav-link nav-btn-link"
+              <div
+                className="nav-items"
                 style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1.25rem",
+                  padding: "0 1rem",
+                  flexWrap: "nowrap",
+                  whiteSpace: "nowrap",
                 }}
               >
-                Home
-              </button>
-
-              {user && (
                 <button
-                  onClick={onDashboardClick}
+                  onClick={onHomeClick}
+                  className="nav-link nav-btn-link"
+                  style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
+                >Home</button>
+                {user && (
+                  <button onClick={onDashboardClick} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Dashboard</button>
+                )}
+                <button onClick={() => { if (onEarnClick) { onEarnClick(); } else { document.getElementById("earn")?.scrollIntoView({ behavior: "smooth" }); } }} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Earn</button>
+                <button onClick={() => setShowAboutModal(true)} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>About</button>
+                <button onClick={() => setShowVerifyModal(true)} className="btn-sharp-outline nav-verify-btn" style={{ fontWeight: 700, padding: "0.4rem 1rem", fontSize: "0.85rem" }}>Verify Internship</button>
+                {!authLoading && (
+                  <>
+                    {user ? (
+                      <div className="nav-auth-user" style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                        {user.photoURL && (
+                          <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "54px", height: "54px" }}>
+                            <CircularText text="Dev/Craft Internships " spinDuration={12} onHover="slowDown" className="profile-circular-text" />
+                            <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ position: "absolute", width: "30px", height: "30px", borderRadius: "50%", objectFit: "cover", zIndex: 2 }} />
+                          </div>
+                        )}
+                        <span className="nav-user-name" style={{ fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 600, margin: "0 0.25rem" }}>{user.displayName?.split(" ")[0] || "Student"}</span>
+                        {isAdmin && <button type="button" className="btn-sharp nav-admin-btn" onClick={onAdminClick}>Admin Panel</button>}
+                        <button type="button" onClick={onShowIdCard} className="btn-sharp-outline" style={{ padding: "0.3rem 0.8rem", fontSize: "0.78rem", fontWeight: 700 }}>ID Card</button>
+                        <button type="button" className="nav-link nav-button-link nav-logout-btn" onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}>Logout</button>
+                      </div>
+                    ) : (
+                      <button type="button" className="btn-sharp nav-signin-btn" onClick={onLoginClick} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 700 }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#FFF" />
+                          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#FFF" />
+                          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FFF" />
+                          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#FFF" />
+                        </svg>
+                        Google Login
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </GlassSurface>
+          ) : (
+            <div
+              className="nav-glass-wrap"
+              style={{
+                width: "auto",
+                height: "56px",
+                backgroundColor: "var(--bg-primary)",
+                border: "2px solid var(--border-primary)",
+                boxShadow: "var(--card-shadow)",
+                display: "flex",
+                alignItems: "center",
+                padding: 0,
+                pointerEvents: "auto",
+              }}
+            >
+              <div
+                className="nav-items"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1.25rem",
+                  padding: "0 1rem",
+                  flexWrap: "nowrap",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <button
+                  onClick={onHomeClick}
                   className="nav-link nav-btn-link"
                   style={{
                     background: "none",
@@ -229,187 +388,203 @@ export default function Navbar({
                     fontWeight: 600,
                   }}
                 >
-                  Dashboard
+                  Home
                 </button>
-              )}
-              <button
-                onClick={() => {
-                  if (onEarnClick) {
-                    onEarnClick();
-                  } else {
-                    const el = document.getElementById("earn");
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
-                  }
-                }}
-                className="nav-link nav-btn-link"
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                Earn
-              </button>
-              <button
-                onClick={() => setShowAboutModal(true)}
-                className="nav-link nav-btn-link"
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
-                About
-              </button>
 
-              <button
-                onClick={() => setShowVerifyModal(true)}
-                className="btn-sharp-outline nav-verify-btn"
-                style={{
-                  fontWeight: 700,
-                  padding: "0.4rem 1rem",
-                  fontSize: "0.85rem",
-                }}
-              >
-                Verify Internship
-              </button>
+                {user && (
+                  <button
+                    onClick={onDashboardClick}
+                    className="nav-link nav-btn-link"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Dashboard
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    if (onEarnClick) {
+                      onEarnClick();
+                    } else {
+                      const el = document.getElementById("earn");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }
+                  }}
+                  className="nav-link nav-btn-link"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  Earn
+                </button>
+                <button
+                  onClick={() => setShowAboutModal(true)}
+                  className="nav-link nav-btn-link"
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  About
+                </button>
 
-              {/* Auth area */}
-              {!authLoading && (
-                <>
-                  {user ? (
-                    <div
-                      className="nav-auth-user"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.75rem",
-                      }}
-                    >
-                      {user.photoURL && (
-                        <div
-                          className="avatar-wrapper"
-                          style={{
-                            position: "relative",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: "54px",
-                            height: "54px",
-                          }}
-                        >
-                          <CircularText
-                            text="Dev/Craft Internships "
-                            spinDuration={12}
-                            onHover="slowDown"
-                            className="profile-circular-text"
-                          />
-                          <img
-                            src={user.photoURL}
-                            alt="avatar"
-                            className="nav-avatar"
-                            referrerPolicy="no-referrer"
-                            style={{
-                              position: "absolute",
-                              width: "30px",
-                              height: "30px",
-                              borderRadius: "50%",
-                              objectFit: "cover",
-                              zIndex: 2,
-                            }}
-                          />
-                        </div>
-                      )}
-                      <span
-                        className="nav-user-name"
+                <button
+                  onClick={() => setShowVerifyModal(true)}
+                  className="btn-sharp-outline nav-verify-btn"
+                  style={{
+                    fontWeight: 700,
+                    padding: "0.4rem 1rem",
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  Verify Internship
+                </button>
+
+                {/* Auth area */}
+                {!authLoading && (
+                  <>
+                    {user ? (
+                      <div
+                        className="nav-auth-user"
                         style={{
-                          fontSize: "0.9rem",
-                          color: "var(--text-primary)",
-                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "1rem",
                         }}
                       >
-                        {user.displayName?.split(" ")[0] || "Student"}
-                      </span>
-                      {isAdmin && (
+                        {user.photoURL && (
+                          <div
+                            className="avatar-wrapper"
+                            style={{
+                              position: "relative",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: "54px",
+                              height: "54px",
+                            }}
+                          >
+                            <CircularText
+                              text="Dev/Craft Internships "
+                              spinDuration={12}
+                              onHover="slowDown"
+                              className="profile-circular-text"
+                            />
+                            <img
+                              src={user.photoURL}
+                              alt="avatar"
+                              className="nav-avatar"
+                              referrerPolicy="no-referrer"
+                              style={{
+                                position: "absolute",
+                                width: "30px",
+                                height: "30px",
+                                borderRadius: "50%",
+                                objectFit: "cover",
+                                zIndex: 2,
+                              }}
+                            />
+                          </div>
+                        )}
+                        <span
+                          className="nav-user-name"
+                          style={{
+                            fontSize: "0.9rem",
+                            color: "var(--text-primary)",
+                            fontWeight: 600,
+                            margin: "0 0.25rem",
+                          }}
+                        >
+                          {user.displayName?.split(" ")[0] || "Student"}
+                        </span>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            className="btn-sharp nav-admin-btn"
+                            onClick={onAdminClick}
+                          >
+                            Admin Panel
+                          </button>
+                        )}
                         <button
                           type="button"
-                          className="btn-sharp nav-admin-btn"
-                          onClick={onAdminClick}
+                          onClick={onShowIdCard}
+                          className="btn-sharp-outline"
+                          style={{
+                            padding: "0.3rem 0.8rem",
+                            fontSize: "0.78rem",
+                            fontWeight: 700,
+                          }}
                         >
-                          Admin Panel
+                          ID Card
                         </button>
-                      )}
+                        <button
+                          type="button"
+                          className="nav-link nav-button-link nav-logout-btn"
+                          onClick={onLogout}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            fontSize: "0.9rem",
+                          }}
+                        >
+                          Logout
+                        </button>
+                      </div>
+                    ) : (
                       <button
                         type="button"
-                        onClick={onShowIdCard}
-                        className="btn-sharp-outline"
+                        className="btn-sharp nav-signin-btn"
+                        onClick={onLoginClick}
                         style={{
-                          padding: "0.3rem 0.8rem",
-                          fontSize: "0.78rem",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
                           fontWeight: 700,
                         }}
                       >
-                        ID Card
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <path
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                            fill="#FFF"
+                          />
+                          <path
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                            fill="#FFF"
+                          />
+                          <path
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                            fill="#FFF"
+                          />
+                          <path
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                            fill="#FFF"
+                          />
+                        </svg>
+                        Google Login
                       </button>
-                      <button
-                        type="button"
-                        className="nav-link nav-button-link nav-logout-btn"
-                        onClick={onLogout}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontSize: "0.9rem",
-                        }}
-                      >
-                        Logout
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn-sharp nav-signin-btn"
-                      onClick={onLoginClick}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        fontWeight: 700,
-                      }}
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <path
-                          d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                          fill="#FFF"
-                        />
-                        <path
-                          d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                          fill="#FFF"
-                        />
-                        <path
-                          d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
-                          fill="#FFF"
-                        />
-                        <path
-                          d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                          fill="#FFF"
-                        />
-                      </svg>
-                      Google Login
-                    </button>
-                  )}
-                </>
-              )}
+                    )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </nav>
 

@@ -804,6 +804,15 @@ export async function saveTheme(theme) {
   return saveSiteConfig("theme", theme);
 }
 
+// Header Settings
+export async function fetchHeaderSettings() {
+  return fetchSiteConfig("headerSettings");
+}
+
+export async function saveHeaderSettings(settings) {
+  return saveSiteConfig("headerSettings", settings);
+}
+
 // Terms & Conditions
 export async function fetchTermsContent() {
   return fetchSiteConfig("terms");
