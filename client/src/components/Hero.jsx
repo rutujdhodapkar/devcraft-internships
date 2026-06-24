@@ -56,6 +56,7 @@ function AnimatedStat({ target, suffix = '', label, duration = 1800 }) {
 /* ─── Hero ───────────────────────────────────────────────────────── */
 export default function Hero({ onApplyClick, onExploreClick }) {
   const [content, setContent] = useState(null);
+  const [hoveredButtonIdx, setHoveredButtonIdx] = useState(null);
 
   useEffect(() => {
     fetchHomepageContent().then(setContent).catch(() => setContent(null));
@@ -127,14 +128,16 @@ export default function Hero({ onApplyClick, onExploreClick }) {
                 className={idx === 0 ? "btn-sharp" : "btn-sharp-outline"}
                 type="button"
                 style={{ padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 'bold' }}
+                onMouseEnter={() => setHoveredButtonIdx(idx)}
+                onMouseLeave={() => setHoveredButtonIdx(null)}
               >
                 {idx === 0 ? (
                   <ShinyText
                     text={btn.label}
                     speed={2.5}
                     delay={1}
-                    color="#ffffff"
-                    shineColor="#ffffffcc"
+                    color={hoveredButtonIdx === idx ? "#000000" : "#ffffff"}
+                    shineColor={hoveredButtonIdx === idx ? "#000000cc" : "#ffffffcc"}
                     spread={90}
                     direction="left"
                     pauseOnHover
