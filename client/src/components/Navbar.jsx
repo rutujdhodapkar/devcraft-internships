@@ -99,12 +99,12 @@ export default function Navbar({
           .hamburger-glass { display: none !important; }
         }
         .profile-circular-text {
-          width: 54px !important;
-          height: 54px !important;
+          width: 42px !important;
+          height: 42px !important;
           margin: 0 !important;
         }
         .profile-circular-text span {
-          font-size: 6px !important;
+          font-size: 5px !important;
           color: var(--text-primary) !important;
           font-weight: 800 !important;
           text-transform: uppercase;
@@ -325,16 +325,16 @@ export default function Navbar({
                 {!authLoading && (
                   <>
                     {user ? (
-                      <div className="nav-auth-user" style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                      <div className="nav-auth-user" style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "nowrap" }}>
                         {user.photoURL && (
-                          <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "54px", height: "54px" }}>
+                          <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "42px", height: "42px" }}>
                             <CircularText text="Dev/Craft Internships " spinDuration={12} onHover="slowDown" className="profile-circular-text" />
-                            <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ position: "absolute", width: "30px", height: "30px", borderRadius: "50%", objectFit: "cover", zIndex: 2 }} />
+                            <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ position: "absolute", width: "24px", height: "24px", borderRadius: "50%", objectFit: "cover", zIndex: 2 }} />
                           </div>
                         )}
                         <span className="nav-user-name" style={{ fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 600, margin: "0 0.25rem" }}>{user.displayName?.split(" ")[0] || "Student"}</span>
-                        {isAdmin && <button type="button" className="btn-sharp nav-admin-btn" onClick={onAdminClick}>Admin Panel</button>}
-                        <button type="button" onClick={onShowIdCard} className="btn-sharp-outline" style={{ padding: "0.3rem 0.8rem", fontSize: "0.78rem", fontWeight: 700 }}>ID Card</button>
+                        {isAdmin && <button type="button" className="btn-sharp nav-admin-btn" onClick={onAdminClick} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Admin Panel</button>}
+                        <button type="button" onClick={onShowIdCard} className="btn-sharp-outline nav-id-btn" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>ID Card</button>
                         <button type="button" className="nav-link nav-button-link nav-logout-btn" onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}>Logout</button>
                       </div>
                     ) : (
@@ -459,6 +459,7 @@ export default function Navbar({
                           display: "flex",
                           alignItems: "center",
                           gap: "1rem",
+                          flexWrap: "nowrap",
                         }}
                       >
                         {user.photoURL && (
@@ -469,8 +470,8 @@ export default function Navbar({
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              width: "54px",
-                              height: "54px",
+                              width: "42px",
+                              height: "42px",
                             }}
                           >
                             <CircularText
@@ -486,8 +487,8 @@ export default function Navbar({
                               referrerPolicy="no-referrer"
                               style={{
                                 position: "absolute",
-                                width: "30px",
-                                height: "30px",
+                                width: "24px",
+                                height: "24px",
                                 borderRadius: "50%",
                                 objectFit: "cover",
                                 zIndex: 2,
@@ -511,6 +512,11 @@ export default function Navbar({
                             type="button"
                             className="btn-sharp nav-admin-btn"
                             onClick={onAdminClick}
+                            style={{
+                              padding: "0.4rem 1rem",
+                              fontSize: "0.85rem",
+                              fontWeight: 700,
+                            }}
                           >
                             Admin Panel
                           </button>
@@ -520,8 +526,8 @@ export default function Navbar({
                           onClick={onShowIdCard}
                           className="btn-sharp-outline"
                           style={{
-                            padding: "0.3rem 0.8rem",
-                            fontSize: "0.78rem",
+                            padding: "0.4rem 1rem",
+                            fontSize: "0.85rem",
                             fontWeight: 700,
                           }}
                         >

@@ -139,11 +139,7 @@ a {
   font-family: 'Space Grotesk', sans-serif;
   white-space: nowrap;
   display: inline-block;
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.3s ease;
-}
-
-.brand-mark:hover {
-  transform: scale(1.08) rotate(-1.5deg);
+  transition: color 0.3s ease;
 }
 
 .nav-items {
