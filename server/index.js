@@ -54,12 +54,14 @@ async function initFirebase() {
   if (fbInitPromise) return fbInitPromise;
   fbInitPromise = (async () => {
     const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-    const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
+    const { getFirestore } = await import('firebase-admin/firestore');
     const apps = getApps();
     if (apps.length) return getFirestore(apps[0], 'intern');
     const sa = getServiceAccount();
     if (!sa) {
-      throw new Error('Firebase Admin credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in .env');
+      // Return null so the server stays alive — routes handle the missing db gracefully
+      console.warn('[Firebase] Credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in server/.env to enable database features.');
+      return null;
     }
     const app = initializeApp({
       credential: cert(sa),
@@ -593,6 +595,9 @@ app.post('/api/dodo/webhook', async (req, res) => {
 app.post('/api/firebase-proxy', async (req, res) => {
   try {
     const db = await initFirebase();
+    if (!db) {
+      return res.status(503).json({ success: false, message: 'Firebase not configured on this server. Add FIREBASE_SERVICE_ACCOUNT_KEY to server/.env' });
+    }
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return res.status(400).json({ success: false, message: 'action and path required' });
     const blockedWrites = ['admins', 'users'];

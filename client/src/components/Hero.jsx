@@ -1,7 +1,57 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { fetchHomepageContent } from '../services/data';
-import Dither from './Dither';
 
+/* ─── Count-up hook ──────────────────────────────────────────────── */
+function useCountUp(target, duration = 1800, started = false) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (!started) return;
+    let start = null;
+    const step = (ts) => {
+      if (!start) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.floor(eased * target));
+      if (progress < 1) requestAnimationFrame(step);
+      else setValue(target);
+    };
+    requestAnimationFrame(step);
+  }, [started, target, duration]);
+  return value;
+}
+
+/* ─── Animated stat card ─────────────────────────────────────────── */
+function AnimatedStat({ target, suffix = '', label, duration = 1800 }) {
+  const ref = useRef(null);
+  const [started, setStarted] = useState(false);
+  const count = useCountUp(target, duration, started);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setStarted(true); observer.disconnect(); } },
+      { threshold: 0.3 }
+    );
+    if (ref.current) observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, []);
+
+  // Format with commas
+  const formatted = count.toLocaleString();
+
+  return (
+    <div ref={ref}>
+      <div style={{ fontSize: '2.8rem', fontWeight: 900, color: '#000', marginBottom: '0.25rem', letterSpacing: '-1px', fontVariantNumeric: 'tabular-nums' }}>
+        {formatted}{suffix}
+      </div>
+      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Hero ───────────────────────────────────────────────────────── */
 export default function Hero({ onApplyClick, onExploreClick }) {
   const [content, setContent] = useState(null);
 
@@ -21,17 +71,6 @@ export default function Hero({ onApplyClick, onExploreClick }) {
 
   return (
     <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '6rem 0 5rem' }}>
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, pointerEvents: 'none' }}>
-        <Dither
-          waveColor={[0, 0, 0]}
-          colorNum={2}
-          pixelSize={4}
-          waveAmplitude={0.12}
-          waveFrequency={2}
-          waveSpeed={0.03}
-          mouseRadius={0.3}
-        />
-      </div>
       <div className="container" style={{ position: 'relative', zIndex: 1 }}>
         <div style={{ maxWidth: '950px', margin: '0 auto', textAlign: 'center' }}>
           {/* Badge Taglines */}
@@ -79,20 +118,11 @@ export default function Hero({ onApplyClick, onExploreClick }) {
             ))}
           </div>
 
-          {/* Stats Section */}
+          {/* Stats Section — animated count-up */}
           <div style={{ borderTop: '2px dashed var(--border-secondary)', paddingTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
-            <div>
-              <div style={{ fontSize: '2.8rem', fontWeight: 900, color: '#000', marginBottom: '0.25rem' }}>10,000+</div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Active Learners</div>
-            </div>
-            <div>
-              <div style={{ fontSize: '2.8rem', fontWeight: 900, color: '#000', marginBottom: '0.25rem' }}>7,000+</div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Certificates Issued</div>
-            </div>
-            <div>
-              <div style={{ fontSize: '2.8rem', fontWeight: 900, color: '#000', marginBottom: '0.25rem' }}>100%</div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Free &amp; Open Access</div>
-            </div>
+            <AnimatedStat target={10000} suffix="+" label="Active Learners" duration={1800} />
+            <AnimatedStat target={7000}  suffix="+" label="Certificates Issued" duration={1600} />
+            <AnimatedStat target={100}   suffix="%" label="Free & Open Access" duration={1400} />
           </div>
         </div>
       </div>

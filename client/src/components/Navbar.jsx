@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { verifyInternship } from "../services/data";
+import GlassSurface from "./GlassSurface";
 
 export default function Navbar({
   onAdminClick,
@@ -51,9 +52,11 @@ export default function Navbar({
         @media (max-width: 768px) {
           .nav-items { display: none !important; }
           .hamburger-btn { display: block !important; }
+          .nav-glass-wrap { display: none !important; }
         }
         @media (min-width: 769px) {
           .mobile-floating-menu { display: none !important; }
+          .nav-glass-wrap { display: flex !important; align-items: center; }
         }
       `}</style>
       <nav
@@ -63,7 +66,9 @@ export default function Navbar({
           top: 0,
           zIndex: 100,
           borderBottom: "2px solid var(--border-primary)",
-          backgroundColor: "#fff",
+          backgroundColor: "rgba(255,255,255,0.85)",
+          backdropFilter: "blur(4px)",
+          WebkitBackdropFilter: "blur(4px)",
         }}
       >
         <div
@@ -117,9 +122,22 @@ export default function Navbar({
             {showMobileMenu ? "✕" : "☰"}
           </button>
 
+          <GlassSurface
+            width="auto"
+            height={46}
+            borderRadius={12}
+            distortionScale={-120}
+            brightness={55}
+            opacity={0.9}
+            blur={10}
+            backgroundOpacity={0.08}
+            saturation={1.2}
+            className="nav-glass-wrap"
+            style={{ padding: "0 0.5rem" }}
+          >
           <div
             className="nav-items"
-            style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}
+            style={{ display: "flex", alignItems: "center", gap: "1.5rem", padding: "0 0.75rem" }}
           >
             <button
               onClick={onHomeClick}
@@ -305,6 +323,7 @@ export default function Navbar({
               </>
             )}
           </div>
+          </GlassSurface>
         </div>
 
         {/* Floating Mobile Menu */}

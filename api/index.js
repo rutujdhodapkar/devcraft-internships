@@ -34,8 +34,10 @@ async function initFirebase() {
     if (apps.length) return getFirestore(apps[0], FIRESTORE_DB_ID);
     const sa = getServiceAccount();
     if (!sa) {
-      throw new Error("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY on Vercel.");
+      console.warn("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in environment variables.");
+      return null;
     }
+
     const app = initializeApp({
       credential: cert(sa),
       projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",

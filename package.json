@@ -13,6 +13,7 @@
     "qrcode": "^1.5.4"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "vercel": "^54.16.0"
   }
 }
