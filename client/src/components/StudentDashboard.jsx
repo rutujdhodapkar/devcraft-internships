@@ -418,7 +418,7 @@ export default function StudentDashboard({
       style={{
         backgroundColor: "#f8f8f8",
         minHeight: "calc(100vh - 70px)",
-        padding: "3rem 1rem 5rem",
+        padding: "8.5rem 1rem 5rem",
       }}
     >
       <div style={{ maxWidth: "860px", margin: "0 auto" }}>

@@ -74,8 +74,10 @@ export default function Navbar({
       <nav
         className="site-nav"
         style={{
-          position: "sticky",
+          position: "fixed",
           top: "1rem",
+          left: 0,
+          right: 0,
           zIndex: 1000,
           border: "none",
           background: "transparent",
