@@ -88,15 +88,14 @@ export default function Navbar({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            height: "70px",
+            height: "64px",
             flexWrap: "nowrap",
-            overflow: "hidden",
             pointerEvents: "auto",
           }}
         >
           <GlassSurface
             width="auto"
-            height={46}
+            height={56}
             borderRadius={12}
             distortionScale={-80}
             brightness={60}
@@ -135,8 +134,8 @@ export default function Navbar({
           {/* Hamburger for mobile (wrapped in GlassSurface) */}
           <div className="hamburger-glass" style={{ display: "none" }}>
             <GlassSurface
-              width={46}
-              height={46}
+              width={56}
+              height={56}
               borderRadius={12}
               distortionScale={-80}
               brightness={60}
@@ -171,7 +170,7 @@ export default function Navbar({
 
           <GlassSurface
             width="auto"
-            height={46}
+            height={56}
             borderRadius={12}
             distortionScale={-80}
             brightness={60}
