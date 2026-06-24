@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { fetchHomepageContent } from '../services/data';
+import ShinyText from './ShinyText';
 
 /* ─── Count-up hook ──────────────────────────────────────────────── */
 function useCountUp(target, duration = 1800, started = false) {
@@ -113,7 +114,20 @@ export default function Hero({ onApplyClick, onExploreClick }) {
                 type="button"
                 style={{ padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 'bold' }}
               >
-                {btn.label}
+                {idx === 0 ? (
+                  <ShinyText
+                    text={btn.label}
+                    speed={2.5}
+                    delay={1}
+                    color="#ffffff"
+                    shineColor="#ffffffcc"
+                    spread={90}
+                    direction="left"
+                    pauseOnHover
+                  />
+                ) : (
+                  btn.label
+                )}
               </button>
             ))}
           </div>
