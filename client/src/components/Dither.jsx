@@ -177,7 +177,7 @@ function DitheredWaves({
   mouseRadius
 }) {
   const mesh = useRef(null);
-  const mouseRef = useRef(new THREE.Vector2());
+  const mouseRef = useRef(new THREE.Vector2(-9999, -9999));
   const { viewport, size, gl } = useThree();
 
   const waveUniformsRef = useRef({
@@ -201,6 +201,19 @@ function DitheredWaves({
       res.set(w, h);
     }
   }, [size, gl]);
+
+  useEffect(() => {
+    if (!enableMouseInteraction) return;
+    const handleMouseMove = (e) => {
+      const rect = gl.domElement.getBoundingClientRect();
+      const dpr = gl.getPixelRatio();
+      mouseRef.current.set((e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [enableMouseInteraction, gl]);
 
   const prevColor = useRef([...waveColor]);
   useFrame(({ clock }) => {
@@ -227,13 +240,6 @@ function DitheredWaves({
     }
   });
 
-  const handlePointerMove = e => {
-    if (!enableMouseInteraction) return;
-    const rect = gl.domElement.getBoundingClientRect();
-    const dpr = gl.getPixelRatio();
-    mouseRef.current.set((e.clientX - rect.left) * dpr, (e.clientY - rect.top) * dpr);
-  };
-
   return (
     <>
       <mesh ref={mesh} scale={[viewport.width, viewport.height, 1]}>
@@ -248,16 +254,6 @@ function DitheredWaves({
       <EffectComposer>
         <RetroEffect colorNum={colorNum} pixelSize={pixelSize} />
       </EffectComposer>
-
-      <mesh
-        onPointerMove={handlePointerMove}
-        position={[0, 0, 0.01]}
-        scale={[viewport.width, viewport.height, 1]}
-        visible={false}
-      >
-        <planeGeometry args={[1, 1]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
     </>
   );
 }
