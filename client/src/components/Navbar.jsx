@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { verifyInternship } from "../services/data";
-import GlassSurface from "./GlassSurface";
 import CircularText from "./CircularText";
 
 export default function Navbar({
@@ -103,17 +102,18 @@ export default function Navbar({
             pointerEvents: "auto",
           }}
         >
-          <GlassSurface
-            width="auto"
-            height={56}
-            borderRadius={14}
-            distortionScale={-60}
-            brightness={70}
-            opacity={0.92}
-            blur={10}
-            backgroundOpacity={0.18}
-            saturation={1.6}
-            style={{ padding: "0 1.25rem" }}
+          <div
+            style={{
+              width: "auto",
+              height: "56px",
+              backgroundColor: "var(--bg-primary)",
+              border: "2px solid var(--border-primary)",
+              boxShadow: "var(--card-shadow)",
+              display: "flex",
+              alignItems: "center",
+              padding: "0 1.25rem",
+              pointerEvents: "auto",
+            }}
           >
             <button
               onClick={onHomeClick}
@@ -139,21 +139,23 @@ export default function Navbar({
                 DEV/CRAFT
               </span>
             </button>
-          </GlassSurface>
+          </div>
 
-          {/* Hamburger for mobile (wrapped in GlassSurface) */}
+          {/* Hamburger for mobile */}
           <div className="hamburger-glass" style={{ display: "none" }}>
-            <GlassSurface
-              width={56}
-              height={56}
-              borderRadius={14}
-              distortionScale={-60}
-              brightness={70}
-              opacity={0.92}
-              blur={10}
-              backgroundOpacity={0.18}
-              saturation={1.6}
-              style={{ padding: 0 }}
+            <div
+              style={{
+                width: "56px",
+                height: "56px",
+                backgroundColor: "var(--bg-primary)",
+                border: "2px solid var(--border-primary)",
+                boxShadow: "var(--card-shadow)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 0,
+                pointerEvents: "auto",
+              }}
             >
               <button
                 className="hamburger-btn"
@@ -175,21 +177,22 @@ export default function Navbar({
               >
                 {showMobileMenu ? "✕" : "☰"}
               </button>
-            </GlassSurface>
+            </div>
           </div>
 
-          <GlassSurface
-            width="auto"
-            height={56}
-            borderRadius={14}
-            distortionScale={-60}
-            brightness={70}
-            opacity={0.92}
-            blur={10}
-            backgroundOpacity={0.18}
-            saturation={1.6}
+          <div
             className="nav-glass-wrap"
-            style={{ padding: "0 0.5rem" }}
+            style={{
+              width: "auto",
+              height: "56px",
+              backgroundColor: "var(--bg-primary)",
+              border: "2px solid var(--border-primary)",
+              boxShadow: "var(--card-shadow)",
+              display: "flex",
+              alignItems: "center",
+              padding: "0 0.5rem",
+              pointerEvents: "auto",
+            }}
           >
             <div
               className="nav-items"
@@ -406,7 +409,7 @@ export default function Navbar({
                 </>
               )}
             </div>
-          </GlassSurface>
+          </div>
         </div>
       </nav>
 
