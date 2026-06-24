@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Lenis from "lenis";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import CareerPaths from "./components/CareerPaths";
@@ -159,6 +160,33 @@ export default function App() {
   const [dismissedMessages, setDismissedMessages] = useState(new Set());
   const [dashboardReferralTab, setDashboardReferralTab] = useState(false); // open dashboard with referral tab
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
+
+  // Initialize Lenis Smooth Scrolling and momentum scroll
+  useEffect(() => {
+    const lenis = new Lenis({
+      duration: 1.3,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // easeOutQuart
+      direction: "vertical",
+      gestureDirection: "vertical",
+      smooth: true,
+      mouseMultiplier: 1.0,
+      smoothTouch: false,
+      touchMultiplier: 1.8,
+      infinite: false,
+      syncTouch: true, // Keep scroll touch synchronized for elasticity
+    });
+
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+
+    requestAnimationFrame(raf);
+
+    return () => {
+      lenis.destroy();
+    };
+  }, []);
 
   // Listen to Google Auth state
   useEffect(() => {
