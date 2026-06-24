@@ -72,7 +72,7 @@ export default function Hero({ onApplyClick, onExploreClick }) {
   };
 
   return (
-    <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '8.5rem 0 5rem' }}>
+    <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '5.5rem 0 5rem' }}>
       <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
         <Dither
           waveColor={[0.82, 0.85, 0.88]}

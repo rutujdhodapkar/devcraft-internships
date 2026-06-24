@@ -50,6 +50,13 @@ export default function Navbar({
   return (
     <>
       <style>{`
+        @keyframes navSlideDown {
+          from { opacity: 0; transform: translateY(-16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .site-nav {
+          animation: navSlideDown 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
         @media (max-width: 768px) {
           .nav-glass-wrap { display: none !important; }
           .hamburger-glass { display: block !important; }
@@ -75,13 +82,14 @@ export default function Navbar({
         className="site-nav"
         style={{
           position: "fixed",
-          top: "1rem",
+          top: 0,
           left: 0,
           right: 0,
           zIndex: 1000,
           border: "none",
           background: "transparent",
           pointerEvents: "none",
+          padding: "0.75rem 0",
         }}
       >
         <div
@@ -90,7 +98,7 @@ export default function Navbar({
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            height: "64px",
+            height: "60px",
             flexWrap: "nowrap",
             pointerEvents: "auto",
           }}
@@ -98,13 +106,13 @@ export default function Navbar({
           <GlassSurface
             width="auto"
             height={56}
-            borderRadius={12}
-            distortionScale={-80}
-            brightness={60}
-            opacity={0.85}
-            blur={8}
-            backgroundOpacity={0.05}
-            saturation={1.2}
+            borderRadius={14}
+            distortionScale={-60}
+            brightness={70}
+            opacity={0.92}
+            blur={10}
+            backgroundOpacity={0.18}
+            saturation={1.6}
             style={{ padding: "0 1.25rem" }}
           >
             <button
@@ -138,13 +146,13 @@ export default function Navbar({
             <GlassSurface
               width={56}
               height={56}
-              borderRadius={12}
-              distortionScale={-80}
-              brightness={60}
-              opacity={0.85}
-              blur={8}
-              backgroundOpacity={0.05}
-              saturation={1.2}
+              borderRadius={14}
+              distortionScale={-60}
+              brightness={70}
+              opacity={0.92}
+              blur={10}
+              backgroundOpacity={0.18}
+              saturation={1.6}
               style={{ padding: 0 }}
             >
               <button
@@ -173,13 +181,13 @@ export default function Navbar({
           <GlassSurface
             width="auto"
             height={56}
-            borderRadius={12}
-            distortionScale={-80}
-            brightness={60}
-            opacity={0.85}
-            blur={8}
-            backgroundOpacity={0.05}
-            saturation={1.2}
+            borderRadius={14}
+            distortionScale={-60}
+            brightness={70}
+            opacity={0.92}
+            blur={10}
+            backgroundOpacity={0.18}
+            saturation={1.6}
             className="nav-glass-wrap"
             style={{ padding: "0 0.5rem" }}
           >
