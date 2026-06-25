@@ -45,6 +45,11 @@ function PathCard({ path, onApply }) {
 function ViewAllModal({ paths, categories, onClose, onApply }) {
   const [filter, setFilter] = useState('all');
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   const catMap = {};
   (categories || []).forEach((cat) => { catMap[cat.id] = cat; });
 

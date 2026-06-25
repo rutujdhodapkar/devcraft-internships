@@ -1,6 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
 export default function PopupModal({ show, onClose, settings }) {
+  useEffect(() => {
+    if (!show) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [show]);
+
   if (!show || !settings?.enabled) return null;
 
   return (

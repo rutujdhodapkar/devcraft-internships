@@ -174,6 +174,16 @@ export default function App() {
   const [popupSettings, setPopupSettings] = useState(null);
   const [popupDismissed, setPopupDismissed] = useState(false);
 
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    if (showPopup || showProfilePrompt || showEarnModal || showIdCard) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showPopup, showProfilePrompt, showEarnModal, showIdCard]);
+
   // Load header settings and popup settings from DB on mount
   useEffect(() => {
     fetchPopupSettings()

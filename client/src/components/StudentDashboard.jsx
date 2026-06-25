@@ -73,6 +73,16 @@ export default function StudentDashboard({
   const [learnHereDocs, setLearnHereDocs] = useState(null);
   const [learnHereProjectName, setLearnHereProjectName] = useState("");
 
+  // Lock body scroll when payment or profile modals are open
+  useEffect(() => {
+    if (showPaymentChoice || showPaymentModal || showProfileModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showPaymentChoice, showPaymentModal, showProfileModal]);
+
   const handleOpenPayment = (enrollment, stage) => {
     if (!enrollment?.id) {
       console.error("handleOpenPayment: enrollment missing id", enrollment);
