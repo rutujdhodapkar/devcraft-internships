@@ -12,10 +12,13 @@ import AdminPanel from "./components/AdminPanel";
 import EarnSection from "./components/EarnSection";
 import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
-import TermsAndServices from "./components/TermsAndServices";
+import PolicyPage from "./components/PolicyPage";
 import CertificateView from "./components/CertificateView";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LogoLoopSection from "./components/LogoLoopSection";
+import SlidingStrip from "./components/SlidingStrip";
+import WhatDoYouGet from "./components/WhatDoYouGet";
+import UniversityCollab from "./components/UniversityCollab";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -115,9 +118,11 @@ export default function App() {
     const path = window.location.pathname;
     if (path.startsWith("/certificate/")) return "certificate";
     if (path === "/tandp") return "tandp";
+    if (path === "/privacy") return "privacy";
+    if (path === "/refund") return "refund";
     return "site";
   })();
-  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp', 'certificate'
+  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp', 'privacy', 'refund', 'certificate'
   const [referralCode, setReferralCode] = useState("");
 
   // Routing Redirection Target
@@ -367,7 +372,8 @@ export default function App() {
   // Sync URL with current view for deep-linking
   useEffect(() => {
     if (currentView === "certificate") return;
-    const targetPath = currentView === "tandp" ? "/tandp" : "/";
+    const map = { tandp: "/tandp", privacy: "/privacy", refund: "/refund" };
+    const targetPath = map[currentView] || "/";
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, "", targetPath);
     }
@@ -379,7 +385,9 @@ export default function App() {
       const path = window.location.pathname;
       if (path.startsWith("/certificate/")) setCurrentView("certificate");
       else if (path === "/tandp") setCurrentView("tandp");
-      else if (currentView === "tandp" || currentView === "certificate") setCurrentView("site");
+      else if (path === "/privacy") setCurrentView("privacy");
+      else if (path === "/refund") setCurrentView("refund");
+      else if (["tandp", "privacy", "refund", "certificate"].includes(currentView)) setCurrentView("site");
     };
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
@@ -661,7 +669,7 @@ export default function App() {
               }}
               dashboardRefreshKey={dashboardRefreshKey}
             />
-            <Footer onTandpClick={() => setCurrentView("tandp")} />
+            <Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} />
           </div>
         );
       case "referralDashboard":
@@ -700,13 +708,28 @@ export default function App() {
               }}
               dashboardRefreshKey={dashboardRefreshKey}
             />
-            <Footer onTandpClick={() => setCurrentView("tandp")} />
+            <Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} />
           </div>
         );
 
       case "tandp":
         return (
-          <TermsAndServices
+          <PolicyPage
+            type="terms"
+            onBackToSite={() => setCurrentView("site")}
+          />
+        );
+      case "privacy":
+        return (
+          <PolicyPage
+            type="privacy"
+            onBackToSite={() => setCurrentView("site")}
+          />
+        );
+      case "refund":
+        return (
+          <PolicyPage
+            type="refund"
             onBackToSite={() => setCurrentView("site")}
           />
         );
@@ -751,17 +774,20 @@ export default function App() {
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
             />
+            <SlidingStrip />
             <LogoLoopSection />
             <CareerPaths onApplyDomain={handleApplyDomain} />
             <HowItWorks />
+            <WhatDoYouGet />
             <FAQ />
+            <UniversityCollab />
             <EarnSection
               user={user}
               userProfile={userProfile}
               onLoginClick={handleLoginClick}
               userBan={userBan}
             />
-            <Footer onTandpClick={() => setCurrentView("tandp")} />
+            <Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} />
           </>
         );
     }

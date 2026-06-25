@@ -110,9 +110,25 @@ const TABS = [
   { id: "theme", label: "Theme" },
   { id: "coupons", label: "Coupons" },
   { id: "terms", label: "Terms" },
+  { id: "privacy", label: "Privacy" },
+  { id: "refund", label: "Refund" },
+  { id: "footer", label: "Footer" },
+  { id: "popup", label: "Popup" },
   { id: "csv-export", label: "CSV Export" },
   { id: "referral-leaderboard", label: "Referral Leaderboard" },
 ];
+
+const DEFAULT_HOMEPAGE = {
+  headline: "",
+  description: "",
+  badges: [],
+  buttons: [],
+  features: [],
+  logoLoop: { enabled: true, heading: "", subheading: "", speed: 90, logoHeight: 40, gap: 64, logos: [] },
+  slidingStrips: [{ enabled: true, items: [{ text: "New Text" }], direction: "left", speed: 2, bgColor: "#000000", textColor: "#ffffff", position: "after-hero" }],
+  whatDoYouGet: { enabled: true, title: "", subtitle: "", pages: [] },
+  universityCollab: { enabled: true, title: "", subtitle: "", description: "", imageUrl: "", buttonText: "Partner With Us", buttonRedirectUrl: "" },
+};
 
 export default function AdminPanel({ onClose, user, onLogout }) {
   const [activeTab, setActiveTab] = useState("interns");
@@ -250,10 +266,26 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [homepageLoading, setHomepageLoading] = useState(false);
   const [homepageSaving, setHomepageSaving] = useState(false);
 
-  // Terms content state
+  // Terms / Privacy / Refund content state
   const [termsContent, setTermsContent] = useState("");
   const [termsLoading, setTermsLoading] = useState(false);
   const [termsSaving, setTermsSaving] = useState(false);
+  const [privacyContent, setPrivacyContent] = useState("");
+  const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [privacySaving, setPrivacySaving] = useState(false);
+  const [refundContent, setRefundContent] = useState("");
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [refundSaving, setRefundSaving] = useState(false);
+
+  // Footer settings state
+  const [footerSettings, setFooterSettings] = useState(null);
+  const [footerLoading, setFooterLoading] = useState(false);
+  const [footerSaving, setFooterSaving] = useState(false);
+
+  // Popup settings state
+  const [popupSettings, setPopupSettings] = useState(null);
+  const [popupLoading, setPopupLoading] = useState(false);
+  const [popupSaving, setPopupSaving] = useState(false);
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   // Task feedback & certificate approval states
@@ -408,8 +440,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setHomepageLoading(true);
       import("../services/data").then(({ fetchHomepageContent }) =>
         fetchHomepageContent()
-          .then((data) => setHomepageContent(data || { headline: "", description: "", badges: [], buttons: [], features: [] }))
-          .catch(() => setHomepageContent({ headline: "", description: "", badges: [], buttons: [], features: [] }))
+          .then((data) => setHomepageContent(data || DEFAULT_HOMEPAGE))
+          .catch(() => setHomepageContent(DEFAULT_HOMEPAGE))
           .finally(() => setHomepageLoading(false)),
       );
     }
@@ -420,6 +452,42 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           .then((data) => setTermsContent(data || ""))
           .catch(() => setTermsContent(""))
           .finally(() => setTermsLoading(false)),
+      );
+    }
+    if (activeTab === "privacy") {
+      setPrivacyLoading(true);
+      import("../services/data").then(({ fetchPrivacyContent }) =>
+        fetchPrivacyContent()
+          .then((data) => setPrivacyContent(data || ""))
+          .catch(() => setPrivacyContent(""))
+          .finally(() => setPrivacyLoading(false)),
+      );
+    }
+    if (activeTab === "refund") {
+      setRefundLoading(true);
+      import("../services/data").then(({ fetchRefundContent }) =>
+        fetchRefundContent()
+          .then((data) => setRefundContent(data || ""))
+          .catch(() => setRefundContent(""))
+          .finally(() => setRefundLoading(false)),
+      );
+    }
+    if (activeTab === "footer") {
+      setFooterLoading(true);
+      import("../services/data").then(({ fetchFooterSettings }) =>
+        fetchFooterSettings()
+          .then((data) => setFooterSettings(data || { brandName: "", description: "", columns: [], contactLinks: [], copyright: "" }))
+          .catch(() => setFooterSettings({ brandName: "", description: "", columns: [], contactLinks: [], copyright: "" }))
+          .finally(() => setFooterLoading(false)),
+      );
+    }
+    if (activeTab === "popup") {
+      setPopupLoading(true);
+      import("../services/data").then(({ fetchPopupSettings }) =>
+        fetchPopupSettings()
+          .then((data) => setPopupSettings(data || null))
+          .catch(() => setPopupSettings(null))
+          .finally(() => setPopupLoading(false)),
       );
     }
     if (activeTab === "payment-settings") {
@@ -7002,6 +7070,244 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   )}
                 </div>
 
+                {/* ── Sliding Strips Section ── */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Sliding Strips</span>
+                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, slidingStrips: [...((p.slidingStrips) || []), { enabled: true, items: [{ text: "New Text" }], direction: "left", speed: 2, bgColor: "#000000", textColor: "#ffffff", position: "after-hero" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Strip</button>
+                  </div>
+                  {((homepageContent.slidingStrips) || []).map((strip, sIdx) => (
+                    <div key={sIdx} style={{ border: "1px solid #ddd", padding: "0.85rem", marginBottom: "0.75rem", background: "#fafafa" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                        <strong style={{ fontSize: "0.82rem" }}>Strip {sIdx + 1}</strong>
+                        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                          <label style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+                            <input type="checkbox" checked={strip.enabled !== false} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], enabled: e.target.checked }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} />
+                            Enabled
+                          </label>
+                          <button type="button" onClick={() => { const u = (homepageContent.slidingStrips || []).filter((_, i) => i !== sIdx); setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Direction</label>
+                          <select value={strip.direction || "left"} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], direction: e.target.value }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ ...s, cursor: "pointer" }}>
+                            <option value="left">Left</option>
+                            <option value="right">Right</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Speed (1-10)</label>
+                          <input type="number" min={1} max={10} value={strip.speed ?? 2} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], speed: Number(e.target.value) }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ ...s }} />
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Background Color</label>
+                          <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}>
+                            <input type="color" value={strip.bgColor || "#000000"} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], bgColor: e.target.value }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ width: "36px", height: "30px", border: "1px solid #000", padding: 0, cursor: "pointer" }} />
+                            <input value={strip.bgColor || "#000000"} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], bgColor: e.target.value }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ ...s, flex: 1 }} />
+                          </div>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Text Color</label>
+                          <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}>
+                            <input type="color" value={strip.textColor || "#ffffff"} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], textColor: e.target.value }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ width: "36px", height: "30px", border: "1px solid #000", padding: 0, cursor: "pointer" }} />
+                            <input value={strip.textColor || "#ffffff"} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], textColor: e.target.value }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ ...s, flex: 1 }} />
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Position on Page</label>
+                        <select value={strip.position || "after-hero"} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], position: e.target.value }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ ...s, cursor: "pointer" }}>
+                          <option value="after-hero">After Hero</option>
+                          <option value="before-footer">Before Footer</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                        <span style={{ fontSize: "0.78rem", fontWeight: 700 }}>Text Items</span>
+                        <button type="button" onClick={() => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], items: [...((u[sIdx].items) || []), { text: "New Text" }] }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.15rem 0.5rem", fontSize: "0.72rem", fontWeight: 700 }}>+ Add Text</button>
+                      </div>
+                      {((strip.items) || []).map((item, idx) => (
+                        <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.4rem", alignItems: "center" }}>
+                          <input value={item.text} onChange={(e) => { const u = [...(homepageContent.slidingStrips || [])]; const items = [...(u[sIdx].items || [])]; items[idx] = { ...items[idx], text: e.target.value }; u[sIdx] = { ...u[sIdx], items }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} placeholder="Sliding text" style={{ ...s, flex: 1 }} />
+                          <button type="button" onClick={() => { const u = [...(homepageContent.slidingStrips || [])]; u[sIdx] = { ...u[sIdx], items: (u[sIdx].items || []).filter((_, i) => i !== idx) }; setHomepageContent((p) => ({ ...p, slidingStrips: u })); }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.35rem", fontSize: "0.7rem" }}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── What Do You Get Section ── */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>What Do You Get?</span>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
+                      <input type="checkbox" checked={(homepageContent.whatDoYouGet?.enabled) !== false} onChange={(e) => setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), enabled: e.target.checked } }))} />
+                      Enabled
+                    </label>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Section Title</label>
+                      <input value={homepageContent.whatDoYouGet?.title || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), title: e.target.value } }))} style={{ ...s }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Section Subtitle</label>
+                      <input value={homepageContent.whatDoYouGet?.subtitle || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), subtitle: e.target.value } }))} style={{ ...s }} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.6rem" }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.82rem" }}>Pages</span>
+                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: [...((p.whatDoYouGet?.pages) || []), { type: "boxes", title: "", subtitle: "", boxes: [{ title: "", subtitle: "", description: "", note: "", imageUrl: "" }] }] } }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Page</button>
+                  </div>
+                  {((homepageContent.whatDoYouGet?.pages) || []).map((page, pIdx) => (
+                    <div key={pIdx} style={{ border: "1px solid #ddd", padding: "0.85rem", marginBottom: "0.75rem", background: "#fafafa" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                        <strong style={{ fontSize: "0.82rem" }}>Page {pIdx + 1}</strong>
+                        <button type="button" onClick={() => { const u = (homepageContent.whatDoYouGet?.pages || []).filter((_, i) => i !== pIdx); setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove Page</button>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Title</label>
+                          <input value={page.title || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], title: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Subtitle</label>
+                          <input value={page.subtitle || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], subtitle: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s }} />
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem", textTransform: "uppercase" }}>Layout Type</label>
+                        <select value={page.type || "boxes"} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], type: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s, cursor: "pointer" }}>
+                          <option value="boxes">Boxes Grid</option>
+                          <option value="side-by-side">Side-by-Side (Box + Text)</option>
+                        </select>
+                      </div>
+                      {page.type === "side-by-side" ? (
+                        <div style={{ border: "1px solid #ccc", padding: "0.75rem", background: "#fff" }}>
+                          <p style={{ fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.5rem" }}>Box Side</p>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                            <div>
+                              <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Image URL</label>
+                              <input value={page.imageUrl || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], imageUrl: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Box Title</label>
+                              <input value={page.boxTitle || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], boxTitle: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s }} />
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                            <div>
+                              <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Box Subtitle</label>
+                              <input value={page.boxSubtitle || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], boxSubtitle: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s }} />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Box Note</label>
+                              <input value={page.boxNote || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], boxNote: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s }} />
+                            </div>
+                          </div>
+                          <div style={{ marginBottom: "0.5rem" }}>
+                            <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Box Description</label>
+                            <textarea rows={2} value={page.boxDescription || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], boxDescription: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s, resize: "vertical" }} />
+                          </div>
+                          <p style={{ fontSize: "0.75rem", fontWeight: 700, marginBottom: "0.5rem" }}>Text Side</p>
+                          <div style={{ marginBottom: "0.5rem" }}>
+                            <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Description</label>
+                            <textarea rows={2} value={page.description || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], description: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s, resize: "vertical" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Note</label>
+                            <input value={page.note || ""} onChange={(e) => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], note: e.target.value }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ ...s }} />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                            <span style={{ fontSize: "0.78rem", fontWeight: 700 }}>Boxes</span>
+                            <button type="button" onClick={() => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], boxes: [...((u[pIdx].boxes) || []), { title: "", subtitle: "", description: "", note: "", imageUrl: "" }] }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.15rem 0.5rem", fontSize: "0.72rem", fontWeight: 700 }}>+ Add Box</button>
+                          </div>
+                          {((page.boxes) || []).map((box, bIdx) => (
+                            <div key={bIdx} style={{ border: "1px solid #ccc", padding: "0.75rem", marginBottom: "0.5rem", background: "#fff" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
+                                <span style={{ fontSize: "0.72rem", fontWeight: 700 }}>Box {bIdx + 1}</span>
+                                <button type="button" onClick={() => { const u = [...(homepageContent.whatDoYouGet?.pages || [])]; u[pIdx] = { ...u[pIdx], boxes: (u[pIdx].boxes || []).filter((_, i) => i !== bIdx) }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages: u } })); }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.35rem", fontSize: "0.7rem" }}>Remove</button>
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem", marginBottom: "0.4rem" }}>
+                                <div>
+                                  <label style={{ fontSize: "0.6rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Title</label>
+                                  <input value={box.title || ""} onChange={(e) => { const pages = [...(homepageContent.whatDoYouGet?.pages || [])]; const boxes = [...(pages[pIdx].boxes || [])]; boxes[bIdx] = { ...boxes[bIdx], title: e.target.value }; pages[pIdx] = { ...pages[pIdx], boxes }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages } })); }} style={{ ...s }} />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: "0.6rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Subtitle</label>
+                                  <input value={box.subtitle || ""} onChange={(e) => { const pages = [...(homepageContent.whatDoYouGet?.pages || [])]; const boxes = [...(pages[pIdx].boxes || [])]; boxes[bIdx] = { ...boxes[bIdx], subtitle: e.target.value }; pages[pIdx] = { ...pages[pIdx], boxes }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages } })); }} style={{ ...s }} />
+                                </div>
+                              </div>
+                              <div style={{ marginBottom: "0.4rem" }}>
+                                <label style={{ fontSize: "0.6rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Description</label>
+                                <textarea rows={2} value={box.description || ""} onChange={(e) => { const pages = [...(homepageContent.whatDoYouGet?.pages || [])]; const boxes = [...(pages[pIdx].boxes || [])]; boxes[bIdx] = { ...boxes[bIdx], description: e.target.value }; pages[pIdx] = { ...pages[pIdx], boxes }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages } })); }} style={{ ...s, resize: "vertical" }} />
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.4rem" }}>
+                                <div>
+                                  <label style={{ fontSize: "0.6rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Note</label>
+                                  <input value={box.note || ""} onChange={(e) => { const pages = [...(homepageContent.whatDoYouGet?.pages || [])]; const boxes = [...(pages[pIdx].boxes || [])]; boxes[bIdx] = { ...boxes[bIdx], note: e.target.value }; pages[pIdx] = { ...pages[pIdx], boxes }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages } })); }} style={{ ...s }} />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: "0.6rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Image URL</label>
+                                  <input value={box.imageUrl || ""} onChange={(e) => { const pages = [...(homepageContent.whatDoYouGet?.pages || [])]; const boxes = [...(pages[pIdx].boxes || [])]; boxes[bIdx] = { ...boxes[bIdx], imageUrl: e.target.value }; pages[pIdx] = { ...pages[pIdx], boxes }; setHomepageContent((p) => ({ ...p, whatDoYouGet: { ...(p.whatDoYouGet || {}), pages } })); }} style={{ ...s }} />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── University Collaborations Section ── */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>University Collaborations</span>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
+                      <input type="checkbox" checked={(homepageContent.universityCollab?.enabled) !== false} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), enabled: e.target.checked } }))} />
+                      Enabled
+                    </label>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Title</label>
+                      <input value={homepageContent.universityCollab?.title || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), title: e.target.value } }))} style={{ ...s }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Subtitle</label>
+                      <input value={homepageContent.universityCollab?.subtitle || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), subtitle: e.target.value } }))} style={{ ...s }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Description</label>
+                    <textarea rows={3} value={homepageContent.universityCollab?.description || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), description: e.target.value } }))} style={{ ...s, resize: "vertical" }} />
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Image URL</label>
+                    <input value={homepageContent.universityCollab?.imageUrl || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), imageUrl: e.target.value } }))} style={{ ...s }} />
+                    {homepageContent.universityCollab?.imageUrl && (
+                      <div style={{ marginTop: "0.5rem" }}><img src={homepageContent.universityCollab.imageUrl} alt="" style={{ maxHeight: "80px", objectFit: "contain", border: "1px solid #eee" }} onError={(e) => { e.target.style.display = "none"; }} /></div>
+                    )}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Text</label>
+                      <input value={homepageContent.universityCollab?.buttonText || "Partner With Us"} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), buttonText: e.target.value } }))} style={{ ...s }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Redirect URL</label>
+                      <input value={homepageContent.universityCollab?.buttonRedirectUrl || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), buttonRedirectUrl: e.target.value } }))} style={{ ...s }} placeholder="https://..." />
+                    </div>
+                  </div>
+                </div>
+
                 <button className="btn-sharp" disabled={homepageSaving} onClick={async () => {
                   setHomepageSaving(true);
                   try {
@@ -7069,6 +7375,224 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}
                 >
                   {termsSaving ? "Saving…" : "Save Terms"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── PRIVACY POLICY EDITOR ── */}
+        {activeTab === "privacy" && (
+          <div style={{ maxWidth: "800px" }}>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>Privacy Policy Editor</h3>
+            <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>Write HTML content for the Privacy Policy page.</p>
+            {privacyLoading ? (
+              <div style={{ color: "#888" }}>Loading…</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <textarea value={privacyContent} onChange={(e) => setPrivacyContent(e.target.value)} rows={30}
+                  style={{ width: "100%", padding: "0.75rem", border: "2px solid #000", borderRadius: 0, fontFamily: "monospace", fontSize: "0.85rem", resize: "vertical", lineHeight: "1.6" }} />
+                <button className="btn-sharp" disabled={privacySaving} onClick={async () => {
+                  setPrivacySaving(true);
+                  try {
+                    const { savePrivacyContent } = await import("../services/data");
+                    await savePrivacyContent(privacyContent);
+                    setSuccessMsg("Privacy Policy saved!");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) { setError("Failed to save: " + err.message); }
+                  finally { setPrivacySaving(false); }
+                }} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
+                  {privacySaving ? "Saving…" : "Save Privacy Policy"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── REFUND POLICY EDITOR ── */}
+        {activeTab === "refund" && (
+          <div style={{ maxWidth: "800px" }}>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>Refund Policy Editor</h3>
+            <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>Write HTML content for the Refund Policy page.</p>
+            {refundLoading ? (
+              <div style={{ color: "#888" }}>Loading…</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <textarea value={refundContent} onChange={(e) => setRefundContent(e.target.value)} rows={30}
+                  style={{ width: "100%", padding: "0.75rem", border: "2px solid #000", borderRadius: 0, fontFamily: "monospace", fontSize: "0.85rem", resize: "vertical", lineHeight: "1.6" }} />
+                <button className="btn-sharp" disabled={refundSaving} onClick={async () => {
+                  setRefundSaving(true);
+                  try {
+                    const { saveRefundContent } = await import("../services/data");
+                    await saveRefundContent(refundContent);
+                    setSuccessMsg("Refund Policy saved!");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) { setError("Failed to save: " + err.message); }
+                  finally { setRefundSaving(false); }
+                }} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
+                  {refundSaving ? "Saving…" : "Save Refund Policy"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── FOOTER SETTINGS EDITOR ── */}
+        {activeTab === "footer" && (
+          <div style={{ maxWidth: "800px" }}>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>Footer Settings Editor</h3>
+            {footerLoading ? (
+              <div style={{ color: "#888" }}>Loading…</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Brand Name</label>
+                      <input value={footerSettings?.brandName || ""} onChange={(e) => setFooterSettings((p) => ({ ...p, brandName: e.target.value }))} style={{ ...s }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Copyright Text</label>
+                      <input value={footerSettings?.copyright || ""} onChange={(e) => setFooterSettings((p) => ({ ...p, copyright: e.target.value }))} style={{ ...s }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Description</label>
+                    <textarea rows={2} value={footerSettings?.description || ""} onChange={(e) => setFooterSettings((p) => ({ ...p, description: e.target.value }))} style={{ ...s, resize: "vertical" }} />
+                  </div>
+                </div>
+
+                {/* Columns */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Footer Columns</span>
+                    <button type="button" onClick={() => setFooterSettings((p) => ({ ...p, columns: [...(p.columns || []), { title: "New Column", links: [], text: "" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Column</button>
+                  </div>
+                  {((footerSettings?.columns) || []).map((col, cIdx) => (
+                    <div key={cIdx} style={{ border: "1px solid #ddd", padding: "0.75rem", marginBottom: "0.5rem", background: "#fafafa" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem" }}>
+                        <input value={col.title} onChange={(e) => { const u = [...(footerSettings?.columns || [])]; u[cIdx] = { ...u[cIdx], title: e.target.value }; setFooterSettings((p) => ({ ...p, columns: u })); }} placeholder="Column title" style={{ ...s, fontWeight: 700, width: "auto", flex: 1 }} />
+                        <button type="button" onClick={() => setFooterSettings((p) => ({ ...p, columns: (p.columns || []).filter((_, i) => i !== cIdx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem", marginLeft: "0.5rem" }}>Remove</button>
+                      </div>
+                      <div style={{ marginBottom: "0.5rem" }}>
+                        <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Plain Text (instead of links)</label>
+                        <input value={col.text || ""} onChange={(e) => { const u = [...(footerSettings?.columns || [])]; u[cIdx] = { ...u[cIdx], text: e.target.value }; setFooterSettings((p) => ({ ...p, columns: u })); }} placeholder="e.g. Digital Platform - Remote" style={{ ...s }} />
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.3rem" }}>
+                        <span style={{ fontSize: "0.72rem", fontWeight: 700 }}>Links</span>
+                        <button type="button" onClick={() => { const u = [...(footerSettings?.columns || [])]; u[cIdx] = { ...u[cIdx], links: [...(u[cIdx].links || []), { label: "New Link", href: "#" }] }; setFooterSettings((p) => ({ ...p, columns: u })); }} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.1rem 0.4rem", fontSize: "0.7rem", fontWeight: 700 }}>+ Add Link</button>
+                      </div>
+                      {((col.links) || []).map((link, lIdx) => (
+                        <div key={lIdx} style={{ display: "flex", gap: "0.3rem", marginBottom: "0.3rem", alignItems: "center" }}>
+                          <input value={link.label} onChange={(e) => { const u = [...(footerSettings?.columns || [])]; const links = [...(u[cIdx].links || [])]; links[lIdx] = { ...links[lIdx], label: e.target.value }; u[cIdx] = { ...u[cIdx], links }; setFooterSettings((p) => ({ ...p, columns: u })); }} placeholder="Label" style={{ ...s, flex: 1 }} />
+                          <input value={link.href || ""} onChange={(e) => { const u = [...(footerSettings?.columns || [])]; const links = [...(u[cIdx].links || [])]; links[lIdx] = { ...links[lIdx], href: e.target.value }; u[cIdx] = { ...u[cIdx], links }; setFooterSettings((p) => ({ ...p, columns: u })); }} placeholder="https://..." style={{ ...s, flex: 1 }} />
+                          <button type="button" onClick={() => { const u = [...(footerSettings?.columns || [])]; u[cIdx] = { ...u[cIdx], links: (u[cIdx].links || []).filter((_, i) => i !== lIdx) }; setFooterSettings((p) => ({ ...p, columns: u })); }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.3rem", fontSize: "0.65rem" }}>X</button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Contact Links */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Contact Links</span>
+                    <button type="button" onClick={() => setFooterSettings((p) => ({ ...p, contactLinks: [...(p.contactLinks || []), { label: "New Contact", href: "#" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Link</button>
+                  </div>
+                  {((footerSettings?.contactLinks) || []).map((link, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
+                      <input value={link.label} onChange={(e) => { const u = [...(footerSettings?.contactLinks || [])]; u[idx] = { ...u[idx], label: e.target.value }; setFooterSettings((p) => ({ ...p, contactLinks: u })); }} placeholder="Label" style={{ ...s, flex: 1 }} />
+                      <input value={link.href || ""} onChange={(e) => { const u = [...(footerSettings?.contactLinks || [])]; u[idx] = { ...u[idx], href: e.target.value }; setFooterSettings((p) => ({ ...p, contactLinks: u })); }} placeholder="mailto: or https://" style={{ ...s, flex: 1 }} />
+                      <button type="button" onClick={() => setFooterSettings((p) => ({ ...p, contactLinks: (p.contactLinks || []).filter((_, i) => i !== idx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+
+                <button className="btn-sharp" disabled={footerSaving} onClick={async () => {
+                  setFooterSaving(true);
+                  try {
+                    const { saveFooterSettings } = await import("../services/data");
+                    await saveFooterSettings(footerSettings);
+                    setSuccessMsg("Footer settings saved!");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) { setError("Failed to save: " + err.message); }
+                  finally { setFooterSaving(false); }
+                }} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
+                  {footerSaving ? "Saving…" : "Save Footer Settings"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── POPUP SETTINGS EDITOR ── */}
+        {activeTab === "popup" && (
+          <div style={{ maxWidth: "800px" }}>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>Popup Settings Editor</h3>
+            {popupLoading ? (
+              <div style={{ color: "#888" }}>Loading…</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", marginBottom: "1rem" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", fontWeight: 700, cursor: "pointer" }}>
+                      <input type="checkbox" checked={popupSettings?.enabled !== false} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), enabled: e.target.checked }))} />
+                      Enable Popup
+                    </label>
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Show When</label>
+                    <select value={popupSettings?.showWhen || "on-visit"} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), showWhen: e.target.value }))} style={{ ...s, cursor: "pointer" }}>
+                      <option value="on-login">On Login</option>
+                      <option value="on-visit">On Visit</option>
+                      <option value="in-dashboard">In Dashboard</option>
+                    </select>
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Image URL</label>
+                    <input value={popupSettings?.imageUrl || ""} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), imageUrl: e.target.value }))} style={{ ...s }} />
+                    {popupSettings?.imageUrl && <div style={{ marginTop: "0.5rem" }}><img src={popupSettings.imageUrl} alt="" style={{ maxHeight: "100px", objectFit: "contain", border: "1px solid #eee" }} onError={(e) => { e.target.style.display = "none"; }} /></div>}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Headline</label>
+                      <input value={popupSettings?.headline || ""} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), headline: e.target.value }))} style={{ ...s }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Subheadline</label>
+                      <input value={popupSettings?.subheadline || ""} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), subheadline: e.target.value }))} style={{ ...s }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Description</label>
+                    <textarea rows={3} value={popupSettings?.description || ""} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), description: e.target.value }))} style={{ ...s, resize: "vertical" }} />
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Note</label>
+                    <input value={popupSettings?.note || ""} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), note: e.target.value }))} style={{ ...s }} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Text</label>
+                      <input value={popupSettings?.buttonText || ""} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), buttonText: e.target.value }))} style={{ ...s }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Redirect Link</label>
+                      <input value={popupSettings?.buttonLink || ""} onChange={(e) => setPopupSettings((p) => ({ ...(p || {}), buttonLink: e.target.value }))} style={{ ...s }} placeholder="https://..." />
+                    </div>
+                  </div>
+                </div>
+                <button className="btn-sharp" disabled={popupSaving} onClick={async () => {
+                  setPopupSaving(true);
+                  try {
+                    const { savePopupSettings } = await import("../services/data");
+                    await savePopupSettings(popupSettings);
+                    setSuccessMsg("Popup settings saved!");
+                    setTimeout(() => setSuccessMsg(""), 3000);
+                  } catch (err) { setError("Failed to save: " + err.message); }
+                  finally { setPopupSaving(false); }
+                }} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
+                  {popupSaving ? "Saving…" : "Save Popup Settings"}
                 </button>
               </div>
             )}

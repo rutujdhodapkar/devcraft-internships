@@ -72,9 +72,9 @@ export default function Hero({ onApplyClick, onExploreClick }) {
   };
 
   return (
-    <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '5.5rem 0 5rem' }}>
+    <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '7rem 0 5rem' }}>
       <div className="container">
-        <div style={{ maxWidth: '950px', margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto', textAlign: 'center' }}>
           {/* Badge Taglines */}
           {badges.length > 0 && (
             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
@@ -87,7 +87,7 @@ export default function Hero({ onApplyClick, onExploreClick }) {
           )}
 
           <h1 style={{ fontSize: 'clamp(2.5rem, 6vw, 4.2rem)', marginBottom: '1.5rem', lineHeight: 1.05, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px' }}>
-            {c.headline || "Kickstart Your Developer Career with Virtual Internships."}
+            {c.headline || "Kickstart Your Developer Career for free"}
           </h1>
           
           <p style={{ fontSize: 'clamp(1.05rem, 2vw, 1.25rem)', marginBottom: '2.5rem', maxWidth: '750px', marginLeft: 'auto', marginRight: 'auto', color: 'var(--text-secondary)', lineHeight: '1.6' }}>

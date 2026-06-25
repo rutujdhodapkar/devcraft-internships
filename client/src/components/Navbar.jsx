@@ -328,7 +328,7 @@ export default function Navbar({
                       <div className="nav-auth-user" style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "nowrap" }}>
                         {user.photoURL && (
                           <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "42px", height: "42px" }}>
-                            <CircularText text="Dev/Craft Internships " spinDuration={12} onHover="slowDown" className="profile-circular-text" />
+                            <CircularText text="Dev/Craft Internships " spinDuration={12} onHover="slowDown" className="profile-circular-text" radius={15} />
                             <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ position: "absolute", width: "24px", height: "24px", borderRadius: "50%", objectFit: "cover", zIndex: 2 }} />
                           </div>
                         )}
@@ -479,6 +479,7 @@ export default function Navbar({
                               spinDuration={12}
                               onHover="slowDown"
                               className="profile-circular-text"
+                              radius={15}
                             />
                             <img
                               src={user.photoURL}

@@ -193,6 +193,18 @@ export async function saveUserProfile(uid, profile) {
 }
 
 // Enrollment
+function parseDurationToMs(duration) {
+  if (!duration) return 28 * 24 * 60 * 60 * 1000;
+  const num = parseInt(duration, 10);
+  if (isNaN(num)) return 28 * 24 * 60 * 60 * 1000;
+  const unit = duration.toLowerCase().includes("month") ? "month"
+    : duration.toLowerCase().includes("week") ? "week"
+    : duration.toLowerCase().includes("day") ? "day"
+    : "week";
+  const multipliers = { day: 1, week: 7, month: 30 };
+  return num * (multipliers[unit] || 7) * 24 * 60 * 60 * 1000;
+}
+
 export async function enrollStudent(uid, profile, domainObj) {
   const detectedReferralCode = localStorage.getItem("detected_referral_code") || "";
   const permanentRefCode = await fetchPermanentReferralCode(uid);
@@ -206,14 +218,19 @@ export async function enrollStudent(uid, profile, domainObj) {
   const pmtStart = paymentTiming === "both" ? Math.round(domainAmount * splitPercent / 100) : 0;
   const pmtEnd = paymentTiming === "both" ? domainAmount - pmtStart : domainAmount;
   const internId = `DEV-CRAFT-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, '0')}`;
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const durationMs = parseDurationToMs(domainObj.duration);
+  const deadline = new Date(now.getTime() + durationMs).toISOString();
   const enrollment = {
     internId, uid, name: profile.name || profile.displayName || "Student", email: profile.email || "", photoURL: profile.photoURL || "",
     phone: profile.phone || "", college: profile.college || "", city: profile.city || "", country: profile.country || "", upiId: profile.upiId || "",
     domain: domainObj.title || domainObj.name || "", domainId: domainObj.id || "", projects: domainObj.projects || [],
+    duration: domainObj.duration || "",
     referralCode: refCode, status: "Active", allowedCertificate: "no", submissions: {},
+    deadline, createdAt, updatedAt: createdAt,
     paymentStatus: "none", paymentStage: "none", paymentAmount: domainAmount,
     paymentStartAmount: pmtStart, paymentEndAmount: pmtEnd, paymentTiming, paymentIntentId: "", overrideCompleted: false,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   };
   await dbPut(`enrollments/${internId}`, enrollment);
   enrollment.id = internId;
@@ -822,6 +839,44 @@ export async function saveTermsContent(html) {
   return saveSiteConfig("terms", html);
 }
 
+// Privacy Policy
+export async function fetchPrivacyContent() {
+  return fetchSiteConfig("privacy");
+}
+
+export async function savePrivacyContent(html) {
+  return saveSiteConfig("privacy", html);
+}
+
+// Refund Policy
+export async function fetchRefundContent() {
+  return fetchSiteConfig("refund");
+}
+
+export async function saveRefundContent(html) {
+  return saveSiteConfig("refund", html);
+}
+
+// Footer Settings
+export async function fetchFooterSettings() {
+  const d = await fetchSiteConfig("footer");
+  return d || null;
+}
+
+export async function saveFooterSettings(settings) {
+  return saveSiteConfig("footer", settings);
+}
+
+// Popup Settings
+export async function fetchPopupSettings() {
+  const d = await fetchSiteConfig("popup");
+  return d || null;
+}
+
+export async function savePopupSettings(settings) {
+  return saveSiteConfig("popup", settings);
+}
+
 // Coupons
 export async function fetchCoupons() {
   const d = await dbGet("siteConfig/coupons");
@@ -891,6 +946,16 @@ export async function fetchProgressTimeline(enrollmentId) {
   if (enr.createdAt) timeline.push({ type: "enrolled", date: enr.createdAt });
   if (enr.completedAt) timeline.push({ type: "completed", date: enr.completedAt });
   return timeline.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+}
+
+// Auto-expire past-deadline enrollments
+export async function autoExpireEnrollments() {
+  try {
+    const res = await fetch(`${API_BASE}/api/auto-expire-enrollments`, { method: 'POST' });
+    return await res.json();
+  } catch {
+    return { success: false, message: 'Auto-expire check failed' };
+  }
 }
 
 // CSV export

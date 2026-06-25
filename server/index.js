@@ -662,6 +662,37 @@ app.post('/api/firebase-proxy', async (req, res) => {
   }
 });
 
+// Auto-expire active enrollments past their deadline
+app.post('/api/auto-expire-enrollments', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) {
+      return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    }
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const now = new Date().toISOString();
+    const snap = await db.collection('enrollments')
+      .where('status', '==', 'Active')
+      .get();
+    if (snap.empty) return res.json({ success: true, expired: 0, message: 'No active enrollments' });
+    let expired = 0;
+    const batch = db.batch();
+    snap.docs.forEach((doc) => {
+      const data = doc.data();
+      const deadline = data.deadline || data.createdAt;
+      if (deadline && now > deadline) {
+        const ref = db.collection('enrollments').doc(doc.id);
+        batch.update(ref, { status: 'Expired', expiredAt: now, updatedAt: now });
+        expired++;
+      }
+    });
+    if (expired > 0) await batch.commit();
+    return res.json({ success: true, expired, message: `${expired} enrollment(s) expired` });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Enrollment status (used by client for polling after Dodo payment)
 app.get('/api/enrollment-status/:id', async (req, res) => {
   try {

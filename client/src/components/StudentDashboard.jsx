@@ -13,6 +13,7 @@ import {
   acknowledgeAdminMessage,
   fetchSiteNotices,
   fetchPaymentMethods,
+  autoExpireEnrollments,
   markEnrollmentComplete,
   saveUserProfile,
   fetchUserProfile,
@@ -56,7 +57,7 @@ export default function StudentDashboard({
   const [couponDiscount, setCouponDiscount] = useState(0); // percent
   const [validatingCoupon, setValidatingCoupon] = useState(false);
 
-  const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "internships");
+  const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "overview");
   const [referralStat, setReferralStat] = useState(null);
   const [referralDashData, setReferralDashData] = useState(null);
   const [referralDashLoading, setReferralDashLoading] = useState(false);
@@ -134,6 +135,7 @@ export default function StudentDashboard({
     setLoading(true);
     setError("");
     try {
+      await autoExpireEnrollments();
       const [data, tmpl, cpResult, refStat, pm] = await Promise.all([
         fetchUserEnrollments(user.uid),
         fetchTemplates(),
@@ -435,115 +437,91 @@ export default function StudentDashboard({
         padding: "5.5rem 1rem 5rem",
       }}
     >
-      <div style={{ maxWidth: "860px", margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ marginBottom: "2.5rem" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              flexWrap: "wrap",
-              gap: "1rem",
-            }}
-          >
-            <div>
-              <span
-                style={{
-                  display: "inline-block",
-                  backgroundColor: "#000",
-                  color: "#fff",
-                  fontSize: "0.7rem",
-                  fontWeight: 900,
-                  letterSpacing: "2px",
-                  padding: "0.3rem 0.75rem",
-                  marginBottom: "0.75rem",
-                  textTransform: "uppercase",
-                }}
-              >
-                INTERN DASHBOARD
-              </span>
-              <h2
-                style={{
-                  fontSize: "2rem",
-                  fontWeight: 900,
-                  textTransform: "uppercase",
-                  margin: "0 0 0.5rem",
-                }}
-              >
-                Welcome, {user.displayName?.split(" ")[0] || "Intern"}
-              </h2>
-              <p style={{ color: "#666", fontSize: "0.93rem" }}>
-                Manage your active internships, submit your projects, and
-                download your credentials.
-              </p>
-              <button
-                onClick={handleOpenProfileEdit}
-                className="btn-sharp"
-                style={{
-                  marginTop: "0.5rem",
-                  padding: "0.4rem 1rem",
-                  fontSize: "0.78rem",
-                  fontWeight: 700,
-                  background: "#fff",
-                  color: "#000",
-                  border: "2px solid #000",
-                  cursor: "pointer",
-                  borderRadius: 0,
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                }}
-              >
-                Edit Profile
-              </button>
-            </div>
-
-            {/* Tabs for Internships & Referrals */}
-            <div
-              className="student-dashboard-tabs"
-              style={{
-                display: "flex",
-                gap: "0.5rem",
-                background: "#e0e0e0",
-                padding: "0.3rem",
-                border: "2px solid #000",
-              }}
-            >
-              <button
-                onClick={() => setActiveTab("internships")}
-                style={{
-                  padding: "0.5rem 1.25rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  border: "none",
-                  background:
-                    activeTab === "internships" ? "#000" : "transparent",
-                  color: activeTab === "internships" ? "#fff" : "#555",
-                  cursor: "pointer",
-                }}
-              >
-                My Internships
-              </button>
-              <button
-                onClick={() => setActiveTab("referral")}
-                style={{
-                  padding: "0.5rem 1.25rem",
-                  fontSize: "0.85rem",
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  border: "none",
-                  background:
-                    activeTab === "referral" ? "#34A853" : "transparent",
-                  color: activeTab === "referral" ? "#fff" : "#555",
-                  cursor: "pointer",
-                }}
-              >
-                Refer & Earn
-              </button>
-            </div>
+      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+        {/* Welcome Header with Deadline */}
+        <div style={{ border: "2px solid #000", padding: "1rem 1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+          <div>
+            <span style={{ display: "inline-block", backgroundColor: "#000", color: "#fff", fontSize: "0.7rem", fontWeight: 900, letterSpacing: "2px", padding: "0.3rem 0.75rem", marginBottom: "0.5rem", textTransform: "uppercase" }}>INTERN DASHBOARD</span>
+            <h2 style={{ fontSize: "1.6rem", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>Welcome, {user.displayName?.split(" ")[0] || "Intern"}</h2>
           </div>
+          {enrollments.filter(e => e.status === "active" || e.status === "pending").length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", background: "#f5f5f5", padding: "0.75rem 1.25rem", border: "1px solid #ddd" }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#000" }}>
+                  {(() => {
+                    const active = enrollments.filter(e => e.status === "active" || e.status === "pending");
+                    if (!active.length) return "0";
+                    const earliest = active.reduce((min, e) => {
+                      const d = e.deadline || e.createdAt;
+                      return d < min ? d : min;
+                    }, active[0]?.deadline || active[0]?.createdAt);
+                    if (!earliest) return "--";
+                    const diff = new Date(earliest) - new Date();
+                    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    return days > 0 ? days : 0;
+                  })()}
+                </div>
+                <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Days Left</div>
+              </div>
+              <div style={{ flex: 1, minWidth: "120px" }}>
+                <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.25rem" }}>Progress</div>
+                <div style={{ height: "8px", background: "#e0e0e0", border: "1px solid #000", borderRadius: "4px", overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, (() => {
+                    const active = enrollments.filter(e => e.status === "active" || e.status === "pending");
+                    if (!active.length) return 0;
+                    const earliest = active.reduce((min, e) => {
+                      const d = e.deadline || e.createdAt;
+                      return d < min ? d : min;
+                    }, active[0]?.deadline || active[0]?.createdAt);
+                    if (!earliest) return 0;
+                    const created = new Date(active[0]?.createdAt || Date.now());
+                    const deadline = new Date(earliest);
+                    const total = deadline - created;
+                    const elapsed = Date.now() - created;
+                    return total > 0 ? (elapsed / total) * 100 : 0;
+                  })()))}%`, background: "#000", transition: "width 0.5s ease" }} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start" }}>
+          {/* Left Sidebar Tabs */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "180px", flexShrink: 0 }}>
+            {[
+              { id: "overview", label: "Overview", icon: "\u25C8" },
+              { id: "tasks", label: "My Tasks", icon: "\u2630" },
+              { id: "referral", label: "Refer & Earn", icon: "\u2197" },
+              { id: "profile", label: "Profile", icon: "\u25CB" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: "0.65rem 1rem",
+                  fontSize: "0.85rem",
+                  fontWeight: activeTab === tab.id ? 900 : 700,
+                  textTransform: "uppercase",
+                  border: "2px solid #000",
+                  background: activeTab === tab.id ? "#000" : "#fff",
+                  color: activeTab === tab.id ? "#fff" : "#000",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                <span style={{ fontSize: "1rem" }}>{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Main Content Area */}
+          <div style={{ flex: 1, minWidth: 0 }}>
 
         {error && (
           <div
@@ -677,17 +655,141 @@ export default function StudentDashboard({
           >
             Loading your internship data…
           </div>
+        ) : activeTab === "overview" ? (
+          <div>
+            <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
+              <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>Welcome!</h3>
+              <p style={{ color: "#555", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "1rem" }}>
+                You are enrolled in {enrollments.filter(e => e.status === "active" || e.status === "pending").length} active internship{enrollments.filter(e => e.status === "active" || e.status === "pending").length !== 1 ? "s" : ""}.
+                Complete your projects and get verified to earn your certificate.
+              </p>
+              {enrollments.length > 0 && (
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                  {enrollments.filter(e => e.offerLetterUrl).map((e, idx) => (
+                    <a key={idx} href={e.offerLetterUrl} target="_blank" rel="noopener noreferrer" className="btn-sharp" style={{ display: "inline-block", padding: "0.6rem 1.25rem", fontSize: "0.82rem", fontWeight: 700, textDecoration: "none", background: "#fff" }}>
+                      Download Offer Letter - {e.domain || e.domainId || `Internship ${idx + 1}`}
+                    </a>
+                  ))}
+                  {!enrollments.some(e => e.offerLetterUrl) && (
+                    <p style={{ fontSize: "0.85rem", color: "#888", fontStyle: "italic" }}>Offer letters will appear here once generated.</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+              <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{enrollments.filter(e => e.status === "active" || e.status === "pending").length}</div>
+                <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Active Internships</div>
+              </div>
+              <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{enrollments.filter(e => e.status === "Completed").length}</div>
+                <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Completed</div>
+              </div>
+              <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{referralStat?.referralCount || 0}</div>
+                <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Referrals</div>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === "tasks" ? (
+          <div>
+            {enrollments.length === 0 ? (
+              <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                <p style={{ color: "#888", fontSize: "1rem" }}>You have no active internships. Explore domains to get started.</p>
+              </div>
+            ) : enrollments.length === 1 ? (
+              (() => {
+                const enrollment = enrollments[0];
+                const projects = getProjectsForEnrollment(enrollment);
+                const submissions = getSubmissions(enrollment);
+                const completionPct = getCompletionPercent(enrollment);
+                const allVerified = projects.length > 0 && projects.every((_, idx) => submissions[idx]?.verified);
+                const isCompleted = enrollment.status === "Completed";
+                const isExpired = enrollment.status === "Expired";
+                return (
+                  <EnrollmentCard
+                    enrollment={enrollment}
+                    projects={projects}
+                    submissions={submissions}
+                    completionPct={completionPct}
+                    allVerified={allVerified}
+                    isCompleted={isCompleted}
+                    isExpired={isExpired}
+                    submissionInputs={submissionInputs}
+                    setSubmissionInputs={setSubmissionInputs}
+                    submitting={submitting}
+                    submitSuccess={submitSuccess}
+                    onSubmitProject={handleSubmitProject}
+                    onSubmitQuiz={handleSubmitQuiz}
+                    onDownloadFromTemplate={handleDownloadFromTemplate}
+                    domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
+                    onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
+                    paymentStatus={enrollment.paymentStatus}
+                    paymentStage={enrollment.paymentStage}
+                    paymentAmount={enrollment.paymentAmount}
+                    paymentStartAmount={enrollment.paymentStartAmount}
+                    paymentEndAmount={enrollment.paymentEndAmount}
+                    user={user}
+                  />
+                );
+              })()
+            ) : (
+              <div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+                  {enrollments.map((e) => (
+                    <div key={e.id} style={{ border: "2px solid #000", padding: "1rem 1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+                      <div>
+                        <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
+                        <div style={{ fontSize: "0.8rem", color: "#888", fontWeight: 700 }}>Status: {e.status}</div>
+                      </div>
+                      <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", cursor: "pointer", borderRadius: 0 }}>
+                        Open Dashboard
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {selectedEnrollment && (() => {
+                  const enrollment = selectedEnrollment;
+                  const projects = getProjectsForEnrollment(enrollment);
+                  const submissions = getSubmissions(enrollment);
+                  const completionPct = getCompletionPercent(enrollment);
+                  const allVerified = projects.length > 0 && projects.every((_, idx) => submissions[idx]?.verified);
+                  const isCompleted = enrollment.status === "Completed";
+                  const isExpired = enrollment.status === "Expired";
+                  return (
+                    <EnrollmentCard
+                      enrollment={enrollment}
+                      projects={projects}
+                      submissions={submissions}
+                      completionPct={completionPct}
+                      allVerified={allVerified}
+                      isCompleted={isCompleted}
+                      isExpired={isExpired}
+                      submissionInputs={submissionInputs}
+                      setSubmissionInputs={setSubmissionInputs}
+                      submitting={submitting}
+                      submitSuccess={submitSuccess}
+                      onSubmitProject={handleSubmitProject}
+                      onSubmitQuiz={handleSubmitQuiz}
+                      onDownloadFromTemplate={handleDownloadFromTemplate}
+                      domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
+                      onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
+                      paymentStatus={enrollment.paymentStatus}
+                      paymentStage={enrollment.paymentStage}
+                      paymentAmount={enrollment.paymentAmount}
+                      paymentStartAmount={enrollment.paymentStartAmount}
+                      paymentEndAmount={enrollment.paymentEndAmount}
+                      user={user}
+                    />
+                  );
+                })()}
+              </div>
+            )}
+          </div>
         ) : activeTab === "referral" ? (
           <div>
-            {/* If user already has a referral code, show dashboard. Otherwise show sign-up form */}
             {referralStat && userProfile?.upiId ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "1.5rem",
-                }}
-              >
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
                 {/* Share card */}
                 <div
                   style={{
@@ -1266,11 +1368,12 @@ export default function StudentDashboard({
                   {enrollments.map((e) => {
                     const pct = getCompletionPercent(e);
                     const isCompleted = e.status === "Completed";
+                    const isExpired = e.status === "Expired";
                     return (
                       <div
                         key={e.id}
                         style={{
-                          background: "#fff",
+                          background: isExpired ? "#1a0000" : "#fff",
                           border: "2px solid #000",
                           padding: "1.5rem",
                           boxShadow: "4px 4px 0 #000",
@@ -1282,9 +1385,7 @@ export default function StudentDashboard({
                         <div>
                           <span
                             style={{
-                              backgroundColor: isCompleted
-                                ? "#34A853"
-                                : "#FBBC05",
+                              backgroundColor: isExpired ? "#a00" : isCompleted ? "#34A853" : "#FBBC05",
                               color: "#fff",
                               fontSize: "0.62rem",
                               fontWeight: 900,
@@ -1293,7 +1394,7 @@ export default function StudentDashboard({
                               textTransform: "uppercase",
                             }}
                           >
-                            {e.status}
+                            {isExpired ? "✕ EXPIRED" : e.status}
                           </span>
                           <h4
                             style={{
@@ -1310,6 +1411,11 @@ export default function StudentDashboard({
                           <div style={{ fontSize: "0.72rem", color: "#777" }}>
                             Intern ID: {e.internId || e.id}
                           </div>
+                          {e.deadline && !isCompleted && (
+                            <div style={{ fontSize: "0.7rem", color: isExpired ? "#ff6666" : "#d32f2f", marginTop: "0.15rem", fontWeight: 700 }}>
+                              {isExpired ? "Expired" : "Deadline"}: {new Date(e.deadline).toLocaleDateString()}
+                            </div>
+                          )}
                         </div>
                         <div>
                           <div
@@ -1362,53 +1468,12 @@ export default function StudentDashboard({
                   })}
                 </div>
               </div>
-            ) : (
-              (() => {
-                const enrollment = selectedEnrollment || enrollments[0];
-                const projects = getProjectsForEnrollment(enrollment);
-                const submissions = getSubmissions(enrollment);
-                const completionPct = getCompletionPercent(enrollment);
-                const allVerified =
-                  projects.length > 0 &&
-                  projects.every((_, idx) => submissions[idx]?.verified);
-                const isCompleted = enrollment.status === "Completed";
-
-                return (
-                  <EnrollmentCard
-                    enrollment={enrollment}
-                    projects={projects}
-                    submissions={submissions}
-                    completionPct={completionPct}
-                    allVerified={allVerified}
-                    isCompleted={isCompleted}
-                    submissionInputs={submissionInputs}
-                    setSubmissionInputs={setSubmissionInputs}
-                    submitting={submitting}
-                    submitSuccess={submitSuccess}
-                    onSubmitProject={handleSubmitProject}
-                    onSubmitQuiz={handleSubmitQuiz}
-                    onDownloadFromTemplate={handleDownloadFromTemplate}
-                    domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
-                    onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
-                    paymentStatus={enrollment.paymentStatus}
-                    paymentStage={enrollment.paymentStage || "none"}
-                    paymentAmount={enrollment.paymentAmount}
-                    paymentStartAmount={enrollment.paymentStartAmount}
-                    paymentEndAmount={enrollment.paymentEndAmount}
-                    paymentTiming={enrollment.paymentTiming}
-                    hasMatchedReferral={!!referralMatchedMap[enrollment.id]}
-                    showBackButton={enrollments.length > 1}
-                    onBackClick={() => setSelectedEnrollment(null)}
-                    careerPaths={careerPaths}
-                    onMarkComplete={handleMarkComplete}
-                    onVerifyInternship={handleVerifyInternship}
-                  />
-                );
-              })()
-            )}
+            ) : null}
           </div>
-        )}
+                 )}
       </div>
+    </div>
+  </div>
       {showPaymentChoice && paymentEnrollment && !paymentMethod && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, overflowY: "auto", padding: "2rem 0" }}>
           <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", width: "90%", maxWidth: "420px", boxShadow: "8px 8px 0 #000", textAlign: "center" }}>
@@ -1547,6 +1612,7 @@ function EnrollmentCard({
   completionPct,
   allVerified,
   isCompleted,
+  isExpired,
   submissionInputs,
   setSubmissionInputs,
   submitting,
@@ -1623,7 +1689,7 @@ function EnrollmentCard({
           style={{
             borderBottom: "2px solid #000",
             padding: "1.75rem 2rem",
-            background: isCompleted ? "#000" : "#fff",
+            background: isExpired ? "#1a0000" : isCompleted ? "#000" : "#fff",
           }}
         >
           <div
@@ -1647,7 +1713,7 @@ function EnrollmentCard({
               >
                 <span
                   style={{
-                    backgroundColor: isCompleted ? "#34A853" : "#FBBC05",
+                    backgroundColor: isExpired ? "#a00" : isCompleted ? "#34A853" : "#FBBC05",
                     color: "#fff",
                     fontSize: "0.68rem",
                     fontWeight: 900,
@@ -1656,7 +1722,7 @@ function EnrollmentCard({
                     textTransform: "uppercase",
                   }}
                 >
-                  {isCompleted ? "✓ COMPLETED" : "● ACTIVE"}
+                  {isExpired ? "✕ EXPIRED" : isCompleted ? "✓ COMPLETED" : "● ACTIVE"}
                 </span>
                 <span
                   style={{
@@ -1679,7 +1745,7 @@ function EnrollmentCard({
                   fontWeight: 900,
                   textTransform: "uppercase",
                   margin: 0,
-                  color: isCompleted ? "#fff" : "#000",
+                  color: isExpired ? "#ff6666" : isCompleted ? "#fff" : "#000",
                 }}
               >
                 {enrollment.domain}
@@ -1757,6 +1823,18 @@ function EnrollmentCard({
               >
                 Enrolled: {new Date(enrollment.createdAt).toLocaleDateString()}
               </div>
+              {enrollment.deadline && !isCompleted && (
+                <div
+                  style={{
+                    fontSize: "0.72rem",
+                    color: isExpired ? "#ff6666" : "#d32f2f",
+                    marginTop: "0.1rem",
+                    fontWeight: 700,
+                  }}
+                >
+                  {isExpired ? "Expired" : "Deadline"}: {new Date(enrollment.deadline).toLocaleDateString()}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1803,6 +1881,12 @@ function EnrollmentCard({
 
         {/* Projects Section */}
         <div style={{ padding: "1.75rem 2rem" }}>
+          {isExpired && (
+            <div style={{ border: "2px solid #a00", padding: "1rem 1.25rem", background: "#2a0000", marginBottom: "1rem" }}>
+              <strong style={{ color: "#ff6666" }}>Internship Expired</strong>
+              <p style={{ fontSize: "0.85rem", color: "#cc6666", marginTop: "0.35rem" }}>This internship deadline has passed. Contact admin if you need an extension.</p>
+            </div>
+          )}
           {tasksLocked && (
             <div style={{ border: "2px solid #EA4335", padding: "1rem 1.25rem", background: "#FFF5F5", marginBottom: "1rem" }}>
               <strong style={{ color: "#EA4335" }}>Payment Required</strong>
@@ -1840,7 +1924,7 @@ function EnrollmentCard({
                 const isQuiz = (project?.type || "text") === "quiz";
 
                 // Sequential unlock: previous task must be submitted
-                let disabled = tasksLocked;
+                let disabled = tasksLocked || isExpired;
                 if (idx > 0 && !disabled) {
                   const prev = submissions[idx - 1];
                   const prevProject = projects[idx - 1];
@@ -1921,6 +2005,12 @@ function EnrollmentCard({
             background: "#fafafa",
           }}
         >
+          {isExpired && (
+            <div style={{ border: "2px solid #a00", padding: "1rem 1.25rem", background: "#2a0000", marginBottom: "1rem" }}>
+              <strong style={{ color: "#ff6666" }}>Internship Expired</strong>
+              <p style={{ fontSize: "0.85rem", color: "#cc6666", marginTop: "0.35rem" }}>Contact admin to discuss reinstatement or extension options.</p>
+            </div>
+          )}
           <h4
             style={{
               fontSize: "0.85rem",
