@@ -1,63 +1,20 @@
-@font-face {
-  font-family: 'Humane';
-  src: url('/fonts/Humane-Thin.woff2') format('woff2');
-  font-weight: 100;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'Humane';
-  src: url('/fonts/Humane-ExtraLight.woff2') format('woff2');
-  font-weight: 200;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'Humane';
-  src: url('/fonts/Humane-Light.woff2') format('woff2');
-  font-weight: 300;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'Humane';
-  src: url('/fonts/Humane-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'Humane';
-  src: url('/fonts/Humane-Medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'Humane';
-  src: url('/fonts/Humane-SemiBold.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-}
-@font-face {
-  font-family: 'Humane';
-  src: url('/fonts/Humane-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-}
-
 :root {
   --bg-primary: #ffffff;
-  --bg-secondary: #f4f4f4;
+  --bg-secondary: #fbfbfb;
   --text-primary: #000000;
-  --text-secondary: #222222;
+  --text-secondary: #555555;
   --border-primary: #000000;
-  --border-secondary: #cccccc;
-  --card-shadow: 6px 6px 0px 0px #000000;
-  --card-shadow-hover: 12px 12px 0px 0px #000000;
-
-  font-family: 'Humane', system-ui, -apple-system, sans-serif;
+  --border-secondary: #e5e5e5;
+  --card-shadow: 4px 4px 0px 0px #000000;
+  --card-shadow-hover: 10px 10px 0px 0px #000000;
+  
+  font-family: 'Humane', 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.2;
-  font-weight: 500;
+  font-weight: 400;
   color-scheme: light;
   color: var(--text-primary);
   background-color: var(--bg-primary);
-
+  
   box-sizing: border-box;
 }
 
@@ -68,7 +25,27 @@
 }
 
 html {
-  scroll-behavior: auto;
+  scroll-behavior: smooth;
+}
+
+html.lenis, html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overflow: clip;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
 }
 
 body {
@@ -80,37 +57,36 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Humane', sans-serif;
+  font-family: 'Humane', 'Space Grotesk', sans-serif;
   font-weight: 700;
   letter-spacing: -0.02em;
-  line-height: 1;
+  line-height: 1.1;
 }
 
 p {
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.6;
 }
 
 a {
   color: var(--text-primary);
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-/* Brutalist Navigation */
+/* Custom Navigation Link Underline Hover Effects */
 .nav-link {
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   text-transform: uppercase;
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.05rem;
   position: relative;
   padding: 0.25rem 0;
   display: inline-block;
-  transition: color 0.2s ease;
+  transition: color 0.2s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .nav-link:hover {
-  color: #666;
+  transform: translateY(-2px) scale(1.05);
 }
 
 .nav-button-link {
@@ -121,7 +97,7 @@ a {
 }
 
 .site-nav {
-  border-bottom: 3px solid var(--border-primary);
+  border-bottom: 2px solid var(--border-primary);
   padding: 1.25rem 0;
   position: sticky;
   top: 0;
@@ -136,20 +112,32 @@ a {
   align-items: center;
 }
 
+@keyframes navSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .nav-container {
   justify-content: space-between;
   gap: 0.75rem;
   flex-wrap: nowrap;
   min-width: 0;
+  animation: navSlideDown 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .brand-mark {
-  font-size: 1.8rem;
-  font-weight: 800;
-  font-family: 'Humane', sans-serif;
+  font-size: 1.65rem;
+  font-weight: 900;
+  font-family: 'Space Grotesk', sans-serif;
   white-space: nowrap;
   display: inline-block;
-  letter-spacing: -0.02em;
+  transition: color 0.3s ease;
 }
 
 .nav-items {
@@ -160,22 +148,22 @@ a {
 
 .currency-switcher {
   gap: 0.75rem;
-  border-left: 3px solid var(--border-primary);
+  border-left: 2px solid var(--border-primary);
   padding-left: 1.5rem;
   position: relative;
 }
 
 .currency-label {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
   font-weight: 700;
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   white-space: nowrap;
 }
 
 .currency-label span {
   color: #888;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
 }
 
 .currency-menu {
@@ -183,8 +171,8 @@ a {
   top: calc(100% + 4px);
   right: 0;
   background: var(--bg-primary);
-  border: 3px solid var(--border-primary);
-  box-shadow: 6px 6px 0 #000;
+  border: 2px solid var(--border-primary);
+  box-shadow: 4px 4px 0 #000;
   padding: 0;
   margin: 0;
   list-style: none;
@@ -198,9 +186,9 @@ a {
   padding: 0.75rem 1rem;
   border: 0;
   border-bottom: 1px solid var(--border-secondary);
-  font-family: 'Humane', sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
@@ -212,7 +200,7 @@ a {
   position: absolute;
   width: 100%;
   transform: scaleX(0);
-  height: 3px;
+  height: 2px;
   bottom: 0;
   left: 0;
   background-color: var(--text-primary);
@@ -225,31 +213,33 @@ a {
   transform-origin: bottom left;
 }
 
-/* Brutalist UI Components */
+/* Sharp UI Design System Components */
 
+/* Buttons */
 .btn-sharp {
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 1.1rem;
+  font-size: 0.875rem;
   letter-spacing: 0.05em;
   background-color: var(--text-primary);
   color: var(--bg-primary);
-  border: 3px solid var(--border-primary);
-  padding: 0.85rem 1.75rem;
+  border: 2px solid var(--border-primary);
+  border-radius: 0 !important;
+  padding: 0.75rem 1.5rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-sharp:hover {
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  transform: translate(-4px, -4px);
-  box-shadow: 4px 4px 0px 0px #000000;
+  transform: translate(-3px, -3px);
+  box-shadow: 3px 3px 0px 0px #000000;
 }
 
 .btn-sharp:active {
@@ -258,28 +248,29 @@ a {
 }
 
 .btn-sharp-outline {
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 1.1rem;
+  font-size: 0.875rem;
   letter-spacing: 0.05em;
   background-color: var(--bg-primary);
   color: var(--text-primary);
-  border: 3px solid var(--border-primary);
-  padding: 0.85rem 1.75rem;
+  border: 2px solid var(--border-primary);
+  border-radius: 0 !important;
+  padding: 0.75rem 1.5rem;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-sharp-outline:hover {
   background-color: var(--text-primary);
   color: var(--bg-primary);
-  transform: translate(-4px, -4px);
-  box-shadow: 4px 4px 0px 0px #000000;
+  transform: translate(-3px, -3px);
+  box-shadow: 3px 3px 0px 0px #000000;
 }
 
 .btn-sharp-outline:active {
@@ -287,9 +278,11 @@ a {
   box-shadow: none;
 }
 
+/* Sharp Card with Custom Lift Interaction */
 .card-sharp {
   background-color: var(--bg-primary);
-  border: 3px solid var(--border-primary);
+  border: 2px solid var(--border-primary);
+  border-radius: 0 !important;
   padding: 2.25rem;
   box-shadow: var(--card-shadow);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -300,9 +293,10 @@ a {
   box-shadow: var(--card-shadow-hover);
 }
 
+/* Custom interactive animation for listing bullet points */
 .card-interactive:hover .feature-square {
   transform: rotate(45deg);
-  color: #ff3e3e;
+  color: #ff3e3e; /* subtle color pop on active list items */
 }
 
 .feature-square {
@@ -310,13 +304,15 @@ a {
   transition: transform 0.3s ease, color 0.3s ease;
 }
 
+/* Sharp Input Fields */
 .input-sharp {
   width: 100%;
-  font-family: 'Humane', sans-serif;
-  font-size: 1.05rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
   padding: 0.75rem 1rem;
   background-color: var(--bg-primary);
-  border: 3px solid var(--border-primary);
+  border: 2px solid var(--border-primary);
+  border-radius: 0 !important;
   color: var(--text-primary);
   outline: none;
   transition: all 0.2s ease;
@@ -328,18 +324,21 @@ a {
   transform: translate(-2px, -2px);
 }
 
+/* Badge tags with custom animations */
 .badge-sharp {
   display: inline-block;
-  font-family: 'Humane', sans-serif;
-  font-size: 0.9rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
-  padding: 0.35rem 0.6rem;
-  border: 3px solid var(--border-primary);
+  padding: 0.25rem 0.5rem;
+  border: 2px solid var(--border-primary);
+  border-radius: 0 !important;
   background-color: var(--bg-secondary);
   color: var(--text-primary);
 }
 
+/* Custom Currency Dropdown Item Styling */
 .dropdown-item-btn:hover {
   background-color: var(--text-primary) !important;
   color: var(--bg-primary) !important;
@@ -349,15 +348,23 @@ a {
   color: var(--bg-secondary) !important;
 }
 
+/* Calculator interactive labels */
 .custom-radio-label:hover, .custom-checkbox-label:hover {
   border-color: var(--text-primary) !important;
   background-color: #f7f7f7 !important;
   transform: translateX(2px);
 }
 
+/* CSS Keyframe Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .fade-in-section {
@@ -365,9 +372,15 @@ a {
 }
 
 @keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.2); }
-  70% { box-shadow: 0 0 0 6px rgba(0, 0, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.2);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(0, 0, 0, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 0, 0, 0);
+  }
 }
 
 .badge-pulse {
@@ -375,9 +388,15 @@ a {
 }
 
 @keyframes pricePulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.03); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .price-tag {
@@ -389,7 +408,7 @@ a {
   animation: pricePulse 0.5s ease-in-out;
 }
 
-/* Brutalist Layout */
+/* Layout Utilities */
 .container {
   max-width: 1200px;
   margin: 0 auto;
@@ -406,7 +425,7 @@ a {
 }
 
 .section-heading h2 {
-  font-size: clamp(2.5rem, 4vw, 3.5rem);
+  font-size: clamp(2rem, 4vw, 2.5rem);
   margin-bottom: 1rem;
   text-transform: uppercase;
 }
@@ -418,12 +437,12 @@ a {
 
 .services-section,
 .contact-section {
-  border-bottom: 3px solid var(--border-primary);
+  border-bottom: 2px solid var(--border-primary);
   background: var(--bg-secondary);
 }
 
 .calculator-section {
-  border-bottom: 3px solid var(--border-primary);
+  border-bottom: 2px solid var(--border-primary);
   background: var(--bg-primary);
 }
 
@@ -447,7 +466,7 @@ a {
 }
 
 .service-card h3 {
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   text-transform: uppercase;
 }
 
@@ -456,14 +475,14 @@ a {
 }
 
 .service-card .tier-price .price-tag {
-  font-size: 2.5rem;
+  font-size: 2.25rem;
   font-weight: 900;
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 .service-card hr {
   border: 0;
-  border-top: 3px solid var(--border-secondary);
+  border-top: 2px solid var(--border-secondary);
   margin: 1.5rem 0;
 }
 
@@ -480,7 +499,7 @@ a {
   align-items: flex-start;
   gap: 0.55rem;
   color: var(--text-secondary);
-  font-size: 1rem;
+  font-size: 0.92rem;
 }
 
 .popular-badge {
@@ -514,8 +533,8 @@ a {
 .admin-referral-form label {
   display: block;
   font-weight: 800;
-  font-family: 'Humane', sans-serif;
-  font-size: 0.9rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.82rem;
   text-transform: uppercase;
   margin: 1.5rem 0 0.65rem;
 }
@@ -532,7 +551,7 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border: 3px solid var(--border-primary);
+  border: 2px solid var(--border-primary);
   padding: 0.9rem 1rem;
   cursor: pointer;
 }
@@ -554,7 +573,7 @@ a {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  border-left: 3px solid var(--border-primary);
+  border-left: 2px solid var(--border-primary);
   padding-left: 3rem;
   text-align: center;
 }
@@ -562,14 +581,14 @@ a {
 .quote-total {
   font-size: clamp(2.6rem, 6vw, 4rem);
   font-weight: 900;
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   line-height: 1;
   margin: 1.5rem 0 0.75rem;
 }
 
 .quote-lines {
   width: 100%;
-  border-top: 3px solid var(--border-secondary);
+  border-top: 2px solid var(--border-secondary);
   margin: 1.5rem 0;
   padding-top: 1rem;
 }
@@ -583,7 +602,7 @@ a {
 
 .quote-lines div {
   padding: 0.45rem 0;
-  font-size: 1rem;
+  font-size: 0.92rem;
 }
 
 .service-login-wrap {
@@ -624,7 +643,7 @@ a {
 .inquiry-summary span,
 .inquiry-summary p {
   color: #aaa;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .inquiry-summary h3,
@@ -635,12 +654,12 @@ a {
 
 .inquiry-summary strong {
   font-size: 1.75rem;
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 .form-status,
 .admin-alert {
-  border: 3px solid var(--border-primary);
+  border: 2px solid var(--border-primary);
   padding: 1rem;
   background: #fff6f6;
   font-weight: 700;
@@ -661,7 +680,7 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: 'Humane', monospace;
+  font-family: 'IBM Plex Mono', monospace;
 }
 
 .login-container {
@@ -716,7 +735,7 @@ a {
   height: 48px;
   border: 1.5px solid #000;
   background: #fff;
-  font-family: 'Humane', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 14px;
   padding: 0 16px;
   outline: none;
@@ -734,7 +753,7 @@ a {
 .btn-google {
   width: 100%;
   height: 52px;
-  font-family: 'Humane', monospace;
+  font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.15em;
@@ -823,14 +842,14 @@ a {
   display: block;
   color: var(--text-secondary);
   text-transform: uppercase;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
 .metric-card strong {
   display: block;
-  font-size: 2.5rem;
-  font-family: 'Humane', sans-serif;
+  font-size: 2rem;
+  font-family: 'Space Grotesk', sans-serif;
 }
 
 .admin-tabs {
@@ -852,12 +871,12 @@ td {
   border-bottom: 1px solid var(--border-secondary);
   text-align: left;
   padding: 0.85rem;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   vertical-align: top;
 }
 
 th {
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   text-transform: uppercase;
   background: #f5f5f5;
 }
@@ -890,18 +909,19 @@ th {
   gap: 1.75rem;
 }
 
+/* ─── Google Sign-in button in Navbar ─────────────────────── */
 .btn-google-nav {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   font-weight: 700;
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   background: #fff;
   color: #000;
-  border: 3px solid #000;
+  border: 2px solid #000;
   padding: 0.4rem 1rem;
   cursor: pointer;
   white-space: nowrap;
@@ -919,6 +939,7 @@ th {
   fill: #fff;
 }
 
+/* ─── Authenticated user area in Navbar ───────────────────── */
 .nav-auth-user {
   display: flex;
   align-items: center;
@@ -929,35 +950,35 @@ th {
 .nav-avatar {
   width: 30px;
   height: 30px;
-  border-radius: 0;
-  border: 3px solid #000;
+  border-radius: 50%;
+  border: 2px solid #000;
   object-fit: cover;
   flex-shrink: 0;
 }
 
 .nav-user-name {
-  font-family: 'Humane', sans-serif;
-  font-size: 0.95rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.82rem;
   font-weight: 700;
   text-transform: uppercase;
 }
 
 .nav-admin-btn {
   padding: 0.3rem 0.85rem !important;
-  font-size: 0.85rem !important;
+  font-size: 0.75rem !important;
   height: auto !important;
 }
 
 .nav-logout-btn {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: #888;
-  font-weight: 600;
 }
 
 .nav-logout-btn:hover {
   color: #000;
 }
 
+/* ─── Custom price tag ───────────────────────────────────── */
 .custom-price-tag {
   font-size: 1.6rem;
   font-style: italic;
@@ -972,18 +993,20 @@ th {
   font-style: italic;
 }
 
+/* ─── Custom Scrollbar ────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 12px;
+  width: 10px;
 }
 ::-webkit-scrollbar-track {
   background: var(--bg-primary);
-  border-left: 3px solid var(--border-primary);
+  border-left: 2px solid var(--border-primary);
 }
 ::-webkit-scrollbar-thumb {
   background: var(--text-primary);
-  border: 3px solid var(--bg-primary);
+  border: 2px solid var(--bg-primary);
 }
 
+/* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 1200px) {
   .grid-4 {
     grid-template-columns: repeat(2, 1fr);
@@ -1022,7 +1045,7 @@ th {
   }
   .calculator-result-panel {
     border-left: none !important;
-    border-top: 3px solid var(--border-primary);
+    border-top: 2px solid var(--border-primary);
     padding-left: 0 !important;
     padding-top: 3rem !important;
     margin-top: 1.5rem;
@@ -1043,6 +1066,7 @@ th {
   }
 }
 
+/* ─── Auth Page & Get Service Form ──────────────────────── */
 .auth-page-wrapper {
   display: flex;
   justify-content: center;
@@ -1068,22 +1092,23 @@ th {
 .auth-separator span {
   background: var(--bg-primary);
   padding: 0 1rem;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   position: relative;
   z-index: 2;
   text-transform: uppercase;
-  font-family: 'Humane', sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
   letter-spacing: 0.05em;
 }
 
+/* Service Scoping Form */
 .get-service-section {
   background-color: var(--bg-secondary);
 }
 
 .form-scoping-card {
   background-color: var(--bg-primary);
-  border: 3px solid var(--border-primary);
+  border: 2px solid var(--border-primary);
   box-shadow: var(--card-shadow);
   padding: 3rem;
 }
@@ -1095,7 +1120,7 @@ th {
 }
 
 .service-selector-box {
-  border: 3px solid var(--border-secondary);
+  border: 2px solid var(--border-secondary);
   padding: 1.5rem;
   transition: all 0.2s ease;
   box-shadow: none !important;
@@ -1114,8 +1139,8 @@ th {
   align-items: center;
   gap: 0.75rem;
   cursor: pointer;
-  font-family: 'Humane', sans-serif;
-  font-size: 1.1rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
 }
 .selector-checkbox-label input[type="checkbox"] {
   width: 18px;
@@ -1130,13 +1155,13 @@ th {
   flex-direction: column;
   gap: 0.6rem;
   padding-left: 1.75rem;
-  border-left: 3px solid var(--border-secondary);
+  border-left: 2px solid var(--border-secondary);
 }
 .tier-radio-group label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
   cursor: pointer;
 }
 .tier-radio-group input[type="radio"] {
@@ -1144,13 +1169,15 @@ th {
   cursor: pointer;
 }
 
+/* Modal Overlay & Animations */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
   z-index: 2000;
   display: flex;
   justify-content: center;
@@ -1186,7 +1213,7 @@ th {
 
   .admin-tabs-row button {
     flex-shrink: 0;
-    font-size: 0.85rem !important;
+    font-size: 0.72rem !important;
     padding: 0.35rem 0.65rem !important;
   }
 
