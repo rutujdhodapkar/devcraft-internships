@@ -2,9 +2,18 @@ import React, { useEffect } from 'react';
 
 export default function LearnHereModal({ documents, projectName, onClose }) {
   useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
+    const b = document.body;
+    const h = document.documentElement;
+    b.style.overflow = 'hidden';
+    h.style.overflow = 'hidden';
+    b.style.touchAction = 'none';
+    h.style.touchAction = 'none';
+    return () => {
+      b.style.overflow = '';
+      h.style.overflow = '';
+      b.style.touchAction = '';
+      h.style.touchAction = '';
+    };
   }, []);
 
   if (!documents || !documents.length) return null;

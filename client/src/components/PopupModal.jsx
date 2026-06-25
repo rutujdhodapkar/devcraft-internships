@@ -6,17 +6,26 @@ export default function PopupModal({ show, onClose, settings: propSettings }) {
 
   useEffect(() => {
     if (!show) return;
-    document.body.style.overflow = 'hidden';
-    document.documentElement.style.overflow = 'hidden';
+    const b = document.body;
+    const h = document.documentElement;
+    b.style.overflow = 'hidden';
+    h.style.overflow = 'hidden';
+    b.style.touchAction = 'none';
+    h.style.touchAction = 'none';
     if (!propSettings) {
       fetchPopupSettings().then((d) => setLocalSettings(d || null)).catch(() => {});
     }
-    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
+    return () => {
+      b.style.overflow = '';
+      h.style.overflow = '';
+      b.style.touchAction = '';
+      h.style.touchAction = '';
+    };
   }, [show, propSettings]);
 
   const settings = propSettings || localSettings;
 
-  if (!show || !settings?.enabled) return null;
+  if (!show || settings?.enabled === false) return null;
 
   return (
     <div
@@ -25,6 +34,7 @@ export default function PopupModal({ show, onClose, settings: propSettings }) {
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
         display: "flex", justifyContent: "center", alignItems: "flex-start",
         zIndex: 2000, overflowY: "auto", padding: "2rem 1rem",
+        touchAction: "pan-y",
       }}
     >
       <div

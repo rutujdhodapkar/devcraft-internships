@@ -174,16 +174,29 @@ export default function App() {
   const [popupSettings, setPopupSettings] = useState(null);
   const [popupDismissed, setPopupDismissed] = useState(false);
 
-  // Lock body scroll when any modal is open
+  // Lock body scroll when any modal is open — also prevent touch scroll on mobile
   useEffect(() => {
     if (showPopup || showProfilePrompt || showEarnModal || showIdCard) {
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
+      const b = document.body;
+      const h = document.documentElement;
+      b.style.overflow = 'hidden';
+      h.style.overflow = 'hidden';
+      b.style.touchAction = 'none';
+      h.style.touchAction = 'none';
     } else {
+      const b = document.body;
+      const h = document.documentElement;
+      b.style.overflow = '';
+      h.style.overflow = '';
+      b.style.touchAction = '';
+      h.style.touchAction = '';
+    }
+    return () => {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
+      document.body.style.touchAction = '';
+      document.documentElement.style.touchAction = '';
+    };
   }, [showPopup, showProfilePrompt, showEarnModal, showIdCard]);
 
   // Load header settings and popup settings from DB on mount
