@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import Lenis from "lenis";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import CareerPaths from "./components/CareerPaths";
@@ -175,31 +174,6 @@ export default function App() {
   const popupLoginShownRef = useRef(false);
   const popupDashboardShownRef = useRef(false);
 
-  // Lock body scroll when any modal is open — also prevent touch scroll on mobile
-  useEffect(() => {
-    if (showPopup || showProfilePrompt || showEarnModal || showIdCard) {
-      const b = document.body;
-      const h = document.documentElement;
-      b.style.overflow = 'hidden';
-      h.style.overflow = 'hidden';
-      b.style.touchAction = 'none';
-      h.style.touchAction = 'none';
-    } else {
-      const b = document.body;
-      const h = document.documentElement;
-      b.style.overflow = '';
-      h.style.overflow = '';
-      b.style.touchAction = '';
-      h.style.touchAction = '';
-    }
-    return () => {
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
-      document.body.style.touchAction = '';
-      document.documentElement.style.touchAction = '';
-    };
-  }, [showPopup, showProfilePrompt, showEarnModal, showIdCard]);
-
   // Load header settings and popup settings from DB on mount
   useEffect(() => {
     fetchPopupSettings()
@@ -243,35 +217,6 @@ export default function App() {
     fetchHeaderSettings()
       .then((s) => { if (s) setHeaderSettings(s); })
       .catch(() => {});
-  }, []);
-
-  // Initialize Lenis Smooth Scrolling (desktop only)
-  useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    const lenis = new Lenis({
-      duration: 1.3,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      direction: "vertical",
-      gestureDirection: "vertical",
-      smooth: !isMobile,
-      mouseMultiplier: 1.0,
-      smoothTouch: false,
-      touchMultiplier: 1.8,
-      infinite: false,
-      syncTouch: true,
-    });
-    if (isMobile) return;
-
-    function raf(time) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
-
-    requestAnimationFrame(raf);
-
-    return () => {
-      lenis.destroy();
-    };
   }, []);
 
   // Listen to Google Auth state
