@@ -7370,8 +7370,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <button className="btn-sharp" disabled={homepageSaving} onClick={async () => {
                     setHomepageSaving(true);
                     try {
-                      const { saveHomepageContent, saveHomepageSettings } = await import("../services/data");
-                      await Promise.all([saveHomepageContent(homepageContent), saveHomepageSettings(homepageDomainSettings)]);
+                      const { saveHomepageContent } = await import("../services/data");
+                      await saveHomepageContent(homepageContent, homepageDomainSettings);
                       setSuccessMsg("Homepage content saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
                     } catch (err) { setError("Failed to save: " + err.message); }
@@ -7383,7 +7383,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     setHomepageSaving(true);
                     try {
                       const { saveHomepageSettings } = await import("../services/data");
-                      await saveHomepageSettings(homepageDomainSettings);
+                      await saveHomepageSettings(homepageDomainSettings, homepageContent);
                       setSuccessMsg("Domain visibility saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
                     } catch (err) { setError("Failed to save: " + err.message); }

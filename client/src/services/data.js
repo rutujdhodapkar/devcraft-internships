@@ -642,14 +642,18 @@ export async function toggleSiteNotice(id, active) {
 export async function deleteSiteNotice(id) { await dbDelete(`siteNotices/${id}`); }
 
 export async function fetchHomepageContent() {
-  const d = await dbGet("siteConfig/homepage/content");
-  if (d?.value) return d.value;
-  const legacy = await dbGet("siteConfig/homepage");
-  return legacy?.value || null;
+  const d = await dbGet("siteConfig/homepage");
+  return d?.value?.content || d?.value || null;
 }
 
-export async function saveHomepageContent(content) {
-  await dbPut("siteConfig/homepage/content", { value: content, updatedAt: new Date().toISOString() });
+export async function saveHomepageContent(content, settings) {
+  const current = await dbGet("siteConfig/homepage");
+  const merged = {
+    content: content,
+    settings: settings ?? current?.value?.settings ?? null,
+    updatedAt: new Date().toISOString()
+  };
+  await dbPut("siteConfig/homepage", { value: merged });
   return content;
 }
 
@@ -901,14 +905,18 @@ export async function savePopupSettings(settings) {
 
 // Homepage Settings (which domains to show, max visible before "View All")
 export async function fetchHomepageSettings() {
-  const d = await dbGet("siteConfig/homepage/settings");
-  if (d?.value) return d.value;
-  const legacy = await fetchSiteConfig("homepageSettings");
-  return legacy || null;
+  const d = await dbGet("siteConfig/homepage");
+  return d?.value?.settings || null;
 }
 
-export async function saveHomepageSettings(settings) {
-  await dbPut("siteConfig/homepage/settings", { value: settings, updatedAt: new Date().toISOString() });
+export async function saveHomepageSettings(settings, content) {
+  const current = await dbGet("siteConfig/homepage");
+  const merged = {
+    content: content ?? current?.value?.content ?? null,
+    settings: settings,
+    updatedAt: new Date().toISOString()
+  };
+  await dbPut("siteConfig/homepage", { value: merged });
   return settings;
 }
 
