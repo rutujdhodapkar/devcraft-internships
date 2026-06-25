@@ -200,7 +200,7 @@ export default function App() {
 
   // Show popup when viewing dashboard if configured
   useEffect(() => {
-    if (popupSettings?.enabled && popupSettings?.showWhen === "in-dashboard" && currentView === "studentDashboard" && !popupDismissed) {
+    if (popupSettings?.enabled && popupSettings?.showWhen === "in-dashboard" && currentView === "dashboard" && !popupDismissed) {
       setShowPopup(true);
     }
   }, [currentView, popupSettings, popupDismissed]);

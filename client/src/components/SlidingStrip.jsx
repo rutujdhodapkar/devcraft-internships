@@ -7,7 +7,7 @@ function Strip({ config }) {
 
   const isRtl = direction === 'right';
   const duration = speed ? Math.max(10, 400 / speed) : 30;
-  const doubled = [...items, ...items];
+  const tripled = [...items, ...items, ...items];
 
   return (
     <div style={{
@@ -24,8 +24,9 @@ function Strip({ config }) {
         width: 'fit-content',
         animation: `stripScroll_${direction === 'right' ? 'rtl' : 'ltr'}_${speed || 2} ${duration}s linear infinite`,
         willChange: 'transform',
+        backfaceVisibility: 'hidden',
       }}>
-        {doubled.map((item, idx) => (
+        {tripled.map((item, idx) => (
           <span key={idx} style={{
             display: 'inline-block',
             flexShrink: 0,
@@ -42,10 +43,10 @@ function Strip({ config }) {
       <style>{`
         @keyframes stripScroll_ltr_${speed || 2} {
           0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+          100% { transform: translateX(-33.333%); }
         }
         @keyframes stripScroll_rtl_${speed || 2} {
-          0% { transform: translateX(-50%); }
+          0% { transform: translateX(-33.333%); }
           100% { transform: translateX(0); }
         }
       `}</style>

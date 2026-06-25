@@ -24,6 +24,7 @@ import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
 import DodoPaymentModal from "./DodoPaymentModal";
 import VerifyModal from "./VerifyModal";
+import LearnHereModal from "./LearnHereModal";
 
 export default function StudentDashboard({
   user,
@@ -69,6 +70,8 @@ export default function StudentDashboard({
   const [savingProfile, setSavingProfile] = useState(false);
 
   const [verifyEnrollment, setVerifyEnrollment] = useState(null);
+  const [learnHereDocs, setLearnHereDocs] = useState(null);
+  const [learnHereProjectName, setLearnHereProjectName] = useState("");
 
   const handleOpenPayment = (enrollment, stage) => {
     if (!enrollment?.id) {
@@ -664,15 +667,29 @@ export default function StudentDashboard({
                 Complete your projects and get verified to earn your certificate.
               </p>
               {enrollments.length > 0 && (
-                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                  {enrollments.filter(e => e.offerLetterUrl).map((e, idx) => (
-                    <a key={idx} href={e.offerLetterUrl} target="_blank" rel="noopener noreferrer" className="btn-sharp" style={{ display: "inline-block", padding: "0.6rem 1.25rem", fontSize: "0.82rem", fontWeight: 700, textDecoration: "none", background: "#fff" }}>
-                      Download Offer Letter - {e.domain || e.domainId || `Internship ${idx + 1}`}
-                    </a>
-                  ))}
-                  {!enrollments.some(e => e.offerLetterUrl) && (
-                    <p style={{ fontSize: "0.85rem", color: "#888", fontStyle: "italic" }}>Offer letters will appear here once generated.</p>
-                  )}
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  {enrollments.map((e, ei) => {
+                    const cp = careerPaths.find((cp) => cp.id === e.domainId || cp.title === e.domain);
+                    const buttons = cp?.buttons || [];
+                    const beforeBtns = buttons.filter((b) => b.showWhen === "before");
+                    const afterBtns = buttons.filter((b) => b.showWhen === "after" && (e.status === "Completed" || e.allowedCertificate === "yes"));
+                    if (!beforeBtns.length && !afterBtns.length) return null;
+                    return (
+                      <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
+                        <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.domain || e.domainId}:</span>
+                        {beforeBtns.map((btn, bi) => (
+                          <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
+                            {btn.label}
+                          </button>
+                        ))}
+                        {afterBtns.map((btn, bi) => (
+                          <button key={`a-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -730,6 +747,7 @@ export default function StudentDashboard({
                     paymentStartAmount={enrollment.paymentStartAmount}
                     paymentEndAmount={enrollment.paymentEndAmount}
                     user={user}
+                    onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
                   />
                 );
               })()
@@ -780,6 +798,7 @@ export default function StudentDashboard({
                       paymentStartAmount={enrollment.paymentStartAmount}
                       paymentEndAmount={enrollment.paymentEndAmount}
                       user={user}
+                      onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
                     />
                   );
                 })()}
@@ -1624,6 +1643,13 @@ export default function StudentDashboard({
         </div>
       )}
       {verifyEnrollment && <VerifyModal enrollment={verifyEnrollment} onClose={() => setVerifyEnrollment(null)} />}
+      {learnHereDocs && (
+        <LearnHereModal
+          documents={learnHereDocs}
+          projectName={learnHereProjectName}
+          onClose={() => setLearnHereDocs(null)}
+        />
+      )}
     </section>
   );
 }
@@ -1657,6 +1683,7 @@ function EnrollmentCard({
   careerPaths,
   onMarkComplete,
   onVerifyInternship,
+  onLearnHere,
 }) {
   const domainPath = careerPaths?.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain);
   const displayAmount = domainPath?.paymentAmount || paymentAmount;
@@ -1988,6 +2015,8 @@ function EnrollmentCard({
                 };
                 const links = normalizeLinks(rawLinks);
 
+                const documents = typeof project === "object" && project !== null ? project.documents || [] : [];
+
                 return (
                   <ProjectBox
                     key={idx}
@@ -1996,6 +2025,7 @@ function EnrollmentCard({
                     projectName={title}
                     description={description}
                     links={links}
+                    documents={documents}
                     isSubmitted={isSubmitted}
                     isVerified={isVerified}
                     isQuiz={isQuiz}
@@ -2013,6 +2043,7 @@ function EnrollmentCard({
                     }
                     isSubmittingNow={isSubmittingNow}
                     showSuccessMsg={showSuccessMsg}
+                    onLearnHere={() => onLearnHere && onLearnHere(documents, title)}
                   />
                 );
               })}
@@ -2161,6 +2192,7 @@ function ProjectBox({
   projectName,
   description,
   links,
+  documents,
   isSubmitted,
   isVerified,
   isQuiz,
@@ -2172,6 +2204,7 @@ function ProjectBox({
   onSubmit,
   isSubmittingNow,
   showSuccessMsg,
+  onLearnHere,
 }) {
   const quizType = project?.quizType || "text";
   const quizOptions = project?.quizOptions || [];
@@ -2294,6 +2327,27 @@ function ProjectBox({
                   </div>
                 ))}
               </div>
+            )}
+            {documents && documents.length > 0 && (
+              <button
+                onClick={() => onLearnHere && onLearnHere()}
+                style={{
+                  marginTop: "0.5rem",
+                  padding: "0.4rem 1rem",
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
+                  background: "#1a1a2e",
+                  color: "#fff",
+                  border: "2px solid #000",
+                  cursor: "pointer",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                  fontFamily: "inherit",
+                  alignSelf: "flex-start",
+                }}
+              >
+                Learn Here
+              </button>
             )}
           </div>
         </div>

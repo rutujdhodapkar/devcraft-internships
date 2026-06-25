@@ -3422,6 +3422,25 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     }}
                                   />
                                 </div>
+                                <div style={{ marginTop: "0.75rem", borderTop: "1px solid #ddd", paddingTop: "0.75rem" }}>
+                                  <label style={{ fontSize: "0.7rem", fontWeight: 700, display: "block", marginBottom: "0.3rem" }}>
+                                    Documents (Learn Here) — {(proj.documents || []).length}
+                                  </label>
+                                  {(proj.documents || []).map((doc, di) => (
+                                    <div key={di} style={{ display: "flex", gap: "0.4rem", alignItems: "center", marginBottom: "0.4rem", flexWrap: "wrap" }}>
+                                      <input value={doc.title || ""} onChange={(e) => { const u = JSON.parse(JSON.stringify(careerPaths)); u[idx].projects[pIdx].documents = [...(u[idx].projects[pIdx].documents || [])]; u[idx].projects[pIdx].documents[di] = { ...u[idx].projects[pIdx].documents[di], title: e.target.value }; setCareerPaths(u); }}
+                                        placeholder="Title" style={{ border: "1px solid #000", padding: "0.2rem 0.4rem", fontSize: "0.75rem", fontFamily: "inherit", outline: "none", width: "120px" }} />
+                                      <input value={doc.description || ""} onChange={(e) => { const u = JSON.parse(JSON.stringify(careerPaths)); u[idx].projects[pIdx].documents = [...(u[idx].projects[pIdx].documents || [])]; u[idx].projects[pIdx].documents[di] = { ...u[idx].projects[pIdx].documents[di], description: e.target.value }; setCareerPaths(u); }}
+                                        placeholder="Description" style={{ border: "1px solid #000", padding: "0.2rem 0.4rem", fontSize: "0.75rem", fontFamily: "inherit", outline: "none", width: "180px" }} />
+                                      <input value={doc.url || ""} onChange={(e) => { const u = JSON.parse(JSON.stringify(careerPaths)); u[idx].projects[pIdx].documents = [...(u[idx].projects[pIdx].documents || [])]; u[idx].projects[pIdx].documents[di] = { ...u[idx].projects[pIdx].documents[di], url: e.target.value }; setCareerPaths(u); }}
+                                        placeholder="URL (optional)" style={{ border: "1px solid #000", padding: "0.2rem 0.4rem", fontSize: "0.75rem", fontFamily: "inherit", outline: "none", width: "180px" }} />
+                                      <button type="button" onClick={() => { const u = JSON.parse(JSON.stringify(careerPaths)); u[idx].projects[pIdx].documents = (u[idx].projects[pIdx].documents || []).filter((_, i) => i !== di); setCareerPaths(u); }}
+                                        style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.3rem", fontSize: "0.7rem" }}>×</button>
+                                    </div>
+                                  ))}
+                                  <button type="button" onClick={() => { const u = JSON.parse(JSON.stringify(careerPaths)); u[idx].projects[pIdx].documents = [...(u[idx].projects[pIdx].documents || []), { title: "", description: "", url: "" }]; setCareerPaths(u); }}
+                                    style={{ border: "1px solid #000", color: "#000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.7rem", fontWeight: 700, marginTop: "0.15rem" }}>+ Add Document</button>
+                                </div>
                               </div>
                             );
                           })}
@@ -3432,7 +3451,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             const u = JSON.parse(JSON.stringify(careerPaths));
                             u[idx].projects = [
                               ...(u[idx].projects || []),
-                              { title: "New Task", description: "", links: [], type: "text", quizQuestions: [], passingGrade: 100 },
+                              { title: "New Task", description: "", links: [], type: "text", quizQuestions: [], passingGrade: 100, documents: [] },
                             ];
                             setCareerPaths(u);
                           }}
