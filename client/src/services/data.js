@@ -962,6 +962,7 @@ export async function fetchProgressTimeline(enrollmentId) {
 export async function autoExpireEnrollments() {
   try {
     const res = await fetch(`${API_BASE}/api/auto-expire-enrollments`, { method: 'POST' });
+    if (!res.ok) return { success: false, message: `Auto-expire returned ${res.status}` };
     return await res.json();
   } catch {
     return { success: false, message: 'Auto-expire check failed' };

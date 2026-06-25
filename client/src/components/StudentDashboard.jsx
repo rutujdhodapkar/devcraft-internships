@@ -131,7 +131,7 @@ export default function StudentDashboard({
     setCouponCode("");
     setCouponDiscount(0);
     setCouponError("");
-    setDashboardRefreshKey((k) => k + 1);
+    loadAll();
   };
 
   const loadAll = async () => {

@@ -1,5 +1,5 @@
 /* eslint-disable react/no-unknown-property */
-import { forwardRef, useImperativeHandle, useEffect, useRef, useMemo } from 'react';
+import React, { forwardRef, useImperativeHandle, useEffect, useRef, useMemo, useState } from 'react';
 
 import * as THREE from 'three';
 
@@ -50,11 +50,25 @@ function extendMaterial(BaseMaterial, cfg) {
   return mat;
 }
 
-const CanvasWrapper = ({ children }) => (
-  <Canvas dpr={[1, 2]} frameloop="always" className="beams-container">
-    {children}
-  </Canvas>
-);
+const CanvasWrapper = ({ children }) => {
+  const [ready, setReady] = useState(false);
+  return (
+    <Canvas
+      dpr={[1, 2]}
+      frameloop="always"
+      className="beams-container"
+      onCreated={(state) => {
+        setReady(true);
+        state.gl.domElement.addEventListener('webglcontextlost', (e) => {
+          e.preventDefault();
+          setTimeout(() => state.gl.forceContextRestore?.(), 100);
+        });
+      }}
+    >
+      {children}
+    </Canvas>
+  );
+};
 
 const hexToNormalizedRGB = hex => {
   const clean = hex.replace('#', '');
@@ -307,4 +321,4 @@ const DirLight = ({ position, color }) => {
   return <directionalLight ref={dir} color={color} intensity={1} position={position} />;
 };
 
-export default Beams;
+export default React.memo(Beams);
