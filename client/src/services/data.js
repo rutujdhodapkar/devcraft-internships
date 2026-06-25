@@ -642,12 +642,14 @@ export async function toggleSiteNotice(id, active) {
 export async function deleteSiteNotice(id) { await dbDelete(`siteNotices/${id}`); }
 
 export async function fetchHomepageContent() {
-  const d = await dbGet("siteConfig/homepage");
-  return d?.value || null;
+  const d = await dbGet("siteConfig/homepage/content");
+  if (d?.value) return d.value;
+  const legacy = await dbGet("siteConfig/homepage");
+  return legacy?.value || null;
 }
 
 export async function saveHomepageContent(content) {
-  await dbPut("siteConfig/homepage", { value: content, updatedAt: new Date().toISOString() });
+  await dbPut("siteConfig/homepage/content", { value: content, updatedAt: new Date().toISOString() });
   return content;
 }
 
@@ -899,12 +901,15 @@ export async function savePopupSettings(settings) {
 
 // Homepage Settings (which domains to show, max visible before "View All")
 export async function fetchHomepageSettings() {
-  const d = await fetchSiteConfig("homepageSettings");
-  return d || null;
+  const d = await dbGet("siteConfig/homepage/settings");
+  if (d?.value) return d.value;
+  const legacy = await fetchSiteConfig("homepageSettings");
+  return legacy || null;
 }
 
 export async function saveHomepageSettings(settings) {
-  return saveSiteConfig("homepageSettings", settings);
+  await dbPut("siteConfig/homepage/settings", { value: settings, updatedAt: new Date().toISOString() });
+  return settings;
 }
 
 // Coupons
