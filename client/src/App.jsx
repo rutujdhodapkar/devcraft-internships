@@ -1502,6 +1502,7 @@ export default function App() {
       <PopupModal
         show={showPopup}
         onClose={() => { setShowPopup(false); setPopupDismissed(true); }}
+        settings={popupSettings}
       />
     </ErrorBoundary>
   );

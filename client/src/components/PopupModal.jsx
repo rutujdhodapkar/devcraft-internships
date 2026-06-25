@@ -1,14 +1,6 @@
-import React, { useEffect } from 'react';
-import { fetchPopupSettings } from '../services/data';
+import React from 'react';
 
-export default function PopupModal({ show, onClose }) {
-  const [settings, setSettings] = React.useState(null);
-
-  useEffect(() => {
-    if (!show) return;
-    fetchPopupSettings().then((d) => setSettings(d || null)).catch(() => {});
-  }, [show]);
-
+export default function PopupModal({ show, onClose, settings }) {
   if (!show || !settings?.enabled) return null;
 
   return (
