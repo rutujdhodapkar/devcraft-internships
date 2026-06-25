@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Lenis from "lenis";
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
@@ -12,6 +12,7 @@ import AdminPanel from "./components/AdminPanel";
 import EarnSection from "./components/EarnSection";
 import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
+import PopupModal from "./components/PopupModal";
 import PolicyPage from "./components/PolicyPage";
 import CertificateView from "./components/CertificateView";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -35,6 +36,7 @@ import {
   associateVisitsWithUser,
   getDeviceFingerprint,
   fetchHeaderSettings,
+  fetchPopupSettings,
 } from "./services/data";
 import {
   onGoogleAuthStateChanged,
@@ -168,6 +170,40 @@ export default function App() {
   const [dashboardReferralTab, setDashboardReferralTab] = useState(false); // open dashboard with referral tab
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [headerSettings, setHeaderSettings] = useState({ animation: "slide-down", effect: "solid" });
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupSettings, setPopupSettings] = useState(null);
+  const [popupDismissed, setPopupDismissed] = useState(false);
+
+  // Load header settings and popup settings from DB on mount
+  useEffect(() => {
+    fetchPopupSettings()
+      .then((d) => {
+        if (d?.enabled) {
+          setPopupSettings(d);
+          if (d.showWhen === "on-visit" && !sessionStorage.getItem("popup_seen")) {
+            setShowPopup(true);
+            sessionStorage.setItem("popup_seen", "1");
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Show popup on login if configured
+  const prevUserRef = useRef(user);
+  useEffect(() => {
+    if (popupSettings?.enabled && popupSettings?.showWhen === "on-login" && user && !prevUserRef.current && !popupDismissed) {
+      setShowPopup(true);
+    }
+    prevUserRef.current = user;
+  }, [user, popupSettings, popupDismissed]);
+
+  // Show popup when viewing dashboard if configured
+  useEffect(() => {
+    if (popupSettings?.enabled && popupSettings?.showWhen === "in-dashboard" && currentView === "studentDashboard" && !popupDismissed) {
+      setShowPopup(true);
+    }
+  }, [currentView, popupSettings, popupDismissed]);
 
   // Load header settings from DB on mount
   useEffect(() => {
@@ -1459,6 +1495,11 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <PopupModal
+        show={showPopup}
+        onClose={() => { setShowPopup(false); setPopupDismissed(true); }}
+      />
     </ErrorBoundary>
   );
 }

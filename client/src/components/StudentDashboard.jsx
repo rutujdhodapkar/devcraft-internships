@@ -742,7 +742,7 @@ export default function StudentDashboard({
                         <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
                         <div style={{ fontSize: "0.8rem", color: "#888", fontWeight: 700 }}>Status: {e.status}</div>
                       </div>
-                      <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", cursor: "pointer", borderRadius: 0 }}>
+                      <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0 }}>
                         Open Dashboard
                       </button>
                     </div>
@@ -1298,6 +1298,29 @@ export default function StudentDashboard({
                 onLoginClick={() => {}}
               />
             )}
+          </div>
+        ) : activeTab === "profile" ? (
+          <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000" }}>
+            <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.1rem", marginBottom: "1.5rem" }}>Profile Settings</h3>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Name</label>
+              <input value={user?.displayName || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0, fontFamily: "inherit" }} />
+            </div>
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Email</label>
+              <input value={user?.email || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0, fontFamily: "inherit" }} />
+            </div>
+            {["phone", "college", "city", "country"].map((field) => (
+              <div key={field} style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>
+                  {field.charAt(0).toUpperCase() + field.slice(1)}
+                </label>
+                <input value={profileForm[field] || ""} onChange={(e) => setProfileForm((prev) => ({ ...prev, [field]: e.target.value }))} placeholder={`Enter your ${field}`} style={{ width: "100%", padding: "0.5rem", border: "2px solid #000", borderRadius: 0, fontFamily: "inherit" }} />
+              </div>
+            ))}
+            <button onClick={handleSaveProfile} disabled={savingProfile} className="btn-sharp" style={{ padding: "0.6rem 1.5rem", background: "#000", color: "#fff", border: "2px solid #000", fontWeight: 700, cursor: "pointer", borderRadius: 0, marginTop: "0.5rem" }}>
+              {savingProfile ? "Saving..." : "Save Profile"}
+            </button>
           </div>
         ) : enrollments.length === 0 ? (
           <div

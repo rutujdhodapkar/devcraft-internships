@@ -21,11 +21,14 @@ function Strip({ config }) {
       <div style={{
         display: 'flex',
         whiteSpace: 'nowrap',
+        width: 'fit-content',
         animation: `stripScroll_${direction === 'right' ? 'rtl' : 'ltr'}_${speed || 2} ${duration}s linear infinite`,
+        willChange: 'transform',
       }}>
         {doubled.map((item, idx) => (
           <span key={idx} style={{
             display: 'inline-block',
+            flexShrink: 0,
             padding: '0 3rem',
             fontSize: '1rem',
             fontWeight: 700,
