@@ -1057,7 +1057,7 @@ export default function StudentDashboard({
                 )}
 
                 {/* Refer User Dashboard */}
-                {referralDashData?.referredUsers?.length > 0 && (
+                {referralDashData && (
                   <div>
                     <h3
                       style={{
@@ -1067,7 +1067,7 @@ export default function StudentDashboard({
                         marginBottom: "1rem",
                       }}
                     >
-                      Refer User Dashboard ({referralDashData.referredUsers.length})
+                      Refer User Dashboard ({referralDashData.referredUsers?.length || 0})
                     </h3>
                     <div
                       style={{
@@ -1107,7 +1107,7 @@ export default function StudentDashboard({
                           </tr>
                         </thead>
                         <tbody>
-                          {referralDashData.referredUsers.map((ru, i) => {
+                          {referralDashData.referredUsers?.length > 0 ? referralDashData.referredUsers.map((ru, i) => {
                             const statusColors = {
                               "loggedin": { bg: "#FFF8E1", color: "#7a5c00", label: "Logged In" },
                               "assigned domain": { bg: "#E3F2FD", color: "#1a3a6c", label: "Assigned Domain" },
@@ -1156,7 +1156,13 @@ export default function StudentDashboard({
                                 </td>
                               </tr>
                             );
-                          })}
+                          }) : (
+                            <tr>
+                              <td colSpan={3} style={{ padding: "1.5rem", textAlign: "center", color: "#aaa", fontSize: "0.85rem" }}>
+                                No referred users yet. Share your referral link to get started!
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
