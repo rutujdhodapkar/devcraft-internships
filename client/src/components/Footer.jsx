@@ -16,11 +16,6 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
     { label: "contact.rutujdhodapkar.tech", href: "https://contact.rutujdhodapkar.tech" },
     { label: "LinkedIn", href: "https://linkedin.com/company/devcraft-internship" },
   ];
-  const socialLinks = s.socialLinks || [
-    { label: "LinkedIn", href: "https://linkedin.com/company/devcraft-internship" },
-    { label: "Instagram", href: "#" },
-    { label: "Twitter / X", href: "#" },
-  ];
   const copyright = s.copyright || `\u00A9 ${new Date().getFullYear()} DEV/CRAFT. All rights reserved.`;
 
   return (
@@ -39,17 +34,7 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
             <p style={{ maxWidth: "320px", fontSize: "0.9rem", color: "#999", lineHeight: "1.7", marginBottom: "1.5rem" }}>
               {s.description || "Premium 100% free virtual internships for university and college students. Gain verified work experience, finish structured projects, and get certified."}
             </p>
-            {/* Social icons */}
-            <div style={{ display: "flex", gap: "0.75rem" }}>
-              {socialLinks.map((link, idx) => (
-                <a key={idx} href={link.href} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "36px", height: "36px", border: "1px solid #444", color: "#999", fontSize: "0.7rem", fontWeight: 800, textDecoration: "none", textTransform: "uppercase", letterSpacing: "0.5px", transition: "all 0.2s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#fff"; e.currentTarget.style.color = "#fff"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#444"; e.currentTarget.style.color = "#999"; }}
-                >
-                  {link.label.slice(0, 2)}
-                </a>
-              ))}
-            </div>
+
           </div>
 
           {/* Footer columns */}
