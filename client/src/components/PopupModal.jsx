@@ -1,11 +1,19 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { fetchPopupSettings } from '../services/data';
 
-export default function PopupModal({ show, onClose, settings }) {
+export default function PopupModal({ show, onClose, settings: propSettings }) {
+  const [localSettings, setLocalSettings] = useState(null);
+
   useEffect(() => {
     if (!show) return;
     document.body.style.overflow = 'hidden';
+    if (!propSettings) {
+      fetchPopupSettings().then((d) => setLocalSettings(d || null)).catch(() => {});
+    }
     return () => { document.body.style.overflow = ''; };
-  }, [show]);
+  }, [show, propSettings]);
+
+  const settings = propSettings || localSettings;
 
   if (!show || !settings?.enabled) return null;
 
