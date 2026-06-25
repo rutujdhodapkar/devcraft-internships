@@ -183,13 +183,11 @@ export default function CareerPaths({ onApplyDomain }) {
                 </div>
               );
             })}
-            {showViewAll && (
-              <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                <button type="button" className="btn-sharp" onClick={() => setShowAll(true)} style={{ padding: '0.75rem 2.5rem', fontWeight: 800, fontSize: '0.9rem' }}>
-                  View All Domains ({filtered.length})
-                </button>
-              </div>
-            )}
+            <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+              <button type="button" className="btn-sharp" onClick={() => setShowAll(true)} style={{ padding: '0.85rem 3rem', fontWeight: 800, fontSize: '1rem' }}>
+                {filtered.length > maxVisible ? `View All Domains (${filtered.length})` : 'Explore More Domains'}
+              </button>
+            </div>
           </>
         )}
       </div>

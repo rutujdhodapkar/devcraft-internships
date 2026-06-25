@@ -987,7 +987,7 @@ export default function App() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: "820px", position: "relative" }}
+            style={{ width: "100%", maxWidth: "820px", position: "relative", maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}
           >
             <button
               onClick={() => setShowEarnModal(false)}
