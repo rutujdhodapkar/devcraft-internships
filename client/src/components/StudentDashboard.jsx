@@ -77,10 +77,12 @@ export default function StudentDashboard({
   useEffect(() => {
     if (showPaymentChoice || showPaymentModal || showProfileModal) {
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
   }, [showPaymentChoice, showPaymentModal, showProfileModal]);
 
   const handleOpenPayment = (enrollment, stage) => {
@@ -1136,43 +1138,15 @@ export default function StudentDashboard({
                                 {e.college || "-"}
                               </td>
                               <td style={{ padding: "0.6rem 0.85rem" }}>
-                                <span
-                                  style={{
-                                    padding: "0.15rem 0.5rem",
-                                    fontSize: "0.7rem",
-                                    fontWeight: 800,
-                                    background:
-                                      e.status === "Completed" && e.paymentStatus === "paid"
-                                        ? "#34A853"
-                                        : e.status === "Completed"
-                                          ? "#1B7A3D"
-                                          : e.status === "Archived"
-                                            ? "#555"
-                                            : "#FBBC05",
-                                    color: "#fff",
-                                    textTransform: "uppercase",
-                                  }}
-                                >
-                                  {e.status === "Completed" && e.paymentStatus === "paid"
-                                    ? "Completed"
-                                    : e.status}
-                                </span>
-                                {e.paymentStatus === "paid" && (
-                                  <span
-                                    style={{
-                                      padding: "0.15rem 0.5rem",
-                                      fontSize: "0.65rem",
-                                      fontWeight: 800,
-                                      background: "#fff",
-                                      color: "#34A853",
-                                      border: "2px solid #34A853",
-                                      textTransform: "uppercase",
-                                      marginLeft: "0.25rem",
-                                    }}
-                                  >
-                                    Paid
-                                  </span>
-                                )}
+                                <div style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}>
+                                  <span style={{ padding: "0.15rem 0.5rem", fontSize: "0.68rem", fontWeight: 800, background: "#4285F4", color: "#fff", textTransform: "uppercase" }}>Applied</span>
+                                  {e.status === "Completed" && (
+                                    <span style={{ padding: "0.15rem 0.5rem", fontSize: "0.68rem", fontWeight: 800, background: "#34A853", color: "#fff", textTransform: "uppercase" }}>Completed</span>
+                                  )}
+                                  {e.paymentStatus === "paid" && (
+                                    <span style={{ padding: "0.15rem 0.5rem", fontSize: "0.68rem", fontWeight: 800, background: "#fff", color: "#34A853", border: "2px solid #34A853", textTransform: "uppercase" }}>Paid</span>
+                                  )}
+                                </div>
                               </td>
                               <td style={{ padding: "0.6rem 0.85rem" }}>
                                 <code style={{ fontSize: "0.78rem" }}>

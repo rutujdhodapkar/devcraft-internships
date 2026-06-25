@@ -47,7 +47,8 @@ function ViewAllModal({ paths, categories, onClose, onApply }) {
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
+    document.documentElement.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
   }, []);
 
   const catMap = {};

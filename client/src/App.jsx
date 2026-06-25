@@ -178,19 +178,22 @@ export default function App() {
   useEffect(() => {
     if (showPopup || showProfilePrompt || showEarnModal || showIdCard) {
       document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
   }, [showPopup, showProfilePrompt, showEarnModal, showIdCard]);
 
   // Load header settings and popup settings from DB on mount
   useEffect(() => {
     fetchPopupSettings()
       .then((d) => {
-        if (d?.enabled) {
+        if (d && d.enabled !== false) {
           setPopupSettings(d);
-          if (d.showWhen === "on-visit" && !sessionStorage.getItem("popup_seen")) {
+          const showWhen = d.showWhen || "on-visit";
+          if (showWhen === "on-visit" && !sessionStorage.getItem("popup_seen")) {
             setShowPopup(true);
             sessionStorage.setItem("popup_seen", "1");
           }

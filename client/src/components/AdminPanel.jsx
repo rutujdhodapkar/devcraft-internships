@@ -491,7 +491,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setPopupLoading(true);
       import("../services/data").then(({ fetchPopupSettings }) =>
         fetchPopupSettings()
-          .then((data) => setPopupSettings(data || null))
+          .then((data) => setPopupSettings({ enabled: true, ...(data || {}) }))
           .catch(() => setPopupSettings(null))
           .finally(() => setPopupLoading(false)),
       );

@@ -7,10 +7,11 @@ export default function PopupModal({ show, onClose, settings: propSettings }) {
   useEffect(() => {
     if (!show) return;
     document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
     if (!propSettings) {
       fetchPopupSettings().then((d) => setLocalSettings(d || null)).catch(() => {});
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
   }, [show, propSettings]);
 
   const settings = propSettings || localSettings;
