@@ -10,16 +10,12 @@ export default function PopupModal({ show, onClose, settings: propSettings }) {
     const h = document.documentElement;
     b.style.overflow = 'hidden';
     h.style.overflow = 'hidden';
-    b.style.touchAction = 'none';
-    h.style.touchAction = 'none';
     if (!propSettings) {
       fetchPopupSettings().then((d) => setLocalSettings(d || null)).catch(() => {});
     }
     return () => {
       b.style.overflow = '';
       h.style.overflow = '';
-      b.style.touchAction = '';
-      h.style.touchAction = '';
     };
   }, [show, propSettings]);
 
@@ -34,7 +30,6 @@ export default function PopupModal({ show, onClose, settings: propSettings }) {
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
         display: "flex", justifyContent: "center", alignItems: "flex-start",
         zIndex: 2000, overflowY: "auto", padding: "2rem 1rem",
-        touchAction: "pan-y",
       }}
     >
       <div

@@ -172,30 +172,28 @@ export default function App() {
   const [headerSettings, setHeaderSettings] = useState({ animation: "slide-down", effect: "solid" });
   const [showPopup, setShowPopup] = useState(false);
   const [popupSettings, setPopupSettings] = useState(null);
-  const [popupDismissed, setPopupDismissed] = useState(false);
+  const popupLoginShownRef = useRef(false);
+  const popupDashboardShownRef = useRef(false);
+  const lenisRef = useRef(null);
 
-  // Lock body scroll when any modal is open — also prevent touch scroll on mobile
+  // Lock body scroll when any modal is open
   useEffect(() => {
     if (showPopup || showProfilePrompt || showEarnModal || showIdCard) {
       const b = document.body;
       const h = document.documentElement;
       b.style.overflow = 'hidden';
       h.style.overflow = 'hidden';
-      b.style.touchAction = 'none';
-      h.style.touchAction = 'none';
+      lenisRef.current?.stop();
     } else {
       const b = document.body;
       const h = document.documentElement;
       b.style.overflow = '';
       h.style.overflow = '';
-      b.style.touchAction = '';
-      h.style.touchAction = '';
+      lenisRef.current?.start();
     }
     return () => {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
-      document.body.style.touchAction = '';
-      document.documentElement.style.touchAction = '';
     };
   }, [showPopup, showProfilePrompt, showEarnModal, showIdCard]);
 
@@ -218,18 +216,24 @@ export default function App() {
   // Show popup on login if configured
   const prevUserRef = useRef(user);
   useEffect(() => {
-    if (popupSettings?.enabled && popupSettings?.showWhen === "on-login" && user && !prevUserRef.current && !popupDismissed) {
+    if (popupSettings?.enabled && popupSettings?.showWhen === "on-login" && user && !prevUserRef.current && !popupLoginShownRef.current) {
       setShowPopup(true);
+      popupLoginShownRef.current = true;
     }
     prevUserRef.current = user;
-  }, [user, popupSettings, popupDismissed]);
+  }, [user, popupSettings]);
 
   // Show popup when viewing dashboard if configured
   useEffect(() => {
-    if (popupSettings?.enabled && popupSettings?.showWhen === "in-dashboard" && currentView === "dashboard" && !popupDismissed) {
-      setShowPopup(true);
+    if (popupSettings?.enabled && popupSettings?.showWhen === "in-dashboard" && currentView === "dashboard") {
+      if (!popupDashboardShownRef.current) {
+        setShowPopup(true);
+        popupDashboardShownRef.current = true;
+      }
+    } else {
+      popupDashboardShownRef.current = false;
     }
-  }, [currentView, popupSettings, popupDismissed]);
+  }, [currentView, popupSettings]);
 
   // Load header settings from DB on mount
   useEffect(() => {
@@ -253,6 +257,7 @@ export default function App() {
       infinite: false,
       syncTouch: true,
     });
+    lenisRef.current = lenis;
 
     if (isMobile) return;
 
@@ -265,6 +270,7 @@ export default function App() {
 
     return () => {
       lenis.destroy();
+      lenisRef.current = null;
     };
   }, []);
 
@@ -1527,7 +1533,7 @@ export default function App() {
 
       <PopupModal
         show={showPopup}
-        onClose={() => { setShowPopup(false); setPopupDismissed(true); }}
+        onClose={() => { setShowPopup(false); }}
         settings={popupSettings}
       />
     </ErrorBoundary>

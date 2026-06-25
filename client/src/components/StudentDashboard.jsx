@@ -1056,6 +1056,113 @@ export default function StudentDashboard({
                   </div>
                 )}
 
+                {/* Refer User Dashboard */}
+                {referralDashData?.referredUsers?.length > 0 && (
+                  <div>
+                    <h3
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        marginBottom: "1rem",
+                      }}
+                    >
+                      Refer User Dashboard ({referralDashData.referredUsers.length})
+                    </h3>
+                    <div
+                      style={{
+                        overflowX: "auto",
+                        border: "2px solid #000",
+                        boxShadow: "3px 3px 0 #000",
+                      }}
+                    >
+                      <table
+                        style={{
+                          width: "100%",
+                          borderCollapse: "collapse",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        <thead>
+                          <tr style={{ background: "#000", color: "#fff" }}>
+                            {[
+                              "Name",
+                              "Domain Applied",
+                              "Status",
+                            ].map((h) => (
+                              <th
+                                key={h}
+                                style={{
+                                  padding: "0.6rem 0.85rem",
+                                  textAlign: "left",
+                                  fontWeight: 700,
+                                  fontSize: "0.75rem",
+                                  textTransform: "uppercase",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {referralDashData.referredUsers.map((ru, i) => {
+                            const statusColors = {
+                              "loggedin": { bg: "#FFF8E1", color: "#7a5c00", label: "Logged In" },
+                              "assigned domain": { bg: "#E3F2FD", color: "#1a3a6c", label: "Assigned Domain" },
+                              "completed": { bg: "#E8F5E9", color: "#1a5c2e", label: "Completed" },
+                              "paid": { bg: "#F3E8FF", color: "#4a1a7a", label: "Paid" },
+                            };
+                            const sc = statusColors[ru.status] || statusColors["loggedin"];
+                            return (
+                              <tr
+                                key={ru.uid || i}
+                                style={{
+                                  borderBottom: "1px solid #e0e0e0",
+                                  background: i % 2 === 0 ? "#fafafa" : "#fff",
+                                }}
+                              >
+                                <td
+                                  style={{
+                                    padding: "0.6rem 0.85rem",
+                                    fontSize: "0.85rem",
+                                  }}
+                                >
+                                  <strong>{ru.name}</strong>
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "0.6rem 0.85rem",
+                                    fontSize: "0.82rem",
+                                  }}
+                                >
+                                  {ru.domain}
+                                </td>
+                                <td style={{ padding: "0.6rem 0.85rem" }}>
+                                  <span
+                                    style={{
+                                      padding: "0.15rem 0.5rem",
+                                      fontSize: "0.68rem",
+                                      fontWeight: 800,
+                                      background: sc.bg,
+                                      color: sc.color,
+                                      textTransform: "uppercase",
+                                      border: `2px solid ${sc.color}`,
+                                    }}
+                                  >
+                                    {sc.label}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 {/* Enrolled Interns table */}
                 {referralDashData?.enrolledInterns?.length > 0 && (
                   <div>
@@ -1292,7 +1399,7 @@ export default function StudentDashboard({
 
                 {!referralDashLoading &&
                   referralDashData &&
-                  referralDashData.enrolledInterns?.length === 0 &&
+                  referralDashData.referredUsers?.length === 0 &&
                   referralDashData.visits?.length === 0 && (
                     <div
                       style={{

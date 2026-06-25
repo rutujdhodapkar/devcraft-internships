@@ -489,6 +489,25 @@ export async function fetchReferralDashboardData(uid) {
   // Count unique logins from referralUsers where code == code
   const loginUsers = await dbQueryList("referralUsers", "code", code);
   const totalLogins = loginUsers.length;
+  const referredUsers = loginUsers.map(ru => {
+    const enrollment = interns.find(i => i.uid === ru.uid);
+    let status = "loggedin";
+    if (enrollment) {
+      if (enrollment.status === "Completed") status = "completed";
+      else if (enrollment.paymentStatus === "paid") status = "paid";
+      else status = "assigned domain";
+    }
+    return {
+      name: ru.displayName || ru.email?.split("@")[0] || "Unknown",
+      email: ru.email || "",
+      domain: enrollment?.domain || "-",
+      status,
+      paymentStatus: enrollment?.paymentStatus || "none",
+      uid: ru.uid,
+      firstLoginAt: ru.firstLoginAt,
+      enrolledAt: ru.enrolledAt || null,
+    };
+  });
   return {
     referral, visits, interns,
     totals: { visits: visits.length, interns: interns.length, completed: completed.length, earnings },
@@ -498,6 +517,7 @@ export async function fetchReferralDashboardData(uid) {
     totalEnrolled: interns.length,
     completedInterns: completed.length,
     enrolledInterns: interns,
+    referredUsers,
     code,
   };
 }
