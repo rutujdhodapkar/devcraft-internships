@@ -265,6 +265,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [homepageContent, setHomepageContent] = useState(null);
   const [homepageLoading, setHomepageLoading] = useState(false);
   const [homepageSaving, setHomepageSaving] = useState(false);
+  const [homepageDomainSettings, setHomepageDomainSettings] = useState(null);
+  const [allCareerPaths, setAllCareerPaths] = useState([]);
 
   // Terms / Privacy / Refund content state
   const [termsContent, setTermsContent] = useState("");
@@ -438,10 +440,14 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     }
     if (activeTab === "homepage") {
       setHomepageLoading(true);
-      import("../services/data").then(({ fetchHomepageContent }) =>
-        fetchHomepageContent()
-          .then((data) => setHomepageContent(data || DEFAULT_HOMEPAGE))
-          .catch(() => setHomepageContent(DEFAULT_HOMEPAGE))
+      import("../services/data").then(({ fetchHomepageContent, fetchHomepageSettings, fetchCareerPaths }) =>
+        Promise.all([fetchHomepageContent(), fetchHomepageSettings(), fetchCareerPaths()])
+          .then(([content, hpSettings, cpResult]) => {
+            setHomepageContent(content || DEFAULT_HOMEPAGE);
+            setHomepageDomainSettings(hpSettings || { visibleDomains: [], maxVisible: cpResult.paths?.length || 6 });
+            setAllCareerPaths(cpResult.paths || []);
+          })
+          .catch(() => { setHomepageContent(DEFAULT_HOMEPAGE); })
           .finally(() => setHomepageLoading(false)),
       );
     }
@@ -7308,18 +7314,65 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   </div>
                 </div>
 
-                <button className="btn-sharp" disabled={homepageSaving} onClick={async () => {
-                  setHomepageSaving(true);
-                  try {
-                    const { saveHomepageContent } = await import("../services/data");
-                    await saveHomepageContent(homepageContent);
-                    setSuccessMsg("Homepage content saved!");
-                    setTimeout(() => setSuccessMsg(""), 3000);
-                  } catch (err) { setError("Failed to save: " + err.message); }
-                  finally { setHomepageSaving(false); }
-                }} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
-                  {homepageSaving ? "Saving…" : "Save Homepage"}
-                </button>
+                {/* Visible Domains */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Visible Domains on Homepage</span>
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Max visible before "View All"</label>
+                    <input type="number" min={1} value={homepageDomainSettings?.maxVisible ?? 6} onChange={(e) => setHomepageDomainSettings((p) => ({ ...(p || {}), maxVisible: Number(e.target.value) }))} style={{ ...s, width: "80px" }} />
+                  </div>
+                  <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "0.5rem" }}>Select which domains appear on the homepage. Unchecked domains are hidden.</p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", maxHeight: "250px", overflowY: "auto", border: "1px solid #ddd", padding: "0.5rem" }}>
+                    {allCareerPaths.map((cp) => {
+                      const checked = !homepageDomainSettings?.visibleDomains || homepageDomainSettings.visibleDomains.length === 0 || homepageDomainSettings.visibleDomains.includes(cp.id);
+                      return (
+                        <label key={cp.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
+                          <input type="checkbox" checked={checked} onChange={(e) => {
+                            const current = homepageDomainSettings?.visibleDomains || allCareerPaths.map((p) => p.id);
+                            let updated;
+                            if (e.target.checked) updated = current.includes(cp.id) ? current : [...current, cp.id];
+                            else updated = current.filter((id) => id !== cp.id);
+                            setHomepageDomainSettings((p) => ({ ...(p || {}), visibleDomains: updated }));
+                          }} />
+                          <strong>{cp.title}</strong> <span style={{ color: "#888", fontSize: "0.78rem" }}>({cp.duration || "4 Weeks"})</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <button type="button" onClick={() => setHomepageDomainSettings((p) => ({ ...(p || {}), visibleDomains: allCareerPaths.map((cp) => cp.id) }))} style={{ border: "1px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.75rem", fontWeight: 700, marginRight: "0.5rem" }}>Select All</button>
+                    <button type="button" onClick={() => setHomepageDomainSettings((p) => ({ ...(p || {}), visibleDomains: [] }))} style={{ border: "1px solid #a00", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.75rem", fontWeight: 700, color: "#a00" }}>Deselect All</button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                  <button className="btn-sharp" disabled={homepageSaving} onClick={async () => {
+                    setHomepageSaving(true);
+                    try {
+                      const { saveHomepageContent, saveHomepageSettings } = await import("../services/data");
+                      await Promise.all([saveHomepageContent(homepageContent), saveHomepageSettings(homepageDomainSettings)]);
+                      setSuccessMsg("Homepage content saved!");
+                      setTimeout(() => setSuccessMsg(""), 3000);
+                    } catch (err) { setError("Failed to save: " + err.message); }
+                    finally { setHomepageSaving(false); }
+                  }} style={{ padding: "0.7rem 2rem" }}>
+                    {homepageSaving ? "Saving…" : "Save Homepage"}
+                  </button>
+                  <button className="btn-sharp-outline" disabled={homepageSaving} onClick={async () => {
+                    setHomepageSaving(true);
+                    try {
+                      const { saveHomepageSettings } = await import("../services/data");
+                      await saveHomepageSettings(homepageDomainSettings);
+                      setSuccessMsg("Domain visibility saved!");
+                      setTimeout(() => setSuccessMsg(""), 3000);
+                    } catch (err) { setError("Failed to save: " + err.message); }
+                    finally { setHomepageSaving(false); }
+                  }} style={{ padding: "0.7rem 2rem" }}>
+                    Save Visibility Only
+                  </button>
+                </div>
               </div>
             ) : (
               <EmptyBox msg="Could not load homepage content." />

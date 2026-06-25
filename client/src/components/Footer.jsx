@@ -24,7 +24,7 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
   return (
     <footer style={{ borderTop: "2px solid #000", background: "#fafafa", position: "relative", overflow: "hidden" }}>
       <div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.6 }}>
-        <Beams beamWidth={3} beamHeight={20} beamNumber={30} lightColor="#e0e0e0" speed={1.5} noiseIntensity={1.5} scale={0.1} rotation={0} backgroundColor="#fafafa" beamColor="#e8e8e8" />
+        <Beams beamWidth={4} beamHeight={25} beamNumber={16} lightColor="#d4d4d4" speed={2} noiseIntensity={2} scale={0.06} rotation={-5} backgroundColor="#fafafa" beamColor="#e0e0e0" />
       </div>
       <div className="container" style={{ padding: "4rem 1rem 3rem", position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "3rem", marginBottom: "3rem" }}>

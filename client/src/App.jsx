@@ -212,20 +212,23 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // Initialize Lenis Smooth Scrolling and momentum scroll
+  // Initialize Lenis Smooth Scrolling (desktop only)
   useEffect(() => {
+    const isMobile = window.innerWidth < 768;
     const lenis = new Lenis({
       duration: 1.3,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)), // easeOutQuart
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       direction: "vertical",
       gestureDirection: "vertical",
-      smooth: true,
+      smooth: !isMobile,
       mouseMultiplier: 1.0,
       smoothTouch: false,
       touchMultiplier: 1.8,
       infinite: false,
-      syncTouch: true, // Keep scroll touch synchronized for elasticity
+      syncTouch: true,
     });
+
+    if (isMobile) return;
 
     function raf(time) {
       lenis.raf(time);

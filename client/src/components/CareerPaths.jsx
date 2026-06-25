@@ -1,9 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { fetchCareerPaths } from '../services/data';
+import { fetchCareerPaths, fetchHomepageSettings } from '../services/data';
 
-const INITIAL_ROWS = 3;
 const COLS = 3;
-const INITIAL_VISIBLE = INITIAL_ROWS * COLS;
 
 function PathCard({ path, onApply }) {
   return (
@@ -44,37 +42,43 @@ function PathCard({ path, onApply }) {
   );
 }
 
-function CategorySection({ category, paths, onApply }) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? paths.length : Math.min(paths.length, INITIAL_VISIBLE);
+function ViewAllModal({ paths, categories, onClose, onApply }) {
+  const [filter, setFilter] = useState('all');
 
-  const gridStyle = {
-    display: 'grid',
-    gridTemplateColumns: `repeat(${Math.min(COLS, paths.length)}, 1fr)`,
-    gap: '2rem',
-    marginTop: '1.5rem'
-  };
+  const catMap = {};
+  (categories || []).forEach((cat) => { catMap[cat.id] = cat; });
+
+  const filtered = filter === 'all' ? paths : paths.filter((p) => (p.category || '__uncategorized__') === filter);
 
   return (
-    <div style={{ marginBottom: '3rem' }}>
-      {category.name && (
-        <div style={{ marginBottom: '0.75rem' }}>
-          <h3 style={{ fontSize: '1.6rem', fontWeight: 900, textTransform: 'uppercase' }}>{category.name}</h3>
-          {category.description && <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{category.description}</p>}
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", justifyContent: "center", alignItems: "flex-start", zIndex: 2000, overflowY: "auto", padding: "2rem 1rem" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", border: "3px solid #000", boxShadow: "8px 8px 0 #000", width: "100%", maxWidth: "1000px", position: "relative", marginTop: "2rem" }}>
+        <div style={{ height: "6px", background: "#000" }} />
+        <button onClick={onClose} style={{ position: "absolute", top: "0.75rem", right: "0.75rem", zIndex: 10, background: "#000", border: "none", color: "#fff", width: "36px", height: "36px", cursor: "pointer", fontSize: "1.4rem", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>×</button>
+        <div style={{ padding: "2rem" }}>
+          <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.3rem", marginBottom: "1rem" }}>All Domains</h3>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "2px solid #eee" }}>
+            <button onClick={() => setFilter("all")} style={{ padding: "0.4rem 1rem", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer", border: filter === "all" ? "2px solid #000" : "2px solid #ddd", background: filter === "all" ? "#000" : "#fff", color: filter === "all" ? "#fff" : "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>All</button>
+            {categories.map((cat) => (
+              <button key={cat.id} onClick={() => setFilter(cat.id)} style={{ padding: "0.4rem 1rem", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer", border: filter === cat.id ? "2px solid #000" : "2px solid #ddd", background: filter === cat.id ? "#000" : "#fff", color: filter === cat.id ? "#fff" : "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>{cat.name}</button>
+            ))}
+          </div>
+          {filtered.length === 0 ? (
+            <p style={{ textAlign: "center", color: "#888", padding: "2rem", fontStyle: "italic" }}>No domains in this category.</p>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1.5rem" }}>
+              {filtered.map((path) => (
+                <div key={path.id} className="card-sharp" style={{ padding: "1.5rem", border: "2px solid #000", boxShadow: "3px 3px 0 #000" }}>
+                  <span className="badge-sharp" style={{ backgroundColor: "#000", color: "#fff", fontSize: "0.75rem", marginBottom: "0.75rem", display: "inline-block" }}>{path.duration || '4 Weeks'}</span>
+                  <h4 style={{ fontWeight: 800, textTransform: "uppercase", fontSize: "1.1rem", margin: "0.5rem 0" }}>{path.title}</h4>
+                  <p style={{ fontSize: "0.82rem", color: "#666", lineHeight: "1.5", marginBottom: "1rem" }}>{path.description}</p>
+                  <button type="button" className="btn-sharp" onClick={() => onApply(path)} style={{ width: "100%", padding: "0.6rem", fontWeight: 700, fontSize: "0.82rem" }}>Apply Now</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-      <div className="career-paths-grid" style={gridStyle}>
-        {paths.slice(0, visible).map((path) => (
-          <PathCard key={path.id} path={path} onApply={onApply} />
-        ))}
       </div>
-      {paths.length > INITIAL_VISIBLE && (
-        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <button type="button" className="btn-sharp" onClick={() => setExpanded(!expanded)} style={{ padding: '0.6rem 2rem', fontWeight: 800, fontSize: '0.85rem' }}>
-            {expanded ? `Show Less` : `Show More (${paths.length - INITIAL_VISIBLE} more)`}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -83,14 +87,17 @@ export default function CareerPaths({ onApplyDomain }) {
   const [paths, setPaths] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [homepageSettings, setHomepageSettings] = useState(null);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let active = true;
-    fetchCareerPaths()
-      .then((data) => {
+    Promise.all([fetchCareerPaths(), fetchHomepageSettings()])
+      .then(([data, hp]) => {
         if (active) {
           setPaths(data.paths || data || []);
           setCategories(data.categories || []);
+          setHomepageSettings(hp || null);
         }
       })
       .catch((err) => console.error(err))
@@ -110,11 +117,19 @@ export default function CareerPaths({ onApplyDomain }) {
     );
   }
 
+  const enabledIds = homepageSettings?.visibleDomains;
+  let filtered = paths;
+  if (enabledIds && enabledIds.length > 0) {
+    filtered = paths.filter((p) => enabledIds.includes(p.id));
+  }
+  const maxVisible = homepageSettings?.maxVisible || filtered.length;
+  const showViewAll = filtered.length > maxVisible;
+
   const catMap = {};
   (categories || []).forEach((cat) => { catMap[cat.id] = cat; });
 
   const grouped = {};
-  (paths || []).forEach((p) => {
+  (filtered || []).forEach((p) => {
     const catId = p.category || '__uncategorized__';
     if (!grouped[catId]) grouped[catId] = [];
     grouped[catId].push(p);
@@ -146,11 +161,39 @@ export default function CareerPaths({ onApplyDomain }) {
         {orderedSections.length === 0 ? (
           <p style={{ textAlign: 'center', fontStyle: 'italic', color: 'var(--text-secondary)' }}>No domains configured yet.</p>
         ) : (
-          orderedSections.map((section, idx) => (
-            <CategorySection key={section.category.id || `section_${idx}`} category={section.category} paths={section.paths} onApply={onApplyDomain} />
-          ))
+          <>
+            {orderedSections.map((section, sIdx) => {
+              let visiblePaths = section.paths;
+              if (showViewAll && sIdx === 0) {
+                visiblePaths = section.paths.slice(0, maxVisible);
+              }
+              return (
+                <div key={section.category.id || `section_${sIdx}`} style={{ marginBottom: '3rem' }}>
+                  {section.category.name && (
+                    <div style={{ marginBottom: '0.75rem' }}>
+                      <h3 style={{ fontSize: '1.6rem', fontWeight: 900, textTransform: 'uppercase' }}>{section.category.name}</h3>
+                      {section.category.description && <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{section.category.description}</p>}
+                    </div>
+                  )}
+                  <div className="career-paths-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(COLS, visiblePaths.length)}, 1fr)`, gap: '2rem', marginTop: '1.5rem' }}>
+                    {visiblePaths.map((path) => (
+                      <PathCard key={path.id} path={path} onApply={onApplyDomain} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {showViewAll && (
+              <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                <button type="button" className="btn-sharp" onClick={() => setShowAll(true)} style={{ padding: '0.75rem 2.5rem', fontWeight: 800, fontSize: '0.9rem' }}>
+                  View All Domains ({filtered.length})
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
+      {showAll && <ViewAllModal paths={filtered} categories={categories} onClose={() => setShowAll(false)} onApply={onApplyDomain} />}
     </section>
   );
 }

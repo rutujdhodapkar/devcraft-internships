@@ -877,6 +877,16 @@ export async function savePopupSettings(settings) {
   return saveSiteConfig("popup", settings);
 }
 
+// Homepage Settings (which domains to show, max visible before "View All")
+export async function fetchHomepageSettings() {
+  const d = await fetchSiteConfig("homepage");
+  return d || null;
+}
+
+export async function saveHomepageSettings(settings) {
+  return saveSiteConfig("homepage", settings);
+}
+
 // Coupons
 export async function fetchCoupons() {
   const d = await dbGet("siteConfig/coupons");
