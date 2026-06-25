@@ -222,15 +222,9 @@ export default function StudentDashboard({
     }
   }, [initialReferralTab]);
 
-  // Load full referral dashboard data when referral tab opens and user has a code
+  // Load full referral dashboard data when referral tab opens
   useEffect(() => {
-    if (
-      activeTab === "referral" &&
-      user &&
-      referralStat &&
-      !referralDashData &&
-      !referralDashLoading
-    ) {
+    if (activeTab === "referral" && user && !referralDashData && !referralDashLoading) {
       setReferralDashLoading(true);
       fetchReferralDashboardData(user.uid)
         .then((data) => {
@@ -239,7 +233,7 @@ export default function StudentDashboard({
         .catch(() => {})
         .finally(() => setReferralDashLoading(false));
     }
-  }, [activeTab, user, referralStat]);
+  }, [activeTab, user]);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -514,9 +508,9 @@ export default function StudentDashboard({
           )}
         </div>
 
-        <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start", flexDirection: "column" }}>
           {/* Left Sidebar Tabs */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", minWidth: "180px", flexShrink: 0 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", minWidth: 0, width: "100%" }}>
             {[
               { id: "overview", label: "Overview", icon: "\u25C8" },
               { id: "tasks", label: "My Tasks", icon: "\u2630" },
@@ -549,7 +543,7 @@ export default function StudentDashboard({
           </div>
 
           {/* Main Content Area */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, width: "100%" }}>
 
         {error && (
           <div
@@ -833,8 +827,22 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "referral" ? (
           <div>
-            {referralStat && userProfile?.upiId ? (
+            {referralDashData ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                {!referralDashData.code && (
+                  <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                    <div style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "1rem" }}>Get Your Referral Code</div>
+                    <p style={{ color: "#888", fontSize: "0.9rem", marginBottom: "1rem" }}>Set up your referral code below to start earning rewards.</p>
+                    <EarnSection user={user} userProfile={userProfile} onLoginClick={() => {}} />
+                  </div>
+                )}
+                {!userProfile?.upiId && referralDashData.code && (
+                  <div style={{ border: "2px solid #FBBC05", background: "#FFF8E1", padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#7a5c00" }}>
+                    <strong>Add your UPI ID</strong> in the Profile tab to receive referral payouts.
+                  </div>
+                )}
+                {referralDashData.code && (
+                <>
                 {/* Share card */}
                 <div
                   style={{
@@ -873,7 +881,7 @@ export default function StudentDashboard({
                           color: "#000",
                         }}
                       >
-                        {referralStat.code}
+                        {referralDashData.code}
                       </div>
                     </div>
                     <div>
@@ -906,13 +914,13 @@ export default function StudentDashboard({
                             wordBreak: "break-all",
                           }}
                         >
-                          {window.location.origin}/?ref={referralStat.code}
+                          {window.location.origin}/?ref={referralDashData.code}
                         </code>
                         <button
                           className="btn-sharp"
                           onClick={() => {
                             navigator.clipboard.writeText(
-                              `${window.location.origin}/?ref=${referralStat.code}`,
+                              `${window.location.origin}/?ref=${referralDashData.code}`,
                             );
                             alert("Referral link copied!");
                           }}
@@ -957,14 +965,10 @@ export default function StudentDashboard({
                     }}
                   >
                     Estimated earnings: ₹
-                    {(referralDashData?.completedInterns ??
-                      referralStat.completedInterns ??
-                      0) *
+                    {(referralDashData?.completedInterns ?? 0) *
                       20 +
                       Math.floor(
-                        (referralDashData?.completedInterns ??
-                          referralStat.completedInterns ??
-                          0) / 50,
+                        (referralDashData?.completedInterns ?? 0) / 50,
                       ) *
                         1000}
                   </div>
@@ -982,9 +986,7 @@ export default function StudentDashboard({
                     {
                       label: "Link Visits",
                       value:
-                        referralDashData?.totalVisits ??
-                        referralStat.visited ??
-                        0,
+                        referralDashData?.totalVisits ?? 0,
                       color: "#FBBC05",
                     },
                     {
@@ -995,17 +997,13 @@ export default function StudentDashboard({
                     {
                       label: "Enrolled Interns",
                       value:
-                        referralDashData?.totalEnrolled ??
-                        referralStat.assignedInternships ??
-                        0,
+                        referralDashData?.totalEnrolled ?? 0,
                       color: "#4285F4",
                     },
                     {
                       label: "Completed",
                       value:
-                        referralDashData?.completedInterns ??
-                        referralStat.completedInterns ??
-                        0,
+                        referralDashData?.completedInterns ?? 0,
                       color: "#34A853",
                     },
                   ].map((s) => (
@@ -1038,9 +1036,11 @@ export default function StudentDashboard({
                       >
                         {s.value}
                       </div>
-                    </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+                </div> {/* end stats grid */}
+                </>
+                )}
 
                 {/* Loading state for full data */}
                 {referralDashLoading && (
@@ -1170,7 +1170,7 @@ export default function StudentDashboard({
                 )}
 
                 {/* Enrolled Interns table */}
-                {referralDashData?.enrolledInterns?.length > 0 && (
+                {referralDashData && (
                   <div>
                     <h3
                       style={{
@@ -1180,7 +1180,7 @@ export default function StudentDashboard({
                         marginBottom: "1rem",
                       }}
                     >
-                      Enrolled Interns ({referralDashData.totalEnrolled})
+                      Enrolled Interns ({referralDashData.totalEnrolled || 0})
                     </h3>
                     <div
                       style={{
@@ -1223,7 +1223,7 @@ export default function StudentDashboard({
                           </tr>
                         </thead>
                         <tbody>
-                          {referralDashData.enrolledInterns.map((e, i) => (
+                          {referralDashData.enrolledInterns?.length > 0 ? referralDashData.enrolledInterns.map((e, i) => (
                             <tr
                               key={e.id}
                               style={{
@@ -1280,7 +1280,13 @@ export default function StudentDashboard({
                                 </code>
                               </td>
                             </tr>
-                          ))}
+                          )) : (
+                            <tr>
+                              <td colSpan={6} style={{ padding: "1.5rem", textAlign: "center", color: "#aaa", fontSize: "0.85rem" }}>
+                                No enrolled interns yet.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1288,7 +1294,7 @@ export default function StudentDashboard({
                 )}
 
                 {/* Recent visits */}
-                {referralDashData?.visits?.length > 0 && (
+                {referralDashData && (
                   <div>
                     <h3
                       style={{
@@ -1343,7 +1349,7 @@ export default function StudentDashboard({
                           </tr>
                         </thead>
                         <tbody>
-                          {referralDashData.visits.slice(0, 15).map((v, i) => (
+                          {referralDashData.visits?.length > 0 ? referralDashData.visits.slice(0, 15).map((v, i) => (
                             <tr
                               key={v.id || i}
                               style={{
@@ -1396,7 +1402,13 @@ export default function StudentDashboard({
                                 {v.device || v.os || "-"}
                               </td>
                             </tr>
-                          ))}
+                          )) : (
+                            <tr>
+                              <td colSpan={8} style={{ padding: "1.5rem", textAlign: "center", color: "#aaa", fontSize: "0.85rem" }}>
+                                No visits yet.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -1420,14 +1432,25 @@ export default function StudentDashboard({
                     </div>
                   )}
               </div>
-            ) : (
-              /* No code yet → show sign-up form */
-              <EarnSection
-                user={user}
-                userProfile={userProfile}
-                onLoginClick={() => {}}
-              />
-            )}
+              ) : referralDashData?.code ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                  {!userProfile?.upiId && (
+                    <div style={{ border: "2px solid #FBBC05", background: "#FFF8E1", padding: "0.85rem 1.25rem", fontSize: "0.85rem", color: "#7a5c00" }}>
+                      <strong>Add your UPI ID</strong> in the Profile tab to receive referral payouts.
+                    </div>
+                  )}
+                  <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                    <div style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>No Referral Code Yet</div>
+                    <p style={{ color: "#888", fontSize: "0.9rem", marginBottom: "1rem" }}>Create your referral code in the section above to start earning.</p>
+                  </div>
+                </div>
+              ) : (
+                <EarnSection
+                  user={user}
+                  userProfile={userProfile}
+                  onLoginClick={() => {}}
+                />
+              )}
           </div>
         ) : activeTab === "profile" ? (
           <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000" }}>

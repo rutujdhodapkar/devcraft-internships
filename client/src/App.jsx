@@ -171,8 +171,6 @@ export default function App() {
   const [headerSettings, setHeaderSettings] = useState({ animation: "slide-down", effect: "solid" });
   const [showPopup, setShowPopup] = useState(false);
   const [popupSettings, setPopupSettings] = useState(null);
-  const popupLoginShownRef = useRef(false);
-  const popupDashboardShownRef = useRef(false);
 
   // Load header settings and popup settings from DB on mount
   useEffect(() => {
@@ -181,9 +179,8 @@ export default function App() {
         if (d && d.enabled !== false) {
           setPopupSettings(d);
           const showWhen = d.showWhen || "on-visit";
-          if (showWhen === "on-visit" && !sessionStorage.getItem("popup_seen")) {
+          if (showWhen === "on-visit") {
             setShowPopup(true);
-            sessionStorage.setItem("popup_seen", "1");
           }
         }
       })
@@ -193,9 +190,8 @@ export default function App() {
   // Show popup on login if configured
   const prevUserRef = useRef(user);
   useEffect(() => {
-    if (popupSettings?.enabled && popupSettings?.showWhen === "on-login" && user && !prevUserRef.current && !popupLoginShownRef.current) {
+    if (popupSettings?.enabled && popupSettings?.showWhen === "on-login" && user && !prevUserRef.current) {
       setShowPopup(true);
-      popupLoginShownRef.current = true;
     }
     prevUserRef.current = user;
   }, [user, popupSettings]);
@@ -203,12 +199,7 @@ export default function App() {
   // Show popup when viewing dashboard if configured
   useEffect(() => {
     if (popupSettings?.enabled && popupSettings?.showWhen === "in-dashboard" && currentView === "dashboard") {
-      if (!popupDashboardShownRef.current) {
-        setShowPopup(true);
-        popupDashboardShownRef.current = true;
-      }
-    } else {
-      popupDashboardShownRef.current = false;
+      setShowPopup(true);
     }
   }, [currentView, popupSettings]);
 
