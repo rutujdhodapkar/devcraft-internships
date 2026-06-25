@@ -313,6 +313,13 @@ export default function StudentDashboard({
       );
       return;
     }
+    // Guard: block resubmission unless admin marked resubmit
+    const subs = getSubmissions(enrollment);
+    const existingSub = subs[projectIdx];
+    if (existingSub?.submittedAt && !existingSub?.resubmit) {
+      alert("This task has already been submitted and is under review. You can only resubmit if the admin requests a revision.");
+      return;
+    }
     setSubmitting((prev) => ({ ...prev, [key]: true }));
     try {
       await submitProject(enrollment.id, projectIdx, text);
@@ -345,9 +352,16 @@ export default function StudentDashboard({
       alert(`Please answer question ${unanswered + 1} before submitting.`);
       return;
     }
+    // Guard: block resubmission unless admin marked resubmit
+    const subs = getSubmissions(enrollment);
+    const existingSub = subs[projectIdx];
+    if (existingSub?.submittedAt && !existingSub?.resubmit) {
+      alert("This quiz has already been submitted and is under review. You can only resubmit if the admin requests a revision.");
+      return;
+    }
     setSubmitting((prev) => ({ ...prev, [key]: true }));
     try {
-      const result = await submitQuizAnswer(enrollment.id, projectIdx, answers, project);
+      await submitQuizAnswer(enrollment.id, projectIdx, answers, project);
       await refreshEnrollment(enrollment.id);
       setSubmitSuccess((prev) => ({ ...prev, [key]: true }));
       setSubmissionInputs((prev) => ({ ...prev, [key]: "" }));
@@ -2282,6 +2296,7 @@ function ProjectBox({
       {/* Submitted view (read-only) — skip if resubmit requested */}
       {isSubmitted && !sub?.resubmit ? (
         <div>
+          {/* Your submission content */}
           <div
             style={{
               fontSize: "0.78rem",
@@ -2329,17 +2344,13 @@ function ProjectBox({
                 color: "#333",
                 wordBreak: "break-all",
                 lineHeight: "1.5",
-                fontFamily: sub?.text?.startsWith("http")
-                  ? "monospace"
-                  : "inherit",
+                fontFamily: sub?.text?.startsWith("http") ? "monospace" : "inherit",
               }}
             >
               {sub.text}
             </div>
           )}
-          <div
-            style={{ fontSize: "0.72rem", color: "#aaa", marginTop: "0.4rem" }}
-          >
+          <div style={{ fontSize: "0.72rem", color: "#aaa", marginTop: "0.4rem" }}>
             Submitted: {new Date(sub.submittedAt).toLocaleString()}
             {sub.verified && sub.verifiedAt && (
               <span style={{ color: "#34A853", marginLeft: "1rem" }}>
@@ -2347,32 +2358,43 @@ function ProjectBox({
               </span>
             )}
           </div>
-          {!isVerified && !isQuiz && (
+
+          {/* Prominent Under Review / Verified locked banner */}
+          {isVerified ? (
             <div
               style={{
-                marginTop: "0.75rem",
-                padding: "0.6rem 0.85rem",
-                background: "#fffbea",
-                border: "1px solid #f0d060",
-                fontSize: "0.78rem",
-                color: "#7a6000",
+                marginTop: "1rem",
+                padding: "0.85rem 1.1rem",
+                background: "#f0fdf4",
+                border: "2px solid #34A853",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.65rem",
               }}
             >
-              Our team will review and verify your submission shortly.
+              <span style={{ fontSize: "1.2rem" }}>✅</span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "#1a5c2e", textTransform: "uppercase", letterSpacing: "0.5px" }}>Verified by Team</div>
+                <div style={{ fontSize: "0.78rem", color: "#2e7d4f", marginTop: "0.15rem" }}>This submission has been approved. Great work!</div>
+              </div>
             </div>
-          )}
-          {!isVerified && isQuiz && (
+          ) : (
             <div
               style={{
-                marginTop: "0.75rem",
-                padding: "0.6rem 0.85rem",
+                marginTop: "1rem",
+                padding: "0.85rem 1.1rem",
                 background: "#fffbea",
-                border: "1px solid #f0d060",
-                fontSize: "0.78rem",
-                color: "#7a6000",
+                border: "2px solid #FBBC05",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.65rem",
               }}
             >
-              Our team will review and verify your submission shortly.
+              <span style={{ fontSize: "1.2rem" }}>🔒</span>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "#7a6000", textTransform: "uppercase", letterSpacing: "0.5px" }}>Submitted — Under Review by Team</div>
+                <div style={{ fontSize: "0.78rem", color: "#9a7a00", marginTop: "0.15rem" }}>Your submission is locked. You cannot edit or resubmit until our team reviews it.</div>
+              </div>
             </div>
           )}
         </div>

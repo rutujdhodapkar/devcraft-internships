@@ -66,6 +66,8 @@ export default function Hero({ onApplyClick, onExploreClick }) {
   const buttons = c.buttons || [];
   const badges = c.badges || [];
   const features = c.features || [];
+  const stats = c.stats || [];
+  const enrolledText = c.enrolledText || "12160+ students already enrolled";
 
   const handleButtonClick = (action) => {
     if (action === 'apply' && onApplyClick) onApplyClick();
@@ -73,7 +75,7 @@ export default function Hero({ onApplyClick, onExploreClick }) {
   };
 
   return (
-    <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '5.5rem 0 5rem' }}>
+    <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '4px solid var(--border-primary)', backgroundColor: '#fff', padding: '5.5rem 0 5rem' }}>
       <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
         <Dither
           waveColor={[0.82, 0.85, 0.88]}
@@ -100,8 +102,33 @@ export default function Hero({ onApplyClick, onExploreClick }) {
             </div>
           )}
 
-          <h1 style={{ fontSize: 'clamp(2.5rem, 6vw, 4.2rem)', marginBottom: '1.5rem', lineHeight: 1.05, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px' }}>
-            {c.headline || "Kickstart Your Developer Career with Virtual Internships."}
+          <h1 style={{ fontSize: 'clamp(2.5rem, 6vw, 4.2rem)', marginBottom: '1.5rem', lineHeight: 1, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px' }}>
+            {(() => {
+              const raw = c.headline || "Kickstart Your Developer Career for free";
+              const idx = raw.toLowerCase().lastIndexOf('free');
+              if (idx === -1) return raw;
+              const before = raw.slice(0, idx);
+              const match = raw.slice(idx, idx + 4);
+              const after = raw.slice(idx + 4);
+              return (
+                <>
+                  {before}
+                  <span style={{
+                    display: 'inline-block',
+                    border: '4px solid #000',
+                    padding: '0.1rem 0.4rem',
+                    transform: 'rotate(-6deg)',
+                    fontWeight: 900,
+                    fontSize: 'inherit',
+                    lineHeight: 1,
+                    margin: '0 0.15rem',
+                  }}>
+                    {match}
+                  </span>
+                  {after}
+                </>
+              );
+            })()}
           </h1>
           
           <p style={{ fontSize: 'clamp(1.05rem, 2vw, 1.25rem)', marginBottom: '2.5rem', maxWidth: '750px', marginLeft: 'auto', marginRight: 'auto', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
@@ -149,12 +176,25 @@ export default function Hero({ onApplyClick, onExploreClick }) {
             ))}
           </div>
 
-          {/* Stats Section — animated count-up */}
-          <div style={{ borderTop: '2px dashed var(--border-secondary)', paddingTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
-            <AnimatedStat target={10000} suffix="+" label="Active Learners" duration={1800} />
-            <AnimatedStat target={7000}  suffix="+" label="Certificates Issued" duration={1600} />
-            <AnimatedStat target={100}   suffix="%" label="Free & Open Access" duration={1400} />
+          {/* Enrolled count text */}
+          <div style={{ fontSize: 'clamp(1rem, 2vw, 1.4rem)', fontWeight: 700, marginBottom: '3rem', color: 'var(--text-secondary)', letterSpacing: '0.5px' }}>
+            {enrolledText}
           </div>
+
+          {/* Stats Section — animated count-up */}
+          {stats.length > 0 ? (
+            <div style={{ borderTop: '3px dashed var(--border-secondary)', paddingTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
+              {stats.map((stat, idx) => (
+                <AnimatedStat key={idx} target={stat.target} suffix={stat.suffix || ''} label={stat.label} duration={stat.duration || 1800} />
+              ))}
+            </div>
+          ) : (
+            <div style={{ borderTop: '3px dashed var(--border-secondary)', paddingTop: '2.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '2rem' }}>
+              <AnimatedStat target={10000} suffix="+" label="Active Learners" duration={1800} />
+              <AnimatedStat target={7000}  suffix="+" label="Certificates Issued" duration={1600} />
+              <AnimatedStat target={100}   suffix="%" label="Free & Open Access" duration={1400} />
+            </div>
+          )}
         </div>
       </div>
     </header>

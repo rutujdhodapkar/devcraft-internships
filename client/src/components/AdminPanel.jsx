@@ -408,8 +408,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setHomepageLoading(true);
       import("../services/data").then(({ fetchHomepageContent }) =>
         fetchHomepageContent()
-          .then((data) => setHomepageContent(data || { headline: "", description: "", badges: [], buttons: [], features: [] }))
-          .catch(() => setHomepageContent({ headline: "", description: "", badges: [], buttons: [], features: [] }))
+          .then((data) => setHomepageContent(data || { headline: "", description: "", badges: [], buttons: [], features: [], enrolledText: "", stats: [] }))
+          .catch(() => setHomepageContent({ headline: "", description: "", badges: [], buttons: [], features: [], enrolledText: "", stats: [] }))
           .finally(() => setHomepageLoading(false)),
       );
     }
@@ -6999,6 +6999,68 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
                   {(!homepageContent.logoLoop?.logos?.length) && (
                     <p style={{ color: "#888", fontSize: "0.8rem", fontStyle: "italic" }}>No logos added yet. Click "+ Add Logo" to get started.</p>
+                  )}
+                </div>
+
+                {/* Enrolled Text */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Enrolled Text (below CTA buttons)</span>
+                  <input
+                    value={homepageContent.enrolledText || ""}
+                    onChange={(e) => setHomepageContent((p) => ({ ...p, enrolledText: e.target.value }))}
+                    placeholder="12160+ students already enrolled"
+                    style={{ ...s, marginTop: "0.75rem", width: "100%" }}
+                  />
+                </div>
+
+                {/* Stats Section */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Animated Stats Counters</span>
+                    <button
+                      type="button"
+                      onClick={() => setHomepageContent((p) => ({ ...p, stats: [...(p.stats || []), { target: 1000, suffix: "+", label: "New Stat", duration: 1800 }] }))}
+                      style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}
+                    >
+                      + Add Stat
+                    </button>
+                  </div>
+                  {(!homepageContent.stats || homepageContent.stats.length === 0) ? (
+                    <p style={{ color: "#888", fontSize: "0.8rem", fontStyle: "italic" }}>No stats configured. Defaults (10000+, 7000+, 100%) will be shown.</p>
+                  ) : (
+                    (homepageContent.stats || []).map((stat, idx) => (
+                      <div key={idx} style={{ border: "1px solid #ddd", padding: "0.85rem", marginBottom: "0.75rem", background: "#fafafa", display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Target Number</label>
+                          <input type="number" min="0" value={stat.target} onChange={(e) => { const u = [...(homepageContent.stats || [])]; u[idx] = { ...u[idx], target: Number(e.target.value) }; setHomepageContent((p) => ({ ...p, stats: u })); }}
+                            style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100px" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Suffix</label>
+                          <input value={stat.suffix || ""} onChange={(e) => { const u = [...(homepageContent.stats || [])]; u[idx] = { ...u[idx], suffix: e.target.value }; setHomepageContent((p) => ({ ...p, stats: u })); }}
+                            placeholder="+"
+                            style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "60px" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Label</label>
+                          <input value={stat.label} onChange={(e) => { const u = [...(homepageContent.stats || [])]; u[idx] = { ...u[idx], label: e.target.value }; setHomepageContent((p) => ({ ...p, stats: u })); }}
+                            placeholder="Active Learners"
+                            style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "180px" }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Duration (ms)</label>
+                          <input type="number" min="200" max="5000" value={stat.duration || 1800} onChange={(e) => { const u = [...(homepageContent.stats || [])]; u[idx] = { ...u[idx], duration: Number(e.target.value) }; setHomepageContent((p) => ({ ...p, stats: u })); }}
+                            style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "80px" }} />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHomepageContent((p) => ({ ...p, stats: (p.stats || []).filter((_, i) => i !== idx) }))}
+                          style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.25rem 0.5rem", fontSize: "0.75rem" }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
                   )}
                 </div>
 
