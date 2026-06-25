@@ -1,4 +1,5 @@
 import React from "react";
+import Beams from "./Beams";
 
 export default function Footer({ onTandpClick }) {
   return (
@@ -6,9 +7,32 @@ export default function Footer({ onTandpClick }) {
       style={{
         borderTop: "2px solid #000",
         background: "#fafafa",
+        position: "relative",
+        overflow: "hidden",
       }}
     >
-      <div className="container" style={{ padding: "4rem 1rem 3rem" }}>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          zIndex: 0,
+          opacity: 0.6,
+        }}
+      >
+        <Beams
+          beamWidth={2}
+          beamHeight={20}
+          beamNumber={10}
+          lightColor="#e0e0e0"
+          speed={1.5}
+          noiseIntensity={1.5}
+          scale={0.15}
+          rotation={0}
+          backgroundColor="#fafafa"
+          beamColor="#e8e8e8"
+        />
+      </div>
+      <div className="container" style={{ padding: "4rem 1rem 3rem", position: "relative", zIndex: 1 }}>
         <div
           style={{
             display: "flex",

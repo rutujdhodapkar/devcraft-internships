@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { fetchHomepageContent } from '../services/data';
 import ShinyText from './ShinyText';
-import Dither from './Dither';
 
 /* ─── Count-up hook ──────────────────────────────────────────────── */
 function useCountUp(target, duration = 1800, started = false) {
@@ -74,20 +73,7 @@ export default function Hero({ onApplyClick, onExploreClick }) {
 
   return (
     <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '5.5rem 0 5rem' }}>
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-        <Dither
-          waveColor={[0.82, 0.85, 0.88]}
-          disableAnimation={false}
-          enableMouseInteraction={true}
-          mouseRadius={0.7}
-          colorNum={4}
-          waveAmplitude={0.3}
-          waveFrequency={2.5}
-          waveSpeed={0.03}
-          pixelSize={3}
-        />
-      </div>
-      <div className="container" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="container">
         <div style={{ maxWidth: '950px', margin: '0 auto', textAlign: 'center' }}>
           {/* Badge Taglines */}
           {badges.length > 0 && (
