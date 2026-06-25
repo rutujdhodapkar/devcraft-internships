@@ -174,26 +174,29 @@ export default function App() {
   const [popupSettings, setPopupSettings] = useState(null);
   const popupLoginShownRef = useRef(false);
   const popupDashboardShownRef = useRef(false);
-  const lenisRef = useRef(null);
 
-  // Lock body scroll when any modal is open
+  // Lock body scroll when any modal is open — also prevent touch scroll on mobile
   useEffect(() => {
     if (showPopup || showProfilePrompt || showEarnModal || showIdCard) {
       const b = document.body;
       const h = document.documentElement;
       b.style.overflow = 'hidden';
       h.style.overflow = 'hidden';
-      lenisRef.current?.stop();
+      b.style.touchAction = 'none';
+      h.style.touchAction = 'none';
     } else {
       const b = document.body;
       const h = document.documentElement;
       b.style.overflow = '';
       h.style.overflow = '';
-      lenisRef.current?.start();
+      b.style.touchAction = '';
+      h.style.touchAction = '';
     }
     return () => {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
+      document.body.style.touchAction = '';
+      document.documentElement.style.touchAction = '';
     };
   }, [showPopup, showProfilePrompt, showEarnModal, showIdCard]);
 
@@ -257,8 +260,6 @@ export default function App() {
       infinite: false,
       syncTouch: true,
     });
-    lenisRef.current = lenis;
-
     if (isMobile) return;
 
     function raf(time) {
@@ -270,7 +271,6 @@ export default function App() {
 
     return () => {
       lenis.destroy();
-      lenisRef.current = null;
     };
   }, []);
 
