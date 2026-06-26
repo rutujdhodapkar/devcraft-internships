@@ -5,8 +5,6 @@ import { Canvas, createPortal, useFrame, useThree } from '@react-three/fiber';
 import {
   useFBO,
   useGLTF,
-  useScroll,
-  Image,
   Scroll,
   Preload,
   ScrollControls,
@@ -33,10 +31,7 @@ export default function FluidGlass({ mode = 'lens', lensProps = {}, barProps = {
       <ScrollControls damping={0.2} pages={3} distance={0.4}>
         {mode === 'bar' && <NavItems items={navItems} />}
         <Wrapper modeProps={modeProps}>
-          <Scroll>
-            <Typography />
-            <Images />
-          </Scroll>
+          <Scroll />
           <Scroll html />
           <Preload />
         </Wrapper>
@@ -211,65 +206,4 @@ function NavItems({ items }) {
   );
 }
 
-function Images() {
-  const group = useRef();
-  const data = useScroll();
-  const { height } = useThree(s => s.viewport);
 
-  useFrame(() => {
-    group.current.children[0].material.zoom = 1 + data.range(0, 1 / 3) / 3;
-    group.current.children[1].material.zoom = 1 + data.range(0, 1 / 3) / 3;
-    group.current.children[2].material.zoom = 1 + data.range(1.15 / 3, 1 / 3) / 2;
-    group.current.children[3].material.zoom = 1 + data.range(1.15 / 3, 1 / 3) / 2;
-    group.current.children[4].material.zoom = 1 + data.range(1.15 / 3, 1 / 3) / 2;
-  });
-
-  return (
-    <group ref={group}>
-      <Image position={[-2, 0, 0]} scale={[3, height / 1.1, 1]} url="/assets/demo/cs1.webp" />
-      <Image position={[2, 0, 3]} scale={3} url="/assets/demo/cs2.webp" />
-      <Image position={[-2.05, -height, 6]} scale={[1, 3, 1]} url="/assets/demo/cs3.webp" />
-      <Image position={[-0.6, -height, 9]} scale={[1, 2, 1]} url="/assets/demo/cs1.webp" />
-      <Image position={[0.75, -height, 10.5]} scale={1.5} url="/assets/demo/cs2.webp" />
-    </group>
-  );
-}
-
-function Typography() {
-  const DEVICE = {
-    mobile: { fontSize: 0.2 },
-    tablet: { fontSize: 0.4 },
-    desktop: { fontSize: 0.6 }
-  };
-  const getDevice = () => {
-    const w = window.innerWidth;
-    return w <= 639 ? 'mobile' : w <= 1023 ? 'tablet' : 'desktop';
-  };
-
-  const [device, setDevice] = useState(getDevice());
-
-  useEffect(() => {
-    const onResize = () => setDevice(getDevice());
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  const { fontSize } = DEVICE[device];
-
-  return (
-    <Text
-      position={[0, 0, 12]}
-      fontSize={fontSize}
-      letterSpacing={-0.05}
-      outlineWidth={0}
-      outlineBlur="20%"
-      outlineColor="#000"
-      outlineOpacity={0.5}
-      color="white"
-      anchorX="center"
-      anchorY="middle"
-    >
-      React Bits
-    </Text>
-  );
-}
