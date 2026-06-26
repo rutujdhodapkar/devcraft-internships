@@ -27,7 +27,7 @@ export default function Loader({ onFinish }) {
         justifyContent: 'center',
       }}
     >
-      <div style={{ width: '90%', maxWidth: '800px', height: '280px' }}>
+      <div style={{ width: '95%', maxWidth: '1100px', height: '400px' }}>
         <MetallicPaint
           imageSrc="/devcraft-logo.svg"
           seed={42}
