@@ -1,11 +1,10 @@
 /* eslint-disable react/no-unknown-property */
-import React, { forwardRef, useImperativeHandle, useEffect, useRef, useMemo, useState } from 'react';
+import { forwardRef, useImperativeHandle, useEffect, useRef, useMemo } from 'react';
 
 import * as THREE from 'three';
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
-import { degToRad } from 'three/src/math/MathUtils.js';
 
 import './Beams.css';
 
@@ -50,25 +49,11 @@ function extendMaterial(BaseMaterial, cfg) {
   return mat;
 }
 
-const CanvasWrapper = ({ children }) => {
-  const [ready, setReady] = useState(false);
-  return (
-    <Canvas
-      dpr={[1, 2]}
-      frameloop="always"
-      className="beams-container"
-      onCreated={(state) => {
-        setReady(true);
-        state.gl.domElement.addEventListener('webglcontextlost', (e) => {
-          e.preventDefault();
-          setTimeout(() => state.gl.forceContextRestore?.(), 100);
-        });
-      }}
-    >
-      {children}
-    </Canvas>
-  );
-};
+const CanvasWrapper = ({ children }) => (
+  <Canvas dpr={[1, 2]} frameloop="always" className="beams-container">
+    {children}
+  </Canvas>
+);
 
 const hexToNormalizedRGB = hex => {
   const clean = hex.replace('#', '');
@@ -163,9 +148,7 @@ const Beams = ({
   speed = 2,
   noiseIntensity = 1.75,
   scale = 0.2,
-  rotation = 0,
-  backgroundColor = '#ffffff',
-  beamColor = '#f0f0f0'
+  rotation = 0
 }) => {
   const meshRef = useRef(null);
   const beamMaterial = useMemo(
@@ -212,7 +195,7 @@ const Beams = ({
         },
         material: { fog: true },
         uniforms: {
-          diffuse: new THREE.Color(...hexToNormalizedRGB(beamColor)),
+          diffuse: new THREE.Color(...hexToNormalizedRGB('#000000')),
           time: { shared: true, mixed: true, linked: true, value: 0 },
           roughness: 0.3,
           metalness: 0.3,
@@ -222,17 +205,17 @@ const Beams = ({
           uScale: scale
         }
       }),
-    [speed, noiseIntensity, scale, beamColor]
+    [speed, noiseIntensity, scale]
   );
 
   return (
     <CanvasWrapper>
-      <group rotation={[0, 0, degToRad(rotation)]}>
+      <group rotation={[0, 0, rotation * Math.PI / 180]}>
         <PlaneNoise ref={meshRef} material={beamMaterial} count={beamNumber} width={beamWidth} height={beamHeight} />
         <DirLight color={lightColor} position={[0, 3, 10]} />
       </group>
       <ambientLight intensity={1} />
-      <color attach="background" args={[backgroundColor]} />
+      <color attach="background" args={['#000000']} />
       <PerspectiveCamera makeDefault position={[0, 0, 20]} fov={30} />
     </CanvasWrapper>
   );
@@ -321,4 +304,4 @@ const DirLight = ({ position, color }) => {
   return <directionalLight ref={dir} color={color} intensity={1} position={position} />;
 };
 
-export default React.memo(Beams);
+export default Beams;
