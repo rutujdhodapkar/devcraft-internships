@@ -99,14 +99,11 @@ export default function Navbar({
           .hamburger-glass { display: none !important; }
         }
         .profile-circular-text {
-          width: 42px !important;
-          height: 42px !important;
-          margin: 0 !important;
+          margin: 0;
         }
         .profile-circular-text span {
-          font-size: 5px !important;
-          color: var(--text-primary) !important;
-          font-weight: 800 !important;
+          color: var(--text-primary);
+          font-weight: 800;
           text-transform: uppercase;
         }
         /* Glass Navbar Panel Overrides */
@@ -330,9 +327,9 @@ export default function Navbar({
                     {user ? (
                       <div className="nav-auth-user" style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "nowrap" }}>
                         {user.photoURL && (
-                          <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "42px", height: "42px" }}>
-                            <CircularText text="Dev/Craft Internships " spinDuration={12} onHover="slowDown" className="profile-circular-text" radius={15} />
-                            <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ position: "absolute", width: "24px", height: "24px", borderRadius: "50%", objectFit: "cover", zIndex: 2 }} />
+                          <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "56px", height: "56px" }}>
+                            <CircularText text="Dev/Craft Internships " spinDuration={12} onHover="slowDown" className="profile-circular-text" radius={19} fontSize={9} />
+                            <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ position: "absolute", width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover", zIndex: 2 }} />
                           </div>
                         )}
                         <span className="nav-user-name" style={{ fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 600, margin: "0 0.25rem" }}>{user.displayName?.split(" ")[0] || "Student"}</span>
@@ -473,8 +470,8 @@ export default function Navbar({
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              width: "42px",
-                              height: "42px",
+                              width: "56px",
+                              height: "56px",
                             }}
                           >
                             <CircularText
@@ -482,7 +479,8 @@ export default function Navbar({
                               spinDuration={12}
                               onHover="slowDown"
                               className="profile-circular-text"
-                              radius={15}
+                              radius={19}
+                              fontSize={9}
                             />
                             <img
                               src={user.photoURL}
@@ -491,8 +489,8 @@ export default function Navbar({
                               referrerPolicy="no-referrer"
                               style={{
                                 position: "absolute",
-                                width: "24px",
-                                height: "24px",
+                                width: "26px",
+                                height: "26px",
                                 borderRadius: "50%",
                                 objectFit: "cover",
                                 zIndex: 2,

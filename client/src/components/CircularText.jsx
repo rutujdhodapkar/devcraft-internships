@@ -21,10 +21,11 @@ const getTransition = (duration, from) => ({
   }
 });
 
-const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className = '', radius }) => {
+const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className = '', radius = 80, fontSize = 16 }) => {
   const letters = Array.from(text);
   const controls = useAnimation();
   const rotation = useMotionValue(0);
+  const size = (radius + fontSize) * 2;
 
   useEffect(() => {
     const start = rotation.get();
@@ -37,7 +38,6 @@ const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className 
 
   const handleHoverStart = () => {
     const start = rotation.get();
-    console.log('CircularText mounted with text:', text);
     if (!onHover) return;
 
     let transitionConfig;
@@ -84,7 +84,7 @@ const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className 
   return (
     <motion.div
       className={`circular-text ${className}`}
-      style={{ rotate: rotation }}
+      style={{ rotate: rotation, width: size, height: size }}
       initial={{ rotate: 0 }}
       animate={controls}
       onMouseEnter={handleHoverStart}
@@ -92,11 +92,10 @@ const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className 
     >
       {letters.map((letter, i) => {
         const angle = (360 / letters.length) * i;
-        const r = radius ?? 80;
-        const transform = `rotateZ(${angle}deg) translate3d(${r}px, 0, 0)`;
+        const transform = `rotateZ(${angle}deg) translate3d(${radius}px, 0, 0)`;
 
         return (
-          <span key={i} style={{ transform, WebkitTransform: transform }}>
+          <span key={i} style={{ transform, WebkitTransform: transform, fontSize }}>
             {letter}
           </span>
         );
