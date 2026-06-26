@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchHomepageContent } from '../services/data';
+import { fetchWhatDoYouGet } from '../services/data';
 
 function BoxCard({ box }) {
   return (
@@ -21,8 +21,8 @@ export default function WhatDoYouGet() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    fetchHomepageContent().then((d) => {
-      if (d?.whatDoYouGet) setData(d.whatDoYouGet);
+    fetchWhatDoYouGet().then((d) => {
+      if (d) setData(d);
     }).catch(() => {});
   }, []);
 

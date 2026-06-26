@@ -441,10 +441,11 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     }
     if (activeTab === "homepage") {
       setHomepageLoading(true);
-      import("../services/data").then(({ fetchHomepageContent, fetchHomepageSettings, fetchCareerPaths }) =>
-        Promise.all([fetchHomepageContent(), fetchHomepageSettings(), fetchCareerPaths()])
-          .then(([content, hpSettings, cpResult]) => {
+      import("../services/data").then(({ fetchHomepageContent, fetchHomepageSettings, fetchCareerPaths, fetchWhatDoYouGet }) =>
+        Promise.all([fetchHomepageContent(), fetchHomepageSettings(), fetchCareerPaths(), fetchWhatDoYouGet()])
+          .then(([content, hpSettings, cpResult, wdyg]) => {
             const c = content ? { ...DEFAULT_HOMEPAGE, ...content } : DEFAULT_HOMEPAGE;
+            if (wdyg) c.whatDoYouGet = wdyg;
             setHomepageContent(c);
             homepageContentRef.current = c;
             const d = hpSettings || { visibleDomains: [], maxVisible: cpResult.paths?.length || 6 };
@@ -7381,9 +7382,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <button className="btn-sharp" disabled={homepageSaving} onClick={async () => {
                     setHomepageSaving(true);
                     try {
-                      const { saveHomepageContent } = await import("../services/data");
-                      const merged = { ...(homepageContentRef.current || homepageContent), ...(homepageDomainRef.current || homepageDomainSettings) };
-                      await saveHomepageContent(merged);
+                      const { saveHomepageContent, saveWhatDoYouGet } = await import("../services/data");
+                      const current = homepageContentRef.current || homepageContent;
+                      const merged = { ...current, ...(homepageDomainRef.current || homepageDomainSettings) };
+                      await Promise.all([
+                        saveHomepageContent(merged),
+                        current?.whatDoYouGet ? saveWhatDoYouGet(current.whatDoYouGet) : Promise.resolve(),
+                      ]);
                       setSuccessMsg("Homepage content saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
                     } catch (err) { setError("Failed to save: " + err.message); }
@@ -7394,9 +7399,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <button className="btn-sharp-outline" disabled={homepageSaving} onClick={async () => {
                     setHomepageSaving(true);
                     try {
-                      const { saveHomepageContent } = await import("../services/data");
-                      const merged = { ...(homepageContentRef.current || homepageContent), ...(homepageDomainRef.current || homepageDomainSettings) };
-                      await saveHomepageContent(merged);
+                      const { saveHomepageContent, saveWhatDoYouGet } = await import("../services/data");
+                      const current = homepageContentRef.current || homepageContent;
+                      const merged = { ...current, ...(homepageDomainRef.current || homepageDomainSettings) };
+                      await Promise.all([
+                        saveHomepageContent(merged),
+                        current?.whatDoYouGet ? saveWhatDoYouGet(current.whatDoYouGet) : Promise.resolve(),
+                      ]);
                       setSuccessMsg("Domain visibility saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
                     } catch (err) { setError("Failed to save: " + err.message); }

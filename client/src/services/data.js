@@ -841,6 +841,20 @@ export async function saveTheme(theme) {
   return saveSiteConfig("theme", theme);
 }
 
+// What Do You Get (dedicated endpoint)
+export async function fetchWhatDoYouGet() {
+  const data = await apiFetch("/api/data/what-do-you-get");
+  return data.data || null;
+}
+
+export async function saveWhatDoYouGet(whatDoYouGet) {
+  await apiFetch("/api/data/what-do-you-get", {
+    method: "PUT",
+    body: JSON.stringify({ whatDoYouGet }),
+  });
+  return whatDoYouGet;
+}
+
 // Header Settings
 export async function fetchHeaderSettings() {
   return fetchSiteConfig("headerSettings");
