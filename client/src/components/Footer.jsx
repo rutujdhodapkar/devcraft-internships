@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import Beams from "./Beams";
-import GradualBlur from "./GradualBlur";
 import { fetchFooterSettings } from "../services/data";
 
 export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) {
@@ -20,11 +19,10 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
   const copyright = s.copyright || `\u00A9 ${new Date().getFullYear()} DEV/CRAFT. All rights reserved.`;
 
   return (
-    <footer style={{ borderTop: "2px solid #000", background: "#0a0a0a", position: "relative", overflow: "hidden", color: "#ccc", paddingBottom: "2rem" }}>
+    <footer style={{ borderTop: "2px solid #000", background: "#0a0a0a", position: "relative", overflow: "hidden", color: "#ccc" }}>
       <div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.15 }}>
         <Beams beamWidth={6} beamHeight={30} beamNumber={20} lightColor="#555" speed={2.5} noiseIntensity={1.5} scale={0.08} rotation={-3} backgroundColor="#0a0a0a" beamColor="#333" />
       </div>
-      <GradualBlur position="bottom" height="8rem" strength={3} divCount={8} curve="bezier" exponential={true} opacity={0.5} zIndex={2} />
       <div className="container" style={{ padding: "5rem 1rem 3rem", position: "relative", zIndex: 1 }}>
         {/* Top grid */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1.5fr", gap: "3rem", marginBottom: "4rem", maxWidth: "1200px", marginLeft: "auto", marginRight: "auto" }}>
