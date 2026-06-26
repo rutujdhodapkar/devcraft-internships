@@ -20,7 +20,7 @@ import SlidingStrip from "./components/SlidingStrip";
 import WhatDoYouGet from "./components/WhatDoYouGet";
 import UniversityCollab from "./components/UniversityCollab";
 import Loader from "./components/Loader";
-import { AmbientFluidGlass } from "./components/FluidGlass";
+import FluidGlass from "./components/FluidGlass";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -751,7 +751,6 @@ export default function App() {
       default:
         return (
           <>
-            <AmbientFluidGlass />
             <Navbar
               onAdminClick={() => setCurrentView("admin")}
               user={user}
@@ -793,6 +792,18 @@ export default function App() {
             <CareerPaths onApplyDomain={handleApplyDomain} />
             <HowItWorks />
             <WhatDoYouGet />
+            <div style={{ height: '600px', position: 'relative' }}>
+              <FluidGlass
+                mode="lens"
+                lensProps={{
+                  scale: 0.25,
+                  ior: 1.15,
+                  thickness: 5,
+                  chromaticAberration: 0.1,
+                  anisotropy: 0.01,
+                }}
+              />
+            </div>
             <FAQ />
             <UniversityCollab />
             <EarnSection
