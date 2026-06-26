@@ -978,14 +978,6 @@ th {
   color: #000;
 }
 
-.nav-circular-text {
-  position: absolute !important;
-  top: 50% !important;
-  left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  pointer-events: none;
-}
-
 /* ─── Custom price tag ───────────────────────────────────── */
 .custom-price-tag {
   font-size: 1.6rem;

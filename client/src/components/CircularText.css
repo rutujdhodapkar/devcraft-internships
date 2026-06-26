@@ -1,9 +1,11 @@
 .circular-text {
-  position: relative;
   border-radius: 50%;
+  position: relative;
   font-weight: 900;
   text-align: center;
   cursor: pointer;
+  transform-origin: 50% 50%;
+  -webkit-transform-origin: 50% 50%;
   flex-shrink: 0;
 }
 
@@ -12,4 +14,6 @@
   display: inline-block;
   left: 50%;
   top: 50%;
+  transform-origin: 0 0;
+  -webkit-transform-origin: 0 0;
 }

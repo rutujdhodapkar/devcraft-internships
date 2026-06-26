@@ -1,66 +1,107 @@
-import { useEffect, useRef } from 'react';
-import { motion, useMotionValue, useSpring } from 'motion/react';
+import { useEffect } from 'react';
+import { motion, useAnimation, useMotionValue } from 'motion/react';
 
 import './CircularText.css';
 
+const getRotationTransition = (duration, from, loop = true) => ({
+  from,
+  to: from + 360,
+  ease: 'linear',
+  duration,
+  type: 'tween',
+  repeat: loop ? Infinity : 0
+});
+
+const getTransition = (duration, from) => ({
+  rotate: getRotationTransition(duration, from),
+  scale: {
+    type: 'spring',
+    damping: 20,
+    stiffness: 300
+  }
+});
+
 const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className = '', radius = 80, fontSize = 16 }) => {
   const letters = Array.from(text);
-  const containerRef = useRef(null);
-  const angle = useMotionValue(0);
-  const speedMult = useMotionValue(1);
-  const smoothSpeed = useSpring(speedMult, { damping: 20, stiffness: 300 });
+  const controls = useAnimation();
+  const rotation = useMotionValue(0);
+  const size = (radius + fontSize) * 2;
 
   useEffect(() => {
-    let rafId;
-    let last = performance.now();
-
-    const frame = (now) => {
-      const dt = (now - last) / 1000;
-      last = now;
-
-      const mult = smoothSpeed.get();
-      angle.set((angle.get() + (360 / spinDuration) * mult * dt) % 360);
-
-      const deg = angle.get();
-      const step = (2 * Math.PI) / letters.length;
-      const rad = (deg * Math.PI) / 180;
-      const spans = containerRef.current?.querySelectorAll('span');
-      if (spans) {
-        spans.forEach((span, i) => {
-          const theta = rad + step * i;
-          const x = radius * Math.cos(theta);
-          const y = radius * Math.sin(theta);
-          span.style.transform = `translate(${x}px, ${y}px)`;
-        });
-      }
-
-      rafId = requestAnimationFrame(frame);
-    };
-
-    rafId = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(rafId);
-  }, [spinDuration, radius, letters.length, angle, smoothSpeed]);
+    const start = rotation.get();
+    controls.start({
+      rotate: start + 360,
+      scale: 1,
+      transition: getTransition(spinDuration, start)
+    });
+  }, [spinDuration, text, onHover, controls, rotation]);
 
   const handleHoverStart = () => {
+    const start = rotation.get();
     if (!onHover) return;
-    const map = { slowDown: 0.5, speedUp: 4, pause: 0, goBonkers: 20 };
-    speedMult.set(map[onHover] ?? 1);
+
+    let transitionConfig;
+    let scaleVal = 1;
+
+    switch (onHover) {
+      case 'slowDown':
+        transitionConfig = getTransition(spinDuration * 2, start);
+        break;
+      case 'speedUp':
+        transitionConfig = getTransition(spinDuration / 4, start);
+        break;
+      case 'pause':
+        transitionConfig = {
+          rotate: { type: 'spring', damping: 20, stiffness: 300 },
+          scale: { type: 'spring', damping: 20, stiffness: 300 }
+        };
+        scaleVal = 1;
+        break;
+      case 'goBonkers':
+        transitionConfig = getTransition(spinDuration / 20, start);
+        scaleVal = 0.8;
+        break;
+      default:
+        transitionConfig = getTransition(spinDuration, start);
+    }
+
+    controls.start({
+      rotate: start + 360,
+      scale: scaleVal,
+      transition: transitionConfig
+    });
   };
 
   const handleHoverEnd = () => {
-    speedMult.set(1);
+    const start = rotation.get();
+    controls.start({
+      rotate: start + 360,
+      scale: 1,
+      transition: getTransition(spinDuration, start)
+    });
   };
 
   return (
     <motion.div
-      ref={containerRef}
       className={`circular-text ${className}`}
+      style={{ rotate: rotation, width: size, height: size }}
+      initial={{ rotate: 0 }}
+      animate={controls}
       onMouseEnter={handleHoverStart}
       onMouseLeave={handleHoverEnd}
     >
-      {letters.map((letter, i) => (
-        <span key={i} style={{ fontSize }}>{letter}</span>
-      ))}
+      {letters.map((letter, i) => {
+        const angleRad = ((2 * Math.PI) / letters.length) * i;
+        const x = radius * Math.cos(angleRad);
+        const y = radius * Math.sin(angleRad);
+        const transform = `translate(${x}px, ${y}px)`;
+
+        return (
+          <span key={i} style={{ transform, WebkitTransform: transform, fontSize }}>
+            {letter}
+          </span>
+        );
+      })}
     </motion.div>
   );
 };
