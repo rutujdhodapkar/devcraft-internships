@@ -143,8 +143,8 @@ void main(){
 }`;
 
 function processImage(img) {
-  const MAX_SIZE = 1000;
-  const MIN_SIZE = 500;
+  const MAX_SIZE = 2000;
+  const MIN_SIZE = 1000;
   let width = img.naturalWidth || img.width;
   let height = img.naturalHeight || img.height;
 
@@ -353,6 +353,40 @@ export default function MetallicPaint({
     return true;
   }, []);
 
+  const resizeCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    const gl = glRef.current;
+    if (!canvas || !gl) return;
+    const parent = canvas.parentElement;
+    const dpr = devicePixelRatio || 1;
+    const w = Math.max(parent.clientWidth || 800, 800);
+    const h = Math.max(parent.clientHeight || 400, 400);
+    const side = Math.round(Math.max(w, h) * dpr);
+    canvas.width = side;
+    canvas.height = side;
+    gl.viewport(0, 0, side, side);
+  }, []);
+
+  useEffect(() => {
+    if (!initGL()) return;
+
+    resizeCanvas();
+
+    setReady(true);
+
+    const ro = new ResizeObserver(() => resizeCanvas());
+    const parent = canvasRef.current.parentElement;
+    ro.observe(parent);
+
+    return () => {
+      ro.disconnect();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (textureRef.current && glRef.current) {
+        glRef.current.deleteTexture(textureRef.current);
+      }
+    };
+  }, [initGL, resizeCanvas]);
+
   const uploadTexture = useCallback(imgData => {
     const gl = glRef.current;
     const uniforms = uniformsRef.current;
@@ -377,26 +411,6 @@ export default function MetallicPaint({
     textureRef.current = tex;
     imgDataRef.current = imgData;
   }, []);
-
-  useEffect(() => {
-    if (!initGL()) return;
-
-    const canvas = canvasRef.current;
-    const gl = glRef.current;
-    const side = 1000 * devicePixelRatio;
-    canvas.width = side;
-    canvas.height = side;
-    gl.viewport(0, 0, side, side);
-
-    setReady(true);
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      if (textureRef.current && glRef.current) {
-        glRef.current.deleteTexture(textureRef.current);
-      }
-    };
-  }, [initGL]);
 
   useEffect(() => {
     if (!ready || !imageSrc) return;
