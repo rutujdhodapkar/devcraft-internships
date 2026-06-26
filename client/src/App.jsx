@@ -20,6 +20,7 @@ import SlidingStrip from "./components/SlidingStrip";
 import WhatDoYouGet from "./components/WhatDoYouGet";
 import UniversityCollab from "./components/UniversityCollab";
 import Loader from "./components/Loader";
+import CustomCursor from "./components/CustomCursor";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -823,7 +824,9 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <style>{`*,* *{cursor:none!important}`}</style>
       {showLoader && <Loader onFinish={() => setShowLoader(false)} />}
+      <CustomCursor />
       {/* Admin Messages Banner */}
       {adminMessages
         .filter((m) => m.type !== "notice")
