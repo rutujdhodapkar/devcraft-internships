@@ -91,8 +91,10 @@ const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className 
       onMouseLeave={handleHoverEnd}
     >
       {letters.map((letter, i) => {
-        const angle = (360 / letters.length) * i;
-        const transform = `rotateZ(${angle}deg) translate3d(${radius}px, 0, 0)`;
+        const angleRad = ((2 * Math.PI) / letters.length) * i;
+        const x = radius * Math.cos(angleRad);
+        const y = radius * Math.sin(angleRad);
+        const transform = `translate(${x}px, ${y}px)`;
 
         return (
           <span key={i} style={{ transform, WebkitTransform: transform, fontSize }}>
