@@ -20,6 +20,7 @@ import SlidingStrip from "./components/SlidingStrip";
 import WhatDoYouGet from "./components/WhatDoYouGet";
 import UniversityCollab from "./components/UniversityCollab";
 import Loader from "./components/Loader";
+import { AmbientFluidGlass } from "./components/FluidGlass";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -750,6 +751,7 @@ export default function App() {
       default:
         return (
           <>
+            <AmbientFluidGlass />
             <Navbar
               onAdminClick={() => setCurrentView("admin")}
               user={user}
