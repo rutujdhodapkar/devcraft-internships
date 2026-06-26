@@ -13,7 +13,7 @@ import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
 import PopupModal from "./components/PopupModal";
 import PolicyPage from "./components/PolicyPage";
-import LoadingScreen from "./components/LoadingScreen";
+import SplashScreen from "./components/SplashScreen";
 import CertificateView from "./components/CertificateView";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LogoLoopSection from "./components/LogoLoopSection";
@@ -135,7 +135,6 @@ export default function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
   const [hasReferralCode, setHasReferralCode] = useState(false);
 
   // Profile Prompt States
@@ -377,14 +376,6 @@ export default function App() {
 
     return () => unsubscribe();
   }, [currentView, pendingEnrollmentDomain, authRedirectTarget]);
-
-  // Hide splash 2 seconds after auth finishes loading
-  useEffect(() => {
-    if (!authLoading) {
-      const t = setTimeout(() => setShowSplash(false), 2000);
-      return () => clearTimeout(t);
-    }
-  }, [authLoading]);
 
   // Sync URL with current view for deep-linking
   useEffect(() => {
@@ -831,7 +822,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <LoadingScreen visible={showSplash} />
+      <SplashScreen loading={authLoading} />
       {/* Admin Messages Banner */}
       {adminMessages
         .filter((m) => m.type !== "notice")

@@ -1,2 +1,9 @@
 /* ===== HUMANE Typeface (Web-TT) ===== */
-/* Font files not available in deployment — using web fallbacks via font-family stack */
+@font-face {
+  font-family: 'Humane';
+  src: url('/fonts/Humane-Bold.woff2') format('woff2'),
+       url('/fonts/Humane-Bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: block;
+}
