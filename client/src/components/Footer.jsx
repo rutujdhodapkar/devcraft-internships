@@ -23,7 +23,7 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
       <div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.15 }}>
         <Beams beamWidth={6} beamHeight={30} beamNumber={20} lightColor="#555" speed={2.5} noiseIntensity={1.5} scale={0.08} rotation={-3} backgroundColor="#0a0a0a" beamColor="#333" />
       </div>
-      <div className="container" style={{ padding: "5rem 1rem 3rem", position: "relative", zIndex: 1 }}>
+      <div className="container" style={{ padding: "5rem 1rem 2rem", position: "relative", zIndex: 1 }}>
         {/* Top grid */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1.5fr", gap: "3rem", marginBottom: "4rem", maxWidth: "1200px", marginLeft: "auto", marginRight: "auto" }}>
           {/* Brand column */}

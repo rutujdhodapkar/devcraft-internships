@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { verifyInternship, saveUserProfile } from "../services/data";
 
 import GlassSurface from "./GlassSurface";
+import CircularText from "./CircularText";
 
 const DEFAULT_HEADER_SETTINGS = {
   animation: "slide-down",
@@ -349,6 +350,7 @@ export default function Navbar({
                         {user.photoURL && (
                           <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "36px", height: "36px" }}>
                             <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover", border: "2px solid #000" }} />
+                            <CircularText text="Dev/Craft Internship" spinDuration={20} onHover="speedUp" className="nav-circular-text" radius={42} fontSize={11} />
                           </div>
                         )}
                         <span className="nav-user-name" style={{ fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 600, margin: "0 0.25rem" }}>{user.displayName?.split(" ")[0] || "Student"}</span>
@@ -486,9 +488,12 @@ export default function Navbar({
                           <div
                             className="avatar-wrapper"
                             style={{
+                              position: "relative",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
+                              width: "36px",
+                              height: "36px",
                             }}
                           >
                             <img
@@ -504,6 +509,7 @@ export default function Navbar({
                                 border: "2px solid #000",
                               }}
                             />
+                            <CircularText text="Dev/Craft Internship" spinDuration={20} onHover="speedUp" className="nav-circular-text" radius={42} fontSize={11} />
                           </div>
                         )}
                         <span

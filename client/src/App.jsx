@@ -20,7 +20,6 @@ import SlidingStrip from "./components/SlidingStrip";
 import WhatDoYouGet from "./components/WhatDoYouGet";
 import UniversityCollab from "./components/UniversityCollab";
 import Loader from "./components/Loader";
-import GradualBlur from "./components/GradualBlur";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -665,24 +664,21 @@ export default function App() {
               onEarnClick={() => setShowEarnModal(true)}
               headerSettings={headerSettings}
             />
-            <div style={{ position: "relative", overflow: "hidden", flex: 1 }}>
-              <StudentDashboard
-                user={user}
-                userProfile={userProfile}
-                initialReferralTab={dashboardReferralTab}
-                onReferralTabConsumed={() => setDashboardReferralTab(false)}
-                onExploreClick={() => {
-                  setCurrentView("site");
-                  setTimeout(() => {
-                    document
-                      .getElementById("domains")
-                      ?.scrollIntoView({ behavior: "smooth" });
-                  }, 100);
-                }}
-                dashboardRefreshKey={dashboardRefreshKey}
-              />
-              <GradualBlur position="bottom" height="8rem" strength={2} divCount={8} curve="bezier" exponential={true} opacity={0.5} />
-            </div>
+            <StudentDashboard
+              user={user}
+              userProfile={userProfile}
+              initialReferralTab={dashboardReferralTab}
+              onReferralTabConsumed={() => setDashboardReferralTab(false)}
+              onExploreClick={() => {
+                setCurrentView("site");
+                setTimeout(() => {
+                  document
+                    .getElementById("domains")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }, 100);
+              }}
+              dashboardRefreshKey={dashboardRefreshKey}
+            />
             <Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} />
           </div>
         );
@@ -708,24 +704,21 @@ export default function App() {
               onEarnClick={() => setShowEarnModal(true)}
               headerSettings={headerSettings}
             />
-            <div style={{ position: "relative", overflow: "hidden", flex: 1 }}>
-              <StudentDashboard
-                user={user}
-                userProfile={userProfile}
-                initialReferralTab={dashboardReferralTab}
-                onReferralTabConsumed={() => setDashboardReferralTab(false)}
-                onExploreClick={() => {
-                  setCurrentView("site");
-                  setTimeout(() => {
-                    document
-                      .getElementById("domains")
-                      ?.scrollIntoView({ behavior: "smooth" });
-                  }, 100);
-                }}
-                dashboardRefreshKey={dashboardRefreshKey}
-              />
-              <GradualBlur position="bottom" height="8rem" strength={2} divCount={8} curve="bezier" exponential={true} opacity={0.5} />
-            </div>
+            <StudentDashboard
+              user={user}
+              userProfile={userProfile}
+              initialReferralTab={dashboardReferralTab}
+              onReferralTabConsumed={() => setDashboardReferralTab(false)}
+              onExploreClick={() => {
+                setCurrentView("site");
+                setTimeout(() => {
+                  document
+                    .getElementById("domains")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                }, 100);
+              }}
+              dashboardRefreshKey={dashboardRefreshKey}
+            />
             <Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} />
           </div>
         );
@@ -783,32 +776,29 @@ export default function App() {
               }}
               headerSettings={headerSettings}
             />
-            <div style={{ position: "relative", overflow: "hidden" }}>
-              <Hero
-                onApplyClick={() => {
-                  const el = document.getElementById("domains");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                }}
-                onExploreClick={() => {
-                  const el = document.getElementById("domains");
-                  if (el) el.scrollIntoView({ behavior: "smooth" });
-                }}
-              />
-              <SlidingStrip />
-              <LogoLoopSection />
-              <CareerPaths onApplyDomain={handleApplyDomain} />
-              <HowItWorks />
-              <WhatDoYouGet />
-              <FAQ />
-              <UniversityCollab />
-              <EarnSection
-                user={user}
-                userProfile={userProfile}
-                onLoginClick={handleLoginClick}
-                userBan={userBan}
-              />
-              <GradualBlur position="bottom" height="10rem" strength={3} divCount={10} curve="bezier" exponential={true} opacity={0.6} />
-            </div>
+            <Hero
+              onApplyClick={() => {
+                const el = document.getElementById("domains");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              onExploreClick={() => {
+                const el = document.getElementById("domains");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+            />
+            <SlidingStrip />
+            <LogoLoopSection />
+            <CareerPaths onApplyDomain={handleApplyDomain} />
+            <HowItWorks />
+            <WhatDoYouGet />
+            <FAQ />
+            <UniversityCollab />
+            <EarnSection
+              user={user}
+              userProfile={userProfile}
+              onLoginClick={handleLoginClick}
+              userBan={userBan}
+            />
             <Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} />
           </>
         );
