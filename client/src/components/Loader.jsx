@@ -27,29 +27,29 @@ export default function Loader({ onFinish }) {
         justifyContent: 'center',
       }}
     >
-      <div style={{ width: '95%', maxWidth: '1100px', height: '400px' }}>
+      <div style={{ width: 'min(85vw, 1200px)', height: 'min(50vh, 500px)' }}>
         <MetallicPaint
           imageSrc="/devcraft-logo.svg"
           seed={42}
-          scale={4}
-          patternSharpness={1}
-          noiseScale={0.5}
-          speed={0.3}
-          liquid={0.75}
+          scale={2.5}
+          patternSharpness={0.8}
+          noiseScale={0.6}
+          speed={0.4}
+          liquid={0.5}
           mouseAnimation={false}
-          brightness={2}
-          contrast={0.5}
-          refraction={0.01}
-          blur={0.015}
-          chromaticSpread={2}
-          fresnel={1}
-          angle={0}
-          waveAmplitude={1}
-          distortion={1}
-          contour={0.2}
+          brightness={3}
+          contrast={1.2}
+          refraction={0.025}
+          blur={0.02}
+          chromaticSpread={2.5}
+          fresnel={2}
+          angle={15}
+          waveAmplitude={0.8}
+          distortion={0.5}
+          contour={0.3}
           lightColor="#ffffff"
-          darkColor="#000000"
-          tintColor="#feb3ff"
+          darkColor="#111111"
+          tintColor="#ffffff"
         />
       </div>
     </div>
