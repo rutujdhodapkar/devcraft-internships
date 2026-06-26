@@ -263,6 +263,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
   // Homepage content state
   const [homepageContent, setHomepageContent] = useState(null);
+  const homepageContentRef = useRef(null);
+  const homepageDomainRef = useRef(null);
   const [homepageLoading, setHomepageLoading] = useState(false);
   const [homepageSaving, setHomepageSaving] = useState(false);
   const [homepageDomainSettings, setHomepageDomainSettings] = useState(null);
@@ -385,10 +387,10 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentSaving, setContentSaving] = useState(false);
 
-  useEffect(() => {
-    loadData();
-    loadAdmins();
-  }, []);
+  useEffect(() => { loadData(); loadAdmins(); }, []);
+
+  useEffect(() => { homepageContentRef.current = homepageContent; }, [homepageContent]);
+  useEffect(() => { homepageDomainRef.current = homepageDomainSettings; }, [homepageDomainSettings]);
 
   useEffect(() => {
     if (activeTab === "earn-settings") {
@@ -443,13 +445,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       import("../services/data").then(({ fetchHomepageContent, fetchHomepageSettings, fetchCareerPaths }) =>
         Promise.all([fetchHomepageContent(), fetchHomepageSettings(), fetchCareerPaths()])
           .then(([content, hpSettings, cpResult]) => {
-            setHomepageContent(content ? { ...DEFAULT_HOMEPAGE, ...content } : DEFAULT_HOMEPAGE);
-            setHomepageDomainSettings(hpSettings || { visibleDomains: [], maxVisible: cpResult.paths?.length || 6 });
+            const c = content ? { ...DEFAULT_HOMEPAGE, ...content } : DEFAULT_HOMEPAGE;
+            setHomepageContent(c);
+            homepageContentRef.current = c;
+            const d = hpSettings || { visibleDomains: [], maxVisible: cpResult.paths?.length || 6 };
+            setHomepageDomainSettings(d);
+            homepageDomainRef.current = d;
             setAllCareerPaths(cpResult.paths || []);
           })
           .catch(() => {
             setHomepageContent(DEFAULT_HOMEPAGE);
-            setHomepageDomainSettings({ visibleDomains: [], maxVisible: 6 });
+            homepageContentRef.current = DEFAULT_HOMEPAGE;
+            const def = { visibleDomains: [], maxVisible: 6 };
+            setHomepageDomainSettings(def);
+            homepageDomainRef.current = def;
           })
           .finally(() => setHomepageLoading(false)),
       );
@@ -7374,7 +7383,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     setHomepageSaving(true);
                     try {
                       const { saveHomepageContent } = await import("../services/data");
-                      const merged = { ...homepageContent, ...homepageDomainSettings };
+                      const merged = { ...(homepageContentRef.current || homepageContent), ...(homepageDomainRef.current || homepageDomainSettings) };
                       await saveHomepageContent(merged);
                       setSuccessMsg("Homepage content saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
@@ -7387,7 +7396,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     setHomepageSaving(true);
                     try {
                       const { saveHomepageContent } = await import("../services/data");
-                      const merged = { ...homepageContent, ...homepageDomainSettings };
+                      const merged = { ...(homepageContentRef.current || homepageContent), ...(homepageDomainRef.current || homepageDomainSettings) };
                       await saveHomepageContent(merged);
                       setSuccessMsg("Domain visibility saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
