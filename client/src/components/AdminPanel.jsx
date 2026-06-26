@@ -443,11 +443,14 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       import("../services/data").then(({ fetchHomepageContent, fetchHomepageSettings, fetchCareerPaths }) =>
         Promise.all([fetchHomepageContent(), fetchHomepageSettings(), fetchCareerPaths()])
           .then(([content, hpSettings, cpResult]) => {
-            setHomepageContent(content || DEFAULT_HOMEPAGE);
+            setHomepageContent(content ? { ...DEFAULT_HOMEPAGE, ...content } : DEFAULT_HOMEPAGE);
             setHomepageDomainSettings(hpSettings || { visibleDomains: [], maxVisible: cpResult.paths?.length || 6 });
             setAllCareerPaths(cpResult.paths || []);
           })
-          .catch(() => { setHomepageContent(DEFAULT_HOMEPAGE); })
+          .catch(() => {
+            setHomepageContent(DEFAULT_HOMEPAGE);
+            setHomepageDomainSettings({ visibleDomains: [], maxVisible: 6 });
+          })
           .finally(() => setHomepageLoading(false)),
       );
     }
