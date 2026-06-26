@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { fetchHomepageContent } from '../services/data';
 import ShinyText from './ShinyText';
-import FluidGlass from './FluidGlass';
 
 /* ─── Count-up hook ──────────────────────────────────────────────── */
 function useCountUp(target, duration = 1800, started = false) {
@@ -74,10 +73,7 @@ export default function Hero({ onApplyClick, onExploreClick }) {
 
   return (
     <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '7rem 0 5rem' }}>
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, opacity: 0.6, pointerEvents: 'none' }}>
-        <FluidGlass mode="lens" />
-      </div>
-      <div className="container" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="container">
         <div style={{ maxWidth: '1100px', margin: '0 auto', textAlign: 'center' }}>
           {/* Badge Taglines */}
           {badges.length > 0 && (
