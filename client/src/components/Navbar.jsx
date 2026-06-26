@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { verifyInternship } from "../services/data";
+import { verifyInternship, saveUserProfile } from "../services/data";
 import CircularText from "./CircularText";
 import GlassSurface from "./GlassSurface";
 
@@ -11,6 +11,7 @@ const DEFAULT_HEADER_SETTINGS = {
 export default function Navbar({
   onAdminClick,
   user,
+  userProfile,
   isAdmin,
   onLogout,
   authLoading,
@@ -42,6 +43,9 @@ export default function Navbar({
   const [verifyError, setVerifyError] = useState("");
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileForm, setProfileForm] = useState({});
+  const [savingProfile, setSavingProfile] = useState(false);
 
   const handleVerifySubmit = async (e) => {
     e.preventDefault();
@@ -62,6 +66,30 @@ export default function Navbar({
       setVerifyError("Error checking verification ID. Please try again.");
     } finally {
       setVerifyLoading(false);
+    }
+  };
+
+  const handleOpenProfileEdit = () => {
+    setProfileForm({
+      phone: userProfile?.phone || "",
+      college: userProfile?.college || "",
+      city: userProfile?.city || "",
+      country: userProfile?.country || "",
+      upiId: userProfile?.upiId || "",
+    });
+    setShowProfileModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    try {
+      await saveUserProfile(user.uid, profileForm);
+      setShowProfileModal(false);
+      alert("Profile updated successfully.");
+    } catch (err) {
+      alert("Failed to save profile: " + err.message);
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -334,6 +362,7 @@ export default function Navbar({
                         )}
                         <span className="nav-user-name" style={{ fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 600, margin: "0 0.25rem" }}>{user.displayName?.split(" ")[0] || "Student"}</span>
                         {isAdmin && <button type="button" className="btn-sharp nav-admin-btn" onClick={onAdminClick} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Admin Panel</button>}
+                        <button type="button" onClick={handleOpenProfileEdit} className="btn-sharp-outline" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Profile</button>
                         <button type="button" onClick={onShowIdCard} className="btn-sharp-outline nav-id-btn" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>ID Card</button>
                         <button type="button" className="nav-link nav-button-link nav-logout-btn" onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}>Logout</button>
                       </div>
@@ -523,6 +552,18 @@ export default function Navbar({
                             Admin Panel
                           </button>
                         )}
+                        <button
+                          type="button"
+                          onClick={handleOpenProfileEdit}
+                          className="btn-sharp-outline"
+                          style={{
+                            padding: "0.4rem 1rem",
+                            fontSize: "0.85rem",
+                            fontWeight: 700,
+                          }}
+                        >
+                          Profile
+                        </button>
                         <button
                           type="button"
                           onClick={onShowIdCard}
@@ -807,6 +848,57 @@ export default function Navbar({
                 <div><strong>Institution:</strong> {verificationResult.college || "-"}</div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: "#fff", border: "2px solid #000", boxShadow: "8px 8px 0 #000",
+            padding: "2rem", width: "420px", maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto",
+          }}>
+            <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.1rem", marginBottom: "1.5rem" }}>
+              Edit Profile
+            </h3>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Name</label>
+              <input value={user?.displayName || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0, fontFamily: "inherit" }} />
+            </div>
+
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Email</label>
+              <input value={user?.email || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0, fontFamily: "inherit" }} />
+            </div>
+
+            {["phone", "college", "city", "country", "upiId"].map((field) => (
+              <div key={field} style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>
+                  {field === "upiId" ? "UPI ID" : field.charAt(0).toUpperCase() + field.slice(1)}
+                </label>
+                <input
+                  value={profileForm[field] || ""}
+                  onChange={(e) => setProfileForm((prev) => ({ ...prev, [field]: e.target.value }))}
+                  placeholder={`Enter your ${field}`}
+                  style={{ width: "100%", padding: "0.5rem", border: "2px solid #000", borderRadius: 0, fontFamily: "inherit" }}
+                />
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+              <button onClick={() => setShowProfileModal(false)} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", background: "#fff", color: "#000", border: "2px solid #000", fontWeight: 700, cursor: "pointer", borderRadius: 0 }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveProfile} disabled={savingProfile} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", background: "#000", color: "#fff", border: "2px solid #000", fontWeight: 700, cursor: "pointer", borderRadius: 0 }}>
+                {savingProfile ? "Saving..." : "Save"}
+              </button>
+            </div>
           </div>
         </div>
       )}

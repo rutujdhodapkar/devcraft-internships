@@ -646,6 +646,7 @@ export default function App() {
             <Navbar
               onAdminClick={() => setCurrentView("admin")}
               user={user}
+              userProfile={userProfile}
               isAdmin={isAdmin}
               onLogout={handleLogout}
               authLoading={authLoading}
@@ -685,6 +686,7 @@ export default function App() {
             <Navbar
               onAdminClick={() => setCurrentView("admin")}
               user={user}
+              userProfile={userProfile}
               isAdmin={isAdmin}
               onLogout={handleLogout}
               authLoading={authLoading}
@@ -749,6 +751,7 @@ export default function App() {
             <Navbar
               onAdminClick={() => setCurrentView("admin")}
               user={user}
+              userProfile={userProfile}
               isAdmin={isAdmin}
               onLogout={handleLogout}
               authLoading={authLoading}

@@ -15,8 +15,6 @@ import {
   fetchPaymentMethods,
   autoExpireEnrollments,
   markEnrollmentComplete,
-  saveUserProfile,
-  fetchUserProfile,
   validateCoupon,
   incrementCouponUsage,
 } from "../services/data";
@@ -65,17 +63,13 @@ export default function StudentDashboard({
   const [tabMessages, setTabMessages] = useState([]);
   const [siteNotices, setSiteNotices] = useState([]);
 
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [profileForm, setProfileForm] = useState({});
-  const [savingProfile, setSavingProfile] = useState(false);
-
   const [verifyEnrollment, setVerifyEnrollment] = useState(null);
   const [learnHereDocs, setLearnHereDocs] = useState(null);
   const [learnHereProjectName, setLearnHereProjectName] = useState("");
 
   // Lock body scroll when payment or profile modals are open
   useEffect(() => {
-    if (showPaymentChoice || showPaymentModal || showProfileModal) {
+    if (showPaymentChoice || showPaymentModal) {
       const b = document.body;
       const h = document.documentElement;
       b.style.overflow = 'hidden';
@@ -414,30 +408,6 @@ export default function StudentDashboard({
     setVerifyEnrollment(enrollment);
   };
 
-  const handleOpenProfileEdit = () => {
-    setProfileForm({
-      phone: userProfile?.phone || "",
-      college: userProfile?.college || "",
-      city: userProfile?.city || "",
-      country: userProfile?.country || "",
-      upiId: userProfile?.upiId || "",
-    });
-    setShowProfileModal(true);
-  };
-
-  const handleSaveProfile = async () => {
-    setSavingProfile(true);
-    try {
-      await saveUserProfile(user.uid, profileForm);
-      setShowProfileModal(false);
-      alert("Profile updated successfully.");
-    } catch (err) {
-      alert("Failed to save profile: " + err.message);
-    } finally {
-      setSavingProfile(false);
-    }
-  };
-
   const openCertificateUrl = (enrollment, templateName) => {
     const id = enrollment.id || enrollment.internId;
     if (!id) { alert("Enrollment ID not found."); return; }
@@ -515,7 +485,6 @@ export default function StudentDashboard({
               { id: "overview", label: "Overview", icon: "\u25C8" },
               { id: "tasks", label: "My Tasks", icon: "\u2630" },
               { id: "referral", label: "Refer & Earn", icon: "\u2197" },
-              { id: "profile", label: "Profile", icon: "\u25CB" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1017,29 +986,6 @@ export default function StudentDashboard({
                 />
               )}
           </div>
-        ) : activeTab === "profile" ? (
-          <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000" }}>
-            <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.1rem", marginBottom: "1.5rem" }}>Profile Settings</h3>
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Name</label>
-              <input value={user?.displayName || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0, fontFamily: "inherit" }} />
-            </div>
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Email</label>
-              <input value={user?.email || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0, fontFamily: "inherit" }} />
-            </div>
-            {["phone", "college", "city", "country"].map((field) => (
-              <div key={field} style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>
-                  {field.charAt(0).toUpperCase() + field.slice(1)}
-                </label>
-                <input value={profileForm[field] || ""} onChange={(e) => setProfileForm((prev) => ({ ...prev, [field]: e.target.value }))} placeholder={`Enter your ${field}`} style={{ width: "100%", padding: "0.5rem", border: "2px solid #000", borderRadius: 0, fontFamily: "inherit" }} />
-              </div>
-            ))}
-            <button onClick={handleSaveProfile} disabled={savingProfile} className="btn-sharp" style={{ padding: "0.6rem 1.5rem", background: "#000", color: "#fff", border: "2px solid #000", fontWeight: 700, cursor: "pointer", borderRadius: 0, marginTop: "0.5rem" }}>
-              {savingProfile ? "Saving..." : "Save Profile"}
-            </button>
-          </div>
         ) : enrollments.length === 0 ? (
           <div
             style={{
@@ -1292,55 +1238,6 @@ export default function StudentDashboard({
         />
       )}
 
-      {showProfileModal && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center",
-          zIndex: 1000,
-        }}>
-          <div style={{
-            background: "#fff", border: "2px solid #000", boxShadow: "8px 8px 0 #000",
-            padding: "2rem", width: "420px", maxWidth: "90vw", maxHeight: "90vh", overflowY: "auto",
-          }}>
-            <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.1rem", marginBottom: "1.5rem" }}>
-              Edit Profile
-            </h3>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Name</label>
-              <input value={user?.displayName || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0 }} />
-            </div>
-
-            <div style={{ marginBottom: "1rem" }}>
-              <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>Email</label>
-              <input value={user?.email || ""} disabled style={{ width: "100%", padding: "0.5rem", border: "1px solid #ccc", background: "#f5f5f5", borderRadius: 0 }} />
-            </div>
-
-            {["phone", "college", "city", "country", "upiId"].map((field) => (
-              <div key={field} style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.3rem" }}>
-                  {field === "upiId" ? "UPI ID" : field.charAt(0).toUpperCase() + field.slice(1)}
-                </label>
-                <input
-                  value={profileForm[field] || ""}
-                  onChange={(e) => setProfileForm((prev) => ({ ...prev, [field]: e.target.value }))}
-                  placeholder={`Enter your ${field}`}
-                  style={{ width: "100%", padding: "0.5rem", border: "2px solid #000", borderRadius: 0 }}
-                />
-              </div>
-            ))}
-
-            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", marginTop: "1.5rem" }}>
-              <button onClick={() => setShowProfileModal(false)} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", background: "#fff", color: "#000", border: "2px solid #000", fontWeight: 700, cursor: "pointer", borderRadius: 0 }}>
-                Cancel
-              </button>
-              <button onClick={handleSaveProfile} disabled={savingProfile} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", background: "#000", color: "#fff", border: "2px solid #000", fontWeight: 700, cursor: "pointer", borderRadius: 0 }}>
-                {savingProfile ? "Saving..." : "Save"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {verifyEnrollment && <VerifyModal enrollment={verifyEnrollment} onClose={() => setVerifyEnrollment(null)} />}
       {learnHereDocs && (
         <LearnHereModal
