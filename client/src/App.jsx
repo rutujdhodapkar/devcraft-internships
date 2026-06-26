@@ -13,13 +13,13 @@ import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
 import PopupModal from "./components/PopupModal";
 import PolicyPage from "./components/PolicyPage";
-import SplashScreen from "./components/SplashScreen";
 import CertificateView from "./components/CertificateView";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LogoLoopSection from "./components/LogoLoopSection";
 import SlidingStrip from "./components/SlidingStrip";
 import WhatDoYouGet from "./components/WhatDoYouGet";
 import UniversityCollab from "./components/UniversityCollab";
+import Loader from "./components/Loader";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -139,6 +139,7 @@ export default function App() {
 
   // Profile Prompt States
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+  const [showLoader, setShowLoader] = useState(true);
   const [profileForm, setProfileForm] = useState({
     countryCode: detectCountryCode(),
     phone: "",
@@ -822,7 +823,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <SplashScreen loading={authLoading} />
+      {showLoader && <Loader onFinish={() => setShowLoader(false)} />}
       {/* Admin Messages Banner */}
       {adminMessages
         .filter((m) => m.type !== "notice")
