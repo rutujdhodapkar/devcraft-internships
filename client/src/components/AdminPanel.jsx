@@ -261,24 +261,26 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [newNotice, setNewNotice] = useState({ title: "", text: "", type: "info", context: "all" });
   const [noticeSaving, setNoticeSaving] = useState(false);
 
-  // Homepage content state
-  const [homepageContent, setHomepageContent] = useState(null);
+  // Homepage content state — custom setter syncs ref synchronously to avoid stale closures in save
+  const [homepageContent, _setHomepageContent] = useState(null);
   const homepageContentRef = useRef(null);
+  const setHomepageContent = (v) => {
+    if (typeof v === "function") {
+      _setHomepageContent((prev) => { const n = v(prev); homepageContentRef.current = n; return n; });
+    } else {
+      _setHomepageContent(v);
+      homepageContentRef.current = v;
+    }
+  };
   const homepageDomainRef = useRef(null);
   const [homepageLoading, setHomepageLoading] = useState(false);
   const [homepageSaving, setHomepageSaving] = useState(false);
-  const [homepageDomainSettings, setHomepageDomainSettings] = useState(null);
+  const [homepageDomainSettings, _setHomepageDomainSettings] = useState(null);
+  const setHomepageDomainSettings = (v) => {
+    _setHomepageDomainSettings(v);
+    homepageDomainRef.current = v;
+  };
   const [allCareerPaths, setAllCareerPaths] = useState([]);
-
-  // Terms / Privacy / Refund content state
-  const [termsContent, setTermsContent] = useState("");
-  const [termsLoading, setTermsLoading] = useState(false);
-  const [termsSaving, setTermsSaving] = useState(false);
-  const [privacyContent, setPrivacyContent] = useState("");
-  const [privacyLoading, setPrivacyLoading] = useState(false);
-  const [privacySaving, setPrivacySaving] = useState(false);
-  const [refundContent, setRefundContent] = useState("");
-  const [refundLoading, setRefundLoading] = useState(false);
   const [refundSaving, setRefundSaving] = useState(false);
 
   // Footer settings state
@@ -388,9 +390,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [contentSaving, setContentSaving] = useState(false);
 
   useEffect(() => { loadData(); loadAdmins(); }, []);
-
-  useEffect(() => { homepageContentRef.current = homepageContent; }, [homepageContent]);
-  useEffect(() => { homepageDomainRef.current = homepageDomainSettings; }, [homepageDomainSettings]);
 
   useEffect(() => {
     if (activeTab === "earn-settings") {
