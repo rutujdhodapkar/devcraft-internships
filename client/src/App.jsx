@@ -824,7 +824,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <style>{`*,* *{cursor:none!important}`}</style>
+      <style>{`*,* *{cursor:none!important}@media(min-width:1024px){html{scroll-behavior:smooth}}`}</style>
       {showLoader && <Loader onFinish={() => setShowLoader(false)} />}
       <CustomCursor />
       {/* Admin Messages Banner */}

@@ -1,20 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
 export default function CustomCursor() {
-  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const cursorRef = useRef(null);
+  const target = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    const move = (e) => setPos({ x: e.clientX, y: e.clientY });
+    const move = (e) => {
+      target.current.x = e.clientX;
+      target.current.y = e.clientY;
+    };
     window.addEventListener('mousemove', move);
-    return () => window.removeEventListener('mousemove', move);
+
+    let raf;
+    const animate = () => {
+      if (!cursorRef.current) return;
+      const el = cursorRef.current;
+      const dx = target.current.x - parseFloat(el.style.left || 0);
+      const dy = target.current.y - parseFloat(el.style.top || 0);
+      el.style.left = (parseFloat(el.style.left || 0) + dx * 0.15) + 'px';
+      el.style.top = (parseFloat(el.style.top || 0) + dy * 0.15) + 'px';
+      raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+
+    return () => {
+      window.removeEventListener('mousemove', move);
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (
     <div
+      ref={cursorRef}
       style={{
         position: 'fixed',
-        left: pos.x,
-        top: pos.y,
+        left: 0,
+        top: 0,
         width: '28px',
         height: '28px',
         pointerEvents: 'none',
