@@ -5,6 +5,7 @@ import { Canvas, createPortal, useFrame, useThree } from '@react-three/fiber';
 import {
   useFBO,
   useGLTF,
+  useScroll,
   Image,
   Scroll,
   Preload,
@@ -270,94 +271,5 @@ function Typography() {
     >
       React Bits
     </Text>
-  );
-}
-
-/* ─── Ambient background (lens only, no scroll, desktop + cursor) ─── */
-export function AmbientFluidGlass({ style }) {
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(pointer: fine) and (min-width: 1024px)');
-    const update = () => setShow(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
-
-  if (!show) return null;
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: 'none',
-        ...style,
-      }}
-    >
-      <Canvas camera={{ position: [0, 0, 20], fov: 15 }} gl={{ alpha: true }}>
-        <LensOnly />
-      </Canvas>
-    </div>
-  );
-}
-
-function LensOnly() {
-  const ref = useRef();
-  const { nodes } = useGLTF('/assets/3d/lens.glb');
-  const buffer = useFBO();
-  const { viewport: vp } = useThree();
-  const [scene] = useState(() => new THREE.Scene());
-  const geoWidthRef = useRef(1);
-
-  useEffect(() => {
-    const geo = nodes?.Cylinder?.geometry;
-    if (!geo) return;
-    geo.computeBoundingBox();
-    geoWidthRef.current = geo.boundingBox.max.x - geo.boundingBox.min.x || 1;
-  }, [nodes]);
-
-  useFrame((state, delta) => {
-    const { gl, viewport, pointer, camera } = state;
-    const v = viewport.getCurrentViewport(camera, [0, 0, 15]);
-    const destX = (pointer.x * v.width) / 2;
-    const destY = (pointer.y * v.height) / 2;
-    easing.damp3(ref.current.position, [destX, destY, 15], 0.15, delta);
-
-    const maxWorld = v.width * 0.9;
-    const desired = maxWorld / geoWidthRef.current;
-    ref.current.scale.setScalar(Math.min(0.15, desired));
-
-    gl.setRenderTarget(buffer);
-    gl.render(scene, camera);
-    gl.setRenderTarget(null);
-    gl.setClearColor(0x000000, 0);
-  });
-
-  return (
-    <>
-      {createPortal(
-        <mesh>
-          <planeGeometry args={[10, 10]} />
-          <meshBasicMaterial color="#000" transparent opacity={0} />
-        </mesh>,
-        scene
-      )}
-      <mesh scale={[vp.width, vp.height, 1]}>
-        <planeGeometry />
-        <meshBasicMaterial map={buffer.texture} transparent />
-      </mesh>
-      <mesh ref={ref} scale={0.15} rotation-x={Math.PI / 2} geometry={nodes?.Cylinder?.geometry}>
-        <MeshTransmissionMaterial
-          buffer={buffer.texture}
-          ior={1.15}
-          thickness={5}
-          anisotropy={0.01}
-          chromaticAberration={0.1}
-        />
-      </mesh>
-    </>
   );
 }
