@@ -5,6 +5,7 @@ import * as THREE from 'three';
 
 import { Canvas, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
+import { degToRad } from 'three/src/math/MathUtils.js';
 
 import './Beams.css';
 
@@ -210,7 +211,7 @@ const Beams = ({
 
   return (
     <CanvasWrapper>
-      <group rotation={[0, 0, rotation * Math.PI / 180]}>
+      <group rotation={[0, 0, degToRad(rotation)]}>
         <PlaneNoise ref={meshRef} material={beamMaterial} count={beamNumber} width={beamWidth} height={beamHeight} />
         <DirLight color={lightColor} position={[0, 3, 10]} />
       </group>

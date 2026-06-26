@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Beams from './Beams';
 
 export default function Loader({ onFinish }) {
+  const containerRef = useRef(null);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       if (onFinish) onFinish();
@@ -11,6 +13,7 @@ export default function Loader({ onFinish }) {
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'fixed',
         top: 0,
@@ -19,12 +22,9 @@ export default function Loader({ onFinish }) {
         bottom: 0,
         zIndex: 99999,
         background: '#000',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
       }}
     >
-      <div style={{ position: 'absolute', inset: 0 }}>
+      <div style={{ width: '100%', height: '100%', position: 'relative' }}>
         <Beams
           beamWidth={2}
           beamHeight={15}
@@ -35,21 +35,24 @@ export default function Loader({ onFinish }) {
           scale={0.2}
           rotation={0}
         />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '15%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#fff',
+            fontFamily: "'Inter',Arial,sans-serif",
+            fontSize: 'clamp(1rem, 2vw, 1.5rem)',
+            fontWeight: 300,
+            letterSpacing: '0.3em',
+            textTransform: 'uppercase',
+            opacity: 0.6,
+          }}
+        >
+          Loading
+        </div>
       </div>
-      <span
-        style={{
-          position: 'relative',
-          zIndex: 1,
-          color: '#fff',
-          fontWeight: 900,
-          fontSize: '1.4rem',
-          textTransform: 'uppercase',
-          letterSpacing: '6px',
-          fontFamily: "'Inter',Arial,sans-serif",
-        }}
-      >
-        Loading
-      </span>
     </div>
   );
 }
