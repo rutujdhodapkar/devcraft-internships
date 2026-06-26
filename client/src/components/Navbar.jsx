@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { verifyInternship, saveUserProfile } from "../services/data";
-import CircularText from "./CircularText";
+
 import GlassSurface from "./GlassSurface";
 
 const DEFAULT_HEADER_SETTINGS = {
@@ -125,14 +125,6 @@ export default function Navbar({
           .mobile-floating-menu { display: none !important; }
           .nav-glass-wrap { display: flex !important; align-items: center; }
           .hamburger-glass { display: none !important; }
-        }
-        .profile-circular-text {
-          margin: 0;
-        }
-        .profile-circular-text span {
-          color: var(--text-primary);
-          font-weight: 800;
-          text-transform: uppercase;
         }
         /* Glass Navbar Panel Overrides */
         .nav-glass-panel .glass-surface__content {
@@ -355,9 +347,8 @@ export default function Navbar({
                     {user ? (
                       <div className="nav-auth-user" style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "nowrap" }}>
                         {user.photoURL && (
-                          <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "56px", height: "56px" }}>
-                            <CircularText text="Dev/Craft Internships " spinDuration={12} onHover="slowDown" className="profile-circular-text" radius={19} fontSize={9} />
-                            <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ position: "absolute", width: "26px", height: "26px", borderRadius: "50%", objectFit: "cover", zIndex: 2 }} />
+                          <div className="avatar-wrapper" style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", width: "36px", height: "36px" }}>
+                            <img src={user.photoURL} alt="avatar" className="nav-avatar" referrerPolicy="no-referrer" style={{ width: "36px", height: "36px", borderRadius: "50%", objectFit: "cover", border: "2px solid #000" }} />
                           </div>
                         )}
                         <span className="nav-user-name" style={{ fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 600, margin: "0 0.25rem" }}>{user.displayName?.split(" ")[0] || "Student"}</span>
@@ -495,34 +486,22 @@ export default function Navbar({
                           <div
                             className="avatar-wrapper"
                             style={{
-                              position: "relative",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              width: "56px",
-                              height: "56px",
                             }}
                           >
-                            <CircularText
-                              text="Dev/Craft Internships "
-                              spinDuration={12}
-                              onHover="slowDown"
-                              className="profile-circular-text"
-                              radius={19}
-                              fontSize={9}
-                            />
                             <img
                               src={user.photoURL}
                               alt="avatar"
                               className="nav-avatar"
                               referrerPolicy="no-referrer"
                               style={{
-                                position: "absolute",
-                                width: "26px",
-                                height: "26px",
+                                width: "36px",
+                                height: "36px",
                                 borderRadius: "50%",
                                 objectFit: "cover",
-                                zIndex: 2,
+                                border: "2px solid #000",
                               }}
                             />
                           </div>
