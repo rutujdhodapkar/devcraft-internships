@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Beams from "./Beams";
+import GradualBlur from "./GradualBlur";
 import { fetchFooterSettings } from "../services/data";
 
 export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) {
@@ -23,7 +24,7 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
       <div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.15 }}>
         <Beams beamWidth={6} beamHeight={30} beamNumber={20} lightColor="#555" speed={2.5} noiseIntensity={1.5} scale={0.08} rotation={-3} backgroundColor="#0a0a0a" beamColor="#333" />
       </div>
-      <div className="container" style={{ padding: "5rem 1rem 2rem", position: "relative", zIndex: 1 }}>
+      <div className="container" style={{ padding: "5rem 1rem 6rem", position: "relative", zIndex: 1 }}>
         {/* Top grid */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1.5fr", gap: "3rem", marginBottom: "4rem", maxWidth: "1200px", marginLeft: "auto", marginRight: "auto" }}>
           {/* Brand column */}
@@ -100,6 +101,9 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
             </button>
           </div>
         </div>
+      </div>
+      <div className="footer-blur-wrap">
+        <GradualBlur position="bottom" height="8rem" divCount={8} strength={2.5} curve="bezier" exponential opacity={0.9} />
       </div>
     </footer>
   );
