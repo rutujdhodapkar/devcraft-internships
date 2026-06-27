@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchCareerPaths, fetchHomepageSettings } from '../services/data';
+import GlareHover from './GlareHover';
 
 const COLS = 3;
 
@@ -37,7 +38,9 @@ function PathCard({ path, onApply }) {
           </div>
         )}
       </div>
-      <button type="button" className="btn-sharp" onClick={() => onApply(path)} style={{ width: '100%', padding: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Apply Now</button>
+      <GlareHover width="100%" height="100%" background="transparent" borderRadius="0" borderColor="transparent" glareColor="#ffffff" glareOpacity={0.15} glareSize={200} transitionDuration={500}>
+        <button type="button" className="btn-sharp" onClick={() => onApply(path)} style={{ width: '100%', padding: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Apply Now</button>
+      </GlareHover>
     </div>
   );
 }
@@ -78,7 +81,9 @@ function ViewAllModal({ paths, categories, onClose, onApply }) {
                   <span className="badge-sharp" style={{ backgroundColor: "#000", color: "#fff", fontSize: "0.75rem", marginBottom: "0.75rem", display: "inline-block" }}>{path.duration || '4 Weeks'}</span>
                   <h4 style={{ fontWeight: 800, textTransform: "uppercase", fontSize: "1.1rem", margin: "0.5rem 0" }}>{path.title}</h4>
                   <p style={{ fontSize: "0.82rem", color: "#666", lineHeight: "1.5", marginBottom: "1rem" }}>{path.description}</p>
-                  <button type="button" className="btn-sharp" onClick={() => onApply(path)} style={{ width: "100%", padding: "0.6rem", fontWeight: 700, fontSize: "0.82rem" }}>Apply Now</button>
+                  <GlareHover width="100%" height="100%" background="transparent" borderRadius="0" borderColor="transparent" glareColor="#ffffff" glareOpacity={0.15} glareSize={200} transitionDuration={500}>
+                    <button type="button" className="btn-sharp" onClick={() => onApply(path)} style={{ width: "100%", padding: "0.6rem", fontWeight: 700, fontSize: "0.82rem" }}>Apply Now</button>
+                  </GlareHover>
                 </div>
               ))}
             </div>
