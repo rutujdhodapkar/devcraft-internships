@@ -21,10 +21,11 @@ const getTransition = (duration, from) => ({
   }
 });
 
-const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className = '' }) => {
+const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className = '', radius = 80, fontSize = 16 }) => {
   const letters = Array.from(text);
   const controls = useAnimation();
   const rotation = useMotionValue(0);
+  const size = (radius + fontSize) * 2;
 
   useEffect(() => {
     const start = rotation.get();
@@ -83,21 +84,20 @@ const CircularText = ({ text, spinDuration = 20, onHover = 'speedUp', className 
   return (
     <motion.div
       className={`circular-text ${className}`}
-      style={{ rotate: rotation }}
+      style={{ rotate: rotation, width: size, height: size }}
       initial={{ rotate: 0 }}
       animate={controls}
       onMouseEnter={handleHoverStart}
       onMouseLeave={handleHoverEnd}
     >
       {letters.map((letter, i) => {
-        const rotationDeg = (360 / letters.length) * i;
-        const factor = Math.PI / letters.length;
-        const x = factor * i;
-        const y = factor * i;
-        const transform = `rotateZ(${rotationDeg}deg) translate3d(${x}px, ${y}px, 0)`;
+        const angleRad = ((2 * Math.PI) / letters.length) * i;
+        const x = radius * Math.cos(angleRad);
+        const y = radius * Math.sin(angleRad);
+        const transform = `translate(${x}px, ${y}px)`;
 
         return (
-          <span key={i} style={{ transform, WebkitTransform: transform }}>
+          <span key={i} style={{ transform, WebkitTransform: transform, fontSize }}>
             {letter}
           </span>
         );
