@@ -58,10 +58,10 @@ export default function LogoLoopSection() {
 
   useEffect(() => {
     import("../services/data")
-      .then(({ fetchHomepageContent }) => fetchHomepageContent())
+      .then(({ fetchLogoLoopContent }) => fetchLogoLoopContent())
       .then((data) => {
-        if (data?.logoLoop) {
-          setSection(data.logoLoop);
+        if (data) {
+          setSection(data);
         } else {
           setSection(FALLBACK_SECTION);
         }

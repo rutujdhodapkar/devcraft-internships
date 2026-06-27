@@ -7422,12 +7422,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <button className="btn-sharp" disabled={homepageSaving} onClick={async () => {
                     setHomepageSaving(true);
                     try {
-                      const { saveHomepageContent, saveWhatDoYouGet } = await import("../services/data");
+                      const { saveHomepageContent, saveWhatDoYouGet, saveLogoLoopContent, saveSlidingStripsContent } = await import("../services/data");
                       const current = homepageContentRef.current || homepageContent;
                       const merged = { ...current, ...(homepageDomainRef.current || homepageDomainSettings) };
+                      const { logoLoop, slidingStrips, ...rest } = merged;
                       await Promise.all([
-                        saveHomepageContent(merged),
+                        saveHomepageContent(rest),
                         current?.whatDoYouGet ? saveWhatDoYouGet(current.whatDoYouGet) : Promise.resolve(),
+                        logoLoop ? saveLogoLoopContent(logoLoop) : Promise.resolve(),
+                        slidingStrips ? saveSlidingStripsContent(slidingStrips) : Promise.resolve(),
                       ]);
                       setSuccessMsg("Homepage content saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
@@ -7439,12 +7442,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <button className="btn-sharp-outline" disabled={homepageSaving} onClick={async () => {
                     setHomepageSaving(true);
                     try {
-                      const { saveHomepageContent, saveWhatDoYouGet } = await import("../services/data");
+                      const { saveHomepageContent, saveWhatDoYouGet, saveLogoLoopContent, saveSlidingStripsContent } = await import("../services/data");
                       const current = homepageContentRef.current || homepageContent;
                       const merged = { ...current, ...(homepageDomainRef.current || homepageDomainSettings) };
+                      const { logoLoop, slidingStrips, ...rest } = merged;
                       await Promise.all([
-                        saveHomepageContent(merged),
+                        saveHomepageContent(rest),
                         current?.whatDoYouGet ? saveWhatDoYouGet(current.whatDoYouGet) : Promise.resolve(),
+                        logoLoop ? saveLogoLoopContent(logoLoop) : Promise.resolve(),
+                        slidingStrips ? saveSlidingStripsContent(slidingStrips) : Promise.resolve(),
                       ]);
                       setSuccessMsg("Domain visibility saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);

@@ -869,6 +869,34 @@ export async function saveUniversityCollab(content) {
   return content;
 }
 
+// Logo Loop (dedicated endpoint)
+export async function fetchLogoLoopContent() {
+  const d = await apiFetch("/api/data/logo-loop");
+  return d.data || null;
+}
+
+export async function saveLogoLoopContent(content) {
+  await apiFetch("/api/data/logo-loop", {
+    method: "PUT",
+    body: JSON.stringify({ content }),
+  });
+  return content;
+}
+
+// Sliding Strips (dedicated endpoint)
+export async function fetchSlidingStripsContent() {
+  const d = await apiFetch("/api/data/sliding-strips");
+  return d.data || null;
+}
+
+export async function saveSlidingStripsContent(content) {
+  await apiFetch("/api/data/sliding-strips", {
+    method: "PUT",
+    body: JSON.stringify({ content }),
+  });
+  return content;
+}
+
 // Header Settings
 export async function fetchHeaderSettings() {
   return fetchSiteConfig("headerSettings");

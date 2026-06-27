@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchHomepageContent } from '../services/data';
+import { fetchSlidingStripsContent } from '../services/data';
 
 function Strip({ config }) {
   const { items, direction, speed, bgColor, textColor, position } = config;
@@ -58,12 +58,11 @@ export default function SlidingStrip() {
   const [strips, setStrips] = useState([]);
 
   useEffect(() => {
-    fetchHomepageContent().then((data) => {
-      const raw = data?.slidingStrips || data?.slidingStrip;
-      if (Array.isArray(raw)) {
-        setStrips(raw);
-      } else if (raw && raw.items) {
-        setStrips([raw]);
+    fetchSlidingStripsContent().then((data) => {
+      if (Array.isArray(data)) {
+        setStrips(data);
+      } else if (data && data.items) {
+        setStrips([data]);
       } else {
         setStrips([]);
       }
