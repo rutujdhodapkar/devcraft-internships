@@ -14,14 +14,10 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: "3rem", textAlign: "center", fontFamily: "Arial, sans-serif" }}>
-          <h2 style={{ color: "#EA4335" }}>Something went wrong</h2>
-          <p style={{ color: "#666" }}>{this.state.error?.message || "An unexpected error occurred."}</p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{ marginTop: "1rem", padding: "0.6rem 1.5rem", background: "#1a73e8", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer" }}
-          >
-            Reload page
+        <div style={{ position: "fixed", inset: 0, background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 99999 }}>
+          <img src="/error.jpg" alt="Error" style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain" }} />
+          <button onClick={() => window.location.reload()} style={{ marginTop: "1rem", padding: "0.6rem 2rem", background: "#fff", color: "#000", border: "none", fontWeight: 700, cursor: "pointer", fontSize: "0.9rem" }}>
+            Reload
           </button>
         </div>
       );

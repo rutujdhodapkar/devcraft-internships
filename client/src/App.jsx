@@ -21,6 +21,7 @@ import WhatDoYouGet from "./components/WhatDoYouGet";
 import UniversityCollab from "./components/UniversityCollab";
 import Loader from "./components/Loader";
 import CustomCursor from "./components/CustomCursor";
+import ErrorPage from "./components/ErrorPage";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -123,9 +124,10 @@ export default function App() {
     if (path === "/tandp") return "tandp";
     if (path === "/privacy") return "privacy";
     if (path === "/refund") return "refund";
-    return "site";
+    if (path === "/") return "site";
+    return "error";
   })();
-  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp', 'privacy', 'refund', 'certificate'
+  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp', 'privacy', 'refund', 'certificate', 'error'
   const [referralCode, setReferralCode] = useState("");
 
   // Routing Redirection Target
@@ -747,6 +749,8 @@ export default function App() {
         );
       case "certificate":
         return <CertificateView />;
+      case "error":
+        return <ErrorPage />;
       case "site":
       default:
         return (
