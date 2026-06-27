@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import Beams from "./Beams";
+import GradientBlinds from "./GradientBlinds";
 import { fetchFooterSettings } from "../services/data";
 
 export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) {
@@ -20,8 +20,21 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
 
   return (
     <footer style={{ borderTop: "2px solid #000", background: "#0a0a0a", position: "relative", overflow: "hidden", color: "#ccc" }}>
-      <div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.15 }}>
-        <Beams beamWidth={6} beamHeight={30} beamNumber={20} lightColor="#555" speed={2.5} noiseIntensity={1.5} scale={0.08} rotation={-3} backgroundColor="#0a0a0a" beamColor="#333" />
+      <div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.2, pointerEvents: "none" }}>
+        <GradientBlinds
+          gradientColors={['#5227FF', '#FF9FFC']}
+          angle={0}
+          noise={0.15}
+          blindCount={24}
+          blindMinWidth={30}
+          spotlightRadius={0.6}
+          spotlightSoftness={1.5}
+          spotlightOpacity={0.8}
+          mouseDampening={0.2}
+          distortAmount={0}
+          shineDirection="left"
+          mixBlendMode="lighten"
+        />
       </div>
       <div className="container" style={{ padding: "5rem 1rem 2rem", position: "relative", zIndex: 1 }}>
         {/* Top grid */}
