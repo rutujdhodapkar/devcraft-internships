@@ -12,7 +12,7 @@ export default function UniversityCollab() {
 
   if (!data || data.enabled === false) return null;
 
-  const { title, subtitle, description, imageUrl, buttonText, buttonRedirectUrl } = data;
+  const { title, subtitle, description, imageUrl, buttonText, buttonRedirectUrl, mailtoLink } = data;
 
   return (
     <section className="section-padding" style={{ borderBottom: '2px solid var(--border-primary)', background: '#fafafa' }}>
@@ -29,16 +29,18 @@ export default function UniversityCollab() {
           <p style={{ fontSize: '1.1rem', color: '#333', lineHeight: 1.7, maxWidth: '650px', margin: '0 auto 2rem' }}>
             {description || 'Join leading universities and colleges that trust DEV/CRAFT for industry-aligned virtual internships.'}
           </p>
-          <a
-            href={buttonRedirectUrl || '#'}
-            target={buttonRedirectUrl ? '_blank' : undefined}
-            rel={buttonRedirectUrl ? 'noopener noreferrer' : undefined}
-            className="btn-sharp"
-            style={{ display: 'inline-block', padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 700, textDecoration: 'none', cursor: buttonRedirectUrl ? 'pointer' : 'default', opacity: buttonRedirectUrl ? 1 : 0.5 }}
-            onClick={(e) => { if (!buttonRedirectUrl) e.preventDefault(); }}
-          >
-            {buttonText || 'Partner With Us'}
-          </a>
+          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {buttonRedirectUrl && (
+              <a href={buttonRedirectUrl} target="_blank" rel="noopener noreferrer" className="btn-sharp" style={{ display: 'inline-block', padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 700, textDecoration: 'none' }}>
+                {buttonText || 'Partner With Us'}
+              </a>
+            )}
+            {mailtoLink && (
+              <a href={`mailto:${mailtoLink}`} className="btn-sharp-outline" style={{ display: 'inline-block', padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 700, textDecoration: 'none' }}>
+                Email Us
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </section>

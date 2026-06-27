@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import GradientBlinds from "./GradientBlinds";
 import { fetchFooterSettings } from "../services/data";
 
 export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) {
@@ -19,26 +18,10 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
   const copyright = s.copyright || `\u00A9 ${new Date().getFullYear()} DEV/CRAFT. All rights reserved.`;
 
   return (
-    <footer style={{ borderTop: "2px solid #000", background: "#0a0a0a", position: "relative", overflow: "hidden", color: "#ccc" }}>
-      <div style={{ position: "absolute", inset: 0, zIndex: 0, opacity: 0.2, pointerEvents: "none" }}>
-        <GradientBlinds
-          gradientColors={['#5227FF', '#FF9FFC']}
-          angle={0}
-          noise={0.15}
-          blindCount={24}
-          blindMinWidth={30}
-          spotlightRadius={0.6}
-          spotlightSoftness={1.5}
-          spotlightOpacity={0.8}
-          mouseDampening={0.2}
-          distortAmount={0}
-          shineDirection="left"
-          mixBlendMode="lighten"
-        />
-      </div>
+    <footer style={{ borderTop: "2px solid #000", background: "#000", position: "relative", overflow: "hidden", color: "#ccc" }}>
       <div className="container" style={{ padding: "5rem 1rem 2rem", position: "relative", zIndex: 1 }}>
-        {/* Top grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1.5fr", gap: "3rem", marginBottom: "4rem", maxWidth: "1200px", marginLeft: "auto", marginRight: "auto" }}>
+        <style>{`@media(max-width:768px){.footer-grid{grid-template-columns:1fr!important}.footer-grid>div:first-child{order:-1}}`}</style>
+        <div className="footer-grid" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1.5fr", gap: "3rem", marginBottom: "4rem", maxWidth: "1200px", marginLeft: "auto", marginRight: "auto" }}>
           {/* Brand column */}
           <div>
             <h3 style={{ fontSize: "1.8rem", fontFamily: "Space Grotesk, sans-serif", marginBottom: "1.25rem", fontWeight: 900, color: "#fff", letterSpacing: "-1px" }}>

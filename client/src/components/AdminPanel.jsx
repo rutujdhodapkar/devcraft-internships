@@ -127,7 +127,7 @@ const DEFAULT_HOMEPAGE = {
   logoLoop: { enabled: true, heading: "", subheading: "", speed: 90, logoHeight: 40, gap: 64, logos: [] },
   slidingStrips: [{ enabled: true, items: [{ text: "New Text" }], direction: "left", speed: 2, bgColor: "#000000", textColor: "#ffffff", position: "after-hero" }],
   whatDoYouGet: { enabled: true, title: "", subtitle: "", pages: [] },
-  universityCollab: { enabled: true, title: "", subtitle: "", description: "", imageUrl: "", buttonText: "Partner With Us", buttonRedirectUrl: "" },
+  universityCollab: { enabled: true, title: "", subtitle: "", description: "", imageUrl: "", buttonText: "Partner With Us", buttonRedirectUrl: "", mailtoLink: "" },
 };
 
 export default function AdminPanel({ onClose, user, onLogout }) {
@@ -7342,6 +7342,10 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Redirect URL</label>
                       <input value={homepageContent.universityCollab?.buttonRedirectUrl || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), buttonRedirectUrl: e.target.value } }))} style={{ ...s }} placeholder="https://..." />
                     </div>
+                  </div>
+                  <div style={{ marginTop: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Mailto Email (shows "Email Us" button)</label>
+                    <input value={homepageContent.universityCollab?.mailtoLink || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), mailtoLink: e.target.value } }))} style={{ ...s }} placeholder="university@example.com" />
                   </div>
                 </div>
 
