@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { fetchHomepageContent } from '../services/data';
+import { fetchUniversityCollab } from '../services/data';
 
 export default function UniversityCollab() {
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    fetchHomepageContent().then((d) => {
-      if (d?.universityCollab) setData(d.universityCollab);
+    fetchUniversityCollab().then((d) => {
+      if (d) setData(d);
     }).catch(() => {});
   }, []);
 

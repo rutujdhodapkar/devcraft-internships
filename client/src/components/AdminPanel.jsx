@@ -105,6 +105,7 @@ const TABS = [
   { id: "messages", label: "Messages" },
   { id: "notice-board", label: "Notice Board" },
   { id: "homepage", label: "Homepage" },
+  { id: "university", label: "University" },
   { id: "manage admins", label: "Admins" },
   { id: "audit-log", label: "Audit Log" },
   { id: "theme", label: "Theme" },
@@ -127,7 +128,6 @@ const DEFAULT_HOMEPAGE = {
   logoLoop: { enabled: true, heading: "", subheading: "", speed: 90, logoHeight: 40, gap: 64, logos: [] },
   slidingStrips: [{ enabled: true, items: [{ text: "New Text" }], direction: "left", speed: 2, bgColor: "#000000", textColor: "#ffffff", position: "after-hero" }],
   whatDoYouGet: { enabled: true, title: "", subtitle: "", pages: [] },
-  universityCollab: { enabled: true, title: "", subtitle: "", description: "", imageUrl: "", buttonText: "Partner With Us", buttonRedirectUrl: "", mailtoLink: "" },
 };
 
 export default function AdminPanel({ onClose, user, onLogout }) {
@@ -386,6 +386,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [howItWorksSteps, setHowItWorksSteps] = useState([]);
   const [faqsList, setFaqsList] = useState([]);
   const [templates, setTemplates] = useState({ templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] });
+  const [universityContent, setUniversityContent] = useState(null);
   const [contentLoading, setContentLoading] = useState(false);
   const [contentSaving, setContentSaving] = useState(false);
 
@@ -594,6 +595,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         setFaqsList(JSON.parse(JSON.stringify(await fetchFAQs())));
       } else if (tabName === "html templates") {
         setTemplates(await fetchTemplates() || { templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] });
+      } else if (tabName === "university") {
+        const { fetchUniversityCollab } = await import("../services/data");
+        setUniversityContent(await fetchUniversityCollab() || { enabled: true, title: "", subtitle: "", description: "", imageUrl: "", buttonText: "Partner With Us", buttonRedirectUrl: "", mailtoLink: "" });
       }
     } catch (err) {
       setError("Failed to fetch content: " + err.message);
@@ -4033,6 +4037,84 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           </div>
         )}
 
+        {/* ── UNIVERSITY COLLABORATIONS ── */}
+        {activeTab === "university" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", maxWidth: "600px" }}>
+            <div>
+              <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", margin: "0 0 0.5rem" }}>
+                University Collaborations
+              </h3>
+              <p style={{ color: "#666", fontSize: "0.82rem", margin: 0 }}>
+                Manage the University Collaborations section shown on the homepage.
+              </p>
+            </div>
+            {contentLoading ? (
+              <div style={{ color: "#888" }}>Loading…</div>
+            ) : (
+              <>
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Content</span>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
+                      <input type="checkbox" checked={universityContent?.enabled !== false} onChange={(e) => setUniversityContent((p) => ({ ...p, enabled: e.target.checked }))} />
+                      Enabled
+                    </label>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Title</label>
+                      <input value={universityContent?.title || ""} onChange={(e) => setUniversityContent((p) => ({ ...p, title: e.target.value }))} style={{ ...s }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Subtitle</label>
+                      <input value={universityContent?.subtitle || ""} onChange={(e) => setUniversityContent((p) => ({ ...p, subtitle: e.target.value }))} style={{ ...s }} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Description</label>
+                    <textarea rows={3} value={universityContent?.description || ""} onChange={(e) => setUniversityContent((p) => ({ ...p, description: e.target.value }))} style={{ ...s, resize: "vertical" }} />
+                  </div>
+                  <div style={{ marginBottom: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Image URL</label>
+                    <input value={universityContent?.imageUrl || ""} onChange={(e) => setUniversityContent((p) => ({ ...p, imageUrl: e.target.value }))} style={{ ...s }} />
+                    {universityContent?.imageUrl && (
+                      <div style={{ marginTop: "0.5rem" }}><img src={universityContent.imageUrl} alt="" style={{ maxHeight: "80px", objectFit: "contain", border: "1px solid #eee" }} onError={(e) => { e.target.style.display = "none"; }} /></div>
+                    )}
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Text</label>
+                      <input value={universityContent?.buttonText || "Partner With Us"} onChange={(e) => setUniversityContent((p) => ({ ...p, buttonText: e.target.value }))} style={{ ...s }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Redirect URL</label>
+                      <input value={universityContent?.buttonRedirectUrl || ""} onChange={(e) => setUniversityContent((p) => ({ ...p, buttonRedirectUrl: e.target.value }))} style={{ ...s }} placeholder="https://..." />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: "0.75rem" }}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Mailto Email (shows "Email Us" button)</label>
+                    <input value={universityContent?.mailtoLink || ""} onChange={(e) => setUniversityContent((p) => ({ ...p, mailtoLink: e.target.value }))} style={{ ...s }} placeholder="university@example.com" />
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "1rem" }}>
+                  <button className="btn-sharp" disabled={contentSaving} onClick={async () => {
+                    setContentSaving(true);
+                    try {
+                      const { saveUniversityCollab } = await import("../services/data");
+                      await saveUniversityCollab(universityContent || {});
+                      setSuccessMsg("University content saved!");
+                      setTimeout(() => setSuccessMsg(""), 3000);
+                    } catch (err) { setError("Failed to save: " + err.message); }
+                    finally { setContentSaving(false); }
+                  }} style={{ padding: "0.7rem 2rem" }}>
+                    {contentSaving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* ── 7. HTML TEMPLATES ── */}
         {activeTab === "html templates" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -7301,52 +7383,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       )}
                     </div>
                   ))}
-                </div>
-
-                {/* ── University Collaborations Section ── */}
-                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>University Collaborations</span>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
-                      <input type="checkbox" checked={(homepageContent.universityCollab?.enabled) !== false} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), enabled: e.target.checked } }))} />
-                      Enabled
-                    </label>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "0.75rem" }}>
-                    <div>
-                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Title</label>
-                      <input value={homepageContent.universityCollab?.title || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), title: e.target.value } }))} style={{ ...s }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Subtitle</label>
-                      <input value={homepageContent.universityCollab?.subtitle || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), subtitle: e.target.value } }))} style={{ ...s }} />
-                    </div>
-                  </div>
-                  <div style={{ marginBottom: "0.75rem" }}>
-                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Description</label>
-                    <textarea rows={3} value={homepageContent.universityCollab?.description || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), description: e.target.value } }))} style={{ ...s, resize: "vertical" }} />
-                  </div>
-                  <div style={{ marginBottom: "0.75rem" }}>
-                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Image URL</label>
-                    <input value={homepageContent.universityCollab?.imageUrl || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), imageUrl: e.target.value } }))} style={{ ...s }} />
-                    {homepageContent.universityCollab?.imageUrl && (
-                      <div style={{ marginTop: "0.5rem" }}><img src={homepageContent.universityCollab.imageUrl} alt="" style={{ maxHeight: "80px", objectFit: "contain", border: "1px solid #eee" }} onError={(e) => { e.target.style.display = "none"; }} /></div>
-                    )}
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-                    <div>
-                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Text</label>
-                      <input value={homepageContent.universityCollab?.buttonText || "Partner With Us"} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), buttonText: e.target.value } }))} style={{ ...s }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Button Redirect URL</label>
-                      <input value={homepageContent.universityCollab?.buttonRedirectUrl || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), buttonRedirectUrl: e.target.value } }))} style={{ ...s }} placeholder="https://..." />
-                    </div>
-                  </div>
-                  <div style={{ marginTop: "0.75rem" }}>
-                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Mailto Email (shows "Email Us" button)</label>
-                    <input value={homepageContent.universityCollab?.mailtoLink || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, universityCollab: { ...(p.universityCollab || {}), mailtoLink: e.target.value } }))} style={{ ...s }} placeholder="university@example.com" />
-                  </div>
                 </div>
 
                 {/* Visible Domains */}

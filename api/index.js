@@ -459,6 +459,7 @@ async function handleData(req, res, routeParts) {
   if (resource === "site-notices") return handleNotices(db, req, res, id, sub);
   if (resource === "homepage") return getSetConfig(db, req, res, "homepage", req.body.content);
   if (resource === "what-do-you-get") return getSetConfig(db, req, res, "whatDoYouGet", req.body.whatDoYouGet);
+  if (resource === "university-collab") return getSetConfig(db, req, res, "universityCollab", req.body.content);
   if (resource === "site-visits") {
     const newRef = await db.collection("siteVisits").add({ ...req.body, createdAt: now() });
     return send(res, 201, { success: true, data: { id: newRef.id } });

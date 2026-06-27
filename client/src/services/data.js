@@ -855,6 +855,20 @@ export async function saveWhatDoYouGet(whatDoYouGet) {
   return whatDoYouGet;
 }
 
+// University Collaboration (dedicated endpoint)
+export async function fetchUniversityCollab() {
+  const d = await apiFetch("/api/data/university-collab");
+  return d.data || null;
+}
+
+export async function saveUniversityCollab(content) {
+  await apiFetch("/api/data/university-collab", {
+    method: "PUT",
+    body: JSON.stringify({ content }),
+  });
+  return content;
+}
+
 // Header Settings
 export async function fetchHeaderSettings() {
   return fetchSiteConfig("headerSettings");
