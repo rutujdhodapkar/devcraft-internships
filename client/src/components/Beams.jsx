@@ -1,6 +1,13 @@
 /* eslint-disable react/no-unknown-property */
 import { forwardRef, useImperativeHandle, useEffect, useRef, useMemo } from 'react';
 
+// suppress three.js Clock deprecation warning (handled by R3F internally)
+const _origWarn = console.warn;
+console.warn = (...args) => {
+  if (args[0]?.includes?.('THREE.Clock')) return;
+  _origWarn.apply(console, args);
+};
+
 import * as THREE from 'three';
 
 import { Canvas, useFrame } from '@react-three/fiber';

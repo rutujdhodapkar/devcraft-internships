@@ -90,7 +90,7 @@ export default function StudentDashboard({
       document.body.style.touchAction = '';
       document.documentElement.style.touchAction = '';
     };
-  }, [showPaymentChoice, showPaymentModal, showProfileModal]);
+  }, [showPaymentChoice, showPaymentModal]);
 
   const handleOpenPayment = (enrollment, stage) => {
     if (!enrollment?.id) {
