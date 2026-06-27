@@ -9742,7 +9742,7 @@ function ThemeSection() {
 
 /* ── Header Settings ── */
 function HeaderSettingsSection() {
-  const [settings, setSettings] = useState({ animation: "slide-down", effect: "solid" });
+  const [settings, setSettings] = useState({ animation: "slide-down", effect: "solid", circlesText: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -9798,6 +9798,16 @@ function HeaderSettingsSection() {
             <option value="glass-frost">Frosted Glass</option>
             <option value="glass-chromatic">Chromatic Aberration Glass</option>
           </select>
+        </div>
+        <div>
+          <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>Circular Text (around avatar)</label>
+          <input
+            type="text"
+            value={settings.circlesText || ""}
+            onChange={(e) => setSettings({ ...settings, circlesText: e.target.value })}
+            placeholder="e.g. DEVCRAFT*INTERNS*"
+            style={{ width: "100%", border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", background: "#fff", boxSizing: "border-box" }}
+          />
         </div>
       </div>
       <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ width: "100%", marginTop: "1.25rem" }}>
