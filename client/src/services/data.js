@@ -804,20 +804,19 @@ async function _fetchGeo() {
 export async function associateDeviceWithUser(fingerprint, user) {
   if (!fingerprint || !user?.uid) return;
   const now = new Date().toISOString();
-  await _rtdbPut(`deviceUsers/${fingerprint}`, {
-    fingerprint,
-    uid: user.uid,
-    email: user.email || "",
-    displayName: user.displayName || user.name || "",
-    lastSeenAt: now,
-    firstSeenAt: now,
-  });
+  const data = { fingerprint, uid: user.uid, email: user.email || "", displayName: user.displayName || user.name || "", lastSeenAt: now, firstSeenAt: now };
+  const r = await _rtdbPut(`deviceUsers/${fingerprint}`, data);
+  if (r) return r;
+  // Fallback to Firestore
+  try { await dbPut(`deviceUsers/${fingerprint}`, data); } catch {}
 }
 
 export async function getDeviceUser(fingerprint) {
   if (!fingerprint) return null;
   const data = await _rtdbRead(`deviceUsers/${fingerprint}`);
-  return data || null;
+  if (data) return data;
+  // Fallback to Firestore
+  try { return await dbGet(`deviceUsers/${fingerprint}`); } catch { return null; }
 }
 
 export async function trackSiteVisit() {
