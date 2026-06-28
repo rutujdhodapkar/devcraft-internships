@@ -36,6 +36,7 @@ import {
   checkUserBan,
   fetchAdminMessages,
   associateVisitsWithUser,
+  associateDeviceWithUser,
   getDeviceFingerprint,
   trackSiteVisit,
   fetchHeaderSettings,
@@ -245,10 +246,11 @@ export default function App() {
           });
         }
 
-        // Associate device fingerprint with this user for visit tracking
+        // Associate this device with the logged-in user for visit tracking
         try {
           const fp = getDeviceFingerprint();
           if (fp) {
+            associateDeviceWithUser(fp, currentUser);
             associateVisitsWithUser(fp, currentUser.email, currentUser.displayName, currentUser.uid);
           }
         } catch (e) {

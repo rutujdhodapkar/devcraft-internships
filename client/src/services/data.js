@@ -768,32 +768,125 @@ export async function saveHomepageContent(content) {
   return content;
 }
 
+// ─── Enhanced Visit Tracking ───────────────────────────────────────────────
+function _parseBrowser(ua) {
+  const u = (ua || "").toLowerCase();
+  let name = "Unknown", version = "", os = "";
+  if (u.includes("firefox/") && !u.includes("seamonkey")) { name = "Firefox"; const m = u.match(/firefox\/([\d.]+)/); if (m) version = m[1]; }
+  else if (u.includes("edg/") || u.includes("edge/")) { name = "Edge"; const m = u.match(/edg[ea]?\/([\d.]+)/); if (m) version = m[1]; }
+  else if (u.includes("chrome/") && !u.includes("edg") && !u.includes("opr/")) { name = "Chrome"; const m = u.match(/chrome\/([\d.]+)/); if (m) version = m[1]; }
+  else if (u.includes("safari/") && !u.includes("chrome")) { name = "Safari"; const m = u.match(/version\/([\d.]+)/); if (m) version = m[1]; }
+  else if (u.includes("opr/") || u.includes("opera")) { name = "Opera"; const m = u.match(/(?:opr|opera)\/([\d.]+)/); if (m) version = m[1]; }
+  if (u.includes("windows nt 10")) os = "Windows 10";
+  else if (u.includes("windows nt 11")) os = "Windows 11";
+  else if (u.includes("mac os x")) os = "macOS";
+  else if (u.includes("android")) os = "Android";
+  else if (u.includes("linux")) os = "Linux";
+  else if (u.includes("iphone") || u.includes("ipad")) os = "iOS";
+  return { name, version, os };
+}
+
+function _detectTor() {
+  const ua = (navigator.userAgent || "").toLowerCase();
+  // Tor Browser signs: no WebRTC, specific fonts, userAgent patterns
+  const noWebrtc = typeof RTCPeerConnection === "undefined" && typeof webkitRTCPeerConnection === "undefined";
+  const torUA = ua.includes("tor") || ua.includes("torbrowser");
+  const noPlugins = navigator.plugins?.length === 0;
+  return torUA || (noWebrtc && noPlugins);
+}
+
+function _toIST(date) {
+  const d = new Date(date);
+  const ist = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+  return ist.toISOString().replace("T", " ").slice(0, 19) + " IST";
+}
+
+async function _fetchGeo() {
+  try {
+    const ctrl = new AbortController();
+    const id = setTimeout(() => ctrl.abort(), 3000);
+    const res = await fetch("https://ip-api.com/json/?fields=status,country,countryCode,regionName,city,isp,org,proxy,hosting,query", { signal: ctrl.signal });
+    clearTimeout(id);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.status !== "success") return null;
+    return {
+      country: data.country || "", countryCode: data.countryCode || "",
+      region: data.regionName || "", city: data.city || "",
+      isp: data.isp || data.org || "",
+      ip: data.query || "",
+      isProxy: !!data.proxy, isHosting: !!data.hosting,
+      isVPN: !!data.proxy, // ip-api's proxy field detects common VPN endpoints
+      isTor: !!data.hosting && !!data.proxy, // likely Tor if both
+    };
+  } catch { return null; }
+}
+
+export async function associateDeviceWithUser(fingerprint, user) {
+  if (!fingerprint || !user?.uid) return;
+  const now = new Date().toISOString();
+  await _rtdbPut(`deviceUsers/${fingerprint}`, {
+    fingerprint,
+    uid: user.uid,
+    email: user.email || "",
+    displayName: user.displayName || user.name || "",
+    lastSeenAt: now,
+    firstSeenAt: now,
+  });
+}
+
+export async function getDeviceUser(fingerprint) {
+  if (!fingerprint) return null;
+  const data = await _rtdbRead(`deviceUsers/${fingerprint}`);
+  return data || null;
+}
+
 export async function trackSiteVisit() {
-  if (sessionStorage.getItem("_sv")) return null;
-  sessionStorage.setItem("_sv", "1");
-  // Allow unauthenticated visits via server proxy; authenticated users write directly to RTDB
-  if (typeof rtdb !== "undefined" && rtdb) {
-    const result = await _rtdbAppend("siteVisits", {
-      visitedAt: new Date().toISOString(),
-      userAgent: navigator.userAgent || "", language: navigator.language || "",
-      referrer: document.referrer || "", url: window.location.href || "",
-      screen: `${window.screen?.width || "?"}x${window.screen?.height || "?"}`,
-      viewport: `${window.innerWidth || "?"}x${window.innerHeight || "?"}`,
-      fingerprint: getDeviceFingerprint(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
-    });
-    if (result) return result;
-  }
-  // Fallback to Firestore proxy
-  return dbPost("siteVisits", {
-    visitedAt: new Date().toISOString(),
-    userAgent: navigator.userAgent || "", language: navigator.language || "",
-    referrer: document.referrer || "", url: window.location.href || "",
+  const fingerprint = getDeviceFingerprint();
+  const ua = navigator.userAgent || "";
+  const browser = _parseBrowser(ua);
+  const now = new Date();
+  const visitedAtUTC = now.toISOString();
+  const visitedAtIST = _toIST(now);
+  const isTor = _detectTor();
+  // Check if this device is known to belong to a user
+  const knownUser = await getDeviceUser(fingerprint);
+  // Fetch IP geolocation (fire-and-forget with timeout, don't block visit tracking)
+  const geoPromise = _fetchGeo();
+  // Build the visit record
+  const baseVisit = {
+    visitedAt: visitedAtUTC,
+    visitedAtIST,
+    userAgent: ua,
+    language: navigator.language || "",
+    referrer: document.referrer || "",
+    url: window.location.href || "",
     screen: `${window.screen?.width || "?"}x${window.screen?.height || "?"}`,
     viewport: `${window.innerWidth || "?"}x${window.innerHeight || "?"}`,
-    fingerprint: getDeviceFingerprint(),
+    fingerprint,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "",
-  });
+    browserName: browser.name,
+    browserVersion: browser.version,
+    os: browser.os,
+    isTor,
+    isMobile: /mobile|android|iphone|ipad/i.test(ua),
+    isTablet: /ipad|tablet/i.test(ua),
+    knownUser: knownUser ? { uid: knownUser.uid, name: knownUser.displayName, email: knownUser.email } : null,
+  };
+  // Try RTDB first (public write allowed)
+  let geo = null;
+  try { geo = await geoPromise; } catch {}
+  const visit = { ...baseVisit, ...(geo || {}) };
+  if (typeof rtdb !== "undefined" && rtdb) {
+    const result = await _rtdbAppend("siteVisits", visit);
+    if (result) {
+      // If user is logged in, auto-associate this device
+      const authUser = knownUser || null;
+      return result;
+    }
+  }
+  // Fallback to Firestore proxy
+  return dbPost("siteVisits", visit);
 }
 
 export async function markReferralAchieved(referralCode, achieved) {

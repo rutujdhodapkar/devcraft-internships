@@ -1,19 +1,24 @@
 {
   "rules": {
-    "auditLog": {
-      ".read": "auth != null",
-      ".write": "auth != null",
-      ".indexOn": ["action", "createdAt"]
-    },
     "siteVisits": {
       ".read": "auth != null",
-      ".write": "auth != null",
+      ".write": true,
       ".indexOn": ["fingerprint", "visitedAt"]
     },
     "referralVisits": {
       ".read": "auth != null",
-      ".write": "auth != null",
+      ".write": true,
       ".indexOn": ["referralCode", "fingerprint"]
+    },
+    "deviceUsers": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["fingerprint"]
+    },
+    "auditLog": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["action", "createdAt"]
     },
     "referrals": {
       ".read": "auth != null",
