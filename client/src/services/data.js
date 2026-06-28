@@ -311,10 +311,10 @@ export async function enrollStudent(uid, profile, domainObj) {
   await dbPut(`enrollments/${internId}`, enrollment);
   enrollment.id = internId;
   if (refCode) {
-    const ref = await dbGet(`referrals/${refCode}/contacted`);
-    await dbPatch(`referrals/${refCode}`, { contacted: (ref || 0) + 1, updatedAt: new Date().toISOString() });
-    const existingUser = await dbGet(`referralUsers/${refCode}/${uid}`);
-    await dbPut(`referralUsers/${refCode}/${uid}`, { uid, email: profile.email || "", displayName: profile.name || profile.displayName || "", code: refCode, firstLoginAt: existingUser?.firstLoginAt || new Date().toISOString(), enrolledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    const refData = await _rtdbRead(`referrals/${refCode}`);
+    await _rtdbPatch(`referrals/${refCode}`, { contacted: ((refData?.contacted || 0) + 1), lastContactedAt: new Date().toISOString() });
+    const existingUser = await _rtdbRead(`referralUsers/${refCode}/${uid}`);
+    await _rtdbPut(`referralUsers/${refCode}/${uid}`, { uid, email: profile.email || "", displayName: profile.name || profile.displayName || "", code: refCode, firstLoginAt: existingUser?.firstLoginAt || new Date().toISOString(), enrolledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
   if (detectedReferralCode) localStorage.removeItem("detected_referral_code");
   return enrollment;
@@ -968,7 +968,7 @@ export async function aiGradeQuiz(questions, answers) {
 export async function fetchPaymentStats() {
   const enrollments = await dbList("enrollments");
   const paidEnrollments = enrollments.filter(e => e.paymentStatus === "paid");
-  const referrals = await dbList("referrals");
+  const referrals = await _rtdbReadList("referrals");
   const totalCollected = paidEnrollments.reduce((sum, e) => sum + (e.paymentAmount || 0), 0);
   const referralPayouts = referrals.map(r => {
     const code = (r.code || r.id || "").toUpperCase().trim();
