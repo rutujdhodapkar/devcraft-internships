@@ -1,6 +1,6 @@
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
 
-// Firebase Realtime Database — used for audit logs, site visits, referral visits
+// Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
 import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo } from "../firebase";
 
 async function _rtdbRead(path) {
@@ -57,8 +57,9 @@ function _cacheSet(key, data, ttl) {
 
 function _cacheClear(pathPattern) {
   if (!pathPattern) { _cache.clear(); return; }
+  const collection = pathPattern.split("/")[0];
   for (const key of _cache.keys()) {
-    if (key.includes(pathPattern)) _cache.delete(key);
+    if (key.includes(pathPattern) || key === `list:${collection}`) _cache.delete(key);
   }
 }
 
@@ -311,12 +312,10 @@ export async function enrollStudent(uid, profile, domainObj) {
   await dbPut(`enrollments/${internId}`, enrollment);
   enrollment.id = internId;
   if (refCode) {
-    let refData = await _rtdbRead(`referrals/${refCode}`);
-    if (!refData) try { refData = await dbGet(`referrals/${refCode}`); } catch {}
-    await _rtdbPatch(`referrals/${refCode}`, { contacted: ((refData?.contacted || 0) + 1), lastContactedAt: new Date().toISOString() });
-    let existingUser = await _rtdbRead(`referralUsers/${refCode}/${uid}`);
-    if (!existingUser) try { existingUser = await dbGet(`referralUsers/${refCode}/${uid}`); } catch {}
-    await _rtdbPut(`referralUsers/${refCode}/${uid}`, { uid, email: profile.email || "", displayName: profile.name || profile.displayName || "", code: refCode, firstLoginAt: existingUser?.firstLoginAt || new Date().toISOString(), enrolledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    const ref = await dbGet(`referrals/${refCode}/contacted`);
+    await dbPatch(`referrals/${refCode}`, { contacted: (ref || 0) + 1, updatedAt: new Date().toISOString() });
+    const existingUser = await dbGet(`referralUsers/${refCode}/${uid}`);
+    await dbPut(`referralUsers/${refCode}/${uid}`, { uid, email: profile.email || "", displayName: profile.name || profile.displayName || "", code: refCode, firstLoginAt: existingUser?.firstLoginAt || new Date().toISOString(), enrolledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
   if (detectedReferralCode) localStorage.removeItem("detected_referral_code");
   return enrollment;
@@ -341,9 +340,9 @@ export async function recordReferralLogin(referralCode, user) {
   if (!referralCode || !user?.uid) return null;
   const code = referralCode.toUpperCase().trim();
   const now = new Date().toISOString();
-  const existing = await _rtdbRead(`referralUsers/${code}/${user.uid}`);
-  await _rtdbPut(`referralUsers/${code}/${user.uid}`, { ...userIdentity(user), code, uid: user.uid, firstLoginAt: existing?.firstLoginAt || now, lastLoginAt: now });
-  await _rtdbPatch(`referrals/${code}`, { lastActivityAt: now });
+  const existing = await dbGet(`referralUsers/${code}/${user.uid}`);
+  await dbPut(`referralUsers/${code}/${user.uid}`, { ...userIdentity(user), code, uid: user.uid, firstLoginAt: existing?.firstLoginAt || now, lastLoginAt: now, updatedAt: now });
+  await dbPatch(`referrals/${code}`, { lastActivityAt: now, updatedAt: now });
   return { code };
 }
 
@@ -415,9 +414,9 @@ export async function fetchEnrollmentById(enrollmentId) {
 export async function fetchAdminData() {
   const [requests, referrals, visits, siteVisits] = await Promise.all([
     dbList("enrollments"),
-    _rtdbReadList("referrals").then(r => r.length ? r : dbList("referrals").catch(() => r)),
-    _rtdbReadList("referralVisits").then(r => r.length ? r : dbList("referralVisits").catch(() => r)),
-    _rtdbReadList("siteVisits").then(r => r.length ? r : dbList("siteVisits").catch(() => r)),
+    dbList("referrals"),
+    _rtdbReadList("referralVisits"),
+    _rtdbReadList("siteVisits"),
   ]);
   return {
     requests: requests.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
@@ -429,19 +428,19 @@ export async function fetchAdminData() {
 
 export async function isReferralCodeMatched(referralCode) {
   if (!referralCode) return false;
-  const data = await _rtdbRead(`referrals/${referralCode.toUpperCase().trim()}`);
+  const data = await dbGet(`referrals/${referralCode.toUpperCase().trim()}`);
   return !!data;
 }
 
-export async function deleteReferral(code) { await _rtdbDelete(`referrals/${code.toUpperCase().trim()}`); }
+export async function deleteReferral(code) { await dbDelete(`referrals/${code.toUpperCase().trim()}`); }
 
 export async function deleteEnrollment(enrollmentId) { await dbDelete(`enrollments/${enrollmentId}`); }
 
 export async function createReferral(details) {
   const namePart = (details.name || "REF").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5) || "REF";
   const code = (details.code || `${namePart}-${Date.now().toString(36).toUpperCase().slice(-4)}`).toUpperCase().trim();
-  const referral = { id: code, code, ...details, visited: 0, contacted: 0, createdAt: new Date().toISOString() };
-  await _rtdbPut(`referrals/${code}`, referral);
+  const referral = { id: code, code, ...details, visited: 0, contacted: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  await dbPut(`referrals/${code}`, referral);
   return referral;
 }
 
@@ -483,10 +482,8 @@ export async function trackReferralVisit(referralCode) {
   };
   const result = await _rtdbAppend("referralVisits", visitData);
   if (result) {
-    const refData = await _rtdbRead(`referrals/${code}`);
-    if (refData) {
-      await _rtdbPatch(`referrals/${code}`, { visited: (refData.visited || 0) + 1, lastVisitedAt: now });
-    }
+    const refData = await dbGet(`referrals/${code}/visited`);
+    await dbPatch(`referrals/${code}`, { visited: (refData || 0) + 1, lastVisitedAt: now, updatedAt: now });
     return result;
   }
   // Fallback to server
@@ -540,70 +537,63 @@ export async function processReferralFromUrl() {
 
 export async function markReferralContacted(referralCode) {
   const code = referralCode.toUpperCase().trim();
-  const ref = await _rtdbRead(`referrals/${code}`);
-  await _rtdbPatch(`referrals/${code}`, { contacted: ((ref?.contacted || 0) + 1), lastContactedAt: new Date().toISOString() });
+  const ref = await dbGet(`referrals/${code}/contacted`);
+  await dbPatch(`referrals/${code}`, { contacted: (ref || 0) + 1, lastContactedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
 }
 
 export async function checkAdminStatus(email) {
   const cleanEmail = (email || "").toLowerCase().trim();
   if (cleanEmail === "rutujdhodapkar@gmail.com") return { isAdmin: true };
   const emailId = cleanEmail.replace(/\./g, ",");
-  const data = await _rtdbRead(`admins/${emailId}`);
+  const data = await dbGet(`admins/${emailId}`);
   return { isAdmin: !!data };
 }
 
 export async function fetchAdmins() {
-  const list = await _rtdbReadList("admins");
+  const list = await dbList("admins");
   return list.map(a => a.email || a.id);
 }
 
 export async function addAdmin(email) {
-  const cleanEmail = email.toLowerCase().trim();
-  const emailId = cleanEmail.replace(/\./g, ",");
-  await _rtdbPut(`admins/${emailId}`, { email: cleanEmail, createdAt: new Date().toISOString() });
-  try {
-    await apiFetch("/api/data/admins", { method: "POST", body: JSON.stringify({ email }) });
-  } catch {}
+  await apiFetch("/api/data/admins", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
 }
 
 export async function removeAdmin(email) {
-  const cleanEmail = email.toLowerCase().trim();
-  const emailId = cleanEmail.replace(/\./g, ",");
-  await _rtdbDelete(`admins/${emailId}`);
-  try {
-    await apiFetch(`/api/data/admins/${encodeURIComponent(cleanEmail)}`, { method: "DELETE" });
-  } catch {}
+  await apiFetch(`/api/data/admins/${encodeURIComponent(email.toLowerCase().trim())}`, {
+    method: "DELETE",
+  });
 }
 
 export async function createSelfReferral(details, uid) {
-  const code = details.code || `REF-${String(uid).slice(-6).toUpperCase()}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
-  const now = new Date().toISOString();
-  await _rtdbPut(`referrals/${code}`, { id: code, code, ...details, uid, selfCreated: true, visited: 0, contacted: 0, createdAt: now });
-  await _rtdbPut(`selfReferralOwners/${uid}`, { uid, code, createdAt: now });
-  return { success: true, data: { code } };
+  return apiFetch("/api/data/self-referrals", {
+    method: "POST",
+    body: JSON.stringify({ uid, details }),
+  });
 }
 
 export async function fetchSelfReferralCode(uid) {
-  const data = await _rtdbRead(`selfReferralOwners/${uid}`);
+  const data = await dbGet(`selfReferralOwners/${uid}`);
   return data?.code || null;
 }
 
 export async function fetchReferralDashboardData(uid) {
-  const owner = await _rtdbRead(`selfReferralOwners/${uid}`);
+  const owner = await dbGet(`selfReferralOwners/${uid}`);
   if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 }, totalVisits: 0, totalLogins: 0, totalEnrolled: 0, completedInterns: 0, enrolledInterns: [] };
   const code = owner.code.toUpperCase().trim();
-  const [allVisits, referral, loginUsers, interns] = await Promise.all([
+  const [allVisits, referral, interns] = await Promise.all([
     _rtdbReadList("referralVisits"),
-    _rtdbRead(`referrals/${code}`),
-    _rtdbReadList("referralUsers"),
+    dbGet(`referrals/${code}`),
     dbQueryList("enrollments", "referralCode", code),
   ]);
   const visits = allVisits.filter(v => v.referralCode === code);
   const completed = interns.filter(i => i.status === "Completed" && i.paymentStatus === "paid");
   const earnings = completed.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
-  const codeLoginUsers = loginUsers.filter(u => u.code === code);
-  const totalLogins = codeLoginUsers.length;
-  const referredUsers = codeLoginUsers.map(ru => {
+  const loginUsers = await dbQueryList("referralUsers", "code", code);
+  const totalLogins = loginUsers.length;
+  const referredUsers = loginUsers.map(ru => {
     const enrollment = interns.find(i => i.uid === ru.uid);
     let status = "loggedin";
     if (enrollment) {
@@ -636,8 +626,7 @@ export async function fetchReferralDashboardData(uid) {
 }
 
 export async function fetchUserReferralStat(email) {
-  const allReferrals = await _rtdbReadList("referrals");
-  const list = allReferrals.filter(r => r.email?.toLowerCase() === email?.toLowerCase());
+  const list = await dbQueryList("referrals", "email", email);
   if (!list.length) return null;
   const referral = list[0];
   const code = (referral.code || referral.id || "").toUpperCase().trim();
@@ -652,7 +641,7 @@ export async function fetchUserReferralStat(email) {
 }
 
 export async function fetchAdminReferralUsersWithInterns() {
-  const referrals = await _rtdbReadList("referrals");
+  const referrals = await dbList("referrals");
   const allEnrollments = await dbList("enrollments");
   return referrals
     .filter((r) => r.upiId && r.upiId.trim())
@@ -667,22 +656,16 @@ export async function fetchAdminReferralUsersWithInterns() {
 
 export async function savePermanentReferralCode(uid, code) {
   if (!uid || !code) return null;
-  const cleanCode = code.toUpperCase().trim();
-  await _rtdbPatch(`users/${uid}`, { permanentReferralCode: cleanCode });
-  try {
-    await apiFetch(`/api/data/users/${uid}/permanent-referral`, {
-      method: "POST",
-      body: JSON.stringify({ code: cleanCode }),
-    });
-  } catch {}
-  return { code: cleanCode };
+  await apiFetch(`/api/data/users/${uid}/permanent-referral`, {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+  return { code: code.toUpperCase().trim() };
 }
 
 export async function fetchPermanentReferralCode(uid) {
-  const user = await _rtdbRead(`users/${uid}`);
-  if (user?.permanentReferralCode) return user.permanentReferralCode;
-  const fbUser = await dbGet(`users/${uid}`);
-  return fbUser?.permanentReferralCode || null;
+  const user = await dbGet(`users/${uid}`);
+  return user?.permanentReferralCode || null;
 }
 
 export async function fetchEarnSettings() {
@@ -893,7 +876,7 @@ export async function trackSiteVisit() {
 
 export async function markReferralAchieved(referralCode, achieved) {
   const code = referralCode.toUpperCase().trim();
-  await _rtdbPatch(`referrals/${code}`, { achieved, achievedAt: achieved ? new Date().toISOString() : null });
+  await dbPatch(`referrals/${code}`, { achieved, achievedAt: achieved ? new Date().toISOString() : null, updatedAt: new Date().toISOString() });
 }
 
 export async function markEnrollmentComplete(enrollmentId) {
@@ -970,7 +953,7 @@ export async function aiGradeQuiz(questions, answers) {
 export async function fetchPaymentStats() {
   const enrollments = await dbList("enrollments");
   const paidEnrollments = enrollments.filter(e => e.paymentStatus === "paid");
-  const referrals = await _rtdbReadList("referrals").then(r => r.length ? r : dbList("referrals").catch(() => r));
+  const referrals = await dbList("referrals");
   const totalCollected = paidEnrollments.reduce((sum, e) => sum + (e.paymentAmount || 0), 0);
   const referralPayouts = referrals.map(r => {
     const code = (r.code || r.id || "").toUpperCase().trim();
@@ -1004,11 +987,11 @@ export async function savePayoutConfig(config) {
 }
 
 export async function markReferralPayout(code, payoutAmount, payoutNote) {
-  await _rtdbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "done", payoutAmount, payoutNote, payoutAt: new Date().toISOString() });
+  await dbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "done", payoutAmount, payoutNote, payoutAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
 }
 
 export async function clearReferralPayout(code) {
-  await _rtdbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null });
+  await dbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "pending", payoutAmount: null, payoutNote: null, payoutAt: null, updatedAt: new Date().toISOString() });
 }
 
 export async function fetchDodoConfig() {
@@ -1031,21 +1014,17 @@ export async function savePaymentMethods(config) {
   return config;
 }
 
-// Audit log — stored in Firebase Realtime Database
+// Audit log
 export async function fetchAuditLog() {
-  const list = await _rtdbReadList("auditLog");
-  return list.sort((a, b) => new Date((b.createdAt || b.timestamp || 0)) - new Date((a.createdAt || a.timestamp || 0))).slice(0, 500);
+  const data = await apiFetch("/api/data/audit-log");
+  return data.data || [];
 }
 
 export async function logAdminAction(action, details = {}) {
-  const entry = { action, ...details, timestamp: new Date().toISOString() };
-  const result = await _rtdbAppend("auditLog", entry);
-  if (result) return result;
-  // Fallback to server endpoint
   try {
-    return await apiFetch("/api/data/audit-log", {
+    await apiFetch("/api/data/audit-log", {
       method: "POST",
-      body: JSON.stringify(entry),
+      body: JSON.stringify({ action, ...details, timestamp: new Date().toISOString() }),
     });
   } catch {}
 }
@@ -1235,7 +1214,7 @@ export async function fetchReceipt(enrollmentId) {
 
 // Leaderboard
 export async function fetchReferralLeaderboard() {
-  const referrals = await _rtdbReadList("referrals");
+  const referrals = await dbList("referrals");
   const enrollments = await dbList("enrollments");
   return referrals
     .filter((r) => r.name && r.code)
