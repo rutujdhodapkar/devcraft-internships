@@ -780,26 +780,7 @@ function _toIST(date) {
   return ist.toISOString().replace("T", " ").slice(0, 19) + " IST";
 }
 
-async function _fetchGeo() {
-  try {
-    const ctrl = new AbortController();
-    const id = setTimeout(() => ctrl.abort(), 3000);
-    const res = await fetch("https://ip-api.com/json/?fields=status,country,countryCode,regionName,city,isp,org,proxy,hosting,query", { signal: ctrl.signal });
-    clearTimeout(id);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (data.status !== "success") return null;
-    return {
-      country: data.country || "", countryCode: data.countryCode || "",
-      region: data.regionName || "", city: data.city || "",
-      isp: data.isp || data.org || "",
-      ip: data.query || "",
-      isProxy: !!data.proxy, isHosting: !!data.hosting,
-      isVPN: !!data.proxy, // ip-api's proxy field detects common VPN endpoints
-      isTor: !!data.hosting && !!data.proxy, // likely Tor if both
-    };
-  } catch { return null; }
-}
+function _fetchGeo() { return null; }
 
 export async function associateDeviceWithUser(fingerprint, user) {
   if (!fingerprint || !user?.uid) return;
