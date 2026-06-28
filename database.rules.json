@@ -11,8 +11,8 @@
       ".indexOn": ["referralCode", "fingerprint"]
     },
     "deviceUsers": {
-      ".read": "auth != null",
-      ".write": "auth != null",
+      ".read": true,
+      ".write": true,
       ".indexOn": ["fingerprint"]
     },
     "auditLog": {

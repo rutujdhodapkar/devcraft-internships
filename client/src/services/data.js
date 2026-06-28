@@ -367,43 +367,37 @@ export async function verifyInternship(enrollmentId) {
 }
 
 export async function submitProject(enrollmentId, projectIndex, submissionText, submissionUrl = "") {
-  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, {
-    text: submissionText,
-    url: submissionUrl,
-    submittedAt: new Date().toISOString(),
-    verified: false,
-    rejected: false,
-    resubmit: false
+  await apiFetch(`/api/data/enrollments/${enrollmentId}/projects/${projectIndex}/submit`, {
+    method: "POST",
+    body: JSON.stringify({ submissionText, submissionUrl }),
   });
 }
 
 export async function submitQuizAnswer(enrollmentId, projectIndex, answers, project) {
-  await dbPut(`enrollments/${enrollmentId}/submissions/${projectIndex}`, {
-    answers,
-    project,
-    submittedAt: new Date().toISOString(),
-    verified: false,
-    type: "quiz",
-    rejected: false,
-    resubmit: false
+  await apiFetch(`/api/data/enrollments/${enrollmentId}/projects/${projectIndex}/quiz`, {
+    method: "POST",
+    body: JSON.stringify({ answers, project }),
   });
 }
 
 export async function verifyProject(enrollmentId, projectIndex) {
-  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, {
-    verified: true,
-    verifiedAt: new Date().toISOString(),
-    rejected: false,
-    resubmit: false
+  await apiFetch(`/api/data/enrollments/${enrollmentId}/projects/${projectIndex}/verify`, {
+    method: "POST",
   });
 }
 
 export async function saveProjectFeedback(enrollmentId, projectIndex, feedback) {
-  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { feedback });
+  await apiFetch(`/api/data/enrollments/${enrollmentId}/projects/${projectIndex}/feedback`, {
+    method: "POST",
+    body: JSON.stringify({ feedback }),
+  });
 }
 
 export async function rejectProject(enrollmentId, projectIndex, feedback) {
-  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: false, rejected: true, resubmit: true, feedback, rejectedAt: new Date().toISOString() });
+  await apiFetch(`/api/data/enrollments/${enrollmentId}/projects/${projectIndex}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ feedback }),
+  });
 }
 
 export async function fetchEnrollmentById(enrollmentId) {
@@ -923,7 +917,9 @@ export async function overrideCompleteEnrollment(enrollmentId, adminEmail) {
 }
 
 export async function unverifyProject(enrollmentId, projectIndex) {
-  await dbPatch(`enrollments/${enrollmentId}/submissions/${projectIndex}`, { verified: false, verifiedAt: null });
+  await apiFetch(`/api/data/enrollments/${enrollmentId}/projects/${projectIndex}/unverify`, {
+    method: "POST",
+  });
 }
 
 export async function unverifyPayment(enrollmentId, reason) {
