@@ -37,6 +37,7 @@ import {
   fetchAdminMessages,
   associateVisitsWithUser,
   getDeviceFingerprint,
+  trackSiteVisit,
   fetchHeaderSettings,
   fetchPopupSettings,
 } from "./services/data";
@@ -177,6 +178,14 @@ export default function App() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupSettings, setPopupSettings] = useState(null);
 
+  // Refs to avoid re-registering the auth listener on view changes
+  const pendingEnrollmentRef = useRef(pendingEnrollmentDomain);
+  useEffect(() => { pendingEnrollmentRef.current = pendingEnrollmentDomain; }, [pendingEnrollmentDomain]);
+  const authRedirectRef = useRef(authRedirectTarget);
+  useEffect(() => { authRedirectRef.current = authRedirectTarget; }, [authRedirectTarget]);
+  const currentViewRef = useRef(currentView);
+  useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+
   // Load header settings and popup settings from DB on mount
   useEffect(() => {
     fetchPopupSettings()
@@ -215,7 +224,7 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // Listen to Google Auth state
+  // Listen to Google Auth state (runs once on mount; uses refs for latest state values)
   useEffect(() => {
     const unsubscribe = onGoogleAuthStateChanged(async (currentUser) => {
       setUser(currentUser);
@@ -310,13 +319,15 @@ export default function App() {
               setShowProfilePrompt(true);
             } else {
               // Profile is complete!
-              // If they already have applied internships, direct open their dashboard
-              if (pendingEnrollmentDomain) {
+              const penDomain = pendingEnrollmentRef.current;
+              const curView = currentViewRef.current;
+              const redirectTarget = authRedirectRef.current;
+              if (penDomain) {
                 try {
                   await enrollStudent(
                     currentUser.uid,
                     profile,
-                    pendingEnrollmentDomain,
+                    penDomain,
                   );
                 } catch (e) {
                   console.warn("Pending enrollment failed:", e);
@@ -328,16 +339,16 @@ export default function App() {
                 try {
                   const userEnrs = await fetchUserEnrollments(currentUser.uid);
                   if (
-                    currentView !== "admin" &&
-                    currentView !== "site" &&
-                    currentView !== "tandp" &&
-                    currentView !== "certificate" &&
+                    curView !== "admin" &&
+                    curView !== "site" &&
+                    curView !== "tandp" &&
+                    curView !== "certificate" &&
                     userEnrs.length > 0
                   ) {
                     setCurrentView("dashboard");
-                  } else if (currentView === "auth") {
+                  } else if (curView === "auth") {
                     setCurrentView(
-                      isUserAdmin ? "admin" : authRedirectTarget,
+                      isUserAdmin ? "admin" : redirectTarget,
                     );
                   }
                 } catch (e) {
@@ -345,9 +356,9 @@ export default function App() {
                     "Error fetching user enrollments on auth change:",
                     e,
                   );
-                  if (currentView === "auth") {
+                  if (curView === "auth") {
                     setCurrentView(
-                      isUserAdmin ? "admin" : authRedirectTarget,
+                      isUserAdmin ? "admin" : redirectTarget,
                     );
                   }
                 }
@@ -379,7 +390,7 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, [currentView, pendingEnrollmentDomain, authRedirectTarget]);
+  }, []);
 
   // Sync URL with current view for deep-linking
   useEffect(() => {
@@ -436,10 +447,8 @@ export default function App() {
       .catch((error) => {
         console.warn("Referral processing failed:", error.message);
       });
-    // General site visit tracking (every page load)
-    import("./services/data").then(({ trackSiteVisit }) =>
-      trackSiteVisit().catch(() => {}),
-    );
+    // General site visit tracking (once per session)
+    trackSiteVisit().catch(() => {});
   }, []);
 
   const handleApplyDomain = async (domainObj) => {

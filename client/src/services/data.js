@@ -1,5 +1,31 @@
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
 
+// Simple in-memory cache with TTL to reduce redundant Firestore reads
+const _cache = new Map();
+const CACHE_TTL = 120 * 1000; // 2 minutes default
+
+function _cacheKey(action, path, query) {
+  return `${action}:${path}${query ? ":" + JSON.stringify(query) : ""}`;
+}
+
+function _cacheGet(key) {
+  const entry = _cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) { _cache.delete(key); return null; }
+  return entry.data;
+}
+
+function _cacheSet(key, data, ttl) {
+  _cache.set(key, { data, expiresAt: Date.now() + (ttl || CACHE_TTL) });
+}
+
+function _cacheClear(pathPattern) {
+  if (!pathPattern) { _cache.clear(); return; }
+  for (const key of _cache.keys()) {
+    if (key.includes(pathPattern)) _cache.delete(key);
+  }
+}
+
 const FALLBACK_PATHS = [
   { id: "path_web", title: "Web Development", duration: "4 Weeks", description: "Build responsive frontend projects with HTML, CSS, JavaScript, and React.", features: ["HTML/CSS layouts", "JavaScript fundamentals", "React components", "Final project"], projects: [{ title: "Responsive Portfolio", description: "Build a responsive personal portfolio website.", type: "text", links: [], quizQuestions: [], passingGrade: 100 }, { title: "Web Development Quiz", description: "Test your understanding of web basics.", type: "quiz", links: [], passingGrade: 60, quizQuestions: [{ question: "Which HTML tag links an external CSS file?", type: "option", options: ["<style>", "<script>", "<link>", "<meta>"], answer: "<link>" }, { question: "Which JavaScript method adds an item to an array?", type: "option", options: ["push()", "pop()", "shift()", "slice()"], answer: "push()" }] }] },
   { id: "path_python", title: "Python Development", duration: "4 Weeks", description: "Practice Python scripting, data structures, and backend fundamentals.", features: ["Python syntax", "OOP", "Flask basics", "Capstone project"], projects: [{ title: "Weather Web App", description: "Create a weather app using Python and a public API.", type: "text", links: [], quizQuestions: [], passingGrade: 100 }] },
@@ -22,6 +48,11 @@ const FALLBACK_FAQS = [
 ];
 
 async function dbProxy(action, path, data, query) {
+  const key = _cacheKey(action, path, query);
+  if (action === "get" || action === "list" || action === "query") {
+    const cached = _cacheGet(key);
+    if (cached) return cached;
+  }
   const res = await fetch(`${API_BASE}/api/firebase-proxy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -29,7 +60,13 @@ async function dbProxy(action, path, data, query) {
   });
   const json = await res.json();
   if (!res.ok || json.success === false) throw new Error(json.message || `Proxy ${action} ${path} failed`);
-  return json.data;
+  const result = json.data;
+  if (action === "get" || action === "list" || action === "query") {
+    if (result !== null) _cacheSet(key, result);
+  } else {
+    _cacheClear(path);
+  }
+  return result;
 }
 
 async function dbGet(path) {
@@ -652,6 +689,8 @@ export async function saveHomepageContent(content) {
 }
 
 export async function trackSiteVisit() {
+  if (sessionStorage.getItem("_sv")) return null;
+  sessionStorage.setItem("_sv", "1");
   return dbPost("siteVisits", {
     visitedAt: new Date().toISOString(),
     userAgent: navigator.userAgent || "", language: navigator.language || "",
