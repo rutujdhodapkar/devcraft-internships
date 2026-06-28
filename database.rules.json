@@ -1,27 +1,77 @@
 {
   "rules": {
-    ".read": false,
-    ".write": false,
-    "enrollments": {
-      ".indexOn": ["uid", "referralCode"]
-    },
-    "referrals": {
-      ".indexOn": ["email"]
-    },
-    "referralVisits": {
-      ".indexOn": ["referralCode"]
-    },
-    "users": {
-      ".indexOn": ["email"]
-    },
     "auditLog": {
+      ".read": "auth != null",
+      ".write": "auth != null",
       ".indexOn": ["action", "createdAt"]
     },
+    "siteVisits": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["fingerprint", "visitedAt"]
+    },
+    "referralVisits": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["referralCode", "fingerprint"]
+    },
+    "referrals": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["email"]
+    },
+    "referralUsers": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["code", "uid"]
+    },
     "selfReferralOwners": {
+      ".read": "auth != null",
+      ".write": "auth != null",
       ".indexOn": ["uid"]
     },
     "bannedUsers": {
+      ".read": "auth != null",
+      ".write": "auth != null",
       ".indexOn": ["email"]
+    },
+    "users": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["email"]
+    },
+    "enrollments": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["uid", "referralCode"]
+    },
+    "careerPaths": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "howItWorks": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "faqs": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "siteConfig": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "config": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "siteNotices": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "adminMessages": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 }
