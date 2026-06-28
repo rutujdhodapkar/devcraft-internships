@@ -2,7 +2,7 @@ const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhod
 
 // Simple in-memory cache with TTL to reduce redundant Firestore reads
 const _cache = new Map();
-const CACHE_TTL = 120 * 1000; // 2 minutes default
+const CACHE_TTL = 15 * 1000; // 15 seconds — short enough to avoid stale admin data, long enough to prevent double fetches
 
 function _cacheKey(action, path, query) {
   return `${action}:${path}${query ? ":" + JSON.stringify(query) : ""}`;
@@ -113,6 +113,9 @@ async function apiFetch(path, options = {}) {
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
   if (!response.ok || data.success === false) throw new Error(data.message || data.error || "Request failed.");
+  // Writes through apiFetch can affect Firestore data cached by dbProxy — clear cache so next read is fresh
+  const method = (options.method || "GET").toUpperCase();
+  if (method !== "GET") _cacheClear();
   return data;
 }
 
