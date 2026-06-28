@@ -311,9 +311,11 @@ export async function enrollStudent(uid, profile, domainObj) {
   await dbPut(`enrollments/${internId}`, enrollment);
   enrollment.id = internId;
   if (refCode) {
-    const refData = await _rtdbRead(`referrals/${refCode}`);
+    let refData = await _rtdbRead(`referrals/${refCode}`);
+    if (!refData) try { refData = await dbGet(`referrals/${refCode}`); } catch {}
     await _rtdbPatch(`referrals/${refCode}`, { contacted: ((refData?.contacted || 0) + 1), lastContactedAt: new Date().toISOString() });
-    const existingUser = await _rtdbRead(`referralUsers/${refCode}/${uid}`);
+    let existingUser = await _rtdbRead(`referralUsers/${refCode}/${uid}`);
+    if (!existingUser) try { existingUser = await dbGet(`referralUsers/${refCode}/${uid}`); } catch {}
     await _rtdbPut(`referralUsers/${refCode}/${uid}`, { uid, email: profile.email || "", displayName: profile.name || profile.displayName || "", code: refCode, firstLoginAt: existingUser?.firstLoginAt || new Date().toISOString(), enrolledAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
   if (detectedReferralCode) localStorage.removeItem("detected_referral_code");
@@ -413,9 +415,9 @@ export async function fetchEnrollmentById(enrollmentId) {
 export async function fetchAdminData() {
   const [requests, referrals, visits, siteVisits] = await Promise.all([
     dbList("enrollments"),
-    _rtdbReadList("referrals"),
-    _rtdbReadList("referralVisits"),
-    _rtdbReadList("siteVisits"),
+    _rtdbReadList("referrals").then(r => r.length ? r : dbList("referrals").catch(() => r)),
+    _rtdbReadList("referralVisits").then(r => r.length ? r : dbList("referralVisits").catch(() => r)),
+    _rtdbReadList("siteVisits").then(r => r.length ? r : dbList("siteVisits").catch(() => r)),
   ]);
   return {
     requests: requests.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
@@ -968,7 +970,7 @@ export async function aiGradeQuiz(questions, answers) {
 export async function fetchPaymentStats() {
   const enrollments = await dbList("enrollments");
   const paidEnrollments = enrollments.filter(e => e.paymentStatus === "paid");
-  const referrals = await _rtdbReadList("referrals");
+  const referrals = await _rtdbReadList("referrals").then(r => r.length ? r : dbList("referrals").catch(() => r));
   const totalCollected = paidEnrollments.reduce((sum, e) => sum + (e.paymentAmount || 0), 0);
   const referralPayouts = referrals.map(r => {
     const code = (r.code || r.id || "").toUpperCase().trim();
