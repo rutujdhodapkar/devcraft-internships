@@ -2964,30 +2964,48 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       }}
                     >
                       <div>
-                        <label
-                          style={{
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            display: "block",
-                            marginBottom: "0.25rem",
-                          }}
-                        >
-                          Features (comma-separated)
+                        <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                          Features
                         </label>
-                        <textarea
-                          className="input-sharp"
-                          rows={2}
-                          value={path.features ? path.features.join(", ") : ""}
-                          onChange={(e) => {
-                            const u = [...careerPaths];
-                            u[idx].features = e.target.value
-                              .split(",")
-                              .map((x) => x.trim())
-                              .filter(Boolean);
-                            setCareerPaths(u);
-                          }}
-                          style={{ ...s, resize: "vertical" }}
-                        />
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                          {(path.features || []).map((feat, fi) => (
+                            <div key={fi} style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+                              <input
+                                className="input-sharp"
+                                value={feat}
+                                onChange={(e) => {
+                                  const u = [...careerPaths];
+                                  u[idx].features = [...(u[idx].features || [])];
+                                  u[idx].features[fi] = e.target.value;
+                                  setCareerPaths(u);
+                                }}
+                                style={{ flex: 1, fontSize: "0.8rem", padding: "0.3rem 0.5rem", borderRadius: "0.25rem" }}
+                              />
+                              <button
+                                className="btn-sharp"
+                                onClick={() => {
+                                  const u = [...careerPaths];
+                                  u[idx].features = (u[idx].features || []).filter((_, i) => i !== fi);
+                                  setCareerPaths(u);
+                                }}
+                                style={{ background: "#e00", color: "#fff", border: "none", borderRadius: "0.25rem", cursor: "pointer", fontSize: "0.75rem", padding: "0.3rem 0.55rem", lineHeight: 1 }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            className="btn-sharp"
+                            onClick={() => {
+                              const u = [...careerPaths];
+                              u[idx].features = [...(u[idx].features || []), ""];
+                              setCareerPaths(u);
+                            }}
+                            style={{ alignSelf: "flex-start", fontSize: "0.75rem", padding: "0.3rem 0.75rem", cursor: "pointer" }}
+                          >
+                            + Add Feature
+                          </button>
+                        </div>
                       </div>
                       <div style={{ marginTop: "1rem" }}>
                         <label

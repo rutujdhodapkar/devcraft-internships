@@ -18,7 +18,7 @@ function PathCard({ path, onApply }) {
           <div style={{ marginBottom: '1.5rem' }}>
             <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px', marginBottom: '0.75rem', color: '#000' }}>What you will learn:</h4>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-              {path.features.map((feat, i) => (
+              {path.features.filter(Boolean).map((feat, i) => (
                 <li key={i} style={{ display: 'flex', gap: '0.5rem', fontSize: '0.83rem', color: 'var(--text-secondary)', marginBottom: '0.4rem', alignItems: 'flex-start' }}>
                   <span style={{ color: '#000', fontWeight: 'bold' }}>■</span>{feat}
                 </li>
