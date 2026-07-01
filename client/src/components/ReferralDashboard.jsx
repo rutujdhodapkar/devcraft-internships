@@ -47,7 +47,10 @@ export default function ReferralDashboard({ user, userProfile, onBackClick, stan
     alert('Referral link copied!');
   };
 
-  const earnings = (data?.completedInterns || 0) * 20 + Math.floor((data?.completedInterns || 0) / 50) * 1000;
+  const rpc = data?.rewardPerCompletion || 20;
+  const mb = data?.milestoneBonus || 1000;
+  const mc = data?.milestoneCount || 50;
+  const earnings = (data?.completedInterns || 0) * rpc + Math.floor((data?.completedInterns || 0) / mc) * mb;
 
   return (
     <section style={{ background: '#f8f8f8', minHeight: '100vh' }}>
@@ -143,7 +146,7 @@ export default function ReferralDashboard({ user, userProfile, onBackClick, stan
             {/* Earnings Banner */}
             <div style={{ border: '2px solid #000', background: 'linear-gradient(135deg, #EBFCEF, #D4EDDA)', padding: '1.25rem 1.5rem' }}>
               <div style={{ fontSize: '0.85rem', lineHeight: 1.6, color: '#333' }}>
-                Earn <strong>₹20</strong> for each referred intern who completes their internship, plus a <strong>₹1,000</strong> bonus at 50 completions.
+                Earn <strong>₹{rpc}</strong> for each referred intern who completes their internship, plus a <strong>₹{mb.toLocaleString()}</strong> bonus at {mc} completions.
               </div>
               <div style={{ fontSize: '1.2rem', fontWeight: 900, marginTop: '0.5rem', color: '#1B7A3D' }}>
                 Estimated earnings: ₹{earnings.toLocaleString()}

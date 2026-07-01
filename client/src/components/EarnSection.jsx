@@ -41,6 +41,7 @@ export default function EarnSection({
   const [showDetails, setShowDetails] = useState(false);
   const [earnDetails, setEarnDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [earnSettings, setEarnSettings] = useState(null);
   const [countrySearch, setCountrySearch] = useState("");
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
 
@@ -68,15 +69,19 @@ export default function EarnSection({
     );
   }, [user]);
 
-  // Fetch admin-configured earn details
+  // Fetch admin-configured earn details and settings
   useEffect(() => {
     setDetailsLoading(true);
-    import("../services/data").then(({ fetchEarnDetails }) =>
-      fetchEarnDetails()
-        .then((d) => setEarnDetails(d))
-        .catch(() => {})
-        .finally(() => setDetailsLoading(false)),
-    );
+    Promise.all([
+      import("../services/data").then(({ fetchEarnDetails }) => fetchEarnDetails()),
+      import("../services/data").then(({ fetchEarnSettings }) => fetchEarnSettings()),
+    ])
+      .then(([details, settings]) => {
+        setEarnDetails(details);
+        setEarnSettings(settings);
+      })
+      .catch(() => {})
+      .finally(() => setDetailsLoading(false));
   }, []);
 
   const inputStyle = {
@@ -250,7 +255,7 @@ export default function EarnSection({
                   color: "#34A853",
                 }}
               >
-                ₹20
+                ₹{earnSettings?.rewardPerCompletion || 20}
               </div>
               <div
                 style={{
@@ -272,7 +277,7 @@ export default function EarnSection({
               <div
                 style={{ fontSize: "1.6rem", fontWeight: 900, color: "#000" }}
               >
-                ₹1,000
+                ₹{(earnSettings?.milestoneBonus || 1000).toLocaleString()}
               </div>
               <div
                 style={{
@@ -281,7 +286,7 @@ export default function EarnSection({
                   marginTop: "0.35rem",
                 }}
               >
-                Bonus when 50 referred interns complete their internship
+                Bonus when {earnSettings?.milestoneCount || 50} referred interns complete their internship
               </div>
             </div>
           </div>
@@ -293,8 +298,8 @@ export default function EarnSection({
               lineHeight: 1.6,
             }}
           >
-            Example: if 50 referred interns complete, you earn ₹20 × 50 = ₹1,000
-            plus the ₹1,000 milestone bonus —{" "}
+            Example: if {earnSettings?.milestoneCount || 50} referred interns complete, you earn ₹{earnSettings?.rewardPerCompletion || 20} × {earnSettings?.milestoneCount || 50} = ₹{((earnSettings?.rewardPerCompletion || 20) * (earnSettings?.milestoneCount || 50)).toLocaleString()}
+            plus the ₹{(earnSettings?.milestoneBonus || 1000).toLocaleString()} milestone bonus —{" "}
             <strong>₹2,000 total per 50 completed interns</strong>.
           </p>
           <div style={{ marginTop: "1rem", textAlign: "right" }}>
@@ -519,7 +524,7 @@ export default function EarnSection({
                       marginTop: "0.5rem",
                     }}
                   >
-                    Earn ₹20 per completion + bonuses
+                    Earn ₹{earnSettings?.rewardPerCompletion || 20} per completion + bonuses
                   </div>
                 </div>
               </div>

@@ -600,16 +600,20 @@ export async function autoAssignReferralCode(uid, profile) {
 
 export async function fetchReferralDashboardData(uid) {
   const owner = await dbGet(`selfReferralOwners/${uid}`);
-  if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 }, totalVisits: 0, totalLogins: 0, totalEnrolled: 0, completedInterns: 0, enrolledInterns: [] };
+  if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 }, totalVisits: 0, totalLogins: 0, totalEnrolled: 0, completedInterns: 0, enrolledInterns: [], rewardPerCompletion: 20, milestoneBonus: 1000, milestoneCount: 50 };
   const code = owner.code.toUpperCase().trim();
-  const [allVisits, referral, interns] = await Promise.all([
+  const [allVisits, referral, interns, earnSettings] = await Promise.all([
     _rtdbReadList("referralVisits"),
     dbGet(`referrals/${code}`),
     dbQueryList("enrollments", "referralCode", code),
+    fetchEarnSettings(),
   ]);
   const visits = allVisits.filter(v => v.referralCode === code);
   const completed = interns.filter(i => i.status === "Completed" && i.paymentStatus === "paid");
-  const earnings = completed.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
+  const rewardPerCompletion = earnSettings?.rewardPerCompletion || 20;
+  const milestoneBonus = earnSettings?.milestoneBonus || 1000;
+  const milestoneCount = earnSettings?.milestoneCount || 50;
+  const earnings = completed.length * rewardPerCompletion + Math.floor(completed.length / milestoneCount) * milestoneBonus;
   const loginUsers = await dbQueryList("referralUsers", "code", code);
   const totalLogins = loginUsers.length;
   const referredUsers = loginUsers.map(ru => {
@@ -641,6 +645,9 @@ export async function fetchReferralDashboardData(uid) {
     enrolledInterns: interns,
     referredUsers,
     code,
+    rewardPerCompletion,
+    milestoneBonus,
+    milestoneCount,
   };
 }
 
@@ -660,15 +667,21 @@ export async function fetchUserReferralStat(email) {
 }
 
 export async function fetchAdminReferralUsersWithInterns() {
-  const referrals = await dbList("referrals");
-  const allEnrollments = await dbList("enrollments");
+  const [referrals, allEnrollments, earnSettings] = await Promise.all([
+    dbList("referrals"),
+    dbList("enrollments"),
+    fetchEarnSettings(),
+  ]);
+  const rewardPerCompletion = earnSettings?.rewardPerCompletion || 20;
+  const milestoneBonus = earnSettings?.milestoneBonus || 1000;
+  const milestoneCount = earnSettings?.milestoneCount || 50;
   return referrals
     .filter((r) => r.upiId && r.upiId.trim())
     .map(r => {
     const code = (r.code || r.id || "").toUpperCase().trim();
     const interns = allEnrollments.filter(e => (e.referralCode || "").toUpperCase().trim() === code);
     const paidCompleted = interns.filter(i => i.status === "Completed" && i.paymentStatus === "paid");
-    const earnings = paidCompleted.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
+    const earnings = paidCompleted.length * rewardPerCompletion + Math.floor(paidCompleted.length / milestoneCount) * milestoneBonus;
     return { ...r, code, internCount: interns.length, interns, earnings, paidCompletedCount: paidCompleted.length };
   });
 }

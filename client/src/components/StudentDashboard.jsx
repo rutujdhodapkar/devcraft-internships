@@ -436,12 +436,12 @@ export default function StudentDashboard({
             <span style={{ display: "inline-block", backgroundColor: "#000", color: "#fff", fontSize: "0.7rem", fontWeight: 900, letterSpacing: "2px", padding: "0.3rem 0.75rem", marginBottom: "0.5rem", textTransform: "uppercase" }}>INTERN DASHBOARD</span>
             <h2 style={{ fontSize: "1.6rem", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>Welcome, {user.displayName?.split(" ")[0] || "Intern"}</h2>
           </div>
-          {enrollments.filter(e => e.status === "active" || e.status === "pending").length > 0 && (
+          {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", background: "#f5f5f5", padding: "0.75rem 1.25rem", border: "1px solid #ddd" }}>
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#000" }}>
                   {(() => {
-                    const active = enrollments.filter(e => e.status === "active" || e.status === "pending");
+                    const active = enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed");
                     if (!active.length) return "0";
                     const earliest = active.reduce((min, e) => {
                       const d = e.deadline || e.createdAt;
@@ -459,7 +459,7 @@ export default function StudentDashboard({
                 <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.25rem" }}>Progress</div>
                 <div style={{ height: "8px", background: "#e0e0e0", border: "1px solid #000", borderRadius: "4px", overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, (() => {
-                    const active = enrollments.filter(e => e.status === "active" || e.status === "pending");
+                    const active = enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed");
                     if (!active.length) return 0;
                     const earliest = active.reduce((min, e) => {
                       const d = e.deadline || e.createdAt;

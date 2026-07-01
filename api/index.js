@@ -831,12 +831,17 @@ async function buildReferralDashboard(db, uid) {
   const code = codeId(owner.code);
   const visitSnap = await db.collection("referralVisits").where("referralCode", "==", code).get();
   const visits = visitSnap.empty ? [] : visitSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const [referral, interns] = await Promise.all([
+  const [referral, interns, earnSettingsDoc] = await Promise.all([
     getDoc(db, "referrals", code, null),
     listReferralInterns(db, code),
+    getDoc(db, "siteConfig", "earnSettings", null),
   ]);
+  const earnSettings = earnSettingsDoc?.value || {};
+  const rewardPerCompletion = earnSettings.rewardPerCompletion || 20;
+  const milestoneBonus = earnSettings.milestoneBonus || 1000;
+  const milestoneCount = earnSettings.milestoneCount || 50;
   const paidCompleted = interns.filter((i) => i.status === "Completed" && i.paymentStatus === "paid");
-  const earnings = paidCompleted.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
+  const earnings = paidCompleted.length * rewardPerCompletion + Math.floor(paidCompleted.length / milestoneCount) * milestoneBonus;
   return { referral, interns, visits, totals: { visits: visits.length, interns: interns.length, completed: paidCompleted.length, earnings } };
 }
 
