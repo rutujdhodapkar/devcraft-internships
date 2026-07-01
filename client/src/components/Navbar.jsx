@@ -337,9 +337,9 @@ export default function Navbar({
                   <button onClick={onDashboardClick} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Dashboard</button>
                 )}
                 {user && (
-                  <button onClick={onReferralDashboardClick} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Refer & Earn</button>
+                  <button onClick={() => window.location.href = '/earn'} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Refer & Earn</button>
                 )}
-                <button onClick={() => { if (onEarnClick) { onEarnClick(); } else { document.getElementById("earn")?.scrollIntoView({ behavior: "smooth" }); } }} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Earn</button>
+                <button onClick={() => window.location.href = '/earn'} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Earn</button>
                 <button onClick={() => setShowAboutModal(true)} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>About</button>
                 <button onClick={() => setShowVerifyModal(true)} className="btn-sharp-outline nav-verify-btn" style={{ fontWeight: 700, padding: "0.4rem 1rem", fontSize: "0.85rem" }}>Verify Internship</button>
                 {!authLoading && (
@@ -426,14 +426,7 @@ export default function Navbar({
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    if (onEarnClick) {
-                      onEarnClick();
-                    } else {
-                      const el = document.getElementById("earn");
-                      if (el) el.scrollIntoView({ behavior: "smooth" });
-                    }
-                  }}
+                  onClick={() => window.location.href = '/earn'}
                   className="nav-link nav-btn-link"
                   style={{
                     background: "none",
@@ -658,12 +651,12 @@ export default function Navbar({
               )}
               {user && (
                 <button
-                  onClick={() => { onReferralDashboardClick(); setShowMobileMenu(false); }}
+                  onClick={() => { window.location.href = '/earn'; setShowMobileMenu(false); }}
                   style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
                 >Refer & Earn</button>
               )}
               <button
-                onClick={() => { onEarnClick ? onEarnClick() : document.getElementById("earn")?.scrollIntoView({ behavior: "smooth" }); setShowMobileMenu(false); }}
+                onClick={() => { window.location.href = '/earn'; setShowMobileMenu(false); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
               >Earn</button>
               <button

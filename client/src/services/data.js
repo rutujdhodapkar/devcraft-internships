@@ -573,6 +573,28 @@ export async function fetchSelfReferralCode(uid) {
   return data?.code || null;
 }
 
+export async function autoAssignReferralCode(uid, profile) {
+  if (!uid || !profile?.upiId) return null;
+  const existing = await fetchSelfReferralCode(uid);
+  if (existing) return existing;
+  const payload = {
+    name: profile.name || "",
+    email: profile.email || "",
+    phone: profile.phone || "",
+    college: profile.college || "",
+    city: profile.city || "",
+    country: profile.country || "",
+    upiId: profile.upiId,
+  };
+  try {
+    const res = await createSelfReferral(payload, uid);
+    return res?.data?.code || null;
+  } catch (e) {
+    console.warn("Auto-assign referral code failed:", e.message);
+    return null;
+  }
+}
+
 export async function fetchReferralDashboardData(uid) {
   const owner = await dbGet(`selfReferralOwners/${uid}`);
   if (!owner?.code) return { referral: null, visits: [], interns: [], totals: { visits: 0, interns: 0, completed: 0, earnings: 0 }, totalVisits: 0, totalLogins: 0, totalEnrolled: 0, completedInterns: 0, enrolledInterns: [] };
@@ -1230,6 +1252,41 @@ export async function autoExpireEnrollments() {
   } catch {
     return { success: false, message: 'Auto-expire check failed' };
   }
+}
+
+// Logged-in users tracking (RTDB)
+export async function recordUserLogin(uid, user) {
+  try {
+    await _rtdbPut(`loggedInUsers/${uid}`, {
+      uid,
+      email: user.email || "",
+      displayName: user.displayName || "Unknown",
+      photoURL: user.photoURL || "",
+      lastSeen: new Date().toISOString(),
+      signedInAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.warn("Failed to record user login:", e.message);
+  }
+}
+
+export async function updateUserLastSeen(uid) {
+  try {
+    await _rtdbPatch(`loggedInUsers/${uid}`, {
+      lastSeen: new Date().toISOString(),
+    });
+  } catch {}
+}
+
+export async function recordUserLogout(uid) {
+  try {
+    await _rtdbDelete(`loggedInUsers/${uid}`);
+  } catch {}
+}
+
+export async function fetchLoggedInUsers() {
+  const list = await _rtdbReadList("loggedInUsers");
+  return list.sort((a, b) => new Date(b.lastSeen || 0) - new Date(a.lastSeen || 0));
 }
 
 // CSV export

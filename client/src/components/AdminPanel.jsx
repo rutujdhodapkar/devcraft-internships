@@ -62,6 +62,7 @@ import {
   updatePaymentStatus,
   fetchHeaderSettings,
   saveHeaderSettings,
+  fetchLoggedInUsers,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -117,6 +118,7 @@ const TABS = [
   { id: "popup", label: "Popup" },
   { id: "csv-export", label: "CSV Export" },
   { id: "referral-leaderboard", label: "Referral Leaderboard" },
+  { id: "logged-in-users", label: "Logged In Users" },
 ];
 
 const DEFAULT_HOMEPAGE = {
@@ -292,6 +294,18 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [popupSettings, setPopupSettings] = useState(null);
   const [popupLoading, setPopupLoading] = useState(false);
   const [popupSaving, setPopupSaving] = useState(false);
+
+  // Terms / Privacy / Refund / Footer content states
+  const [termsContent, setTermsContent] = useState("");
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termsSaving, setTermsSaving] = useState(false);
+  const [privacyContent, setPrivacyContent] = useState("");
+  const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [privacySaving, setPrivacySaving] = useState(false);
+  const [refundContent, setRefundContent] = useState("");
+  const [refundLoading, setRefundLoading] = useState(false);
+  const [footerContent, setFooterContent] = useState("");
+  const [popupContent, setPopupContent] = useState("");
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   // Task feedback & certificate approval states
@@ -7886,6 +7900,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "coupons" && <CouponsSection />}
         {activeTab === "csv-export" && <CSVExportSection />}
         {activeTab === "referral-leaderboard" && <ReferralLeaderboardSection />}
+        {activeTab === "logged-in-users" && <LoggedInUsersSection />}
       </div>
 
       {/* ── INTERN SUBMISSION DETAIL MODAL ── */}
@@ -9934,6 +9949,58 @@ function CouponsSection() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── Logged In Users ── */
+function LoggedInUsersSection() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const loadUsers = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const list = await fetchLoggedInUsers();
+      setUsers(list);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { loadUsers(); }, []);
+  const activeCount = users.filter(u => {
+    const diff = Date.now() - new Date(u.lastSeen || 0).getTime();
+    return diff < 5 * 60 * 1000;
+  }).length;
+  return (
+    <div>
+      <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "1rem" }}>Logged In Users</h3>
+      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
+        <div style={{ border: "2px solid #000", padding: "0.75rem 1.25rem", background: "#fff", textAlign: "center", minWidth: "150px" }}>
+          <div style={{ fontSize: "2rem", fontWeight: 900 }}>{users.length}</div>
+          <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Total Signed In</div>
+        </div>
+        <div style={{ border: "2px solid #34A853", padding: "0.75rem 1.25rem", background: "#EBFCEF", textAlign: "center", minWidth: "150px" }}>
+          <div style={{ fontSize: "2rem", fontWeight: 900, color: "#34A853" }}>{activeCount}</div>
+          <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#34A853" }}>Active (5 min)</div>
+        </div>
+        <button onClick={loadUsers} disabled={loading} style={{ padding: "0.5rem 1rem", border: "2px solid #000", background: "#fff", fontWeight: 700, fontSize: "0.8rem", cursor: "pointer", alignSelf: "flex-end" }}>
+          {loading ? "Refreshing..." : "Refresh"}
+        </button>
+      </div>
+      {error && <div style={{ color: "#EA4335", fontWeight: 700, marginBottom: "1rem" }}>{error}</div>}
+      {loading ? (
+        <div style={{ padding: "2rem", textAlign: "center", color: "#888" }}>Loading...</div>
+      ) : (
+        <SimpleTable
+          empty="No users currently logged in."
+          columns={["displayName", "email", "lastSeen", "signedInAt", "uid"]}
+          rows={users}
+        />
+      )}
     </div>
   );
 }

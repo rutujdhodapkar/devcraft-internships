@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchReferralDashboardData, fetchSelfReferralCode, fetchSiteNotices } from '../services/data';
 
-export default function ReferralDashboard({ user, onBackClick }) {
+export default function ReferralDashboard({ user, userProfile, onBackClick, standalone }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [data, setData] = useState(null);
@@ -9,13 +9,16 @@ export default function ReferralDashboard({ user, onBackClick }) {
   const [siteNotices, setSiteNotices] = useState([]);
 
   const loadDashboard = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     try {
       const userCode = await fetchSelfReferralCode(user.uid);
       if (!userCode) {
-        setError('You do not have a referral code yet. Go to the Earn section to create one.');
+        setError('You do not have a referral code yet. Create one from the Earn section to get started.');
         setLoading(false);
         return;
       }
@@ -44,9 +47,37 @@ export default function ReferralDashboard({ user, onBackClick }) {
     alert('Referral link copied!');
   };
 
+  const earnings = (data?.completedInterns || 0) * 20 + Math.floor((data?.completedInterns || 0) / 50) * 1000;
+
   return (
-    <section style={{ backgroundColor: '#f8f8f8', minHeight: 'calc(100vh - 70px)', padding: '8.5rem 1rem 5rem' }}>
-      <div style={{ maxWidth: '960px', margin: '0 auto' }}>
+    <section style={{ background: '#f8f8f8', minHeight: '100vh' }}>
+      {/* Top Header Bar */}
+      <div style={{ background: '#000', color: '#fff', padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <span style={{ fontWeight: 900, fontSize: '1.1rem', letterSpacing: '1px' }}>DEV/CRAFT</span>
+          <span style={{ opacity: 0.6, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase' }}>Refer & Earn Dashboard</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {user?.photoURL && (
+            <img src={user.photoURL} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', border: '2px solid #fff' }} />
+          )}
+          <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{user?.displayName || user?.email}</span>
+          <button onClick={onBackClick} style={{ background: 'transparent', border: '1px solid #fff', color: '#fff', padding: '0.3rem 0.75rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+            {standalone ? 'Home' : '← Back'}
+          </button>
+        </div>
+      </div>
+
+      {/* Site Notices */}
+      {siteNotices.length > 0 && siteNotices.map((n) => (
+        <div key={n.id} style={{ background: '#FFF8E1', borderBottom: '2px solid #FBBC05', padding: '0.5rem 1.5rem', fontSize: '0.82rem', color: '#7a5c00', textAlign: 'center' }}>
+          {n.title && <strong>{n.title}: </strong>}{n.text}
+        </div>
+      ))}
+
+      {/* Main Content */}
+      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1rem 4rem' }}>
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
           <div>
             <span style={{ display: 'inline-block', backgroundColor: '#000', color: '#fff', fontSize: '0.7rem', fontWeight: 900, letterSpacing: '2px', padding: '0.3rem 0.75rem', marginBottom: '0.75rem', textTransform: 'uppercase' }}>
@@ -56,13 +87,25 @@ export default function ReferralDashboard({ user, onBackClick }) {
               Your Referral Hub
             </h2>
             <p style={{ color: '#666', fontSize: '0.93rem', margin: 0 }}>
-              Track your referral performance and earnings.
+              Track your referral performance and earnings in real time.
             </p>
           </div>
-          <button className="btn-sharp-outline" onClick={onBackClick} style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem', fontWeight: 700 }}>
-            ← Back
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn-sharp-outline" onClick={() => { window.location.href = '/'; }} style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem', fontWeight: 700 }}>
+              Explore Internships
+            </button>
+          </div>
         </div>
+
+        {!user && (
+          <div style={{ border: '2px solid #000', padding: '3rem 2rem', background: '#fff', boxShadow: '6px 6px 0 #000', textAlign: 'center', marginBottom: '2rem' }}>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: 900, marginBottom: '0.75rem' }}>Sign In Required</h3>
+            <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '1.5rem' }}>Sign in with Google to access your Refer & Earn dashboard and track your earnings.</p>
+            <button className="btn-sharp" onClick={() => window.location.href = '/'} style={{ padding: '0.75rem 2rem', fontSize: '1rem', fontWeight: 700 }}>
+              Go to Home & Sign In
+            </button>
+          </div>
+        )}
 
         {error && (
           <div style={{ border: '2px solid #EA4335', padding: '1.5rem', backgroundColor: '#FFF5F5', color: '#EA4335', fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '2rem', textAlign: 'center' }}>
@@ -70,11 +113,11 @@ export default function ReferralDashboard({ user, onBackClick }) {
           </div>
         )}
 
-        {loading ? (
+        {loading && user ? (
           <div style={{ textAlign: 'center', padding: '4rem', color: '#888', fontSize: '1.1rem' }}>
             Loading your referral dashboard...
           </div>
-        ) : data && (
+        ) : data ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* Referral Code & Share */}
             <div style={{ border: '2px solid #000', background: '#fff', boxShadow: '6px 6px 0 #000', padding: '1.5rem 2rem' }}>
@@ -97,25 +140,26 @@ export default function ReferralDashboard({ user, onBackClick }) {
               </div>
             </div>
 
-            {/* Stats */}
-            <div style={{ border: '2px solid #000', background: '#EBFCEF', padding: '1rem 1.25rem', marginBottom: '0.5rem' }}>
+            {/* Earnings Banner */}
+            <div style={{ border: '2px solid #000', background: 'linear-gradient(135deg, #EBFCEF, #D4EDDA)', padding: '1.25rem 1.5rem' }}>
               <div style={{ fontSize: '0.85rem', lineHeight: 1.6, color: '#333' }}>
                 Earn <strong>₹20</strong> for each referred intern who completes their internship, plus a <strong>₹1,000</strong> bonus at 50 completions.
-                {' '}<a href="/#referral-rewards" style={{ color: '#000', fontWeight: 800 }}>See how you can earn ₹2,000 per 50 completed interns →</a>
               </div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 800, marginTop: '0.5rem', color: '#34A853' }}>
-                Estimated earnings: ₹{(data.completedInterns || 0) * 20 + Math.floor((data.completedInterns || 0) / 50) * 1000}
+              <div style={{ fontSize: '1.2rem', fontWeight: 900, marginTop: '0.5rem', color: '#1B7A3D' }}>
+                Estimated earnings: ₹{earnings.toLocaleString()}
               </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
-              <StatBox label="Link Visits" value={data.totalVisits} />
-              <StatBox label="Total Logins" value={data.totalLogins} />
-              <StatBox label="Enrolled Interns" value={data.totalEnrolled} color="#FBBC05" />
-              <StatBox label="Completed" value={data.completedInterns} color="#34A853" />
             </div>
 
-            {/* Enrolled Interns */}
-            {data.enrolledInterns.length > 0 && (
+            {/* Stats Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem' }}>
+              <StatBox label="Link Visits" value={data.totalVisits || 0} />
+              <StatBox label="Total Logins" value={data.totalLogins || 0} />
+              <StatBox label="Enrolled Interns" value={data.totalEnrolled || 0} color="#FBBC05" />
+              <StatBox label="Completed" value={data.completedInterns || 0} color="#34A853" />
+            </div>
+
+            {/* Enrolled Interns Table */}
+            {data.enrolledInterns?.length > 0 && (
               <div>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1rem', color: '#000' }}>
                   Enrolled Interns ({data.totalEnrolled})
@@ -156,7 +200,7 @@ export default function ReferralDashboard({ user, onBackClick }) {
                               }}>Paid</span>
                             )}
                           </td>
-                          <td style={td}><code style={{ fontSize: '0.78rem' }}>{e.internId || e.id.slice(0, 8)}</code></td>
+                          <td style={td}><code style={{ fontSize: '0.78rem' }}>{e.internId || e.id?.slice(0, 8)}</code></td>
                         </tr>
                       ))}
                     </tbody>
@@ -165,8 +209,8 @@ export default function ReferralDashboard({ user, onBackClick }) {
               </div>
             )}
 
-            {/* Recent Visits */}
-            {data.visits.length > 0 && (
+            {/* Recent Visits Table */}
+            {data.visits?.length > 0 && (
               <div>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1rem', color: '#000' }}>
                   Recent Link Visits ({data.totalVisits})
@@ -198,13 +242,14 @@ export default function ReferralDashboard({ user, onBackClick }) {
               </div>
             )}
 
-            {data.enrolledInterns.length === 0 && data.visits.length === 0 && (
+            {/* Empty State */}
+            {(!data.enrolledInterns || data.enrolledInterns.length === 0) && (!data.visits || data.visits.length === 0) && (
               <div style={{ border: '2px dashed #ccc', padding: '3rem', textAlign: 'center', color: '#aaa', fontSize: '0.95rem' }}>
                 No activity yet. Share your referral link to get started!
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </section>
   );

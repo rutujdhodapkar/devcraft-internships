@@ -116,8 +116,9 @@ export default function EarnSection({
         upiId: formData.upiId.trim(),
       };
       const res = await createSelfReferral(payload, user.uid);
-      setResult(res);
-      setExistingCode(res.code);
+      const code = res?.data?.code || res?.code || null;
+      setResult(code ? { code } : res);
+      if (code) setExistingCode(code);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -374,6 +375,13 @@ export default function EarnSection({
               >
                 Copy Link
               </button>
+              <button
+                className="btn-sharp-outline"
+                onClick={() => window.location.href = '/earn'}
+                style={{ padding: "0.7rem 1.5rem", fontSize: "0.9rem", marginLeft: "0.75rem" }}
+              >
+                View Dashboard →
+              </button>
             </div>
           )}
 
@@ -438,6 +446,13 @@ export default function EarnSection({
                 style={{ padding: "0.7rem 1.5rem", fontSize: "0.9rem" }}
               >
                 Copy Link
+              </button>
+              <button
+                className="btn-sharp-outline"
+                onClick={() => window.location.href = '/earn'}
+                style={{ padding: "0.7rem 1.5rem", fontSize: "0.9rem", marginLeft: "0.75rem" }}
+              >
+                View Dashboard →
               </button>
             </div>
           )}

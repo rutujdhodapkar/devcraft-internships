@@ -33,6 +33,7 @@ import {
   isReferralCodeMatched,
   savePermanentReferralCode,
   fetchSelfReferralCode,
+  autoAssignReferralCode,
   checkUserBan,
   fetchAdminMessages,
   associateVisitsWithUser,
@@ -41,6 +42,8 @@ import {
   trackSiteVisit,
   fetchHeaderSettings,
   fetchPopupSettings,
+  recordUserLogin,
+  recordUserLogout,
 } from "./services/data";
 import {
   onGoogleAuthStateChanged,
@@ -126,6 +129,7 @@ export default function App() {
     if (path === "/tandp") return "tandp";
     if (path === "/privacy") return "privacy";
     if (path === "/refund") return "refund";
+    if (path === "/earn") return "earn";
     if (path === "/") return "site";
     return "error";
   })();
@@ -257,6 +261,9 @@ export default function App() {
           console.warn("Could not associate visits:", e.message);
         }
 
+        // Record this login for live active-users tracking
+        recordUserLogin(currentUser.uid, currentUser);
+
         // Check if user has a self-created referral code
         fetchSelfReferralCode(currentUser.uid)
           .then((code) => {
@@ -302,6 +309,13 @@ export default function App() {
           const profile = await fetchUserProfile(currentUser.uid);
           if (profile) {
             setUserProfile(profile);
+
+            // Auto-assign referral code if user has UPI but no code yet
+            if (profile.upiId) {
+              autoAssignReferralCode(currentUser.uid, profile).then((code) => {
+                if (code) setHasReferralCode(true);
+              });
+            }
 
             // Check if profile is complete — UPI is only required during enrollment, not plain login
             const isComplete =
@@ -397,7 +411,7 @@ export default function App() {
   // Sync URL with current view for deep-linking
   useEffect(() => {
     if (currentView === "certificate") return;
-    const map = { tandp: "/tandp", privacy: "/privacy", refund: "/refund" };
+    const map = { tandp: "/tandp", privacy: "/privacy", refund: "/refund", earn: "/earn" };
     const targetPath = map[currentView] || "/";
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, "", targetPath);
@@ -412,7 +426,8 @@ export default function App() {
       else if (path === "/tandp") setCurrentView("tandp");
       else if (path === "/privacy") setCurrentView("privacy");
       else if (path === "/refund") setCurrentView("refund");
-      else if (["tandp", "privacy", "refund", "certificate"].includes(currentView)) setCurrentView("site");
+      else if (path === "/earn") setCurrentView("earn");
+      else if (["tandp", "privacy", "refund", "certificate", "earn"].includes(currentView)) setCurrentView("site");
     };
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
@@ -583,6 +598,13 @@ export default function App() {
       setUserProfile(updatedProfile);
       setShowProfilePrompt(false);
 
+      // Auto-assign referral code if user just added UPI
+      if (updatedProfile.upiId) {
+        autoAssignReferralCode(user.uid, updatedProfile).then((code) => {
+          if (code) setHasReferralCode(true);
+        });
+      }
+
       // Execute pending enrollment if exists
       if (pendingEnrollmentDomain) {
         await enrollStudent(user.uid, updatedProfile, pendingEnrollmentDomain);
@@ -630,6 +652,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    if (user) recordUserLogout(user.uid);
     signOutGoogle();
     setUser(null);
     setUserProfile(null);
@@ -737,6 +760,15 @@ export default function App() {
           </div>
         );
 
+      case "earn":
+        return (
+          <ReferralDashboard
+            user={user}
+            userProfile={userProfile}
+            onBackClick={() => setCurrentView("site")}
+            standalone={true}
+          />
+        );
       case "tandp":
         return (
           <PolicyPage
@@ -839,7 +871,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <style>{`*,* *{cursor:none!important}::selection{background:#000;color:#fff}@media(min-width:1024px){html{scroll-behavior:smooth}}`}</style>
+      <style>{`@media(min-width:769px){*,* *{cursor:none!important}}::selection{background:#000;color:#fff}@media(min-width:1024px){html{scroll-behavior:smooth}}`}</style>
       {showLoader && <Loader onFinish={() => setShowLoader(false)} />}
       <CustomCursor />
       {/* Admin Messages Banner */}

@@ -1,10 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export default function CustomCursor() {
   const cursorRef = useRef(null);
   const target = useRef({ x: 0, y: 0 });
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
 
   useEffect(() => {
+    const check = () => setIsSmallScreen(window.innerWidth <= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => {
+    if (isSmallScreen) return;
     const move = (e) => {
       target.current.x = e.clientX;
       target.current.y = e.clientY;
@@ -27,7 +36,9 @@ export default function CustomCursor() {
       window.removeEventListener('mousemove', move);
       cancelAnimationFrame(raf);
     };
-  }, []);
+  }, [isSmallScreen]);
+
+  if (isSmallScreen) return null;
 
   return (
     <div
