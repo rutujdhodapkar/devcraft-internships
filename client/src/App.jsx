@@ -339,18 +339,30 @@ export default function App() {
               const curView = currentViewRef.current;
               const redirectTarget = authRedirectRef.current;
               if (penDomain) {
-                try {
-                  await enrollStudent(
-                    currentUser.uid,
-                    profile,
-                    penDomain,
-                  );
-                } catch (e) {
-                  console.warn("Pending enrollment failed:", e);
+                const existingEnrollments = await fetchUserEnrollments(currentUser.uid);
+                const alreadyApplied = existingEnrollments.some(
+                  (e) =>
+                    e.domainId === penDomain.id ||
+                    (e.domain || "").toLowerCase() ===
+                      (penDomain.title || "").toLowerCase(),
+                );
+                if (alreadyApplied && !confirm("You have already applied to this domain. Do you want to apply again?")) {
+                  setPendingEnrollmentDomain(null);
+                  setCurrentView("dashboard");
+                } else {
+                  try {
+                    await enrollStudent(
+                      currentUser.uid,
+                      profile,
+                      penDomain,
+                    );
+                  } catch (e) {
+                    console.warn("Pending enrollment failed:", e);
+                  }
+                  setPendingEnrollmentDomain(null);
+                  setDashboardRefreshKey((k) => k + 1);
+                  setCurrentView("dashboard");
                 }
-                setPendingEnrollmentDomain(null);
-                setDashboardRefreshKey((k) => k + 1);
-                setCurrentView("dashboard");
               } else {
                 try {
                   const userEnrs = await fetchUserEnrollments(currentUser.uid);
@@ -518,8 +530,10 @@ export default function App() {
             (domainObj.title || "").toLowerCase(),
       );
       if (alreadyApplied) {
-        setCurrentView("dashboard");
-        return;
+        if (!confirm("You have already applied to this domain. Do you want to apply again?")) {
+          setCurrentView("dashboard");
+          return;
+        }
       }
       await enrollStudent(user.uid, profile, domainObj);
       setDashboardRefreshKey((k) => k + 1);
@@ -607,6 +621,18 @@ export default function App() {
 
       // Execute pending enrollment if exists
       if (pendingEnrollmentDomain) {
+        const existingEnrollments = await fetchUserEnrollments(user.uid);
+        const alreadyApplied = existingEnrollments.some(
+          (e) =>
+            e.domainId === pendingEnrollmentDomain.id ||
+            (e.domain || "").toLowerCase() ===
+              (pendingEnrollmentDomain.title || "").toLowerCase(),
+        );
+        if (alreadyApplied && !confirm("You have already applied to this domain. Do you want to apply again?")) {
+          setPendingEnrollmentDomain(null);
+          setCurrentView("dashboard");
+          return;
+        }
         await enrollStudent(user.uid, updatedProfile, pendingEnrollmentDomain);
         setPendingEnrollmentDomain(null);
         setDashboardRefreshKey((k) => k + 1);

@@ -58,8 +58,11 @@ function _cacheSet(key, data, ttl) {
 function _cacheClear(pathPattern) {
   if (!pathPattern) { _cache.clear(); return; }
   const collection = pathPattern.split("/")[0];
+  const queryPrefix = `query:${collection}:`;
+  const getPrefix = `get:${collection}/`;
+  const listKey = `list:${collection}`;
   for (const key of _cache.keys()) {
-    if (key.includes(pathPattern) || key === `list:${collection}`) _cache.delete(key);
+    if (key.includes(pathPattern) || key === listKey || key.startsWith(queryPrefix) || key.startsWith(getPrefix)) _cache.delete(key);
   }
 }
 

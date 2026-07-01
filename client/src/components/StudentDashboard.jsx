@@ -651,7 +651,7 @@ export default function StudentDashboard({
             <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
               <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>Welcome!</h3>
               <p style={{ color: "#555", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "1rem" }}>
-                You are enrolled in {enrollments.filter(e => e.status === "active" || e.status === "pending").length} active internship{enrollments.filter(e => e.status === "active" || e.status === "pending").length !== 1 ? "s" : ""}.
+                You are enrolled in {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length} active internship{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length !== 1 ? "s" : ""}.
                 Complete your projects and get verified to earn your certificate.
               </p>
               {enrollments.length > 0 && (
@@ -684,7 +684,7 @@ export default function StudentDashboard({
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
               <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
-                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{enrollments.filter(e => e.status === "active" || e.status === "pending").length}</div>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length}</div>
                 <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Active Internships</div>
               </div>
               <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
