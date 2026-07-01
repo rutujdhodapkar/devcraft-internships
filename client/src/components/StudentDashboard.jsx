@@ -22,6 +22,7 @@ import {
   unhideEnrollmentFromUser,
 } from "../services/data";
 import { notify } from "../services/notify";
+import { confirmAction } from "../services/confirm";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
 import DodoPaymentModal from "./DodoPaymentModal";
@@ -145,7 +146,7 @@ export default function StudentDashboard({
 
   const handlePaymentSuccess = async () => {
     if (couponCode.trim() && couponDiscount > 0) {
-      try { await incrementCouponUsage(couponCode.trim()); } catch {}
+      try { await incrementCouponUsage(couponCode.trim()); } catch (e) { console.warn("incrementCouponUsage:", e.message); }
     }
     setShowPaymentModal(false);
     setShowPaymentChoice(false);
@@ -400,7 +401,7 @@ export default function StudentDashboard({
   };
 
   const handleMarkComplete = async (enrollment) => {
-    if (!window.confirm("Are you sure you want to mark this internship as complete? This action cannot be undone.")) return;
+    if (!(await confirmAction("Are you sure you want to mark this internship as complete? This action cannot be undone."))) return;
     try {
       await markEnrollmentComplete(enrollment.id);
       await refreshEnrollment(enrollment.id);
@@ -849,8 +850,8 @@ export default function StudentDashboard({
                       color: "#333",
                     }}
                   >
-                    Earn <strong>₹20</strong> per referred intern who completes
-                    their internship, plus a <strong>₹1,000</strong> bonus at 50
+                    Earn <strong>₹{referralDashData?.rewardPerCompletion || 20}</strong> per referred intern who completes
+                    their internship, plus a <strong>₹{referralDashData?.milestoneBonus || 1000}</strong> bonus at {referralDashData?.milestoneCount || 50}
                     completions.
                   </div>
                   <div
@@ -863,11 +864,11 @@ export default function StudentDashboard({
                   >
                     Estimated earnings: ₹
                     {(referralDashData?.completedInterns ?? 0) *
-                      20 +
+                      (referralDashData?.rewardPerCompletion || 20) +
                       Math.floor(
-                        (referralDashData?.completedInterns ?? 0) / 50,
+                        (referralDashData?.completedInterns ?? 0) / (referralDashData?.milestoneCount || 50),
                       ) *
-                        1000}
+                        (referralDashData?.milestoneBonus || 1000)}
                   </div>
                 </div>
                 </>

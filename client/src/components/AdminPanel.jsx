@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { notify } from "../services/notify";
+import { confirmAction } from "../services/confirm";
 import {
   createReferral,
   deleteReferral,
@@ -707,7 +708,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     }
   };
   const handleVerifyPayment = async (enrollmentId) => {
-    if (!window.confirm(`Verify transaction for this intern? Payment will be marked as paid. You can then manually allow the certificate.`)) return;
+    if (!(await confirmAction(`Verify transaction for this intern? Payment will be marked as paid. You can then manually allow the certificate.`))) return;
     const key = `verify-pay-${enrollmentId}`;
     setActionLoading((p) => ({ ...p, [key]: true }));
     try {
@@ -897,7 +898,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   };
 
   const handleRemoveAdmin = async (email) => {
-    if (window.confirm(`Remove admin access for ${email}?`)) {
+    if (await confirmAction(`Remove admin access for ${email}?`)) {
       setAdminActionLoading(true);
       setError("");
       try {
@@ -913,7 +914,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
   const handleDeleteReferral = async (code) => {
     if (
-      window.confirm(
+      await confirmAction(
         `Delete referral "${code}"? This will remove all associated data.`,
       )
     ) {
@@ -963,7 +964,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
   const handleDeleteEnrollment = async (enrollmentId, name) => {
     if (
-      window.confirm(`Delete enrollment for "${name}"? This cannot be undone.`)
+      await confirmAction(`Delete enrollment for "${name}"? This cannot be undone.`)
     ) {
       setError("");
       setSuccessMsg("");
@@ -980,7 +981,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   };
 
   const handleOverrideComplete = async (enrollmentId) => {
-    if (!window.confirm(`Override-complete this intern? This will force-certify regardless of task/payment status.`)) return;
+    if (!(await confirmAction(`Override-complete this intern? This will force-certify regardless of task/payment status.`))) return;
     setActionLoading((p) => ({ ...p, [`override-${enrollmentId}`]: true }));
     try {
       await overrideCompleteEnrollment(enrollmentId, user?.email || "admin");
@@ -995,7 +996,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   };
 
   const handleUnverifyTask = async (enrollmentId, projectIdx) => {
-    if (!window.confirm(`Unverify task #${+projectIdx + 1} for this intern?`)) return;
+    if (!(await confirmAction(`Unverify task #${+projectIdx + 1} for this intern?`))) return;
     const key = `unverify-task-${enrollmentId}-${projectIdx}`;
     setActionLoading((p) => ({ ...p, [key]: true }));
     try {
@@ -1011,7 +1012,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   };
 
   const handleUnverifyPayment = async (enrollmentId) => {
-    if (!window.confirm(`Unverify payment for this intern? The certificate will be locked until payment is completed again.`)) return;
+    if (!(await confirmAction(`Unverify payment for this intern? The certificate will be locked until payment is completed again.`))) return;
     const reason = prompt("Reason for unverifying payment:");
     if (!reason) return;
     const key = `unverify-pay-${enrollmentId}`;
@@ -4187,8 +4188,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         const order = (templates.templateOrder || []).map((k) => k === key ? newKey : k);
                         setTemplates({ ...templates, templates: tmpl, templateOrder: order });
                       }} style={{ border: "1px solid #000", padding: "0.25rem 0.5rem", fontSize: "0.85rem", fontWeight: 700, fontFamily: "inherit", outline: "none", width: "200px" }} />
-                      <button type="button" onClick={() => {
-                        if (!window.confirm(`Delete template "${key}"?`)) return;
+                      <button type="button" onClick={async () => {
+                        if (!(await confirmAction(`Delete template "${key}"?`))) return;
                         const tmpl = { ...(templates.templates || {}) };
                         delete tmpl[key];
                         const order = (templates.templateOrder || []).filter((k) => k !== key);
@@ -8393,7 +8394,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                         const href = url.startsWith("http") ? url : `https://${url}`;
                                         return (
                                           <a
-                                            key={ii}
+                                            key={url}
                                             href={href}
                                             target="_blank"
                                             rel="noopener noreferrer"
@@ -8570,7 +8571,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     const r = sub.quizResults[qi];
                                     if (r === undefined) return null;
                                     return (
-                                      <div key={qi} style={{ marginBottom: "0.35rem", padding: "0.3rem 0.5rem", background: "#f9f9f9", border: "1px solid #eee" }}>
+                                      <div key={q.question || qi} style={{ marginBottom: "0.35rem", padding: "0.3rem 0.5rem", background: "#f9f9f9", border: "1px solid #eee" }}>
                                         <div><strong>Q{qi + 1}:</strong> {q.question}</div>
                                         <div style={{ fontSize: "0.75rem", color: "#555", marginTop: "0.15rem" }}>
                                           Submitted: <strong>{sub.quizAnswers?.[qi] ?? "(empty)"}</strong>
@@ -8878,7 +8879,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     <button
                       type="button"
                       onClick={async () => {
-                        if (!window.confirm("Override-complete this intern regardless of task/payment status?")) return;
+                        if (!(await confirmAction("Override-complete this intern regardless of task/payment status?"))) return;
                         try {
                           await logAdminAction("override-complete", { enrollmentId: selectedIntern.id, name: selectedIntern.name, admin: user?.email || "admin" });
                           await overrideCompleteEnrollment(selectedIntern.id, user?.email || "admin");
@@ -9627,7 +9628,7 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
                   {!check.ready && overrideCompleteEnrollment && (
                     <button className="btn-sharp" disabled={overrideLoading[enrollment.id]} style={{ padding: "0.5rem 1.5rem", background: "#9334E6", borderColor: "#9334E6", color: "#fff" }}
                       onClick={async () => {
-                        if (!window.confirm(`Override-complete ${enrollment.name} regardless of task/payment status?`)) return;
+                        if (!(await confirmAction(`Override-complete ${enrollment.name} regardless of task/payment status?`))) return;
                         setOverrideLoading((p) => ({ ...p, [enrollment.id]: true }));
                         try {
                           await overrideCompleteEnrollment(enrollment.id, "admin");
@@ -9939,7 +9940,7 @@ function CouponsSection() {
             {coupons.map((c, i) => {
               const stats = getCouponStats(c.code);
               return (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.6rem 1rem", borderBottom: "1px solid #eee", gap: "0.75rem", flexWrap: "wrap" }}>
+                <div key={c.code || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.6rem 1rem", borderBottom: "1px solid #eee", gap: "0.75rem", flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 800, fontFamily: "monospace", fontSize: "0.9rem" }}>{c.code}</span>
                   <span style={{ fontSize: "0.82rem", color: "#555" }}>{c.discountPercent}% off | Max {c.maxUses} uses{c.expiryDate ? ` | Expires ${new Date(c.expiryDate).toLocaleDateString()}` : ""}{c.usedCount !== undefined ? ` | Used ${c.usedCount}x` : ""}</span>
                   <span style={{ fontSize: "0.8rem", fontWeight: 700 }}>{stats.applied > 0 ? <span style={{ color: "#4285F4" }}>{stats.applied} applied</span> : null}{stats.paid > 0 ? <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>{stats.paid} paid</span> : stats.applied > 0 ? <span style={{ color: "#FBBC05", marginLeft: "0.5rem" }}>0 paid</span> : null}</span>

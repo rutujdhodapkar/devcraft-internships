@@ -23,7 +23,9 @@ import Loader from "./components/Loader";
 import CustomCursor from "./components/CustomCursor";
 import ErrorPage from "./components/ErrorPage";
 import MessageBox from "./components/MessageBox";
+import ConfirmModal from "./components/ConfirmModal";
 import { notify } from "./services/notify";
+import { confirmAction } from "./services/confirm";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -294,7 +296,7 @@ export default function App() {
         try {
           const ban = await checkUserBan(currentUser.email);
           setUserBan(ban || null);
-        } catch {}
+        } catch (e) { console.warn("checkUserBan:", e.message); }
 
         // Fetch admin messages for this user (global only — tab-specific load in dashboard)
         try {
@@ -304,7 +306,7 @@ export default function App() {
           setAdminMessages(
             (msgs || []).filter((m) => !m.context || m.context === "all"),
           );
-        } catch {}
+        } catch (e) { console.warn("fetchAdminMessages:", e.message); }
 
         // Fetch / Sync profile details from backend Firestore
         try {
@@ -348,7 +350,7 @@ export default function App() {
                     (e.domain || "").toLowerCase() ===
                       (penDomain.title || "").toLowerCase(),
                 );
-                if (alreadyApplied && !confirm("You have already applied to this domain. Do you want to apply again?")) {
+                if (alreadyApplied && !(await confirmAction("You have already applied to this domain. Do you want to apply again?"))) {
                   setPendingEnrollmentDomain(null);
                   setCurrentView("dashboard");
                 } else {
@@ -520,7 +522,7 @@ export default function App() {
       try {
         await saveUserProfile(user.uid, profile);
         setUserProfile(profile);
-      } catch {}
+      } catch (e) { console.warn("saveUserProfile minimal:", e.message); }
     }
 
     try {
@@ -533,7 +535,7 @@ export default function App() {
             (domainObj.title || "").toLowerCase(),
       );
       if (alreadyApplied) {
-        if (!confirm("You have already applied to this domain. Do you want to apply again?")) {
+        if (!(await confirmAction("You have already applied to this domain. Do you want to apply again?"))) {
           setCurrentView("dashboard");
           return;
         }
@@ -631,7 +633,7 @@ export default function App() {
             (e.domain || "").toLowerCase() ===
               (pendingEnrollmentDomain.title || "").toLowerCase(),
         );
-        if (alreadyApplied && !confirm("You have already applied to this domain. Do you want to apply again?")) {
+        if (alreadyApplied && !(await confirmAction("You have already applied to this domain. Do you want to apply again?"))) {
           setPendingEnrollmentDomain(null);
           setCurrentView("dashboard");
           return;
@@ -655,7 +657,7 @@ export default function App() {
       setAuthLoading(true);
       await openGoogleLogin();
     } catch (err) {
-      console.error("Google Sign In failed:", err);
+      notify("Google Sign In failed: " + (err.message || "Please try again."), "error");
       setAuthRedirectTarget("site");
       setCurrentView("auth");
     } finally {
@@ -1558,6 +1560,7 @@ export default function App() {
         settings={popupSettings}
       />
       <MessageBox />
+      <ConfirmModal />
     </ErrorBoundary>
   );
 }

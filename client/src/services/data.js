@@ -55,14 +55,17 @@ function _cacheSet(key, data, ttl) {
   _cache.set(key, { data, expiresAt: Date.now() + (ttl || CACHE_TTL) });
 }
 
-function _cacheClear(pathPattern) {
-  if (!pathPattern) { _cache.clear(); return; }
-  const collection = pathPattern.split("/")[0];
-  const queryPrefix = `query:${collection}:`;
-  const getPrefix = `get:${collection}/`;
-  const listKey = `list:${collection}`;
+function _cacheClear(docPath) {
+  if (!docPath) { _cache.clear(); return; }
+  const parts = docPath.split("/");
+  const collection = parts[0];
+  const docId = parts[1];
+  const exactGetKey = docId ? `get:${collection}/${docId}` : null;
   for (const key of _cache.keys()) {
-    if (key.includes(pathPattern) || key === listKey || key.startsWith(queryPrefix) || key.startsWith(getPrefix)) _cache.delete(key);
+    if (key === exactGetKey) { _cache.delete(key); continue; }
+    if (docId && key === `get:${docPath}`) { _cache.delete(key); continue; }
+    if (key === `list:${collection}`) { _cache.delete(key); continue; }
+    if (key.startsWith(`query:${collection}:`)) { _cache.delete(key); continue; }
   }
 }
 
@@ -130,7 +133,7 @@ async function dbPatch(path, data) {
 }
 
 async function dbDelete(path) {
-  try { await dbProxy("delete", path); } catch {}
+  try { await dbProxy("delete", path); } catch (e) { console.warn("dbDelete", path, e.message); }
 }
 
 async function dbList(path) {
@@ -308,8 +311,7 @@ function parseDurationToMs(duration) {
 
 export async function enrollStudent(uid, profile, domainObj) {
   const detectedReferralCode = localStorage.getItem("detected_referral_code") || "";
-  const permanentRefCode = await fetchPermanentReferralCode(uid);
-  const refCode = (detectedReferralCode || permanentRefCode || "").toUpperCase().trim();
+  const refCode = detectedReferralCode.toUpperCase().trim();
   const psData = await dbGet("siteConfig/paymentSettings");
   const ps = psData?.value || { defaultAmount: 200, defaultAmountReferral: 170 };
   const isReferral = !!refCode;
@@ -533,7 +535,7 @@ export async function associateVisitsWithUser(fingerprint, email, name, uid) {
         method: "POST",
         body: JSON.stringify({ fingerprint, email, name, uid }),
       });
-    } catch {}
+    } catch (e) { console.warn("getDeviceFingerprint backup:", e.message); }
   }
 }
 
@@ -848,7 +850,7 @@ export async function associateDeviceWithUser(fingerprint, user) {
   const r = await _rtdbPut(`deviceUsers/${fingerprint}`, data);
   if (r) return r;
   // Fallback to Firestore
-  try { await dbPut(`deviceUsers/${fingerprint}`, data); } catch {}
+  try { await dbPut(`deviceUsers/${fingerprint}`, data); } catch (e) { console.warn("dbPut deviceUsers:", e.message); }
 }
 
 export async function getDeviceUser(fingerprint) {
@@ -893,7 +895,7 @@ export async function trackSiteVisit() {
   };
   // Try RTDB first (public write allowed)
   let geo = null;
-  try { geo = await geoPromise; } catch {}
+  try { geo = await geoPromise; } catch (e) { console.warn("geo fetch:", e.message); }
   const visit = { ...baseVisit, ...(geo || {}) };
   if (typeof rtdb !== "undefined" && rtdb) {
     const result = await _rtdbAppend("siteVisits", visit);
@@ -989,12 +991,16 @@ export async function fetchPaymentStats() {
   const enrollments = await dbList("enrollments");
   const paidEnrollments = enrollments.filter(e => e.paymentStatus === "paid");
   const referrals = await dbList("referrals");
+  const psData = await dbGet("siteConfig/paymentSettings");
+  const ps = psData?.value || {};
+  const defaultAmount = ps.defaultAmount || 200;
+  const defaultAmountReferral = ps.defaultAmountReferral || 170;
   const totalCollected = paidEnrollments.reduce((sum, e) => sum + (e.paymentAmount || 0), 0);
   const referralPayouts = referrals.map(r => {
     const code = (r.code || r.id || "").toUpperCase().trim();
     const interns = enrollments.filter(e => (e.referralCode || "").toUpperCase().trim() === code && e.status === "Completed");
     const completedPaid = interns.filter(i => i.paymentStatus === "paid");
-    const earnings = completedPaid.reduce((s, i) => s + Math.max(0, (i.paymentAmount || 200) - 170), 0);
+    const earnings = completedPaid.reduce((s, i) => s + Math.max(0, (i.paymentAmount || defaultAmount) - defaultAmountReferral), 0);
     return { code: r.code || r.id, name: r.name, email: r.email, earned: earnings, interns: interns.length, completedPaid: completedPaid.length, payoutStatus: r.payoutStatus || "pending", payoutAt: r.payoutAt || null, payoutAmount: r.payoutAmount || null };
   });
   const totalDistribute = referralPayouts.reduce((s, r) => s + r.earned, 0);
@@ -1061,7 +1067,7 @@ export async function logAdminAction(action, details = {}) {
       method: "POST",
       body: JSON.stringify({ action, ...details, timestamp: new Date().toISOString() }),
     });
-  } catch {}
+  } catch (e) { console.warn("logAdminAction:", e.message); }
 }
 
 // Site config (generic key-value)
@@ -1226,7 +1232,10 @@ export async function validateCoupon(code) {
   const c = all.find((c) => c.code === code.toUpperCase().trim());
   if (!c) return { valid: false, message: "Invalid coupon code." };
   if (!c.active) return { valid: false, message: "This coupon has expired or been deactivated." };
-  if (c.expiryDate && new Date(c.expiryDate) < new Date(new Date().toDateString())) return { valid: false, message: "This coupon has expired." };
+  if (c.expiryDate) {
+    const expiry = c.expiryDate?.seconds ? new Date(c.expiryDate.seconds * 1000) : new Date(c.expiryDate);
+    if (expiry < new Date(new Date().toDateString())) return { valid: false, message: "This coupon has expired." };
+  }
   const used = c.usedCount || 0;
   if (c.maxUses && used >= c.maxUses) return { valid: false, message: "This coupon has reached its usage limit." };
   const discountPercent = Math.min(100, Math.max(0, Number(c.discountPercent) || 0));
@@ -1251,12 +1260,14 @@ export async function fetchReceipt(enrollmentId) {
 export async function fetchReferralLeaderboard() {
   const referrals = await dbList("referrals");
   const enrollments = await dbList("enrollments");
+  const earnData = await dbGet("siteConfig/earnSettings");
+  const rewardPerCompletion = earnData?.rewardPerCompletion || 20;
   return referrals
     .filter((r) => r.name && r.code)
     .map((r) => {
       const interns = enrollments.filter((e) => (e.referralCode || "").toUpperCase().trim() === (r.code || "").toUpperCase().trim());
       const completedPaid = interns.filter((i) => i.status === "Completed" && i.paymentStatus === "paid");
-      return { name: r.name, code: r.code, interns: interns.length, completed: completedPaid.length, earnings: completedPaid.length * 30 };
+      return { name: r.name, code: r.code, interns: interns.length, completed: completedPaid.length, earnings: completedPaid.length * rewardPerCompletion };
     })
     .sort((a, b) => b.completed - a.completed);
 }
@@ -1312,13 +1323,13 @@ export async function updateUserLastSeen(uid) {
     await _rtdbPatch(`loggedInUsers/${uid}`, {
       lastSeen: new Date().toISOString(),
     });
-  } catch {}
+  } catch (e) { console.warn("recordUserLogin:", e.message); }
 }
 
 export async function recordUserLogout(uid) {
   try {
     await _rtdbDelete(`loggedInUsers/${uid}`);
-  } catch {}
+  } catch (e) { console.warn("recordUserLogout:", e.message); }
 }
 
 export async function fetchLoggedInUsers() {

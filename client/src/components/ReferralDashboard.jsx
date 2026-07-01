@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { fetchReferralDashboardData, fetchSelfReferralCode, fetchSiteNotices } from '../services/data';
+import { fetchReferralDashboardData, fetchSiteNotices } from '../services/data';
 import { notify } from '../services/notify';
 import EarnSection from './EarnSection';
 
@@ -18,14 +18,13 @@ export default function ReferralDashboard({ user, userProfile, onBackClick, stan
     setLoading(true);
     setError('');
     try {
-      const userCode = await fetchSelfReferralCode(user.uid);
-      if (!userCode) {
+      const dashboardData = await fetchReferralDashboardData(user.uid);
+      if (!dashboardData?.code) {
         setError('You do not have a referral code yet. Create one from the Earn section to get started.');
         setLoading(false);
         return;
       }
-      setCode(userCode);
-      const dashboardData = await fetchReferralDashboardData(user.uid);
+      setCode(dashboardData.code);
       setData(dashboardData);
     } catch (err) {
       setError(err.message);
