@@ -1,3 +1,5 @@
+import { notify } from '../services/notify';
+
 function pdfEscape(value) {
   return String(value || '')
     .replace(/\\/g, '\\\\')
@@ -63,6 +65,6 @@ export function openCertificatePdf({
   const win = window.open(url, '_blank');
   if (!win) {
     URL.revokeObjectURL(url);
-    alert('Please allow pop-ups to open your certificate PDF.');
+    notify('Please allow pop-ups to open your certificate PDF.', 'warning');
   }
 }

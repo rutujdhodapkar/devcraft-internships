@@ -17,7 +17,11 @@ import {
   markEnrollmentComplete,
   validateCoupon,
   incrementCouponUsage,
+  hideEnrollmentFromUser,
+  getHiddenEnrollments,
+  unhideEnrollmentFromUser,
 } from "../services/data";
+import { notify } from "../services/notify";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
 import DodoPaymentModal from "./DodoPaymentModal";
@@ -166,7 +170,8 @@ export default function StudentDashboard({
         fetchPaymentMethods(),
       ]);
       setPaymentMethods(pm);
-      const activeEnrollments = data.filter((e) => e.status !== "Archived");
+      const hiddenIds = getHiddenEnrollments(user.uid);
+      const activeEnrollments = data.filter((e) => e.status !== "Archived" && !hiddenIds.includes(e.id));
       setEnrollments(activeEnrollments);
       setTemplates(tmpl?.templates || tmpl || null);
       setCareerPaths(cpResult.paths || []);
@@ -326,8 +331,9 @@ export default function StudentDashboard({
     const key = `${enrollment.id}_${projectIdx}`;
     const text = (submissionInputs[key] || "").trim();
     if (!text) {
-      alert(
+      notify(
         "Please enter your project link or submission text before submitting.",
+        "warning",
       );
       return;
     }
@@ -335,7 +341,7 @@ export default function StudentDashboard({
     const subs = getSubmissions(enrollment);
     const existingSub = subs[projectIdx];
     if (existingSub?.submittedAt && !existingSub?.resubmit) {
-      alert("This task has already been submitted and is under review. You can only resubmit if the admin requests a revision.");
+      notify("This task has already been submitted and is under review. You can only resubmit if the admin requests a revision.", "warning");
       return;
     }
     setSubmitting((prev) => ({ ...prev, [key]: true }));
@@ -349,7 +355,7 @@ export default function StudentDashboard({
         6000,
       );
     } catch (err) {
-      alert("Submission failed: " + err.message);
+      notify("Submission failed: " + err.message, "error");
     } finally {
       setSubmitting((prev) => ({ ...prev, [key]: false }));
     }
@@ -367,14 +373,13 @@ export default function StudentDashboard({
       return val === undefined || String(val).trim() === "";
     });
     if (unanswered !== -1) {
-      alert(`Please answer question ${unanswered + 1} before submitting.`);
+      notify(`Please answer question ${unanswered + 1} before submitting.`, "warning");
       return;
     }
-    // Guard: block resubmission unless admin marked resubmit
     const subs = getSubmissions(enrollment);
     const existingSub = subs[projectIdx];
     if (existingSub?.submittedAt && !existingSub?.resubmit) {
-      alert("This quiz has already been submitted and is under review. You can only resubmit if the admin requests a revision.");
+      notify("This quiz has already been submitted and is under review. You can only resubmit if the admin requests a revision.", "warning");
       return;
     }
     setSubmitting((prev) => ({ ...prev, [key]: true }));
@@ -388,7 +393,7 @@ export default function StudentDashboard({
         6000,
       );
     } catch (err) {
-      alert("Quiz submission failed: " + err.message);
+      notify("Quiz submission failed: " + err.message, "error");
     } finally {
       setSubmitting((prev) => ({ ...prev, [key]: false }));
     }
@@ -400,7 +405,7 @@ export default function StudentDashboard({
       await markEnrollmentComplete(enrollment.id);
       await refreshEnrollment(enrollment.id);
     } catch (err) {
-      alert("Failed to mark as complete: " + err.message);
+      notify("Failed to mark as complete: " + err.message, "error");
     }
   };
 
@@ -410,7 +415,7 @@ export default function StudentDashboard({
 
   const openCertificateUrl = (enrollment, templateName) => {
     const id = enrollment.id || enrollment.internId;
-    if (!id) { alert("Enrollment ID not found."); return; }
+    if (!id) { notify("Enrollment ID not found.", "error"); return; }
     const name = templateName.toLowerCase().replace(/\s+/g, "-");
     const url = `${window.location.origin}/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`;
     window.open(url, "_blank");
@@ -699,9 +704,14 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "tasks" ? (
           <div>
-            {enrollments.length === 0 ? (
+            {enrollments.length === 0 && getHiddenEnrollments(user.uid).length === 0 ? (
               <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
                 <p style={{ color: "#888", fontSize: "1rem" }}>You have no active internships. Explore domains to get started.</p>
+              </div>
+            ) : enrollments.length === 0 && getHiddenEnrollments(user.uid).length > 0 ? (
+              <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                <p style={{ color: "#888", fontSize: "1rem" }}>All internships are hidden.</p>
+                <button className="btn-sharp" onClick={() => { getHiddenEnrollments(user.uid).forEach((id) => unhideEnrollmentFromUser(user.uid, id)); loadAll(); notify("All hidden internships restored.", "info"); }} style={{ marginTop: "0.75rem", padding: "0.5rem 1rem", fontSize: "0.82rem" }}>Restore All Hidden</button>
               </div>
             ) : enrollments.length === 1 ? (
               (() => {
@@ -713,6 +723,12 @@ export default function StudentDashboard({
                 const isCompleted = enrollment.status === "Completed";
                 const isExpired = enrollment.status === "Expired";
                 return (
+                  <>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.5rem" }}>
+                    <button className="btn-sharp" onClick={() => { hideEnrollmentFromUser(user.uid, enrollment.id); loadAll(); notify("Internship hidden from dashboard.", "info"); }} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
+                      Hide Internship
+                    </button>
+                  </div>
                   <EnrollmentCard
                     enrollment={enrollment}
                     projects={projects}
@@ -738,6 +754,7 @@ export default function StudentDashboard({
                     user={user}
                     onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
                   />
+                  </>
                 );
               })()
             ) : (
@@ -749,9 +766,14 @@ export default function StudentDashboard({
                         <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
                         <div style={{ fontSize: "0.8rem", color: "#888", fontWeight: 700 }}>Status: {e.status}</div>
                       </div>
-                      <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0 }}>
-                        Open Dashboard
-                      </button>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button type="button" className="btn-sharp" onClick={() => { hideEnrollmentFromUser(user.uid, e.id); loadAll(); notify("Internship hidden from dashboard.", "info"); }} style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
+                          Hide
+                        </button>
+                        <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0 }}>
+                          Open Dashboard
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

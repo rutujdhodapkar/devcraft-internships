@@ -272,6 +272,27 @@ export async function saveUserProfile(uid, profile) {
   return data;
 }
 
+export function hideEnrollmentFromUser(uid, enrollmentId) {
+  const key = `hiddenEnrollments_${uid}`;
+  const hidden = JSON.parse(localStorage.getItem(key) || "[]");
+  if (!hidden.includes(enrollmentId)) {
+    hidden.push(enrollmentId);
+    localStorage.setItem(key, JSON.stringify(hidden));
+  }
+}
+
+export function getHiddenEnrollments(uid) {
+  const key = `hiddenEnrollments_${uid}`;
+  return JSON.parse(localStorage.getItem(key) || "[]");
+}
+
+export function unhideEnrollmentFromUser(uid, enrollmentId) {
+  const key = `hiddenEnrollments_${uid}`;
+  const hidden = JSON.parse(localStorage.getItem(key) || "[]");
+  const updated = hidden.filter((id) => id !== enrollmentId);
+  localStorage.setItem(key, JSON.stringify(updated));
+}
+
 // Enrollment
 function parseDurationToMs(duration) {
   if (!duration) return 28 * 24 * 60 * 60 * 1000;

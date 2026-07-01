@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchReferralDashboardData, fetchSelfReferralCode, fetchSiteNotices } from '../services/data';
+import { notify } from '../services/notify';
+import EarnSection from './EarnSection';
 
 export default function ReferralDashboard({ user, userProfile, onBackClick, standalone }) {
   const [loading, setLoading] = useState(true);
@@ -44,7 +46,7 @@ export default function ReferralDashboard({ user, userProfile, onBackClick, stan
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(`${window.location.origin}/?ref=${code}`);
-    alert('Referral link copied!');
+    notify('Referral link copied!', 'success');
   };
 
   const rpc = data?.rewardPerCompletion || 20;
@@ -110,9 +112,15 @@ export default function ReferralDashboard({ user, userProfile, onBackClick, stan
           </div>
         )}
 
-        {error && (
+        {error && !error.includes('do not have a referral code') && (
           <div style={{ border: '2px solid #EA4335', padding: '1.5rem', backgroundColor: '#FFF5F5', color: '#EA4335', fontWeight: 'bold', fontSize: '0.9rem', marginBottom: '2rem', textAlign: 'center' }}>
             {error}
+          </div>
+        )}
+
+        {error && error.includes('do not have a referral code') && (
+          <div style={{ marginBottom: '2rem', border: '2px solid #000', padding: '2rem', background: '#fff', boxShadow: '6px 6px 0 #000' }}>
+            <EarnSection user={user} userProfile={userProfile} onLoginClick={() => window.location.href = '/'} />
           </div>
         )}
 

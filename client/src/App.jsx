@@ -22,6 +22,8 @@ import UniversityCollab from "./components/UniversityCollab";
 import Loader from "./components/Loader";
 import CustomCursor from "./components/CustomCursor";
 import ErrorPage from "./components/ErrorPage";
+import MessageBox from "./components/MessageBox";
+import { notify } from "./services/notify";
 import {
   processReferralFromUrl,
   checkAdminStatus,
@@ -493,9 +495,10 @@ export default function App() {
       userBan &&
       (userBan.banType === "both" || userBan.banType === "internship")
     ) {
-      alert(
+      notify(
         "Your account has been restricted from applying to internships." +
           (userBan.reason ? " Reason: " + userBan.reason : ""),
+        "error",
       );
       return;
     }
@@ -539,7 +542,7 @@ export default function App() {
       setDashboardRefreshKey((k) => k + 1);
       setCurrentView("dashboard");
     } catch (err) {
-      alert("Enrollment failed: " + err.message);
+      notify("Enrollment failed: " + err.message, "error");
     } finally {
       setAuthLoading(false);
     }
@@ -641,7 +644,7 @@ export default function App() {
         setCurrentView(isAdmin ? "admin" : authRedirectTarget);
       }
     } catch (err) {
-      alert("Failed to save profile: " + err.message);
+      notify("Failed to save profile: " + err.message, "error");
     } finally {
       setProfileSaving(false);
     }
@@ -791,8 +794,8 @@ export default function App() {
           <ReferralDashboard
             user={user}
             userProfile={userProfile}
-            onBackClick={() => setCurrentView("site")}
             standalone={true}
+            onBackClick={() => setCurrentView("site")}
           />
         );
       case "tandp":
@@ -897,7 +900,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <style>{`@media(min-width:769px){*,* *{cursor:none!important}}::selection{background:#000;color:#fff}@media(min-width:1024px){html{scroll-behavior:smooth}}`}</style>
+      <style>{`@media(min-width:769px){*,* *{cursor:none!important}}::selection{background:#000;color:#fff}@media(min-width:1024px){html{scroll-behavior:smooth}}@keyframes notifySlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
       {showLoader && <Loader onFinish={() => setShowLoader(false)} />}
       <CustomCursor />
       {/* Admin Messages Banner */}
@@ -1554,6 +1557,7 @@ export default function App() {
         onClose={() => { setShowPopup(false); }}
         settings={popupSettings}
       />
+      <MessageBox />
     </ErrorBoundary>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { notify } from "../services/notify";
 
 const COUNTRY_NAMES = [
   "India",
@@ -137,9 +138,10 @@ export default function EarnSection({
       return;
     }
     if (userBan && (userBan.banType === "both" || userBan.banType === "earn")) {
-      alert(
+      notify(
         "Your account has been restricted from the Refer & Earn program." +
           (userBan.reason ? " Reason: " + userBan.reason : ""),
+        "error",
       );
       return;
     }
@@ -374,7 +376,7 @@ export default function EarnSection({
                 className="btn-sharp"
                 onClick={() => {
                   navigator.clipboard.writeText(shareLink);
-                  alert("Referral link copied!");
+                  notify("Referral link copied!", "success");
                 }}
                 style={{ padding: "0.7rem 1.5rem", fontSize: "0.9rem" }}
               >
@@ -446,7 +448,7 @@ export default function EarnSection({
                   navigator.clipboard.writeText(
                     `${window.location.origin}/?ref=${result.code}`,
                   );
-                  alert("Referral link copied!");
+                  notify("Referral link copied!", "success");
                 }}
                 style={{ padding: "0.7rem 1.5rem", fontSize: "0.9rem" }}
               >

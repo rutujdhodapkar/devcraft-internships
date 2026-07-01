@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { notify } from "../services/notify";
 import {
   createReferral,
   deleteReferral,
@@ -74,7 +75,7 @@ function generateAndPrint(templateHtml, variables) {
   });
   const win = window.open("", "_blank");
   if (!win) {
-    alert("Please allow pop-ups.");
+    notify("Please allow pop-ups.", "warning");
     return;
   }
   win.document.write(html);
@@ -3802,9 +3803,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         setUpiSettingsSaving(true);
                         try {
                           await saveUPISettings(upiSettings);
-                          alert("UPI settings saved!");
+                          notify("UPI settings saved!", "success");
                         } catch (err) {
-                          alert("Failed to save: " + err.message);
+                          notify("Failed to save: " + err.message, "error");
                         } finally {
                           setUpiSettingsSaving(false);
                         }
@@ -3834,9 +3835,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         setPaymentMethodsSaving(true);
                         try {
                           await savePaymentMethods(paymentMethods || {});
-                          alert("Payment methods saved!");
+                          notify("Payment methods saved!", "success");
                         } catch (err) {
-                          alert("Failed to save: " + err.message);
+                          notify("Failed to save: " + err.message, "error");
                         } finally {
                           setPaymentMethodsSaving(false);
                         }
@@ -3875,9 +3876,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           setDodoConfigSaving(true);
                           try {
                             await saveDodoConfig(dodoConfig || {});
-                            alert("Dodo config saved! Restart server to apply.");
+                            notify("Dodo config saved! Restart server to apply.", "success");
                           } catch (err) {
-                            alert("Failed to save: " + err.message);
+                            notify("Failed to save: " + err.message, "error");
                           } finally { setDodoConfigSaving(false); }
                         }} className="btn-sharp" disabled={dodoConfigSaving} style={{ padding: "0.5rem 1.25rem", fontSize: "0.85rem" }}>
                           {dodoConfigSaving ? "Saving…" : "Save Config"}
@@ -4169,7 +4170,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   const name = prompt("New template name:");
                   if (!name) return;
                   const key = name.trim();
-                  if (templates.templates?.[key]) { alert("Template name already exists."); return; }
+                  if (templates.templates?.[key]) { notify("Template name already exists.", "warning"); return; }
                   setTemplates({ ...templates, templates: { ...(templates.templates || {}), [key]: "" }, templateOrder: [...(templates.templateOrder || []), key] });
                 }} style={{ alignSelf: "flex-start", fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}>
                   + Add Template
@@ -8763,7 +8764,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     try {
                       const receipt = await fetchReceipt(selectedIntern.id);
                       const win = window.open("", "_blank");
-                      if (!win) { alert("Please allow pop-ups."); return; }
+                      if (!win) { notify("Please allow pop-ups.", "warning"); return; }
                       const r = receipt.data || receipt;
                       win.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>body{font-family:monospace;padding:2rem;max-width:600px;margin:0 auto;color:#000}table{width:100%;border-collapse:collapse;margin:1rem 0}td,th{border:1px solid #000;padding:0.5rem;text-align:left;font-size:0.85rem}th{background:#000;color:#fff}h1{font-size:1.5rem;border-bottom:2px solid #000;padding-bottom:0.5rem}.label{color:#555;font-size:0.75rem;text-transform:uppercase;font-weight:700}.paid{color:#34A853;font-weight:700}@media print{body{print-color-adjust:exact}}</style></head><body><h1>Payment Receipt</h1><table><tr><th colspan="2">Receipt Details</th></tr><tr><td class="label">Receipt No</td><td>${r.receiptNo || r.id || selectedIntern.id}</td></tr><tr><td class="label">Date</td><td>${r.date ? new Date(r.date).toLocaleDateString() : new Date().toLocaleDateString()}</td></tr><tr><td class="label">Name</td><td>${r.name || selectedIntern.name}</td></tr><tr><td class="label">Email</td><td>${r.email || selectedIntern.email}</td></tr><tr><td class="label">Domain</td><td>${r.domain || selectedIntern.domain}</td></tr><tr><td class="label">Amount</td><td>₹${r.amount || selectedIntern.paymentAmount || 0}</td></tr><tr><td class="label">Payment Method</td><td>${r.paymentMethod || "Online"}</td></tr><tr><td class="label">Transaction ID</td><td>${r.transactionId || selectedIntern.transactionId || "-"}</td></tr><tr><td class="label">Status</td><td class="paid">${r.status || selectedIntern.paymentStatus || "N/A"}</td></tr></table><p style="font-size:0.75rem;color:#888;margin-top:2rem">Generated by Admin Panel</p><script>setTimeout(function(){window.print()},500)</script></body></html>`);
                       win.document.close();
@@ -8787,7 +8788,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 <input type="number" placeholder="Set custom amount (₹)" defaultValue={selectedIntern.paymentAmount || ""} onChange={(e) => { selectedIntern._customAmount = e.target.value; }} style={{ border: "2px solid #000", padding: "0.3rem 0.5rem", fontSize: "0.78rem", fontFamily: "inherit", outline: "none", width: "140px" }} />
                 <button onClick={async () => {
                   const amt = parseFloat(selectedIntern._customAmount);
-                  if (!amt || isNaN(amt)) return alert("Enter a valid amount");
+                  if (!amt || isNaN(amt)) return notify("Enter a valid amount", "warning");
                   try {
                     await setPaymentAmount(selectedIntern.id, amt);
                     const updated = await fetchEnrollmentById(selectedIntern.id);
@@ -9788,7 +9789,7 @@ function ThemeSection() {
   useEffect(() => {
     fetchTheme().then((t) => { if (t) { setTheme(t); applyTheme(t); } }).catch(() => {}).finally(() => setLoading(false));
   }, [applyTheme]);
-  const handleSave = async () => { setSaving(true); try { await saveTheme(theme); applyTheme(theme); alert("Theme saved."); } catch (err) { alert("Failed: " + err.message); } finally { setSaving(false); } };
+  const handleSave = async () => { setSaving(true); try { await saveTheme(theme); applyTheme(theme); notify("Theme saved.", "success"); } catch (err) { notify("Failed: " + err.message, "error"); } finally { setSaving(false); } };
   if (loading) return <div style={{ color: "#888" }}>Loading theme...</div>;
   const fields = [
     { key: "primaryColor", label: "Primary Color", type: "color" },
@@ -9836,9 +9837,9 @@ function HeaderSettingsSection() {
     setSaving(true);
     try {
       await saveHeaderSettings(settings);
-      alert("Header settings saved! Please reload the page to see changes.");
+      notify("Header settings saved! Please reload the page to see changes.", "success");
     } catch (err) {
-      alert("Failed to save header settings: " + err.message);
+      notify("Failed to save header settings: " + err.message, "error");
     } finally {
       setSaving(false);
     }
@@ -9907,12 +9908,12 @@ function CouponsSection() {
     return { applied: applied.length, paid: paid.length };
   };
   const addCoupon = () => {
-    if (!newCode.trim()) return alert("Enter a coupon code.");
+    if (!newCode.trim()) return notify("Enter a coupon code.", "warning");
     setCoupons([...coupons, { code: newCode.toUpperCase().trim(), discountPercent: Math.min(100, Math.max(0, Number(newDiscount))), maxUses: Number(newMaxUses), expiryDate: newExpiry, active: true, createdAt: new Date().toISOString() }]);
     setNewCode(""); setNewDiscount(10); setNewMaxUses(1); setNewExpiry("");
   };
   const toggleCoupon = (i) => { const c = [...coupons]; c[i] = { ...c[i], active: !c[i].active }; setCoupons(c); };
-  const saveAll = async () => { try { await saveCoupons(coupons); alert("Coupons saved."); } catch (err) { alert("Failed: " + err.message); } };
+  const saveAll = async () => { try { await saveCoupons(coupons); notify("Coupons saved.", "success"); } catch (err) { notify("Failed: " + err.message, "error"); } };
   if (loading) return <div style={{ color: "#888" }}>Loading coupons...</div>;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
@@ -10016,7 +10017,7 @@ function CSVExportSection() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = "enrollments.csv"; a.click();
       URL.revokeObjectURL(url);
-    } catch (err) { alert("Export failed: " + err.message); } finally { setLoading(false); }
+    } catch (err) { notify("Export failed: " + err.message, "error"); } finally { setLoading(false); }
   };
   return (
     <div style={{ border: "2px solid #000", padding: "2rem", boxShadow: "4px 4px 0 #000", textAlign: "center" }}>

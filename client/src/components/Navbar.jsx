@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { verifyInternship, saveUserProfile } from "../services/data";
+import { notify } from "../services/notify";
 
 import GlassSurface from "./GlassSurface";
 
@@ -85,9 +86,9 @@ export default function Navbar({
     try {
       await saveUserProfile(user.uid, profileForm);
       setShowProfileModal(false);
-      alert("Profile updated successfully.");
+      notify("Profile updated successfully.", "success");
     } catch (err) {
-      alert("Failed to save profile: " + err.message);
+      notify("Failed to save profile: " + err.message, "error");
     } finally {
       setSavingProfile(false);
     }
