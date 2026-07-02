@@ -665,23 +665,26 @@ export default function StudentDashboard({
                   {enrollments.map((e, ei) => {
                     const cp = careerPaths.find((cp) => cp.id === e.domainId || cp.title === e.domain);
                     const buttons = cp?.buttons || [];
-                    if (e.allowedCertificate !== "yes") return null;
                     const beforeBtns = buttons.filter((b) => b.showWhen === "before");
                     const afterBtns = buttons.filter((b) => b.showWhen === "after" && (e.status === "Completed"));
-                    if (!beforeBtns.length && !afterBtns.length) return null;
+                    const hasDownloadBtns = beforeBtns.length > 0 || afterBtns.length > 0;
                     return (
                       <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
                         <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.domain || e.domainId}:</span>
-                        {beforeBtns.map((btn, bi) => (
+                        <span style={{ fontSize: "0.78rem", color: "#888" }}>Status: {e.status}</span>
+                        {hasDownloadBtns && beforeBtns.map((btn, bi) => (
                           <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                             {btn.label}
                           </button>
                         ))}
-                        {afterBtns.map((btn, bi) => (
+                        {hasDownloadBtns && afterBtns.map((btn, bi) => (
                           <button key={`a-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                             {btn.label}
                           </button>
                         ))}
+                        {e.allowedCertificate === "yes" && !hasDownloadBtns && (
+                          <span style={{ fontSize: "0.78rem", color: "#34A853", fontWeight: 700 }}>Documents available</span>
+                        )}
                       </div>
                     );
                   })}
@@ -1700,21 +1703,19 @@ function EnrollmentCard({
           <div
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
-              {enrollment.allowedCertificate === "yes" && (
-                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                 {(domainButtons || []).filter((b) => b.showWhen === "before" && allVerified).map((btn, bi) => (
                   <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                     {btn.label}
                   </button>
                 ))}
-                {(domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted)).map((btn, bi) => (
+                {(domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted) && enrollment.allowedCertificate === "yes").map((btn, bi) => (
                   <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                     {btn.label}
                   </button>
                 ))}
               </div>
-              )}
-              {enrollment.allowedCertificate !== "yes" && allVerified && (
+              {allVerified && enrollment.allowedCertificate !== "yes" && (
                 <p style={{ fontSize: "0.82rem", color: "#888", fontStyle: "italic" }}>Your certificates are pending admin approval. You will be able to download them once approved.</p>
               )}
 

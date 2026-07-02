@@ -1880,7 +1880,17 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   </button>
                                 </div>
                               </div>
-                              {(project?.type || "text") !== "quiz" && (
+                              {(project?.type || "text") === "quiz" ? (
+                                <div style={{ marginBottom: "0.5rem" }}>
+                                  <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.35rem" }}>Quiz Answers</div>
+                                  {(project?.quizQuestions || []).map((q, qi) => (
+                                    <div key={qi} style={{ padding: "0.4rem 0.65rem", marginBottom: "0.3rem", background: "#f9f9f9", border: "1px solid #eee", fontSize: "0.85rem", color: "#333" }}>
+                                      <div style={{ fontWeight: 700 }}>Q{qi + 1}: {q.question}</div>
+                                      <div style={{ marginTop: "0.15rem" }}>Answer: <strong>{submission?.quizAnswers?.[qi] ?? "(not answered)"}</strong></div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
                                 <div
                                   style={{
                                     padding: "0.65rem 0.85rem",
@@ -5337,14 +5347,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     sub &&
                     sub.submittedAt &&
                     sub.verified !== true &&
-                    !sub.resubmit &&
-                    !isQuiz
+                    !sub.resubmit
                   ) {
                     const projTitle =
                       typeof proj === "object" ? proj.title || "" : proj;
                     const projDesc =
                       typeof proj === "object" ? proj.description || "" : "";
-                    const subText = sub.text || "";
+                    const subText = isQuiz
+                      ? (proj?.quizQuestions || []).map((q, qi) => `Q${qi+1}: ${q.question}\nAnswer: ${sub?.quizAnswers?.[qi] ?? "(not answered)"}`).join("\n\n")
+                      : (sub.text || "");
                     const urlMatch = subText.match(/https?:\/\/[^\s<>"']+/);
                     const domainName = enrollment.domain || enrollment.domainId || "";
                     const taskDesc = projDesc || `Task: ${projTitle} — Part of the "${domainName}" internship program. Build a complete working implementation of this project.`;
@@ -5360,6 +5371,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       submissionText: subText,
                       submissionUrl: urlMatch ? urlMatch[0] : subText,
                       submittedAt: sub.submittedAt,
+                      isQuiz,
                     });
                   }
                 });
@@ -8537,21 +8549,33 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 Submitted:{" "}
                                 {new Date(sub.submittedAt).toLocaleString()}
                               </div>
-                              <div
-                                style={{
-                                  padding: "0.65rem 0.85rem",
-                                  background: "#fff",
-                                  border: "1px solid #ddd",
-                                  fontSize: "0.88rem",
-                                  color: "#222",
-                                  wordBreak: "break-all",
-                                  fontFamily: sub.text?.startsWith("http")
-                                    ? "monospace"
-                                    : "inherit",
-                                }}
-                              >
-                                {sub.text}
-                              </div>
+                              {(project?.type || "text") === "quiz" ? (
+                                <div style={{ marginBottom: "0.5rem" }}>
+                                  <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.35rem" }}>Quiz Answers</div>
+                                  {(project?.quizQuestions || []).map((q, qi) => (
+                                    <div key={qi} style={{ padding: "0.4rem 0.65rem", marginBottom: "0.3rem", background: "#f9f9f9", border: "1px solid #eee", fontSize: "0.85rem", color: "#333" }}>
+                                      <div style={{ fontWeight: 700 }}>Q{qi + 1}: {q.question}</div>
+                                      <div style={{ marginTop: "0.15rem" }}>Answer: <strong>{sub?.quizAnswers?.[qi] ?? "(not answered)"}</strong></div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div
+                                  style={{
+                                    padding: "0.65rem 0.85rem",
+                                    background: "#fff",
+                                    border: "1px solid #ddd",
+                                    fontSize: "0.88rem",
+                                    color: "#222",
+                                    wordBreak: "break-all",
+                                    fontFamily: sub.text?.startsWith("http")
+                                      ? "monospace"
+                                      : "inherit",
+                                  }}
+                                >
+                                  {sub.text}
+                                </div>
+                              )}
                               {sub.quizScore !== undefined && (
                                 <div
                                   style={{
