@@ -55,7 +55,7 @@ export default function StudentDashboard({
   const [paymentEnrollment, setPaymentEnrollment] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(null); // 'upi' | 'dodo' | null
   const [showPaymentChoice, setShowPaymentChoice] = useState(false);
-  const [paymentMethods, setPaymentMethods] = useState(null);
+  const [paymentMethods, setPaymentMethods] = useState({ upi: true, dodo: false });
   const [couponCode, setCouponCode] = useState("");
   const [couponError, setCouponError] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(0); // percent
@@ -163,14 +163,13 @@ export default function StudentDashboard({
     setError("");
     try {
       await autoExpireEnrollments();
-      const [data, tmpl, cpResult, refStat, pm] = await Promise.all([
+      const [data, tmpl, cpResult, refStat] = await Promise.all([
         fetchUserEnrollments(user.uid),
         fetchTemplates(),
         fetchCareerPaths(),
         fetchUserReferralStat(user.email),
-        fetchPaymentMethods(),
       ]);
-      setPaymentMethods(pm);
+      fetchPaymentMethods().then((pm) => setPaymentMethods(pm)).catch(() => {});
       const hiddenIds = getHiddenEnrollments(user.uid);
       const activeEnrollments = data.filter((e) => e.status !== "Archived" && !hiddenIds.includes(e.id));
       setEnrollments(activeEnrollments);
@@ -657,12 +656,11 @@ export default function StudentDashboard({
             <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
               <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>Welcome!</h3>
               <p style={{ color: "#555", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "1rem" }}>
-                You are enrolled in {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length} active internship{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length !== 1 ? "s" : ""}.
-                Complete your projects and get verified to earn your certificate.
+                You have {enrollments.filter(e => e.status !== "Archived").length} internship{enrollments.filter(e => e.status !== "Archived").length !== 1 ? "s" : ""} enrolled.
               </p>
-              {enrollments.filter(e => e.status !== "Completed").length > 0 && (
+              {enrollments.filter(e => e.status !== "Archived").length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {enrollments.filter(e => e.status !== "Completed").map((e, ei) => {
+                  {enrollments.filter(e => e.status !== "Archived").map((e, ei) => {
                     const cp = careerPaths.find((cp) => cp.id === e.domainId || cp.title === e.domain);
                     const buttons = cp?.buttons || [];
                     const beforeBtns = buttons.filter((b) => b.showWhen === "before");
@@ -1735,46 +1733,53 @@ function EnrollmentCard({
                 <p style={{ fontSize: "0.82rem", color: "#888", fontStyle: "italic" }}>Your certificates are pending admin approval. You will be able to download them once approved.</p>
               )}
 
-            {/* Conditional Payment section — hide only when completed */}
-            {!isCompleted && (
-              <div>
-                {pTiming === "start" && pStatus !== "paid" && (
-                  <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
-                    <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
-                      Payment Required
-                    </h5>
-                    <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
-                      Please complete the payment to unlock your internship projects.
-                    </p>
-                    <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                      Pay ₹{displayStartAmount || displayAmount || 99}
-                    </button>
-                  </div>
-                )}
-                {pTiming !== "start" && allVerified && (
-                  <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
-                    <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
-                      Unlock Completion Certificate
-                    </h5>
-                    {pStatus === "paid" ? (
-                      <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
-                        <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked</strong>
-                        <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Payment confirmed. You can now download your certificate from the buttons above.</p>
-                      </div>
-                    ) : (
-                      <div>
-                        <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
-                          Complete the payment to unlock your certificate.
-                        </p>
-                        <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                          Pay ₹{displayEndAmount || displayAmount || 99}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Payment section — always visible, disable when already paid or locked */}
+            <div>
+              {pTiming === "start" && (
+                <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
+                  <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
+                    Payment Required
+                  </h5>
+                  <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
+                    {pStatus === "paid" ? "Payment completed." : "Please complete the payment to unlock your internship projects."}
+                  </p>
+                  <button className="btn-sharp" onClick={() => pStatus !== "paid" && onOpenPayment("start")} disabled={pStatus === "paid"} style={{ padding: "0.75rem 2rem", fontWeight: 800, opacity: pStatus === "paid" ? 0.5 : 1, cursor: pStatus === "paid" ? "not-allowed" : "pointer" }}>
+                    {pStatus === "paid" ? "Paid ✓" : `Pay ₹${displayStartAmount || displayAmount || 99}`}
+                  </button>
+                </div>
+              )}
+              {pTiming !== "start" && (
+                <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
+                  <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
+                    Unlock Completion Certificate
+                  </h5>
+                  {pStatus === "paid" ? (
+                    <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
+                      <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked</strong>
+                      <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Payment confirmed. You can now download your certificate from the buttons above.</p>
+                    </div>
+                  ) : (allVerified || projects.length === 0) ? (
+                    <div>
+                      <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
+                        Complete the payment to unlock your certificate.
+                      </p>
+                      <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                        Pay ₹{displayEndAmount || displayAmount || 99}
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
+                        Complete all tasks and get verified to unlock payment.
+                      </p>
+                      <button className="btn-sharp" disabled style={{ padding: "0.75rem 2rem", fontWeight: 800, opacity: 0.5, cursor: "not-allowed" }}>
+                        Pay ₹{displayEndAmount || displayAmount || 99}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {!isCompleted && submittedCount > 0 && (
