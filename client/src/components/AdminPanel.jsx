@@ -4170,7 +4170,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 Edit the HTML below. All enrollment fields are available as variables, e.g.{" "}
                 <code>{"{{name}}"}</code> <code>{"{{email}}"}</code> <code>{"{{phone}}"}</code> <code>{"{{college}}"}</code>{" "}
                 <code>{"{{city}}"}</code> <code>{"{{country}}"}</code> <code>{"{{domain}}"}</code> <code>{"{{internId}}"}</code>{" "}
-                <code>{"{{date}}"}</code> <code>{"{{photoUrl}}"}</code> <code>{"{{qrCodeUrl}}"}</code>. When an intern clicks a button, the HTML is auto-filled and a print dialog opens.
+                <code>{"{{startDate}}"}</code> <code>{"{{endDate}}"}</code> <code>{"{{date}}"}</code> <code>{"{{photoUrl}}"}</code> <code>{"{{qrCodeUrl}}"}</code>. When an intern clicks a button, the HTML is auto-filled and a print dialog opens.
               </p>
             </div>
             {contentLoading ? (

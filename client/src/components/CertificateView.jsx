@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { fetchEnrollmentById, fetchTemplates } from "../services/data";
+import { fetchEnrollmentById, fetchTemplates, fetchCareerPaths } from "../services/data";
+
+function parseDuration(durationStr) {
+  if (!durationStr) return 28;
+  const str = String(durationStr).toLowerCase().trim();
+  const num = parseInt(str, 10) || 1;
+  if (str.includes("month")) return num * 30;
+  if (str.includes("week")) return num * 7;
+  if (str.includes("day")) return num;
+  return 28;
+}
 
 const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
 <html lang="en">
@@ -156,9 +166,10 @@ export default function CertificateView() {
 
     (async () => {
       try {
-        const [enrollment, tmplData] = await Promise.all([
+        const [enrollment, tmplData, cpResult] = await Promise.all([
           fetchEnrollmentById(enrollmentId),
           fetchTemplates(),
+          fetchCareerPaths(),
         ]);
         if (cancelled) return;
         if (!enrollment) {
@@ -194,9 +205,20 @@ export default function CertificateView() {
           templateHtml = Object.values(templates).find((v) => v) || FALLBACK_CERTIFICATE;
         }
 
-        const date = new Date(
-          enrollment.createdAt || Date.now(),
-        ).toLocaleDateString("en-US", {
+        const careerPaths = cpResult?.paths || [];
+        const matchedPath = careerPaths.find(
+          (cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain
+        );
+        const durationDays = parseDuration(matchedPath?.duration || enrollment.duration);
+        const start = new Date(enrollment.createdAt || Date.now());
+        const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        const startDate = start.toLocaleDateString("en-US", {
+          year: "numeric", month: "long", day: "numeric",
+        });
+        const endDate = end.toLocaleDateString("en-US", {
+          year: "numeric", month: "long", day: "numeric",
+        });
+        const date = start.toLocaleDateString("en-US", {
           year: "numeric",
           month: "long",
           day: "numeric",
@@ -207,6 +229,8 @@ export default function CertificateView() {
           ...enrollment,
           qrCodeUrl,
           date,
+          startDate,
+          endDate,
           internId: enrollment.internId || enrollment.id || "",
           id: enrollment.id || enrollment.internId || "",
         });
