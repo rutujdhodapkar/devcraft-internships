@@ -683,7 +683,9 @@ export default function StudentDashboard({
                           </button>
                         ))}
                         {e.allowedCertificate === "yes" && !hasDownloadBtns && (
-                          <span style={{ fontSize: "0.78rem", color: "#34A853", fontWeight: 700 }}>Documents available</span>
+                          <button className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, "Certificate")} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
+                            Download Certificate
+                          </button>
                         )}
                       </div>
                     );
@@ -1705,18 +1707,30 @@ function EnrollmentCard({
           <div
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
-              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                {(domainButtons || []).filter((b) => b.showWhen === "before").map((btn, bi) => (
-                  <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
-                    {btn.label}
-                  </button>
-                ))}
-                {(domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted) && enrollment.allowedCertificate === "yes").map((btn, bi) => (
-                  <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
-                    {btn.label}
-                  </button>
-                ))}
-              </div>
+              {(() => {
+                const beforeBtns = (domainButtons || []).filter((b) => b.showWhen === "before");
+                const afterBtns = (domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted) && enrollment.allowedCertificate === "yes");
+                const hasAny = beforeBtns.length > 0 || afterBtns.length > 0;
+                return (
+                  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                    {beforeBtns.map((btn, bi) => (
+                      <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                        {btn.label}
+                      </button>
+                    ))}
+                    {afterBtns.map((btn, bi) => (
+                      <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                        {btn.label}
+                      </button>
+                    ))}
+                    {!hasAny && enrollment.allowedCertificate === "yes" && (
+                      <button className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, "Certificate")} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                        Download Certificate
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
               {allVerified && enrollment.allowedCertificate !== "yes" && (
                 <p style={{ fontSize: "0.82rem", color: "#888", fontStyle: "italic" }}>Your certificates are pending admin approval. You will be able to download them once approved.</p>
               )}
