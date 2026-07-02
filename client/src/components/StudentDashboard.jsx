@@ -665,7 +665,7 @@ export default function StudentDashboard({
                   {enrollments.map((e, ei) => {
                     const cp = careerPaths.find((cp) => cp.id === e.domainId || cp.title === e.domain);
                     const buttons = cp?.buttons || [];
-                    const beforeBtns = buttons.filter((b) => b.showWhen === "before");
+                    const beforeBtns = buttons.filter((b) => b.showWhen === "before" && e.status !== "Completed");
                     const afterBtns = buttons.filter((b) => b.showWhen === "after" && (e.status === "Completed"));
                     const hasDownloadBtns = beforeBtns.length > 0 || afterBtns.length > 0;
                     return (
@@ -1719,8 +1719,8 @@ function EnrollmentCard({
                 <p style={{ fontSize: "0.82rem", color: "#888", fontStyle: "italic" }}>Your certificates are pending admin approval. You will be able to download them once approved.</p>
               )}
 
-            {/* Conditional Payment section */}
-            {enrollment.allowedCertificate !== "yes" && (
+            {/* Conditional Payment section — hide only when completed */}
+            {!isCompleted && (
               <div>
                 {pTiming === "start" && pStatus !== "paid" && (
                   <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
