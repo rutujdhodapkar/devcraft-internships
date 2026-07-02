@@ -660,13 +660,13 @@ export default function StudentDashboard({
                 You are enrolled in {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length} active internship{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length !== 1 ? "s" : ""}.
                 Complete your projects and get verified to earn your certificate.
               </p>
-              {enrollments.length > 0 && (
+              {enrollments.filter(e => e.status !== "Completed").length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {enrollments.map((e, ei) => {
+                  {enrollments.filter(e => e.status !== "Completed").map((e, ei) => {
                     const cp = careerPaths.find((cp) => cp.id === e.domainId || cp.title === e.domain);
                     const buttons = cp?.buttons || [];
-                    const beforeBtns = buttons.filter((b) => b.showWhen === "before" && e.status !== "Completed");
-                    const afterBtns = buttons.filter((b) => b.showWhen === "after" && (e.status === "Completed"));
+                    const beforeBtns = buttons.filter((b) => b.showWhen === "before");
+                    const afterBtns = buttons.filter((b) => b.showWhen === "after" && e.status === "Completed");
                     const hasDownloadBtns = beforeBtns.length > 0 || afterBtns.length > 0;
                     return (
                       <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
@@ -755,6 +755,7 @@ export default function StudentDashboard({
                     paymentAmount={enrollment.paymentAmount}
                     paymentStartAmount={enrollment.paymentStartAmount}
                     paymentEndAmount={enrollment.paymentEndAmount}
+                    paymentTiming={enrollment.paymentTiming}
                     user={user}
                     onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
                   />
@@ -812,6 +813,7 @@ export default function StudentDashboard({
                       paymentAmount={enrollment.paymentAmount}
                       paymentStartAmount={enrollment.paymentStartAmount}
                       paymentEndAmount={enrollment.paymentEndAmount}
+                      paymentTiming={enrollment.paymentTiming}
                       user={user}
                       onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
                     />
@@ -1704,7 +1706,7 @@ function EnrollmentCard({
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
               <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                {(domainButtons || []).filter((b) => b.showWhen === "before" && allVerified).map((btn, bi) => (
+                {(domainButtons || []).filter((b) => b.showWhen === "before").map((btn, bi) => (
                   <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                     {btn.label}
                   </button>
