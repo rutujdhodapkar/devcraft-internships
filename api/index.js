@@ -25,11 +25,14 @@ function getServiceAccount() {
 }
 
 let fbInitPromise = null;
+let _getAuth = null;
 async function initFirebase() {
   if (fbInitPromise) return fbInitPromise;
   fbInitPromise = (async () => {
     const { initializeApp, getApps, cert } = await import("firebase-admin/app");
     const { getFirestore } = await import("firebase-admin/firestore");
+    const { getAuth: _ga } = await import("firebase-admin/auth");
+    _getAuth = _ga;
     const apps = getApps();
     if (apps.length) return getFirestore(apps[0], FIRESTORE_DB_ID);
     const sa = getServiceAccount();
@@ -45,6 +48,30 @@ async function initFirebase() {
     return getFirestore(app, FIRESTORE_DB_ID);
   })();
   return fbInitPromise;
+}
+
+async function verifyFirebaseToken(idToken) {
+  if (!_getAuth || !idToken) return null;
+  try {
+    const decoded = await _getAuth().verifyIdToken(idToken);
+    return decoded;
+  } catch { return null; }
+}
+
+async function requireAdmin(db, req, res) {
+  const idToken = req.body?.idToken;
+  const decoded = idToken ? await verifyFirebaseToken(idToken) : null;
+  const email = decoded?.email ? cleanId(decoded.email).toLowerCase() : null;
+  if (!email) return send(res, 401, { success: false, message: "Authentication required." });
+  const adminDoc = await getDoc(db, "admins", emailId(email), null);
+  if (!adminDoc) return send(res, 403, { success: false, message: "Unauthorized. Admin access required." });
+  return email;
+}
+
+async function adminWrite(db, req, res, writeFn) {
+  const email = await requireAdmin(db, req, res);
+  if (!email) return;
+  return writeFn(email);
 }
 
 function cleanId(value) {
@@ -377,12 +404,8 @@ async function handleData(req, res, routeParts) {
       const categories = (await getDoc(db, "siteConfig", "domainCategories", null))?.value || [];
       return send(res, 200, { success: true, data: { paths, categories } });
     }
-    const adminEmail = cleanId(req.body.adminEmail || "").toLowerCase();
-    if (!adminEmail) return send(res, 401, { success: false, message: "Admin email required." });
-    const adminDoc = await getDoc(db, "admins", emailId(adminEmail), null);
-    if (!adminDoc) {
-      return send(res, 403, { success: false, message: "Unauthorized. Only admins can modify career paths." });
-    }
+    const adminEmail = await requireAdmin(db, req, res);
+    if (!adminEmail) return;
     const paths = req.body.paths || [];
     await replaceKeyedCollection(db, "careerPaths", paths, "path");
     if (req.body.categories) await setDoc(db, "siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
@@ -399,21 +422,24 @@ async function handleData(req, res, routeParts) {
   }
   if (resource === "how-it-works") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "howItWorks")).sort((a, b) => (a.step || 0) - (b.step || 0)) });
-    return send(res, 200, { success: true, data: await replaceKeyedCollection(db, "howItWorks", req.body.steps || [], "step") });
+    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: await replaceKeyedCollection(db, "howItWorks", req.body.steps || [], "step") }));
   }
   if (resource === "faqs") {
     if (req.method === "GET") return send(res, 200, { success: true, data: await listCollection(db, "faqs") });
-    return send(res, 200, { success: true, data: await replaceKeyedCollection(db, "faqs", req.body.faqs || [], "faq") });
+    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: await replaceKeyedCollection(db, "faqs", req.body.faqs || [], "faq") }));
   }
   if (resource === "templates") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "config", "templates", null))?.value || null });
-    return send(res, 200, { success: true, data: (await setDoc(db, "config", "templates", { value: req.body.templates || {}, updatedAt: now() })).value });
+    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "config", "templates", { value: req.body.templates || {}, updatedAt: now() })).value }));
   }
   if (resource === "about-text") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "config", "aboutText", null))?.value || "" });
-    return send(res, 200, { success: true, data: (await setDoc(db, "config", "aboutText", { value: req.body.text || "", updatedAt: now() })).value });
+    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "config", "aboutText", { value: req.body.text || "", updatedAt: now() })).value }));
   }
-  if (resource === "payment-settings") return getSetConfig(db, req, res, "paymentSettings", req.body);
+  if (resource === "payment-settings") {
+    if (req.method === "GET") return getSetConfig(db, req, res, "paymentSettings", req.body);
+    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "paymentSettings", req.body));
+  }
   if (resource === "users") return handleUsers(db, req, res, id, sub, extra);
   if (resource === "enrollments") return handleEnrollments(db, req, res, id, sub, extra, extra2);
   if (resource === "admin-data") {
@@ -455,19 +481,52 @@ async function handleData(req, res, routeParts) {
   }
   if (resource === "referral-logins") return handleReferralLogin(db, req, res);
   if (resource === "check-admin") return handleCheckAdmin(db, req, res);
-  if (resource === "admins") return handleAdmins(db, req, res, id);
+  if (resource === "admins") {
+    if (req.method === "GET") return handleAdmins(db, req, res, id);
+    return adminWrite(db, req, res, async () => handleAdmins(db, req, res, id));
+  }
   if (resource === "self-referrals") return handleSelfReferrals(db, req, res);
   if (resource === "admin-referral-users") return send(res, 200, { success: true, data: await buildReferralUsers(db) });
-  if (resource === "earn-settings") return getSetConfig(db, req, res, "earnSettings", req.body.settings);
-  if (resource === "earn-details") return getSetConfig(db, req, res, "earnDetails", req.body.details);
-  if (resource === "banned-users") return handleBannedUsers(db, req, res, id);
-  if (resource === "admin-messages") return handleMessages(db, req, res, id, sub);
-  if (resource === "site-notices") return handleNotices(db, req, res, id, sub);
-  if (resource === "homepage") return getSetConfig(db, req, res, "homepage", req.body.content);
-  if (resource === "what-do-you-get") return getSetConfig(db, req, res, "whatDoYouGet", req.body.whatDoYouGet);
-  if (resource === "university-collab") return getSetConfig(db, req, res, "universityCollab", req.body.content);
-  if (resource === "logo-loop") return getSetConfig(db, req, res, "logoLoop", req.body.content);
-  if (resource === "sliding-strips") return getSetConfig(db, req, res, "slidingStrips", req.body.content);
+  if (resource === "earn-settings") {
+    if (req.method === "GET") return getSetConfig(db, req, res, "earnSettings", req.body.settings);
+    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "earnSettings", req.body.settings));
+  }
+  if (resource === "earn-details") {
+    if (req.method === "GET") return getSetConfig(db, req, res, "earnDetails", req.body.details);
+    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "earnDetails", req.body.details));
+  }
+  if (resource === "banned-users") {
+    if (req.method === "GET") return send(res, 200, { success: true, data: await listCollection(db, "bannedUsers") });
+    return adminWrite(db, req, res, async () => handleBannedUsers(db, req, res, id));
+  }
+  if (resource === "admin-messages") {
+    if (req.method === "GET") return handleMessages(db, req, res, id, sub);
+    return adminWrite(db, req, res, async () => handleMessages(db, req, res, id, sub));
+  }
+  if (resource === "site-notices") {
+    if (req.method === "GET") return handleNotices(db, req, res, id, sub);
+    return adminWrite(db, req, res, async () => handleNotices(db, req, res, id, sub));
+  }
+  if (resource === "homepage") {
+    if (req.method === "GET") return getSetConfig(db, req, res, "homepage", req.body.content);
+    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "homepage", req.body.content));
+  }
+  if (resource === "what-do-you-get") {
+    if (req.method === "GET") return getSetConfig(db, req, res, "whatDoYouGet", req.body.whatDoYouGet);
+    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "whatDoYouGet", req.body.whatDoYouGet));
+  }
+  if (resource === "university-collab") {
+    if (req.method === "GET") return getSetConfig(db, req, res, "universityCollab", req.body.content);
+    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "universityCollab", req.body.content));
+  }
+  if (resource === "logo-loop") {
+    if (req.method === "GET") return getSetConfig(db, req, res, "logoLoop", req.body.content);
+    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "logoLoop", req.body.content));
+  }
+  if (resource === "sliding-strips") {
+    if (req.method === "GET") return getSetConfig(db, req, res, "slidingStrips", req.body.content);
+    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "slidingStrips", req.body.content));
+  }
   if (resource === "site-visits") {
     const newRef = await db.collection("siteVisits").add({ ...req.body, createdAt: now() });
     return send(res, 201, { success: true, data: { id: newRef.id } });
@@ -489,20 +548,20 @@ async function handleData(req, res, routeParts) {
   }
   if (resource === "user-types") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", "userTypes", null))?.value || [] });
-    return send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", "userTypes", { value: req.body || [], updatedAt: now() })).value });
+    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", "userTypes", { value: req.body || [], updatedAt: now() })).value }));
   }
   if (resource === "payout-config") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", "payoutConfig", null))?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 } });
-    return send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", "payoutConfig", { value: req.body || {}, updatedAt: now() })).value });
+    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", "payoutConfig", { value: req.body || {}, updatedAt: now() })).value }));
   }
   if (resource === "audit-log") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "auditLog")).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 500) });
-    return send(res, 200, { success: true, data: (await pushDoc(db, "auditLog", { ...req.body, createdAt: now() })) });
+    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await pushDoc(db, "auditLog", { ...req.body, createdAt: now() })) }));
   }
   if (resource === "site-config") {
     const key = req.query?.key || id;
     if (req.method === "GET" && key) return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", key, null))?.value || null });
-    if (req.method === "PUT" && key) return send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value: req.body, updatedAt: now() })).value });
+    if (req.method === "PUT" && key) return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value: req.body, updatedAt: now() })).value }));
   }
   if (resource === "receipt" && id) {
     const enr = await getDoc(db, "enrollments", id, null);
@@ -601,7 +660,17 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     return send(res, 201, { success: true, data: enrollment });
   }
   if (id && req.method === "GET") return send(res, 200, { success: true, data: await getDoc(db, "enrollments", id, null) });
-  if (id && req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(db, "enrollments", id) });
+  if (id && req.method === "DELETE") {
+    const adminEmail = await requireAdmin(db, req, res);
+    if (!adminEmail) return;
+    return send(res, 200, { success: true, data: await deleteDoc(db, "enrollments", id) });
+  }
+  // Admin-only enrollment mutations (status, cert, payment, verify)
+  const adminSubs = ["status", "certificate", "complete", "override-complete", "completion-reject", "payment-status", "payment-amount", "unverify-payment"];
+  if (sub && (adminSubs.includes(sub) || (sub === "projects" && ["verify", "unverify", "feedback", "reject"].includes(extra2)))) {
+    const adminEmail = await requireAdmin(db, req, res);
+    if (!adminEmail) return;
+  }
   const patch = { updatedAt: now() };
   if (sub === "status") patch.status = req.body.status;
   if (sub === "transaction") patch.transactionId = req.body.transactionId;
@@ -745,7 +814,14 @@ async function handleAdmins(db, req, res, id) {
     const email = cleanId(req.body.email).toLowerCase();
     return send(res, 200, { success: true, data: await setDoc(db, "admins", emailId(email), { email, createdAt: now() }) });
   }
-  if (req.method === "DELETE") return send(res, 200, { success: true, data: await deleteDoc(db, "admins", emailId(id)) });
+  if (req.method === "DELETE") {
+    const rootDoc = await getDoc(db, "siteConfig", "rootAdmin", null);
+    const rootEmail = rootDoc?.value?.email ? cleanId(rootDoc.value.email).toLowerCase() : null;
+    if (rootEmail && emailId(id) === emailId(rootEmail)) {
+      return send(res, 403, { success: false, message: "Root admin cannot be deleted." });
+    }
+    return send(res, 200, { success: true, data: await deleteDoc(db, "admins", emailId(id)) });
+  }
 }
 
 async function handleSelfReferrals(db, req, res) {
@@ -1026,17 +1102,17 @@ async function handleFirebaseProxy(req, res) {
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return send(res, 400, { success: false, message: "action and path required" });
 
-    const blockedWrites = ["admins", "users"];
+    const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog"];
     const root = path.split("/")[0];
-    if (blockedWrites.includes(root) && ["set", "update", "push", "delete"].includes(action)) {
-      return send(res, 403, { success: false, message: `Direct write to ${root}/ denied via proxy` });
+    if (["set", "update", "push", "delete"].includes(action) && adminCollections.includes(root)) {
+      const adminEmail = await requireAdmin(db, req, res);
+      if (!adminEmail) return;
     }
 
     let result;
     const parts = path.split("/");
     const collection = parts[0];
 
-    // For list/query/push: path is a collection (1 segment)
     if (action === "list" || action === "query" || action === "push") {
       const colRef = db.collection(collection);
       if (action === "list") {

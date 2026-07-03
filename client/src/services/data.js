@@ -1,7 +1,7 @@
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
 
 // Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
-import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo } from "../firebase";
+import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
 
 async function _rtdbRead(path) {
   try { const s = await rtdbGet(ref(rtdb, path)); return s.val(); } catch { return null; }
@@ -96,10 +96,15 @@ async function dbProxy(action, path, data, query) {
     const cached = _cacheGet(key);
     if (cached) return cached;
   }
+  const body = { action, path, data, query };
+  if (action !== "get" && action !== "list" && action !== "query") {
+    const token = await getFirebaseIdToken().catch(() => null);
+    if (token) body.idToken = token;
+  }
   const res = await fetch(`${API_BASE}/api/firebase-proxy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, path, data, query }),
+    body: JSON.stringify(body),
   });
   const json = await res.json();
   if (!res.ok || json.success === false) throw new Error(json.message || `Proxy ${action} ${path} failed`);
@@ -150,14 +155,23 @@ function userIdentity(user) {
 }
 
 async function apiFetch(path, options = {}) {
+  const method = (options.method || "GET").toUpperCase();
+  let finalOptions = { ...options };
+  if (method !== "GET") {
+    let body = options.body ? JSON.parse(options.body) : {};
+    if (!body.idToken) {
+      const token = await getFirebaseIdToken().catch(() => null);
+      if (token) body = { ...body, idToken: token };
+    }
+    finalOptions.body = JSON.stringify(body);
+  }
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options,
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...finalOptions,
   });
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
   if (!response.ok || data.success === false) throw new Error(data.message || data.error || "Request failed.");
-  // Writes through apiFetch can affect Firestore data cached by dbProxy — clear cache so next read is fresh
-  const method = (options.method || "GET").toUpperCase();
   if (method !== "GET") _cacheClear();
   return data;
 }
@@ -191,8 +205,8 @@ export async function fetchCareerPaths() {
   return { paths: mergedPaths, categories };
 }
 
-export async function saveCareerPaths(paths, categories, adminEmail = "") {
-  const body = { paths: paths || [], adminEmail };
+export async function saveCareerPaths(paths, categories) {
+  const body = { paths: paths || [] };
   if (categories) body.categories = categories;
   await apiFetch("/api/data/career-paths", {
     method: "POST",
@@ -578,6 +592,17 @@ export async function addAdmin(email) {
     method: "POST",
     body: JSON.stringify({ email }),
   });
+}
+
+export async function fetchRootAdmin() {
+  try {
+    const data = await fetchSiteConfig("rootAdmin");
+    return data?.email || null;
+  } catch { return null; }
+}
+
+export async function setRootAdmin(email) {
+  await saveSiteConfig("rootAdmin", { email, setAt: new Date().toISOString() });
 }
 
 export async function removeAdmin(email) {

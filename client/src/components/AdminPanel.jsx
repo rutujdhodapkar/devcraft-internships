@@ -66,6 +66,8 @@ import {
   saveHeaderSettings,
   fetchLoggedInUsers,
   updateEnrollmentField,
+  fetchRootAdmin,
+  setRootAdmin,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -139,6 +141,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [activeTab, setActiveTab] = useState("interns");
   const [data, setData] = useState({ requests: [], referrals: [], visits: [] });
   const [adminsList, setAdminsList] = useState([]);
+  const [rootAdmin, setRootAdminState] = useState(null);
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [dataLoading, setDataLoading] = useState(false);
   const [referralLoading, setReferralLoading] = useState(false);
@@ -591,6 +594,12 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     } catch (err) {
       console.warn("Failed to load admin emails:", err.message);
     }
+    try {
+      const root = await fetchRootAdmin();
+      setRootAdminState(root);
+    } catch (err) {
+      console.warn("Failed to load root admin:", err.message);
+    }
   };
 
   const loadDynamicContent = async (tabName) => {
@@ -678,7 +687,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     noticeTimers.current[key] = setTimeout(async () => {
       setAutoNoticeSaving((prev) => ({ ...prev, [key]: true }));
       try {
-        await saveCareerPaths(careerPaths, undefined, user?.email || "");
+        await saveCareerPaths(careerPaths);
         setAutoNoticeSaving((prev) => ({ ...prev, [key]: false }));
       } catch (err) {
         setAutoNoticeSaving((prev) => ({ ...prev, [key]: false }));
@@ -802,7 +811,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setError("");
     setSuccessMsg("");
     try {
-      await saveCareerPaths(careerPaths, domainCategories, user?.email || "");
+      await saveCareerPaths(careerPaths, domainCategories);
       setSuccessMsg("Career paths saved!");
     } catch (err) {
       setError(err.message);
@@ -886,6 +895,24 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setError("Failed to save payout config: " + err.message);
     } finally {
       setPayoutConfigSaving(false);
+    }
+  };
+
+  const handleSetRootAdmin = async () => {
+    const email = prompt("Enter the email to set as permanent Root Admin:");
+    if (!email) return;
+    if (!(await confirmAction(`Set ${email} as permanent Root Admin? This cannot be undone through the panel.`))) return;
+    setAdminActionLoading(true);
+    setError("");
+    try {
+      await setRootAdmin(email.toLowerCase().trim());
+      await loadAdmins();
+      setSuccessMsg(`Root admin set to ${email.toLowerCase().trim()}.`);
+      setTimeout(() => setSuccessMsg(""), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setAdminActionLoading(false);
     }
   };
 
@@ -7873,23 +7900,38 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   gap: "0.5rem",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "0.65rem 0.9rem",
-                    background: "#f5f5f5",
-                    border: "1px dashed #ccc",
-                  }}
-                >
-                  <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                    rutujdhodapkar@gmail.com
-                  </span>
-                  <span style={{ fontSize: "0.72rem", color: "#888" }}>
-                    [ROOT OWNER]
-                  </span>
-                </div>
-                {adminsList.map((email) => (
+                {rootAdmin && (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "0.65rem 0.9rem",
+                      background: "#f5f5f5",
+                      border: "2px solid #000",
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                      {rootAdmin}
+                    </span>
+                    <span style={{ fontSize: "0.72rem", color: "#000", fontWeight: 800 }}>
+                      ROOT ADMIN
+                    </span>
+                  </div>
+                )}
+                {!rootAdmin && (
+                  <button
+                    type="button"
+                    className="btn-sharp"
+                    onClick={handleSetRootAdmin}
+                    disabled={adminActionLoading}
+                    style={{ width: "100%", padding: "0.5rem", fontSize: "0.82rem", fontWeight: 700, background: "#000", color: "#fff", borderRadius: 0, marginBottom: "0.5rem" }}
+                  >
+                    {adminActionLoading ? "Setting…" : "Make Root Admin (Permanent)"}
+                  </button>
+                )}
+                {adminsList
+                  .filter((email) => email !== rootAdmin)
+                  .map((email) => (
                   <div
                     key={email}
                     style={{

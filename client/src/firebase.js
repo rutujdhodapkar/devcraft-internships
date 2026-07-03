@@ -24,7 +24,14 @@ try {
   console.warn("Firebase init failed:", e);
 }
 
-export { db, ref, get, set, push, update, remove, query, orderByChild, equalTo };
+export { db, ref, get, set, push, update, remove, query, orderByChild, equalTo, auth };
+
+export async function getFirebaseIdToken() {
+  if (!auth?.currentUser) return null;
+  try {
+    return await auth.currentUser.getIdToken();
+  } catch { return null; }
+}
 
 export const googleClientId = "455530891300-dshhdihvkt21jacnh596j8hn6talsg29.apps.googleusercontent.com";
 export const isFirebaseConfigured = true;
