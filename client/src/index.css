@@ -1241,3 +1241,10 @@ th {
     grid-template-columns: 1fr;
   }
 }
+
+/* Show scroll hint on small screens when tasks are loaded */
+@media (max-width: 768px) {
+  .tasks-scroll-hint {
+    display: block !important;
+  }
+}

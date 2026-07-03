@@ -69,12 +69,6 @@ function _cacheClear(docPath) {
   }
 }
 
-const FALLBACK_PATHS = [
-  { id: "path_web", title: "Web Development", duration: "4 Weeks", description: "Build responsive frontend projects with HTML, CSS, JavaScript, and React.", features: ["HTML/CSS layouts", "JavaScript fundamentals", "React components", "Final project"], projects: [{ title: "Responsive Portfolio", description: "Build a responsive personal portfolio website.", type: "text", links: [], quizQuestions: [], passingGrade: 100 }, { title: "Web Development Quiz", description: "Test your understanding of web basics.", type: "quiz", links: [], passingGrade: 60, quizQuestions: [{ question: "Which HTML tag links an external CSS file?", type: "option", options: ["<style>", "<script>", "<link>", "<meta>"], answer: "<link>" }, { question: "Which JavaScript method adds an item to an array?", type: "option", options: ["push()", "pop()", "shift()", "slice()"], answer: "push()" }] }] },
-  { id: "path_python", title: "Python Development", duration: "4 Weeks", description: "Practice Python scripting, data structures, and backend fundamentals.", features: ["Python syntax", "OOP", "Flask basics", "Capstone project"], projects: [{ title: "Weather Web App", description: "Create a weather app using Python and a public API.", type: "text", links: [], quizQuestions: [], passingGrade: 100 }] },
-  { id: "path_java", title: "Java Development", duration: "4 Weeks", description: "Master Java programming with object-oriented concepts and real-world projects.", features: ["Java syntax & OOP", "Data structures", "File I/O", "Capstone project"], projects: [{ title: "Student Management System", description: "Build a console-based student management system in Java.", type: "text", links: [], quizQuestions: [], passingGrade: 100 }] },
-];
-
 const FALLBACK_STEPS = [
   { id: "step_1", step: 1, title: "Select Domain", description: "Choose your internship domain from available career paths." },
   { id: "step_2", step: 2, title: "Generate Offer", description: "Sign in with Google and complete your profile to receive an instant offer letter." },
@@ -201,7 +195,7 @@ export async function fetchCareerPaths() {
     }
     return p;
   });
-  if (!mergedPaths.length && !categories.length) return { paths: FALLBACK_PATHS, categories: [] };
+  if (!mergedPaths.length && !categories.length) return { paths: [], categories: [] };
   return { paths: mergedPaths, categories };
 }
 

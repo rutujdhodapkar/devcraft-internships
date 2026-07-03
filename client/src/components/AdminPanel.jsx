@@ -1442,8 +1442,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <thead>
                     <tr
                       style={{
-                        background: "#fff",
-                        color: "#000",
+                        background: "#000",
+                        color: "#fff",
                         borderBottom: "2px solid #000",
                       }}
                     >
@@ -7981,7 +7981,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       </div>
 
       {/* ── INTERN SUBMISSION DETAIL MODAL ── */}
-      {selectedIntern && (
+      {function(){if(!selectedIntern)return null;const si=selectedIntern;return(
         <div
           onClick={() => setSelectedIntern(null)}
           style={{
@@ -8917,15 +8917,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 </button>
               </div>
 
-              {(() => {
-                const pjs = getProjectsForEnrollment(selectedIntern);
-                const subs = getSubmissions(selectedIntern);
-                const allVerified = pjs.length > 0 && pjs.every((_, i) => subs[i]?.verified);
-                const isPaid = selectedIntern.paymentStatus === "paid" || selectedIntern.paymentStage === "fully_paid";
-                const canComplete = allVerified && isPaid;
-                const isRejected = selectedIntern.completionRejectedAt;
-                const isCompleted = selectedIntern.status === "Completed";
-                return (
+              {function(){if(!selectedIntern)return null;const pjs=getProjectsForEnrollment(selectedIntern),subs=getSubmissions(selectedIntern),allVerified=pjs.length>0&&pjs.every((_,i)=>subs[i]?.verified),isPaid=selectedIntern.paymentStatus==="paid"||selectedIntern.paymentStage==="fully_paid",canComplete=allVerified&&isPaid,isRejected=selectedIntern.completionRejectedAt,isCompleted=selectedIntern.status==="Completed";return(
                   <>
                     {canComplete && !isCompleted && (
                       <button
@@ -9023,7 +9015,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     )}
                   </>
                 );
-              })()}
+              }()}
 
               <button
                 type="button"
@@ -9098,7 +9090,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             </div>
           </div>
         </div>
-      )}
+        </div>
+        );
+      }()}
 
       {quickMessageTarget && (
         <div
@@ -9778,29 +9772,30 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
         </div>
       )}
 
-      {selectedIntern && (
+      {function(){if(!selectedIntern)return null;const si=selectedIntern;return(
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={() => setSelectedIntern(null)}>
           <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", maxWidth: "500px", width: "90%", maxHeight: "80vh", overflowY: "auto", boxShadow: "8px 8px 0 #000" }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "1rem" }}>
-              <h4 style={{ fontWeight: 900, textTransform: "uppercase", margin: 0 }}>{selectedIntern.name}</h4>
+              <h4 style={{ fontWeight: 900, textTransform: "uppercase", margin: 0 }}>{si.name}</h4>
               <button onClick={() => setSelectedIntern(null)} style={{ background: "none", border: "none", fontSize: "1.5rem", fontWeight: 700, cursor: "pointer", lineHeight: 1 }}>&times;</button>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontSize: "0.88rem" }}>
-              <div><strong>Intern ID:</strong> <code>{selectedIntern.internId || selectedIntern.id}</code></div>
-              <div><strong>Email:</strong> {selectedIntern.email}</div>
-              <div><strong>Domain:</strong> {selectedIntern.domain}</div>
-              <div><strong>College:</strong> {selectedIntern.college || "-"}</div>
-              <div><strong>Status:</strong> {selectedIntern.status || "Active"}</div>
-              <div><strong>Payment:</strong> {selectedIntern.paymentTiming === "both" ? selectedIntern.paymentStage === "fully_paid" ? "Fully Paid" : selectedIntern.paymentStage === "start_paid" ? "Partially Paid" : "Not Paid" : selectedIntern.paymentStatus === "paid" ? "Paid" : "Not Paid"} {selectedIntern.paymentAmount ? <span>(₹{selectedIntern.paymentAmount})</span> : null}</div>
-              <div><strong>Transaction ID:</strong> <code>{selectedIntern.transactionId || "-"}</code></div>
-              <div><strong>Certificate:</strong> {selectedIntern.allowedCertificate === "yes" ? "Unlocked (Admin)" : isCertUnlocked(selectedIntern) ? "Auto-Unlocked" : "Locked"}</div>
-              <div><strong>Tasks:</strong> {getProjectsForEnrollment(selectedIntern).length > 0 ? `${getProjectsForEnrollment(selectedIntern).filter((_, i) => getSubmissions(selectedIntern)[i]?.verified).length}/${getProjectsForEnrollment(selectedIntern).length} verified` : "None assigned"}</div>
-              <div><strong>Enrolled:</strong> {selectedIntern.createdAt ? new Date(selectedIntern.createdAt).toLocaleDateString() : "-"}</div>
-              {selectedIntern.referralCode && <div><strong>Referred by:</strong> {selectedIntern.referralCode}</div>}
+              <div><strong>Intern ID:</strong> <code>{si.internId || si.id}</code></div>
+              <div><strong>Email:</strong> {si.email}</div>
+              <div><strong>Domain:</strong> {si.domain}</div>
+              <div><strong>College:</strong> {si.college || "-"}</div>
+              <div><strong>Status:</strong> {si.status || "Active"}</div>
+              <div><strong>Payment:</strong> {si.paymentTiming === "both" ? si.paymentStage === "fully_paid" ? "Fully Paid" : si.paymentStage === "start_paid" ? "Partially Paid" : "Not Paid" : si.paymentStatus === "paid" ? "Paid" : "Not Paid"} {si.paymentAmount ? <span>(₹{si.paymentAmount})</span> : null}</div>
+              <div><strong>Transaction ID:</strong> <code>{si.transactionId || "-"}</code></div>
+              <div><strong>Certificate:</strong> {si.allowedCertificate === "yes" ? "Unlocked (Admin)" : isCertUnlocked(si) ? "Auto-Unlocked" : "Locked"}</div>
+              <div><strong>Tasks:</strong> {getProjectsForEnrollment(si).length > 0 ? `${getProjectsForEnrollment(si).filter((_, i) => getSubmissions(si)[i]?.verified).length}/${getProjectsForEnrollment(si).length} verified` : "None assigned"}</div>
+              <div><strong>Enrolled:</strong> {si.createdAt ? new Date(si.createdAt).toLocaleDateString() : "-"}</div>
+              {si.referralCode && <div><strong>Referred by:</strong> {si.referralCode}</div>}
             </div>
           </div>
         </div>
-      )}
+        );
+      }()}
     </div>
   );
 }

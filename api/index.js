@@ -1029,8 +1029,12 @@ const db2 = await initFirebase();
               verifiedStatus = payment?.status === "succeeded";
             } catch {}
           }
+          if (!DODO_KEY) {
+            verifiedStatus = true; // trust webhook signature if no API key configured
+          }
           if (!verifiedStatus) {
-            console.warn("Dodo webhook: payment verification skipped or failed for", paymentId);
+            console.warn("Dodo webhook: payment verification failed for", paymentId);
+            return send(res, 402, { received: false, error: "payment verification failed" });
           }
           const db3 = await initFirebase();
           const enrRef = db3.collection("enrollments").doc(enrollmentId);

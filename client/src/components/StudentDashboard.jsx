@@ -737,18 +737,14 @@ export default function StudentDashboard({
               </div>
             ) : (
               <div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", marginBottom: selectedEnrollment ? "1rem" : 0 }}>
+                {!selectedEnrollment && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", marginBottom: "1rem" }}>
                   {enrollments.map((e) => (
                     <button
                       key={e.id}
                       onClick={() => {
-                        if (selectedEnrollment?.id === e.id) {
-                          setSelectedEnrollment(null);
-                          setExpandedTaskIdx(-1);
-                        } else {
-                          setSelectedEnrollment(e);
-                          setExpandedTaskIdx(-1);
-                        }
+                        setSelectedEnrollment(e);
+                        setExpandedTaskIdx(-1);
                       }}
                       className="btn-sharp"
                       style={{
@@ -757,10 +753,10 @@ export default function StudentDashboard({
                         fontWeight: 700,
                         cursor: "pointer",
                         borderRadius: 0,
-                        background: selectedEnrollment?.id === e.id ? "#000" : "#fff",
-                        color: selectedEnrollment?.id === e.id ? "#fff" : "#000",
+                        background: "#fff",
+                        color: "#000",
                         border: "2px solid #000",
-                        opacity: selectedEnrollment && selectedEnrollment?.id !== e.id ? 0.4 : e._hidden ? 0.6 : 1,
+                        opacity: e._hidden ? 0.6 : 1,
                         transition: "opacity 0.15s",
                         display: "flex",
                         alignItems: "center",
@@ -768,12 +764,13 @@ export default function StudentDashboard({
                       }}
                     >
                       {e.domain || e.domainId || "Internship"}
-                      {e.status === "Completed" && <span style={{ fontSize: "0.6rem", color: selectedEnrollment?.id === e.id ? "#8f8" : "#080", fontWeight: 800 }}>✓</span>}
-                      {e.status === "Expired" && <span style={{ fontSize: "0.6rem", color: selectedEnrollment?.id === e.id ? "#f88" : "#c00", fontWeight: 800 }}>✗</span>}
+                      {e.status === "Completed" && <span style={{ fontSize: "0.6rem", color: "#080", fontWeight: 800 }}>✓</span>}
+                      {e.status === "Expired" && <span style={{ fontSize: "0.6rem", color: "#c00", fontWeight: 800 }}>✗</span>}
                       {e._hidden && <span style={{ fontSize: "0.55rem", fontWeight: 600, color: "#999", marginLeft: "0.2rem" }}>HIDDEN</span>}
                     </button>
                   ))}
                 </div>
+                )}
                 {selectedEnrollment && (() => {
                   const enrollment = selectedEnrollment;
                   const projects = getProjectsForEnrollment(enrollment);
@@ -810,6 +807,12 @@ export default function StudentDashboard({
                           </button>
                         </div>
                       </div>
+
+                      {/* Scroll hint on small screens */}
+                      <div className="tasks-scroll-hint" style={{ display: "none", marginBottom: "1rem", padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 700, color: "#666", background: "#f5f5f5", border: "1px solid #ccc", textAlign: "center" }}>
+                        ↓ Scroll down to see your tasks below
+                      </div>
+
                       {totalTasks > 0 && (
                         <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <div style={{ fontSize: "0.85rem", fontWeight: 700 }}>Tasks</div>
@@ -1397,6 +1400,9 @@ function EnrollmentCard({
   const submittedCount = projects.filter(
     (_, idx) => submissions[idx]?.submittedAt,
   ).length;
+  const allSubmitted = projects.length > 0 && projects.every(
+    (_, idx) => submissions[idx]?.submittedAt
+  );
   // Payment gating logic — default to "end" timing if not set
   const pTiming = paymentTiming || "end";
   const pStatus = paymentStatus || "none";
@@ -1837,7 +1843,7 @@ function EnrollmentCard({
                       <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked</strong>
                       <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Payment confirmed. You can now download your certificate from the buttons above.</p>
                     </div>
-                  ) : (allVerified || projects.length === 0) ? (
+                  ) : (allSubmitted || projects.length === 0) ? (
                     <div>
                       <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                         Complete the payment to unlock your certificate.
@@ -1849,7 +1855,7 @@ function EnrollmentCard({
                   ) : (
                     <div>
                       <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
-                        Complete all tasks and get verified to unlock payment.
+                        Submit all tasks to unlock payment.
                       </p>
                       <button className="btn-sharp" disabled style={{ padding: "0.75rem 2rem", fontWeight: 800, opacity: 0.5, cursor: "not-allowed" }}>
                         Pay ₹{displayEndAmount || displayAmount || 99}
