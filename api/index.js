@@ -380,7 +380,7 @@ async function handleData(req, res, routeParts) {
     const adminEmail = cleanId(req.body.adminEmail || "").toLowerCase();
     if (!adminEmail) return send(res, 401, { success: false, message: "Admin email required." });
     const adminDoc = await getDoc(db, "admins", emailId(adminEmail), null);
-    if (adminEmail !== ROOT_ADMIN_EMAIL && !adminDoc) {
+    if (!adminDoc) {
       return send(res, 403, { success: false, message: "Unauthorized. Only admins can modify career paths." });
     }
     const paths = req.body.paths || [];
@@ -731,7 +731,10 @@ async function handleReferralLogin(db, req, res) {
 
 async function handleCheckAdmin(db, req, res) {
   const email = cleanId(req.body.email).toLowerCase();
-  if (email === ROOT_ADMIN_EMAIL) return send(res, 200, { success: true, isAdmin: true });
+  if (email === ROOT_ADMIN_EMAIL) {
+    await setDoc(db, "admins", emailId(email), { email, createdAt: new Date().toISOString() });
+    return send(res, 200, { success: true, isAdmin: true });
+  }
   const adminDoc = await getDoc(db, "admins", emailId(email), null);
   return send(res, 200, { success: true, isAdmin: Boolean(adminDoc) });
 }
@@ -1113,6 +1116,11 @@ async function handleFirebaseProxy(req, res) {
 
 export default async function handler(req, res) {
   try {
+  // Ensure root admin exists in the admins collection on first request
+  try {
+    const fDb = await initFirebase();
+    if (fDb) await setDoc(fDb, "admins", emailId(ROOT_ADMIN_EMAIL), { email: ROOT_ADMIN_EMAIL, createdAt: new Date().toISOString() }, true);
+  } catch (_) { /* non-blocking */ }
   const rawUrl = (req.url || "");
   const reqPath = rawUrl.split("?")[0].replace(/^\/api\/?/, "");
   const parts = reqPath.split("/").filter(Boolean).map(decodeURIComponent);

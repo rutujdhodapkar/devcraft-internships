@@ -563,7 +563,6 @@ export async function markReferralContacted(referralCode) {
 
 export async function checkAdminStatus(email) {
   const cleanEmail = (email || "").toLowerCase().trim();
-  if (cleanEmail === "rutujdhodapkar@gmail.com") return { isAdmin: true };
   const emailId = cleanEmail.replace(/\./g, ",");
   const data = await dbGet(`admins/${emailId}`);
   return { isAdmin: !!data };
