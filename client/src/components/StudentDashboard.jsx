@@ -60,6 +60,7 @@ export default function StudentDashboard({
   const [couponError, setCouponError] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(0); // percent
   const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [expandedTaskIdx, setExpandedTaskIdx] = useState(-1);
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "overview");
   const [referralStat, setReferralStat] = useState(null);
@@ -734,107 +735,166 @@ export default function StudentDashboard({
               <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
                 <p style={{ color: "#888", fontSize: "1rem" }}>You have no active internships. Explore domains to get started.</p>
               </div>
-            ) : enrollments.length === 1 ? (
-              (() => {
-                const enrollment = enrollments[0];
-                const projects = getProjectsForEnrollment(enrollment);
-                const submissions = getSubmissions(enrollment);
-                const completionPct = getCompletionPercent(enrollment);
-                const allVerified = projects.length > 0 && projects.every((_, idx) => submissions[idx]?.verified);
-                const isCompleted = enrollment.status === "Completed";
-                const isExpired = enrollment.status === "Expired";
-                return (
-                  <>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                    {enrollment._hidden && <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#999", textTransform: "uppercase", border: "1px solid #ccc", padding: "0.3rem 0.6rem", background: "#f5f5f5" }}>Hidden</span>}
-                    <button className="btn-sharp" onClick={() => { enrollment._hidden ? unhideEnrollmentFromUser(user.uid, enrollment.id) : hideEnrollmentFromUser(user.uid, enrollment.id); loadAll(); notify(enrollment._hidden ? "Internship restored." : "Internship hidden.", "info"); }} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
-                      {enrollment._hidden ? "Unhide" : "Hide"}
-                    </button>
-                  </div>
-                  <EnrollmentCard
-                    enrollment={enrollment}
-                    projects={projects}
-                    submissions={submissions}
-                    completionPct={completionPct}
-                    allVerified={allVerified}
-                    isCompleted={isCompleted}
-                    isExpired={isExpired}
-                    submissionInputs={submissionInputs}
-                    setSubmissionInputs={setSubmissionInputs}
-                    submitting={submitting}
-                    submitSuccess={submitSuccess}
-                    onSubmitProject={handleSubmitProject}
-                    onSubmitQuiz={handleSubmitQuiz}
-                    onDownloadFromTemplate={handleDownloadFromTemplate}
-                    domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
-                    onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
-                    paymentStatus={enrollment.paymentStatus}
-                    paymentStage={enrollment.paymentStage}
-                    paymentAmount={enrollment.paymentAmount}
-                    paymentStartAmount={enrollment.paymentStartAmount}
-                    paymentEndAmount={enrollment.paymentEndAmount}
-                    paymentTiming={enrollment.paymentTiming}
-                    user={user}
-                    onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
-                  />
-                  </>
-                );
-              })()
             ) : (
               <div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", marginBottom: selectedEnrollment ? "1rem" : 0 }}>
                   {enrollments.map((e) => (
-                    <div key={e.id} style={{ border: "2px solid #000", padding: "1rem 1.25rem", background: e._hidden ? "#f5f5f5" : "#fff", boxShadow: "3px 3px 0 #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", opacity: e._hidden ? 0.6 : 1 }}>
-                      <div>
-                        <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
-                        <div style={{ fontSize: "0.8rem", color: "#888", fontWeight: 700 }}>Status: {e.status}{e._hidden ? <span style={{ marginLeft: "0.5rem", color: "#999", border: "1px solid #ccc", padding: "0.1rem 0.35rem", fontSize: "0.7rem" }}>HIDDEN</span> : null}</div>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button type="button" className="btn-sharp" onClick={() => { e._hidden ? unhideEnrollmentFromUser(user.uid, e.id) : hideEnrollmentFromUser(user.uid, e.id); loadAll(); notify(e._hidden ? "Internship restored." : "Internship hidden.", "info"); }} style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
-                          {e._hidden ? "Unhide" : "Hide"}
-                        </button>
-                        <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0 }}>
-                          Open Dashboard
-                        </button>
-                      </div>
-                    </div>
+                    <button
+                      key={e.id}
+                      onClick={() => {
+                        if (selectedEnrollment?.id === e.id) {
+                          setSelectedEnrollment(null);
+                          setExpandedTaskIdx(-1);
+                        } else {
+                          setSelectedEnrollment(e);
+                          setExpandedTaskIdx(-1);
+                        }
+                      }}
+                      className="btn-sharp"
+                      style={{
+                        padding: "0.5rem 1rem",
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        borderRadius: 0,
+                        background: selectedEnrollment?.id === e.id ? "#000" : "#fff",
+                        color: selectedEnrollment?.id === e.id ? "#fff" : "#000",
+                        border: "2px solid #000",
+                        opacity: selectedEnrollment && selectedEnrollment?.id !== e.id ? 0.4 : e._hidden ? 0.6 : 1,
+                        transition: "opacity 0.15s",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                      }}
+                    >
+                      {e.domain || e.domainId || "Internship"}
+                      {e.status === "Completed" && <span style={{ fontSize: "0.6rem", color: selectedEnrollment?.id === e.id ? "#8f8" : "#080", fontWeight: 800 }}>✓</span>}
+                      {e.status === "Expired" && <span style={{ fontSize: "0.6rem", color: selectedEnrollment?.id === e.id ? "#f88" : "#c00", fontWeight: 800 }}>✗</span>}
+                      {e._hidden && <span style={{ fontSize: "0.55rem", fontWeight: 600, color: "#999", marginLeft: "0.2rem" }}>HIDDEN</span>}
+                    </button>
                   ))}
                 </div>
                 {selectedEnrollment && (() => {
                   const enrollment = selectedEnrollment;
                   const projects = getProjectsForEnrollment(enrollment);
                   const submissions = getSubmissions(enrollment);
-                  const completionPct = getCompletionPercent(enrollment);
                   const allVerified = projects.length > 0 && projects.every((_, idx) => submissions[idx]?.verified);
                   const isCompleted = enrollment.status === "Completed";
-                  const isExpired = enrollment.status === "Expired";
+                  const totalTasks = projects.length;
+                  const verifiedCount = submissions.filter((s) => s?.verified).length;
                   return (
-                    <EnrollmentCard
-                      enrollment={enrollment}
-                      projects={projects}
-                      submissions={submissions}
-                      completionPct={completionPct}
-                      allVerified={allVerified}
-                      isCompleted={isCompleted}
-                      isExpired={isExpired}
-                      submissionInputs={submissionInputs}
-                      setSubmissionInputs={setSubmissionInputs}
-                      submitting={submitting}
-                      submitSuccess={submitSuccess}
-                      onSubmitProject={handleSubmitProject}
-                      onSubmitQuiz={handleSubmitQuiz}
-                      onDownloadFromTemplate={handleDownloadFromTemplate}
-                      domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
-                      onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
-                      paymentStatus={enrollment.paymentStatus}
-                      paymentStage={enrollment.paymentStage}
-                      paymentAmount={enrollment.paymentAmount}
-                      paymentStartAmount={enrollment.paymentStartAmount}
-                      paymentEndAmount={enrollment.paymentEndAmount}
-                      paymentTiming={enrollment.paymentTiming}
-                      user={user}
-                      onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
-                    />
+                    <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
+                        <div>
+                          <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{enrollment.domain || enrollment.domainId || "Internship"}</div>
+                          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", fontSize: "0.78rem", color: "#666", fontWeight: 600, marginTop: "0.25rem" }}>
+                            <span>Status: <span style={{ color: "#000" }}>{enrollment.status}</span></span>
+                            {totalTasks > 0 && <span>{verifiedCount}/{totalTasks} verified</span>}
+                            {enrollment.paymentStatus === "paid" && <span style={{ color: "#080" }}>Paid ✓</span>}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+                          <button
+                            className="btn-sharp"
+                            onClick={() => { enrollment._hidden ? unhideEnrollmentFromUser(user.uid, enrollment.id) : hideEnrollmentFromUser(user.uid, enrollment.id); loadAll(); notify(enrollment._hidden ? "Internship restored." : "Internship hidden.", "info"); }}
+                            style={{ padding: "0.35rem 0.6rem", fontSize: "0.72rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}
+                          >
+                            {enrollment._hidden ? "Unhide" : "Hide"}
+                          </button>
+                          <button
+                            className="btn-sharp"
+                            onClick={() => { setSelectedEnrollment(null); setExpandedTaskIdx(-1); }}
+                            style={{ padding: "0.35rem 0.75rem", fontSize: "0.72rem", fontWeight: 600, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0, border: "2px solid #000" }}
+                          >
+                            ← All Internships
+                          </button>
+                        </div>
+                      </div>
+                      {totalTasks > 0 && (
+                        <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <div style={{ fontSize: "0.85rem", fontWeight: 700 }}>Tasks</div>
+                          {expandedTaskIdx >= 0 && (
+                            <button
+                              className="btn-sharp"
+                              onClick={() => setExpandedTaskIdx(-1)}
+                              style={{ padding: "0.25rem 0.5rem", fontSize: "0.68rem", fontWeight: 600, background: "#f5f5f5", color: "#666", cursor: "pointer", borderRadius: 0, border: "1px solid #ccc" }}
+                            >
+                              Close All
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                        {projects.map((project, idx) => {
+                          const submission = submissions[idx];
+                          const isVerified = submission?.verified;
+                          const isRejected = submission?.status === "rejected";
+                          const hasSubmission = submission && (submission.text || submission.fileURL || submission.answer);
+                          const isQuiz = project.type === "quiz";
+                          const title = project.title || project.name || "";
+                          const desc = project.description || "";
+                          const isExpanded = expandedTaskIdx === idx;
+                          return (
+                            <div key={idx} style={{ border: "2px solid #000", background: isExpanded ? "#fafafa" : "#fff" }}>
+                              <button
+                                onClick={() => setExpandedTaskIdx(isExpanded ? -1 : idx)}
+                                style={{
+                                  width: "100%",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "0.65rem 0.9rem",
+                                  cursor: "pointer",
+                                  borderRadius: 0,
+                                  border: "none",
+                                  background: "transparent",
+                                  fontFamily: "inherit",
+                                  fontSize: "0.85rem",
+                                  textAlign: "left",
+                                  gap: "0.75rem",
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
+                                  <span style={{ fontSize: "0.72rem", color: "#999", fontWeight: 600, flexShrink: 0 }}>{isQuiz ? "Q" : "P"}{idx + 1}</span>
+                                  <span style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+                                  {isRejected && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#c00", background: "#fee", padding: "0.2rem 0.45rem", border: "1px solid #c00" }}>REJECTED</span>}
+                                  {isVerified && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#080", background: "#efe", padding: "0.2rem 0.45rem", border: "1px solid #080" }}>VERIFIED ✓</span>}
+                                  {!isRejected && !isVerified && hasSubmission && <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#960", background: "#ffe", padding: "0.2rem 0.45rem", border: "1px solid #960" }}>REVIEW</span>}
+                                  {!isRejected && !isVerified && !hasSubmission && <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#666", background: "#f5f5f5", padding: "0.2rem 0.45rem", border: "1px solid #ccc" }}>PENDING</span>}
+                                  <span style={{ fontSize: "0.7rem", color: "#999", transition: "transform 0.15s", transform: isExpanded ? "rotate(180deg)" : "" }}>▼</span>
+                                </div>
+                              </button>
+                              {isExpanded && (
+                                <div style={{ borderTop: "1px solid #ddd", padding: "1rem" }}>
+                                  <ProjectBox
+                                    enrollment={enrollment}
+                                    project={project}
+                                    projectName={title}
+                                    description={desc}
+                                    idx={idx}
+                                    submission={submission}
+                                    isQuiz={isQuiz}
+                                    quizData={project.quizData || project.quiz}
+                                    submissionInputs={submissionInputs}
+                                    setSubmissionInputs={setSubmissionInputs}
+                                    submitting={submitting}
+                                    submitSuccess={submitSuccess}
+                                    onSubmitProject={handleSubmitProject}
+                                    onSubmitQuiz={handleSubmitQuiz}
+                                    allVerified={allVerified}
+                                    isCompleted={isCompleted}
+                                    user={user}
+                                    onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   );
                 })()}
               </div>
@@ -1185,7 +1245,7 @@ export default function StudentDashboard({
                         <button
                           type="button"
                           className="btn-sharp"
-                          onClick={() => setSelectedEnrollment(e)}
+                          onClick={() => { setSelectedEnrollment(e); setActiveTab("tasks"); setExpandedTaskIdx(-1); }}
                           style={{
                             padding: "0.5rem",
                             width: "100%",
@@ -1194,7 +1254,7 @@ export default function StudentDashboard({
                             fontSize: "0.85rem",
                           }}
                         >
-                          Open Dashboard
+                          Open Tasks
                         </button>
                       </div>
                     );
