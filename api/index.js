@@ -1129,9 +1129,32 @@ async function handleFirebaseProxy(req, res) {
 
     const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog"];
     const root = path.split("/")[0];
-    if (["set", "update", "push", "delete"].includes(action) && adminCollections.includes(root)) {
+    const isWrite = ["set", "update", "push", "delete"].includes(action);
+
+    if (isWrite && adminCollections.includes(root)) {
       const adminEmail = await requireAdmin(db, req, res);
       if (!adminEmail) return;
+    }
+
+    // Require auth on all non-admin writes (enrollments, referrals, users, etc.)
+    if (isWrite && !adminCollections.includes(root)) {
+      const decoded = await verifyFirebaseToken(req.body?.idToken);
+      if (!decoded) return send(res, 401, { success: false, message: "Authentication required for writes." });
+      // For enrollments: verify uid ownership or admin
+      if (root === "enrollments") {
+        const parts = path.split("/");
+        const docId = parts[1];
+        if (docId && action !== "push") {
+          const doc = await getDoc(db, "enrollments", docId, null);
+          if (doc && doc.uid !== decoded.uid) {
+            const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
+            const adminDoc = email ? await getDoc(db, "admins", emailId(email), null) : null;
+            if (!adminDoc) return send(res, 403, { success: false, message: "Unauthorized. You do not own this enrollment." });
+          }
+        } else if (action === "push" && data?.uid && data.uid !== decoded.uid) {
+          return send(res, 403, { success: false, message: "Cannot create enrollment for another user." });
+        }
+      }
     }
 
     let result;

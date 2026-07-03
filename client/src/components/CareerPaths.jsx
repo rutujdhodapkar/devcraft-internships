@@ -125,11 +125,13 @@ export default function CareerPaths({ onApplyDomain }) {
 
   const enabledIds = homepageSettings?.visibleDomains;
   let filtered = paths;
+  let hiddenPaths = [];
   if (enabledIds && enabledIds.length > 0) {
     filtered = paths.filter((p) => enabledIds.includes(p.id));
+    hiddenPaths = paths.filter((p) => !enabledIds.includes(p.id));
   }
   const maxVisible = homepageSettings?.maxVisible || filtered.length;
-  const showViewAll = filtered.length > maxVisible;
+  const showViewAll = filtered.length > maxVisible || hiddenPaths.length > 0;
 
   const catMap = {};
   (categories || []).forEach((cat) => { catMap[cat.id] = cat; });
@@ -191,13 +193,13 @@ export default function CareerPaths({ onApplyDomain }) {
             })}
             <div style={{ textAlign: 'center', marginTop: '2rem' }}>
               <button type="button" className="btn-sharp" onClick={() => setShowAll(true)} style={{ padding: '0.85rem 3rem', fontWeight: 800, fontSize: '1rem' }}>
-                {filtered.length > maxVisible ? `View All Domains (${filtered.length})` : 'Explore More Domains'}
+                {hiddenPaths.length > 0 ? `Explore More (${filtered.length + hiddenPaths.length} domains)` : filtered.length > maxVisible ? `View All Domains (${filtered.length})` : 'Explore More Domains'}
               </button>
             </div>
           </>
         )}
       </div>
-      {showAll && <ViewAllModal paths={filtered} categories={categories} onClose={() => setShowAll(false)} onApply={onApplyDomain} />}
+      {showAll && <ViewAllModal paths={[...filtered, ...hiddenPaths]} categories={categories} onClose={() => setShowAll(false)} onApply={onApplyDomain} />}
     </section>
   );
 }

@@ -3793,7 +3793,18 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <div><strong>Paid Interns:</strong> {paymentStats.paidEnrollments}</div>
                 </div>
               ) : <div style={{ color: "#888" }}>Loading stats…</div>}
-              <button onClick={loadPaymentStats} style={{ marginTop: "0.5rem", padding: "0.3rem 0.75rem", fontSize: "0.75rem", border: "2px solid #000", background: "#fff", cursor: "pointer", fontWeight: 700 }}>Refresh Stats</button>
+              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.5rem" }}>
+                <button onClick={loadPaymentStats} style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", border: "2px solid #000", background: "#fff", cursor: "pointer", fontWeight: 700 }}>Refresh Stats</button>
+                <button onClick={async () => {
+                  if (!window.confirm("Reset revenue? Current totals will be saved to history and displayed stats will be archived. This cannot be undone.")) return;
+                  try {
+                    const { resetRevenue } = await import("../services/data");
+                    await resetRevenue();
+                    alert("Revenue reset. Old totals saved to revenue history.");
+                    loadPaymentStats();
+                  } catch (err) { alert("Failed to reset revenue: " + err.message); }
+                }} style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", border: "2px solid #c00", background: "#fff", color: "#c00", cursor: "pointer", fontWeight: 700 }}>Reset Revenue</button>
+              </div>
             </div>
 
             {!paymentSettings ? (

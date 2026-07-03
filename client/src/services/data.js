@@ -1029,6 +1029,15 @@ export async function fetchPaymentStats() {
   return { totalCollected, totalDistribute, netTotal: totalCollected - totalDistribute, paidEnrollments: paidEnrollments.length, referralPayouts };
 }
 
+export async function resetRevenue() {
+  const stats = await fetchPaymentStats();
+  const entry = { ...stats, resetAt: new Date().toISOString() };
+  const history = (await dbGet("siteConfig/revenueHistory"))?.value || [];
+  history.push(entry);
+  await dbPut("siteConfig/revenueHistory", { value: history, updatedAt: new Date().toISOString() });
+  return entry;
+}
+
 export async function fetchUserTypes() {
   const d = await dbGet("siteConfig/userTypes");
   return d?.value || [];
