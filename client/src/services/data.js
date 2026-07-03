@@ -191,8 +191,8 @@ export async function fetchCareerPaths() {
   return { paths: mergedPaths, categories };
 }
 
-export async function saveCareerPaths(paths, categories) {
-  const body = { paths: paths || [] };
+export async function saveCareerPaths(paths, categories, adminEmail = "") {
+  const body = { paths: paths || [], adminEmail };
   if (categories) body.categories = categories;
   await apiFetch("/api/data/career-paths", {
     method: "POST",

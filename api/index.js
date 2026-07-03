@@ -377,6 +377,12 @@ async function handleData(req, res, routeParts) {
       const categories = (await getDoc(db, "siteConfig", "domainCategories", null))?.value || [];
       return send(res, 200, { success: true, data: { paths, categories } });
     }
+    const adminEmail = cleanId(req.body.adminEmail || "").toLowerCase();
+    if (!adminEmail) return send(res, 401, { success: false, message: "Admin email required." });
+    const adminDoc = await getDoc(db, "admins", emailId(adminEmail), null);
+    if (adminEmail !== ROOT_ADMIN_EMAIL && !adminDoc) {
+      return send(res, 403, { success: false, message: "Unauthorized. Only admins can modify career paths." });
+    }
     const paths = req.body.paths || [];
     await replaceKeyedCollection(db, "careerPaths", paths, "path");
     if (req.body.categories) await setDoc(db, "siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });

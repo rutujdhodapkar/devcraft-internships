@@ -678,7 +678,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     noticeTimers.current[key] = setTimeout(async () => {
       setAutoNoticeSaving((prev) => ({ ...prev, [key]: true }));
       try {
-        await saveCareerPaths(careerPaths);
+        await saveCareerPaths(careerPaths, undefined, user?.email || "");
         setAutoNoticeSaving((prev) => ({ ...prev, [key]: false }));
       } catch (err) {
         setAutoNoticeSaving((prev) => ({ ...prev, [key]: false }));
@@ -802,7 +802,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setError("");
     setSuccessMsg("");
     try {
-      await saveCareerPaths(careerPaths, domainCategories);
+      await saveCareerPaths(careerPaths, domainCategories, user?.email || "");
       setSuccessMsg("Career paths saved!");
     } catch (err) {
       setError(err.message);
