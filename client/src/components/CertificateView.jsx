@@ -225,7 +225,8 @@ export default function CertificateView() {
         const endDate = end.toLocaleDateString("en-US", {
           year: "numeric", month: "long", day: "numeric",
         });
-        const date = start.toLocaleDateString("en-US", {
+        const certDate = enrollment.certificateDate ? new Date(enrollment.certificateDate) : start;
+        const date = certDate.toLocaleDateString("en-US", {
           year: "numeric",
           month: "long",
           day: "numeric",

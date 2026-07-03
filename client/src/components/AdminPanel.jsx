@@ -65,6 +65,7 @@ import {
   fetchHeaderSettings,
   saveHeaderSettings,
   fetchLoggedInUsers,
+  updateEnrollmentField,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -1038,13 +1039,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
   const handleGenerateCertificate = async (enrollment) => {
     const id = enrollment.id || enrollment.internId;
-    if (id) {
-      const url = `${window.location.origin}/certificate/${encodeURIComponent(id)}/certificate`;
-      window.open(url, "_blank");
+    if (!id) { notify("Enrollment ID not found.", "error"); return; }
+    // Ensure cert is unlocked and date is saved before printing
+    if (enrollment.allowedCertificate !== "yes") {
+      await allowCertificate(id, "yes");
     }
+    if (enrollment._certDate) {
+      await updateEnrollmentField(id, "certificateDate", new Date(enrollment._certDate).toISOString());
+    }
+    await loadData();
+    const url = `${window.location.origin}/certificate/${encodeURIComponent(id)}/certificate`;
+    window.open(url, "_blank");
     // Mark as Completed
     if (enrollment.status !== "Completed") {
-      await updateEnrollmentStatus(enrollment.id, "Completed");
+      await updateEnrollmentStatus(id, "Completed");
       await loadData();
     }
   };
@@ -8179,26 +8187,42 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       : "Allow Certificate"}
                 </button>
 
-                {selectedIntern.allowedCertificate === "yes" && (
-                  <button
-                    onClick={() => handleGenerateCertificate(selectedIntern)}
-                    className="btn-sharp"
-                    style={{
-                      padding: "0.5rem 1rem",
-                      fontSize: "0.8rem",
-                      width: "100%",
-                      borderRadius: 0,
-                    }}
-                  >
-                    Print Certificate
-                  </button>
-                )}
+                <button
+                  onClick={() => handleGenerateCertificate(selectedIntern)}
+                  className="btn-sharp"
+                  style={{
+                    padding: "0.5rem 1rem",
+                    fontSize: "0.8rem",
+                    width: "100%",
+                    borderRadius: 0,
+                    opacity: isCertUnlocked(selectedIntern) ? 1 : 0.6,
+                  }}
+                >
+                  {isCertUnlocked(selectedIntern) ? "Print Certificate" : "Print Certificate (bypass)"}
+                </button>
+
+                <div style={{ borderTop: "1px solid #ddd", margin: "0.5rem 0", paddingTop: "0.5rem", fontSize: "0.75rem" }}>
+                  <label style={{ fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Certificate Date Override</label>
+                  <div style={{ display: "flex", gap: "0.35rem" }}>
+                    <input type="date" defaultValue={selectedIntern.certificateDate ? selectedIntern.certificateDate.split("T")[0] : new Date().toISOString().split("T")[0]}
+                      onChange={(e) => { selectedIntern._certDate = e.target.value; }}
+                      style={{ border: "2px solid #000", padding: "0.3rem 0.5rem", fontSize: "0.78rem", fontFamily: "inherit", outline: "none", flex: 1 }} />
+                    <button onClick={async () => {
+                      const val = selectedIntern._certDate || new Date().toISOString().split("T")[0];
+                      try {
+                        await updateEnrollmentField(selectedIntern.id, "certificateDate", new Date(val).toISOString());
+                        notify("Certificate date saved.", "success");
+                        await loadData();
+                      } catch (err) { notify("Failed: " + err.message, "error"); }
+                    }} className="btn-sharp" style={{ padding: "0.3rem 0.65rem", fontSize: "0.75rem" }}>Save Date</button>
+                  </div>
+                </div>
 
                 <div
                   style={{
                     fontSize: "0.72rem",
                     color: "#555",
-                    marginTop: "0.2,rem",
+                    marginTop: "0.5rem",
                     textAlign: "center",
                   }}
                 >

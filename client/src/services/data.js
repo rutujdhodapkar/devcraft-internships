@@ -982,6 +982,10 @@ export async function setPaymentAmount(enrollmentId, paymentAmount) {
   await dbPatch(`enrollments/${enrollmentId}`, { paymentAmount, updatedAt: new Date().toISOString() });
 }
 
+export async function updateEnrollmentField(enrollmentId, field, value) {
+  await dbPatch(`enrollments/${enrollmentId}`, { [field]: value, updatedAt: new Date().toISOString() });
+}
+
 export async function aiGradeQuiz(questions, answers) {
   const data = await apiFetch("/api/ai/grade-quiz", { method: "POST", body: JSON.stringify({ questions, answers }) });
   return data.data;
