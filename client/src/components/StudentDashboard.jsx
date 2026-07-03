@@ -171,7 +171,7 @@ export default function StudentDashboard({
       ]);
       fetchPaymentMethods().then((pm) => setPaymentMethods(pm)).catch(() => {});
       const hiddenIds = getHiddenEnrollments(user.uid);
-      const activeEnrollments = data.filter((e) => e.status !== "Archived" && !hiddenIds.includes(e.id));
+      const activeEnrollments = data.filter((e) => e.status !== "Archived").map((e) => ({ ...e, _hidden: hiddenIds.includes(e.id) }));
       setEnrollments(activeEnrollments);
       setTemplates(tmpl?.templates || tmpl || null);
       setCareerPaths(cpResult.paths || []);
@@ -422,6 +422,23 @@ export default function StudentDashboard({
   };
 
   const handleDownloadFromTemplate = (enrollment, templateName) => {
+    const tLower = templateName.toLowerCase();
+    if (tLower.includes("certificate")) {
+      const cp = careerPaths.find((p) => p.id === enrollment.domainId || p.title === enrollment.domain);
+      const cProjects = cp?.projects?.length > 0
+        ? cp.projects
+        : (enrollment.projects && Array.isArray(enrollment.projects) && enrollment.projects.length > 0
+          ? enrollment.projects
+          : []);
+      const cSubs = enrollment.submissions || {};
+      const allV = cProjects.length > 0 && cProjects.every((_, idx) => cSubs[idx]?.verified);
+      const paid = enrollment.paymentStatus === "paid" || enrollment.status === "Completed";
+      const unlocked = enrollment.allowedCertificate === "yes" || ((allV || cProjects.length === 0) && paid);
+      if (!unlocked) {
+        notify("Certificate not unlocked yet.", "error");
+        return;
+      }
+    }
     openCertificateUrl(enrollment, templateName);
   };
 
@@ -666,10 +683,15 @@ export default function StudentDashboard({
                     const beforeBtns = buttons.filter((b) => b.showWhen === "before");
                     const afterBtns = buttons.filter((b) => b.showWhen === "after" && e.status === "Completed");
                     const hasDownloadBtns = beforeBtns.length > 0 || afterBtns.length > 0;
+                    const eProjects = getProjectsForEnrollment(e);
+                    const eSubs = getSubmissions(e);
+                    const eAllVerified = eProjects.length > 0 && eProjects.every((_, idx) => eSubs[idx]?.verified);
+                    const eCertUnlocked = e.allowedCertificate === "yes" || ((eAllVerified || eProjects.length === 0) && (e.paymentStatus === "paid" || e.status === "Completed"));
                     return (
-                      <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
+                      <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: e._hidden ? "#f0f0f0" : "#fafafa", opacity: e._hidden ? 0.6 : 1 }}>
                         <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.domain || e.domainId}:</span>
                         <span style={{ fontSize: "0.78rem", color: "#888" }}>Status: {e.status}</span>
+                        {e._hidden && <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#999", textTransform: "uppercase", border: "1px solid #ccc", padding: "0.15rem 0.45rem" }}>Hidden</span>}
                         {hasDownloadBtns && beforeBtns.map((btn, bi) => (
                           <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                             {btn.label}
@@ -680,7 +702,7 @@ export default function StudentDashboard({
                             {btn.label}
                           </button>
                         ))}
-                        {e.allowedCertificate === "yes" && !hasDownloadBtns && (
+                        {eCertUnlocked && !hasDownloadBtns && (
                           <button className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, "Certificate")} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                             Download Certificate
                           </button>
@@ -708,14 +730,9 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "tasks" ? (
           <div>
-            {enrollments.length === 0 && getHiddenEnrollments(user.uid).length === 0 ? (
+            {enrollments.length === 0 ? (
               <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
                 <p style={{ color: "#888", fontSize: "1rem" }}>You have no active internships. Explore domains to get started.</p>
-              </div>
-            ) : enrollments.length === 0 && getHiddenEnrollments(user.uid).length > 0 ? (
-              <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
-                <p style={{ color: "#888", fontSize: "1rem" }}>All internships are hidden.</p>
-                <button className="btn-sharp" onClick={() => { getHiddenEnrollments(user.uid).forEach((id) => unhideEnrollmentFromUser(user.uid, id)); loadAll(); notify("All hidden internships restored.", "info"); }} style={{ marginTop: "0.75rem", padding: "0.5rem 1rem", fontSize: "0.82rem" }}>Restore All Hidden</button>
               </div>
             ) : enrollments.length === 1 ? (
               (() => {
@@ -728,9 +745,10 @@ export default function StudentDashboard({
                 const isExpired = enrollment.status === "Expired";
                 return (
                   <>
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.5rem" }}>
-                    <button className="btn-sharp" onClick={() => { hideEnrollmentFromUser(user.uid, enrollment.id); loadAll(); notify("Internship hidden from dashboard.", "info"); }} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
-                      Hide Internship
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    {enrollment._hidden && <span style={{ fontSize: "0.72rem", fontWeight: 700, color: "#999", textTransform: "uppercase", border: "1px solid #ccc", padding: "0.3rem 0.6rem", background: "#f5f5f5" }}>Hidden</span>}
+                    <button className="btn-sharp" onClick={() => { enrollment._hidden ? unhideEnrollmentFromUser(user.uid, enrollment.id) : hideEnrollmentFromUser(user.uid, enrollment.id); loadAll(); notify(enrollment._hidden ? "Internship restored." : "Internship hidden.", "info"); }} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
+                      {enrollment._hidden ? "Unhide" : "Hide"}
                     </button>
                   </div>
                   <EnrollmentCard
@@ -766,14 +784,14 @@ export default function StudentDashboard({
               <div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
                   {enrollments.map((e) => (
-                    <div key={e.id} style={{ border: "2px solid #000", padding: "1rem 1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+                    <div key={e.id} style={{ border: "2px solid #000", padding: "1rem 1.25rem", background: e._hidden ? "#f5f5f5" : "#fff", boxShadow: "3px 3px 0 #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", opacity: e._hidden ? 0.6 : 1 }}>
                       <div>
                         <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
-                        <div style={{ fontSize: "0.8rem", color: "#888", fontWeight: 700 }}>Status: {e.status}</div>
+                        <div style={{ fontSize: "0.8rem", color: "#888", fontWeight: 700 }}>Status: {e.status}{e._hidden ? <span style={{ marginLeft: "0.5rem", color: "#999", border: "1px solid #ccc", padding: "0.1rem 0.35rem", fontSize: "0.7rem" }}>HIDDEN</span> : null}</div>
                       </div>
                       <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button type="button" className="btn-sharp" onClick={() => { hideEnrollmentFromUser(user.uid, e.id); loadAll(); notify("Internship hidden from dashboard.", "info"); }} style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
-                          Hide
+                        <button type="button" className="btn-sharp" onClick={() => { e._hidden ? unhideEnrollmentFromUser(user.uid, e.id) : hideEnrollmentFromUser(user.uid, e.id); loadAll(); notify(e._hidden ? "Internship restored." : "Internship hidden.", "info"); }} style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
+                          {e._hidden ? "Unhide" : "Hide"}
                         </button>
                         <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0 }}>
                           Open Dashboard
@@ -1326,6 +1344,7 @@ function EnrollmentCard({
   const isStartPaid = pTiming === "start" ? pStatus === "paid" : pTiming === "both" ? (pStage === "start_paid" || pStage === "fully_paid") : true;
   const isEndPaid = pTiming === "both" ? pStage === "fully_paid" : pStatus === "paid";
   const tasksLocked = (pTiming === "start" || pTiming === "both") && !isStartPaid;
+  const certUnlocked = enrollment.allowedCertificate === "yes" || ((allVerified || projects.length === 0) && (pStatus === "paid" || isCompleted));
 
   return (
     <div>
@@ -1707,7 +1726,7 @@ function EnrollmentCard({
           >
               {(() => {
                 const beforeBtns = (domainButtons || []).filter((b) => b.showWhen === "before");
-                const afterBtns = (domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted) && enrollment.allowedCertificate === "yes");
+                const afterBtns = (domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted) && certUnlocked);
                 const hasAny = beforeBtns.length > 0 || afterBtns.length > 0;
                 return (
                   <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -1721,7 +1740,7 @@ function EnrollmentCard({
                         {btn.label}
                       </button>
                     ))}
-                    {!hasAny && enrollment.allowedCertificate === "yes" && (
+                    {!hasAny && certUnlocked && (
                       <button className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, "Certificate")} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                         Download Certificate
                       </button>
@@ -1729,7 +1748,7 @@ function EnrollmentCard({
                   </div>
                 );
               })()}
-              {allVerified && enrollment.allowedCertificate !== "yes" && (
+              {allVerified && !certUnlocked && (
                 <p style={{ fontSize: "0.82rem", color: "#888", fontStyle: "italic" }}>Your certificates are pending admin approval. You will be able to download them once approved.</p>
               )}
 

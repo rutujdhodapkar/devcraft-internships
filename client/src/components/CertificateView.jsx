@@ -178,7 +178,19 @@ export default function CertificateView() {
         }
 
         const templateNameLower = templateName.toLowerCase();
-        if (templateNameLower.includes("certificate") && enrollment.allowedCertificate !== "yes") {
+        const careerPaths = cpResult?.paths || [];
+        const matchedPath = careerPaths.find(
+          (cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain
+        );
+        const certProjects = matchedPath?.projects?.length > 0
+          ? matchedPath.projects
+          : (enrollment.projects && Array.isArray(enrollment.projects) && enrollment.projects.length > 0
+            ? enrollment.projects
+            : []);
+        const certSubs = enrollment.submissions || {};
+        const certAllVerified = certProjects.length > 0 && certProjects.every((_, idx) => certSubs[idx]?.verified);
+        const certUnlocked = enrollment.allowedCertificate === "yes" || ((certAllVerified || certProjects.length === 0) && (enrollment.paymentStatus === "paid" || enrollment.status === "Completed"));
+        if (templateNameLower.includes("certificate") && !certUnlocked) {
           setError("Certificate is not yet available. Complete payment and task verification first.");
           return;
         }
@@ -204,11 +216,6 @@ export default function CertificateView() {
         if (!templateHtml) {
           templateHtml = Object.values(templates).find((v) => v) || FALLBACK_CERTIFICATE;
         }
-
-        const careerPaths = cpResult?.paths || [];
-        const matchedPath = careerPaths.find(
-          (cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain
-        );
         const durationDays = parseDuration(matchedPath?.duration || enrollment.duration);
         const start = new Date(enrollment.createdAt || Date.now());
         const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);

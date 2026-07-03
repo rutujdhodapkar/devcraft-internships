@@ -759,6 +759,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     const subs = getSubmissions(enrollment);
     return projects.filter((_, i) => subs[i]?.verified).length;
   };
+  const isCertUnlocked = (enrollment) => {
+    const projs = getProjectsForEnrollment(enrollment);
+    const subs = getSubmissions(enrollment);
+    const allV = projs.length > 0 && projs.every((_, i) => subs[i]?.verified);
+    const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
+    return enrollment.allowedCertificate === "yes" || ((allV || projs.length === 0) && (isPaid || enrollment.status === "Completed"));
+  };
   const activeRequests = data.requests.filter(
     (row) => row.status !== "Archived" && row.status !== "Completed",
   );
@@ -1496,9 +1503,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             })()}
                           </td>
                           <td style={{ ...td, fontSize: "0.72rem" }}>
-                            <span style={{ fontWeight: 700, color: row.allowedCertificate === "yes" ? "#34A853" : "#999" }}>
-                              {row.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}
-                            </span>
+                            {(() => {
+                              const certU = isCertUnlocked(row);
+                              const adminU = row.allowedCertificate === "yes";
+                              return (
+                                <span style={{ fontWeight: 700, color: certU ? "#34A853" : "#999" }}>
+                                  {adminU ? "UNLOCKED" : certU ? "Auto-Unlocked" : "Locked"}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td style={td}>
                             <div
@@ -8161,7 +8174,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 >
                   {selectedIntern.allowedCertificate === "yes"
                     ? "Lock Certificate"
-                    : "Allow Certificate"}
+                    : isCertUnlocked(selectedIntern)
+                      ? "Cert Already Auto-Unlocked"
+                      : "Allow Certificate"}
                 </button>
 
                 {selectedIntern.allowedCertificate === "yes" && (
@@ -8198,7 +8213,16 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   >
                     {selectedIntern.allowedCertificate || "no"}
                   </strong>
-                </div>
+                  {!isCertUnlocked(selectedIntern) && selectedIntern.allowedCertificate !== "yes" && (
+                    <div style={{ fontSize: "0.68rem", color: "#999", marginTop: "0.3rem" }}>
+                      Auto-unlock when all tasks verified + payment done.
+                    </div>
+                  )}
+                  {isCertUnlocked(selectedIntern) && selectedIntern.allowedCertificate !== "yes" && (
+                    <div style={{ fontSize: "0.68rem", color: "#34A853", marginTop: "0.3rem", fontWeight: 600 }}>
+                      ✓ Auto-unlocked (tasks verified + payment received)
+                    </div>
+                  )}
               </div>
             </div>
 
@@ -9619,7 +9643,7 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
                       {check.ready ? "✓ READY TO COMPLETE" : color.label}
                     </div>
                     <div style={{ fontSize: "0.72rem", color: "#555" }}>
-                      Tasks: <strong>{verifiedCount}/{projects.length}</strong> verified | Payment: <strong style={{ color: isPaid ? "#34A853" : hasTxn ? "#1B7A2B" : "#EA4335" }}>{isPaid ? "Paid" : (enrollment.paymentStage === "start_paid" ? "Partial" : hasTxn ? "Txn Submitted" : "Not Paid")}</strong>{enrollment.paymentAmount ? <span> (₹{enrollment.paymentAmount})</span> : null} | Certificate: <strong style={{ color: enrollment.allowedCertificate === "yes" ? "#34A853" : "#999" }}>{enrollment.allowedCertificate === "yes" ? "UNLOCKED" : "Locked"}</strong>
+                      Tasks: <strong>{verifiedCount}/{projects.length}</strong> verified | Payment: <strong style={{ color: isPaid ? "#34A853" : hasTxn ? "#1B7A2B" : "#EA4335" }}>{isPaid ? "Paid" : (enrollment.paymentStage === "start_paid" ? "Partial" : hasTxn ? "Txn Submitted" : "Not Paid")}</strong>{enrollment.paymentAmount ? <span> (₹{enrollment.paymentAmount})</span> : null} | Certificate: <strong style={{ color: isCertUnlocked(enrollment) ? "#34A853" : "#999" }}>{enrollment.allowedCertificate === "yes" ? "UNLOCKED" : isCertUnlocked(enrollment) ? "Auto" : "Locked"}</strong>
                     </div>
                     {enrollment.transactionId && (
                       <div style={{ border: "2px solid #000", background: "#fff", padding: "0.25rem 0.5rem", fontSize: "0.72rem" }}>
@@ -9704,7 +9728,7 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
               <div><strong>Status:</strong> {selectedIntern.status || "Active"}</div>
               <div><strong>Payment:</strong> {selectedIntern.paymentTiming === "both" ? selectedIntern.paymentStage === "fully_paid" ? "Fully Paid" : selectedIntern.paymentStage === "start_paid" ? "Partially Paid" : "Not Paid" : selectedIntern.paymentStatus === "paid" ? "Paid" : "Not Paid"} {selectedIntern.paymentAmount ? <span>(₹{selectedIntern.paymentAmount})</span> : null}</div>
               <div><strong>Transaction ID:</strong> <code>{selectedIntern.transactionId || "-"}</code></div>
-              <div><strong>Certificate:</strong> {selectedIntern.allowedCertificate === "yes" ? "Unlocked" : "Locked"}</div>
+              <div><strong>Certificate:</strong> {selectedIntern.allowedCertificate === "yes" ? "Unlocked (Admin)" : isCertUnlocked(selectedIntern) ? "Auto-Unlocked" : "Locked"}</div>
               <div><strong>Tasks:</strong> {getProjectsForEnrollment(selectedIntern).length > 0 ? `${getProjectsForEnrollment(selectedIntern).filter((_, i) => getSubmissions(selectedIntern)[i]?.verified).length}/${getProjectsForEnrollment(selectedIntern).length} verified` : "None assigned"}</div>
               <div><strong>Enrolled:</strong> {selectedIntern.createdAt ? new Date(selectedIntern.createdAt).toLocaleDateString() : "-"}</div>
               {selectedIntern.referralCode && <div><strong>Referred by:</strong> {selectedIntern.referralCode}</div>}
