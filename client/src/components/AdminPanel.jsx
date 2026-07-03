@@ -9541,7 +9541,6 @@ const th = {
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   whiteSpace: "nowrap",
-  color: "#fff",
 };
 const td = {
   padding: "0.6rem 0.85rem",
@@ -10008,6 +10007,9 @@ function LoggedInUsersSection() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('lastSeen');
+  const [sortDir, setSortDir] = useState('desc');
   const loadUsers = async () => {
     setLoading(true);
     setError('');
@@ -10025,6 +10027,16 @@ function LoggedInUsersSection() {
     const diff = Date.now() - new Date(u.lastSeen || 0).getTime();
     return diff < 5 * 60 * 1000;
   }).length;
+  const filtered = users.filter(u => {
+    if (!searchTerm.trim()) return true;
+    const q = searchTerm.trim().toLowerCase();
+    return (u.displayName || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q) || (u.uid || '').toLowerCase().includes(q);
+  }).sort((a, b) => {
+    const va = a[sortBy] || '';
+    const vb = b[sortBy] || '';
+    const cmp = typeof va === 'string' ? va.localeCompare(vb) : va > vb ? 1 : va < vb ? -1 : 0;
+    return sortDir === 'desc' ? -cmp : cmp;
+  });
   return (
     <div>
       <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "1rem" }}>Logged In Users</h3>
@@ -10037,6 +10049,16 @@ function LoggedInUsersSection() {
           <div style={{ fontSize: "2rem", fontWeight: 900, color: "#34A853" }}>{activeCount}</div>
           <div style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", color: "#34A853" }}>Active (5 min)</div>
         </div>
+        <input type="text" placeholder="Search name, email, or UID..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "240px", alignSelf: "flex-end" }} />
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", background: "#fff", cursor: "pointer", alignSelf: "flex-end" }}>
+          <option value="lastSeen">Sort by Last Seen</option>
+          <option value="signedInAt">Sort by Signed In</option>
+          <option value="displayName">Sort by Name</option>
+          <option value="email">Sort by Email</option>
+        </select>
+        <button onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')} style={{ padding: "0.45rem 0.75rem", border: "2px solid #000", background: "#fff", fontWeight: 700, fontSize: "0.8rem", cursor: "pointer", alignSelf: "flex-end" }}>
+          {sortDir === 'desc' ? '↓ Newest' : '↑ Oldest'}
+        </button>
         <button onClick={loadUsers} disabled={loading} style={{ padding: "0.5rem 1rem", border: "2px solid #000", background: "#fff", fontWeight: 700, fontSize: "0.8rem", cursor: "pointer", alignSelf: "flex-end" }}>
           {loading ? "Refreshing..." : "Refresh"}
         </button>
@@ -10048,7 +10070,7 @@ function LoggedInUsersSection() {
         <SimpleTable
           empty="No users currently logged in."
           columns={["displayName", "email", "lastSeen", "signedInAt", "uid"]}
-          rows={users}
+          rows={filtered}
         />
       )}
     </div>
@@ -10152,8 +10174,20 @@ function formatCell(value) {
   if (value === undefined || value === null || value === "") return "-";
   if (typeof value === "boolean") return value ? "yes" : "no";
   if (typeof value === "object") {
-    if (value.seconds) return new Date(value.seconds * 1000).toLocaleString();
+    if (value.seconds) return formatDate(new Date(value.seconds * 1000));
     return Array.isArray(value) ? value.join(", ") : JSON.stringify(value);
   }
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) return formatDate(new Date(value));
   return String(value);
+}
+
+function formatDate(d) {
+  if (isNaN(d.getTime())) return "-";
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const day = d.getDate();
+  const mon = months[d.getMonth()];
+  const yr = d.getFullYear();
+  const hrs = String(d.getHours()).padStart(2, "0");
+  const mins = String(d.getMinutes()).padStart(2, "0");
+  return `${day}-${mon}-${yr} ${hrs}:${mins}`;
 }
