@@ -31,8 +31,12 @@ async function initFirebase() {
   fbInitPromise = (async () => {
     const { initializeApp, getApps, cert } = await import("firebase-admin/app");
     const { getFirestore } = await import("firebase-admin/firestore");
-    const { getAuth: _ga } = await import("firebase-admin/auth");
-    _getAuth = _ga;
+    try {
+      const { getAuth: _ga } = await import("firebase-admin/auth");
+      _getAuth = _ga;
+    } catch (e) {
+      console.warn("firebase-admin/auth not available (CJS/ESM compat), admin auth checks disabled:", e.message);
+    }
     const apps = getApps();
     if (apps.length) return getFirestore(apps[0], FIRESTORE_DB_ID);
     const sa = getServiceAccount();
@@ -51,10 +55,27 @@ async function initFirebase() {
 }
 
 async function verifyFirebaseToken(idToken) {
-  if (!_getAuth || !idToken) return null;
+  if (!idToken) return null;
+  // Try firebase-admin/auth first
+  if (_getAuth) {
+    try {
+      const decoded = await _getAuth().verifyIdToken(idToken);
+      return decoded;
+    } catch { return null; }
+  }
+  // Fallback: verify via Firebase REST API
   try {
-    const decoded = await _getAuth().verifyIdToken(idToken);
-    return decoded;
+    const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "AIzaSyCn_dJ21ga0CuErOdvnYxO7mwIm9elFie8";
+    if (!apiKey) return null;
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+    const data = await res.json();
+    if (!data.users || !data.users.length) return null;
+    const u = data.users[0];
+    return { uid: u.localId, email: u.email, name: u.displayName, picture: u.photoUrl };
   } catch { return null; }
 }
 
