@@ -55,13 +55,11 @@ export default function StudentDashboard({
   const [paymentEnrollment, setPaymentEnrollment] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState(null); // 'upi' | 'dodo' | null
   const [showPaymentChoice, setShowPaymentChoice] = useState(false);
-  const [paymentMethods, setPaymentMethods] = useState({ upi: true, dodo: false });
+  const [paymentMethods, setPaymentMethods] = useState(null);
   const [couponCode, setCouponCode] = useState("");
   const [couponError, setCouponError] = useState("");
   const [couponDiscount, setCouponDiscount] = useState(0); // percent
   const [validatingCoupon, setValidatingCoupon] = useState(false);
-  const [expandedTaskIdx, setExpandedTaskIdx] = useState(-1);
-  const [showHidden, setShowHidden] = useState(false);
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "overview");
   const [referralStat, setReferralStat] = useState(null);
@@ -165,15 +163,16 @@ export default function StudentDashboard({
     setError("");
     try {
       await autoExpireEnrollments();
-      const [data, tmpl, cpResult, refStat] = await Promise.all([
+      const [data, tmpl, cpResult, refStat, pm] = await Promise.all([
         fetchUserEnrollments(user.uid),
         fetchTemplates(),
         fetchCareerPaths(),
         fetchUserReferralStat(user.email),
+        fetchPaymentMethods(),
       ]);
-      fetchPaymentMethods().then((pm) => setPaymentMethods(pm)).catch(() => {});
+      setPaymentMethods(pm);
       const hiddenIds = getHiddenEnrollments(user.uid);
-      const activeEnrollments = data.filter((e) => e.status !== "Archived").map((e) => ({ ...e, _hidden: hiddenIds.includes(e.id) }));
+      const activeEnrollments = data.filter((e) => e.status !== "Archived" && !hiddenIds.includes(e.id));
       setEnrollments(activeEnrollments);
       setTemplates(tmpl?.templates || tmpl || null);
       setCareerPaths(cpResult.paths || []);
@@ -424,23 +423,6 @@ export default function StudentDashboard({
   };
 
   const handleDownloadFromTemplate = (enrollment, templateName) => {
-    const tLower = templateName.toLowerCase();
-    if (tLower.includes("certificate")) {
-      const cp = careerPaths.find((p) => p.id === enrollment.domainId || p.title === enrollment.domain);
-      const cProjects = cp?.projects?.length > 0
-        ? cp.projects
-        : (enrollment.projects && Array.isArray(enrollment.projects) && enrollment.projects.length > 0
-          ? enrollment.projects
-          : []);
-      const cSubs = enrollment.submissions || {};
-      const allV = cProjects.length > 0 && cProjects.every((_, idx) => cSubs[idx]?.verified);
-      const paid = enrollment.paymentStatus === "paid" || enrollment.status === "Completed";
-      const unlocked = enrollment.allowedCertificate === "yes" || ((allV || cProjects.length === 0) && paid);
-      if (!unlocked) {
-        notify("Certificate not unlocked yet.", "error");
-        return;
-      }
-    }
     openCertificateUrl(enrollment, templateName);
   };
 
@@ -675,25 +657,21 @@ export default function StudentDashboard({
             <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
               <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>Welcome!</h3>
               <p style={{ color: "#555", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "1rem" }}>
-                You have {enrollments.filter(e => e.status !== "Archived").length} internship{enrollments.filter(e => e.status !== "Archived").length !== 1 ? "s" : ""} enrolled.
+                You are enrolled in {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length} active internship{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length !== 1 ? "s" : ""}.
+                Complete your projects and get verified to earn your certificate.
               </p>
-              {enrollments.filter(e => e.status !== "Archived").length > 0 && (
+              {enrollments.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {enrollments.filter(e => e.status !== "Archived").map((e, ei) => {
+                  {enrollments.map((e, ei) => {
                     const cp = careerPaths.find((cp) => cp.id === e.domainId || cp.title === e.domain);
                     const buttons = cp?.buttons || [];
-                    const beforeBtns = buttons.filter((b) => b.showWhen === "before");
-                    const afterBtns = buttons.filter((b) => b.showWhen === "after" && e.status === "Completed");
+                    const beforeBtns = buttons.filter((b) => b.showWhen === "before" && e.status !== "Completed");
+                    const afterBtns = buttons.filter((b) => b.showWhen === "after" && (e.status === "Completed"));
                     const hasDownloadBtns = beforeBtns.length > 0 || afterBtns.length > 0;
-                    const eProjects = getProjectsForEnrollment(e);
-                    const eSubs = getSubmissions(e);
-                    const eAllVerified = eProjects.length > 0 && eProjects.every((_, idx) => eSubs[idx]?.verified);
-                    const eCertUnlocked = e.allowedCertificate === "yes" || ((eAllVerified || eProjects.length === 0) && (e.paymentStatus === "paid" || e.status === "Completed"));
                     return (
-                      <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: e._hidden ? "#f0f0f0" : "#fafafa", opacity: e._hidden ? 0.6 : 1 }}>
+                      <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
                         <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.domain || e.domainId}:</span>
                         <span style={{ fontSize: "0.78rem", color: "#888" }}>Status: {e.status}</span>
-                        {e._hidden && <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#999", textTransform: "uppercase", border: "1px solid #ccc", padding: "0.15rem 0.45rem" }}>Hidden</span>}
                         {hasDownloadBtns && beforeBtns.map((btn, bi) => (
                           <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                             {btn.label}
@@ -704,10 +682,8 @@ export default function StudentDashboard({
                             {btn.label}
                           </button>
                         ))}
-                        {eCertUnlocked && !hasDownloadBtns && (
-                          <button className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, "Certificate")} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
-                            Download Certificate
-                          </button>
+                        {e.allowedCertificate === "yes" && !hasDownloadBtns && (
+                          <span style={{ fontSize: "0.78rem", color: "#34A853", fontWeight: 700 }}>Documents available</span>
                         )}
                       </div>
                     );
@@ -732,198 +708,113 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "tasks" ? (
           <div>
-            {enrollments.length === 0 ? (
+            {enrollments.length === 0 && getHiddenEnrollments(user.uid).length === 0 ? (
               <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
                 <p style={{ color: "#888", fontSize: "1rem" }}>You have no active internships. Explore domains to get started.</p>
               </div>
+            ) : enrollments.length === 0 && getHiddenEnrollments(user.uid).length > 0 ? (
+              <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                <p style={{ color: "#888", fontSize: "1rem" }}>All internships are hidden.</p>
+                <button className="btn-sharp" onClick={() => { getHiddenEnrollments(user.uid).forEach((id) => unhideEnrollmentFromUser(user.uid, id)); loadAll(); notify("All hidden internships restored.", "info"); }} style={{ marginTop: "0.75rem", padding: "0.5rem 1rem", fontSize: "0.82rem" }}>Restore All Hidden</button>
+              </div>
+            ) : enrollments.length === 1 ? (
+              (() => {
+                const enrollment = enrollments[0];
+                const projects = getProjectsForEnrollment(enrollment);
+                const submissions = getSubmissions(enrollment);
+                const completionPct = getCompletionPercent(enrollment);
+                const allVerified = projects.length > 0 && projects.every((_, idx) => submissions[idx]?.verified);
+                const isCompleted = enrollment.status === "Completed";
+                const isExpired = enrollment.status === "Expired";
+                return (
+                  <>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "0.5rem" }}>
+                    <button className="btn-sharp" onClick={() => { hideEnrollmentFromUser(user.uid, enrollment.id); loadAll(); notify("Internship hidden from dashboard.", "info"); }} style={{ padding: "0.4rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
+                      Hide Internship
+                    </button>
+                  </div>
+                  <EnrollmentCard
+                    enrollment={enrollment}
+                    projects={projects}
+                    submissions={submissions}
+                    completionPct={completionPct}
+                    allVerified={allVerified}
+                    isCompleted={isCompleted}
+                    isExpired={isExpired}
+                    submissionInputs={submissionInputs}
+                    setSubmissionInputs={setSubmissionInputs}
+                    submitting={submitting}
+                    submitSuccess={submitSuccess}
+                    onSubmitProject={handleSubmitProject}
+                    onSubmitQuiz={handleSubmitQuiz}
+                    onDownloadFromTemplate={handleDownloadFromTemplate}
+                    domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
+                    onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
+                    paymentStatus={enrollment.paymentStatus}
+                    paymentStage={enrollment.paymentStage}
+                    paymentAmount={enrollment.paymentAmount}
+                    paymentStartAmount={enrollment.paymentStartAmount}
+                    paymentEndAmount={enrollment.paymentEndAmount}
+                    user={user}
+                    onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
+                  />
+                  </>
+                );
+              })()
             ) : (
               <div>
-                {!selectedEnrollment && (() => {
-                  const visible = enrollments.filter((e) => !e._hidden);
-                  const hidden = enrollments.filter((e) => e._hidden);
-                  const list = showHidden ? hidden : visible;
-                  return (
-                  <div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", marginBottom: "0.75rem" }}>
-                      {list.map((e) => (
-                        <button
-                          key={e.id}
-                          onClick={() => {
-                            setSelectedEnrollment(e);
-                            setExpandedTaskIdx(-1);
-                          }}
-                          className="btn-sharp"
-                          style={{
-                            padding: "0.5rem 1rem",
-                            fontSize: "0.82rem",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                            borderRadius: 0,
-                            background: showHidden ? "#f5f5f5" : "#fff",
-                            color: "#000",
-                            border: "2px solid #000",
-                            opacity: showHidden ? 0.85 : 1,
-                            transition: "opacity 0.15s",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.4rem",
-                          }}
-                        >
-                          {e.domain || e.domainId || "Internship"}
-                          {e.status === "Completed" && <span style={{ fontSize: "0.6rem", color: "#080", fontWeight: 800 }}>✓</span>}
-                          {e.status === "Expired" && <span style={{ fontSize: "0.6rem", color: "#c00", fontWeight: 800 }}>✗</span>}
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
+                  {enrollments.map((e) => (
+                    <div key={e.id} style={{ border: "2px solid #000", padding: "1rem 1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+                      <div>
+                        <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
+                        <div style={{ fontSize: "0.8rem", color: "#888", fontWeight: 700 }}>Status: {e.status}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button type="button" className="btn-sharp" onClick={() => { hideEnrollmentFromUser(user.uid, e.id); loadAll(); notify("Internship hidden from dashboard.", "info"); }} style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
+                          Hide
                         </button>
-                      ))}
+                        <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0 }}>
+                          Open Dashboard
+                        </button>
+                      </div>
                     </div>
-                    {hidden.length > 0 && (
-                      <button
-                        onClick={() => setShowHidden((p) => !p)}
-                        className="btn-sharp-outline"
-                        style={{
-                          padding: "0.35rem 0.85rem",
-                          fontSize: "0.75rem",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          borderRadius: 0,
-                          border: "2px solid #999",
-                          background: showHidden ? "#888" : "#fff",
-                          color: showHidden ? "#fff" : "#888",
-                          marginBottom: "0.5rem",
-                        }}
-                      >
-                        {showHidden ? `Show Visible (${visible.length})` : `Hidden Internships (${hidden.length})`}
-                      </button>
-                    )}
-                  </div>
-                  );
-                })()}
+                  ))}
+                </div>
                 {selectedEnrollment && (() => {
                   const enrollment = selectedEnrollment;
                   const projects = getProjectsForEnrollment(enrollment);
                   const submissions = getSubmissions(enrollment);
+                  const completionPct = getCompletionPercent(enrollment);
                   const allVerified = projects.length > 0 && projects.every((_, idx) => submissions[idx]?.verified);
                   const isCompleted = enrollment.status === "Completed";
-                  const totalTasks = projects.length;
-                  const verifiedCount = (Array.isArray(submissions) ? submissions : Object.values(submissions || {})).filter((s) => s?.verified).length;
+                  const isExpired = enrollment.status === "Expired";
                   return (
-                    <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
-                        <div>
-                          <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{enrollment.domain || enrollment.domainId || "Internship"}</div>
-                          <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", fontSize: "0.78rem", color: "#666", fontWeight: 600, marginTop: "0.25rem" }}>
-                            <span>Status: <span style={{ color: "#000" }}>{enrollment.status}</span></span>
-                            {totalTasks > 0 && <span>{verifiedCount}/{totalTasks} verified</span>}
-                            {enrollment.paymentStatus === "paid" && <span style={{ color: "#080" }}>Paid ✓</span>}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
-                          <button
-                            className="btn-sharp"
-                            onClick={() => { enrollment._hidden ? unhideEnrollmentFromUser(user.uid, enrollment.id) : hideEnrollmentFromUser(user.uid, enrollment.id); loadAll(); notify(enrollment._hidden ? "Internship restored." : "Internship hidden.", "info"); }}
-                            style={{ padding: "0.35rem 0.6rem", fontSize: "0.72rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}
-                          >
-                            {enrollment._hidden ? "Unhide" : "Hide"}
-                          </button>
-                          <button
-                            className="btn-sharp"
-                            onClick={() => { setSelectedEnrollment(null); setExpandedTaskIdx(-1); }}
-                            style={{ padding: "0.35rem 0.75rem", fontSize: "0.72rem", fontWeight: 600, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0, border: "2px solid #000" }}
-                          >
-                            ← All Internships
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Scroll hint on small screens */}
-                      <div className="tasks-scroll-hint" style={{ display: "none", marginBottom: "1rem", padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 700, color: "#666", background: "#f5f5f5", border: "1px solid #ccc", textAlign: "center" }}>
-                        ↓ Scroll down to see your tasks below
-                      </div>
-
-                      {totalTasks > 0 && (
-                        <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <div style={{ fontSize: "0.85rem", fontWeight: 700 }}>Tasks</div>
-                          {expandedTaskIdx >= 0 && (
-                            <button
-                              className="btn-sharp"
-                              onClick={() => setExpandedTaskIdx(-1)}
-                              style={{ padding: "0.25rem 0.5rem", fontSize: "0.68rem", fontWeight: 600, background: "#f5f5f5", color: "#666", cursor: "pointer", borderRadius: 0, border: "1px solid #ccc" }}
-                            >
-                              Close All
-                            </button>
-                          )}
-                        </div>
-                      )}
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                        {projects.map((project, idx) => {
-                          const submission = submissions[idx];
-                          const isVerified = submission?.verified;
-                          const isRejected = submission?.status === "rejected";
-                          const hasSubmission = submission && (submission.text || submission.fileURL || submission.answer);
-                          const isQuiz = project.type === "quiz";
-                          const title = project.title || project.name || "";
-                          const desc = project.description || "";
-                          const isExpanded = expandedTaskIdx === idx;
-                          return (
-                            <div key={idx} style={{ border: "2px solid #000", background: isExpanded ? "#fafafa" : "#fff" }}>
-                              <button
-                                onClick={() => setExpandedTaskIdx(isExpanded ? -1 : idx)}
-                                style={{
-                                  width: "100%",
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  padding: "0.65rem 0.9rem",
-                                  cursor: "pointer",
-                                  borderRadius: 0,
-                                  border: "none",
-                                  background: "transparent",
-                                  fontFamily: "inherit",
-                                  fontSize: "0.85rem",
-                                  textAlign: "left",
-                                  gap: "0.75rem",
-                                }}
-                              >
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0 }}>
-                                  <span style={{ fontSize: "0.72rem", color: "#999", fontWeight: 600, flexShrink: 0 }}>{isQuiz ? "Q" : "P"}{idx + 1}</span>
-                                  <span style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</span>
-                                </div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
-                                  {isRejected && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#c00", background: "#fee", padding: "0.2rem 0.45rem", border: "1px solid #c00" }}>REJECTED</span>}
-                                  {isVerified && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#080", background: "#efe", padding: "0.2rem 0.45rem", border: "1px solid #080" }}>VERIFIED ✓</span>}
-                                  {!isRejected && !isVerified && hasSubmission && <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#960", background: "#ffe", padding: "0.2rem 0.45rem", border: "1px solid #960" }}>REVIEW</span>}
-                                  {!isRejected && !isVerified && !hasSubmission && <span style={{ fontSize: "0.65rem", fontWeight: 600, color: "#666", background: "#f5f5f5", padding: "0.2rem 0.45rem", border: "1px solid #ccc" }}>PENDING</span>}
-                                  <span style={{ fontSize: "0.7rem", color: "#999", transition: "transform 0.15s", transform: isExpanded ? "rotate(180deg)" : "" }}>▼</span>
-                                </div>
-                              </button>
-                              {isExpanded && (
-                                <div style={{ borderTop: "1px solid #ddd", padding: "1rem" }}>
-                                  <ProjectBox
-                                    enrollment={enrollment}
-                                    project={project}
-                                    projectName={title}
-                                    description={desc}
-                                    idx={idx}
-                                    submission={submission}
-                                    isQuiz={isQuiz}
-                                    quizData={project.quizData || project.quiz}
-                                    submissionInputs={submissionInputs}
-                                    setSubmissionInputs={setSubmissionInputs}
-                                    submitting={submitting}
-                                    submitSuccess={submitSuccess}
-                                    onSubmitProject={handleSubmitProject}
-                                    onSubmitQuiz={handleSubmitQuiz}
-                                    allVerified={allVerified}
-                                    isCompleted={isCompleted}
-                                    user={user}
-                                    onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <EnrollmentCard
+                      enrollment={enrollment}
+                      projects={projects}
+                      submissions={submissions}
+                      completionPct={completionPct}
+                      allVerified={allVerified}
+                      isCompleted={isCompleted}
+                      isExpired={isExpired}
+                      submissionInputs={submissionInputs}
+                      setSubmissionInputs={setSubmissionInputs}
+                      submitting={submitting}
+                      submitSuccess={submitSuccess}
+                      onSubmitProject={handleSubmitProject}
+                      onSubmitQuiz={handleSubmitQuiz}
+                      onDownloadFromTemplate={handleDownloadFromTemplate}
+                      domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
+                      onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
+                      paymentStatus={enrollment.paymentStatus}
+                      paymentStage={enrollment.paymentStage}
+                      paymentAmount={enrollment.paymentAmount}
+                      paymentStartAmount={enrollment.paymentStartAmount}
+                      paymentEndAmount={enrollment.paymentEndAmount}
+                      user={user}
+                      onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
+                    />
                   );
                 })()}
               </div>
@@ -1274,7 +1165,7 @@ export default function StudentDashboard({
                         <button
                           type="button"
                           className="btn-sharp"
-                          onClick={() => { setSelectedEnrollment(e); setActiveTab("tasks"); setExpandedTaskIdx(-1); }}
+                          onClick={() => setSelectedEnrollment(e)}
                           style={{
                             padding: "0.5rem",
                             width: "100%",
@@ -1283,7 +1174,7 @@ export default function StudentDashboard({
                             fontSize: "0.85rem",
                           }}
                         >
-                          Open Tasks
+                          Open Dashboard
                         </button>
                       </div>
                     );
@@ -1426,9 +1317,6 @@ function EnrollmentCard({
   const submittedCount = projects.filter(
     (_, idx) => submissions[idx]?.submittedAt,
   ).length;
-  const allSubmitted = projects.length > 0 && projects.every(
-    (_, idx) => submissions[idx]?.submittedAt
-  );
   // Payment gating logic — default to "end" timing if not set
   const pTiming = paymentTiming || "end";
   const pStatus = paymentStatus || "none";
@@ -1436,7 +1324,6 @@ function EnrollmentCard({
   const isStartPaid = pTiming === "start" ? pStatus === "paid" : pTiming === "both" ? (pStage === "start_paid" || pStage === "fully_paid") : true;
   const isEndPaid = pTiming === "both" ? pStage === "fully_paid" : pStatus === "paid";
   const tasksLocked = (pTiming === "start" || pTiming === "both") && !isStartPaid;
-  const certUnlocked = enrollment.allowedCertificate === "yes" || ((allVerified || projects.length === 0) && (pStatus === "paid" || isCompleted));
 
   return (
     <div>
@@ -1816,81 +1703,62 @@ function EnrollmentCard({
           <div
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
-              {(() => {
-                const beforeBtns = (domainButtons || []).filter((b) => b.showWhen === "before");
-                const afterBtns = (domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted) && certUnlocked);
-                const hasAny = beforeBtns.length > 0 || afterBtns.length > 0;
-                return (
-                  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                    {beforeBtns.map((btn, bi) => (
-                      <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
-                        {btn.label}
-                      </button>
-                    ))}
-                    {afterBtns.map((btn, bi) => (
-                      <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
-                        {btn.label}
-                      </button>
-                    ))}
-                    {!hasAny && certUnlocked && (
-                      <button className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, "Certificate")} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
-                        Download Certificate
-                      </button>
-                    )}
-                  </div>
-                );
-              })()}
-              {allVerified && !certUnlocked && (
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                {(domainButtons || []).filter((b) => b.showWhen === "before" && allVerified).map((btn, bi) => (
+                  <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                    {btn.label}
+                  </button>
+                ))}
+                {(domainButtons || []).filter((b) => b.showWhen === "after" && (pStatus === "paid" || isCompleted) && enrollment.allowedCertificate === "yes").map((btn, bi) => (
+                  <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+              {allVerified && enrollment.allowedCertificate !== "yes" && (
                 <p style={{ fontSize: "0.82rem", color: "#888", fontStyle: "italic" }}>Your certificates are pending admin approval. You will be able to download them once approved.</p>
               )}
 
-            {/* Payment section — always visible, disable when already paid or locked */}
-            <div>
-              {pTiming === "start" && (
-                <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
-                  <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
-                    Payment Required
-                  </h5>
-                  <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
-                    {pStatus === "paid" ? "Payment completed." : "Please complete the payment to unlock your internship projects."}
-                  </p>
-                  <button className="btn-sharp" onClick={() => pStatus !== "paid" && onOpenPayment("start")} disabled={pStatus === "paid"} style={{ padding: "0.75rem 2rem", fontWeight: 800, opacity: pStatus === "paid" ? 0.5 : 1, cursor: pStatus === "paid" ? "not-allowed" : "pointer" }}>
-                    {pStatus === "paid" ? "Paid ✓" : `Pay ₹${displayStartAmount || displayAmount || 99}`}
-                  </button>
-                </div>
-              )}
-              {pTiming !== "start" && (
-                <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
-                  <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
-                    Unlock Completion Certificate
-                  </h5>
-                  {pStatus === "paid" ? (
-                    <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
-                      <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked</strong>
-                      <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Payment confirmed. You can now download your certificate from the buttons above.</p>
-                    </div>
-                  ) : (allSubmitted || projects.length === 0) ? (
-                    <div>
-                      <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
-                        Complete the payment to unlock your certificate.
-                      </p>
-                      <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                        Pay ₹{displayEndAmount || displayAmount || 99}
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
-                        Submit all tasks to unlock payment.
-                      </p>
-                      <button className="btn-sharp" disabled style={{ padding: "0.75rem 2rem", fontWeight: 800, opacity: 0.5, cursor: "not-allowed" }}>
-                        Pay ₹{displayEndAmount || displayAmount || 99}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {/* Conditional Payment section — hide only when completed */}
+            {!isCompleted && (
+              <div>
+                {pTiming === "start" && pStatus !== "paid" && (
+                  <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
+                    <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
+                      Payment Required
+                    </h5>
+                    <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
+                      Please complete the payment to unlock your internship projects.
+                    </p>
+                    <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                      Pay ₹{displayStartAmount || displayAmount || 99}
+                    </button>
+                  </div>
+                )}
+                {pTiming !== "start" && allVerified && (
+                  <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", marginTop: "1rem" }}>
+                    <h5 style={{ fontSize: "0.95rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>
+                      Unlock Completion Certificate
+                    </h5>
+                    {pStatus === "paid" ? (
+                      <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
+                        <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked</strong>
+                        <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Payment confirmed. You can now download your certificate from the buttons above.</p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
+                          Complete the payment to unlock your certificate.
+                        </p>
+                        <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                          Pay ₹{displayEndAmount || displayAmount || 99}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {!isCompleted && submittedCount > 0 && (
