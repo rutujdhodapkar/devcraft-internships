@@ -61,6 +61,7 @@ export default function StudentDashboard({
   const [couponDiscount, setCouponDiscount] = useState(0); // percent
   const [validatingCoupon, setValidatingCoupon] = useState(false);
   const [expandedTaskIdx, setExpandedTaskIdx] = useState(-1);
+  const [showHidden, setShowHidden] = useState(false);
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "overview");
   const [referralStat, setReferralStat] = useState(null);
@@ -737,40 +738,65 @@ export default function StudentDashboard({
               </div>
             ) : (
               <div>
-                {!selectedEnrollment && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", marginBottom: "1rem" }}>
-                  {enrollments.map((e) => (
-                    <button
-                      key={e.id}
-                      onClick={() => {
-                        setSelectedEnrollment(e);
-                        setExpandedTaskIdx(-1);
-                      }}
-                      className="btn-sharp"
-                      style={{
-                        padding: "0.5rem 1rem",
-                        fontSize: "0.82rem",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        borderRadius: 0,
-                        background: "#fff",
-                        color: "#000",
-                        border: "2px solid #000",
-                        opacity: e._hidden ? 0.6 : 1,
-                        transition: "opacity 0.15s",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.4rem",
-                      }}
-                    >
-                      {e.domain || e.domainId || "Internship"}
-                      {e.status === "Completed" && <span style={{ fontSize: "0.6rem", color: "#080", fontWeight: 800 }}>✓</span>}
-                      {e.status === "Expired" && <span style={{ fontSize: "0.6rem", color: "#c00", fontWeight: 800 }}>✗</span>}
-                      {e._hidden && <span style={{ fontSize: "0.55rem", fontWeight: 600, color: "#999", marginLeft: "0.2rem" }}>HIDDEN</span>}
-                    </button>
-                  ))}
-                </div>
-                )}
+                {!selectedEnrollment && (() => {
+                  const visible = enrollments.filter((e) => !e._hidden);
+                  const hidden = enrollments.filter((e) => e._hidden);
+                  const list = showHidden ? hidden : visible;
+                  return (
+                  <div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", marginBottom: "0.75rem" }}>
+                      {list.map((e) => (
+                        <button
+                          key={e.id}
+                          onClick={() => {
+                            setSelectedEnrollment(e);
+                            setExpandedTaskIdx(-1);
+                          }}
+                          className="btn-sharp"
+                          style={{
+                            padding: "0.5rem 1rem",
+                            fontSize: "0.82rem",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            borderRadius: 0,
+                            background: showHidden ? "#f5f5f5" : "#fff",
+                            color: "#000",
+                            border: "2px solid #000",
+                            opacity: showHidden ? 0.85 : 1,
+                            transition: "opacity 0.15s",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.4rem",
+                          }}
+                        >
+                          {e.domain || e.domainId || "Internship"}
+                          {e.status === "Completed" && <span style={{ fontSize: "0.6rem", color: "#080", fontWeight: 800 }}>✓</span>}
+                          {e.status === "Expired" && <span style={{ fontSize: "0.6rem", color: "#c00", fontWeight: 800 }}>✗</span>}
+                        </button>
+                      ))}
+                    </div>
+                    {hidden.length > 0 && (
+                      <button
+                        onClick={() => setShowHidden((p) => !p)}
+                        className="btn-sharp-outline"
+                        style={{
+                          padding: "0.35rem 0.85rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          borderRadius: 0,
+                          border: "2px solid #999",
+                          background: showHidden ? "#888" : "#fff",
+                          color: showHidden ? "#fff" : "#888",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
+                        {showHidden ? `Show Visible (${visible.length})` : `Hidden Internships (${hidden.length})`}
+                      </button>
+                    )}
+                  </div>
+                  );
+                })()}
                 {selectedEnrollment && (() => {
                   const enrollment = selectedEnrollment;
                   const projects = getProjectsForEnrollment(enrollment);
