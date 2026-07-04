@@ -5,6 +5,7 @@ import {
   submitProject,
   submitQuizAnswer,
   fetchEnrollmentById,
+  fetchReceipt,
   fetchCareerPaths,
   isReferralCodeMatched,
   fetchUserReferralStat,
@@ -438,6 +439,40 @@ export default function StudentDashboard({
     openCertificateUrl(enrollment, templateName);
   };
 
+  const handleDownloadReceipt = async (enrollmentId) => {
+    try {
+      const data = await fetchReceipt(enrollmentId);
+      if (!data?.success) { notify("Receipt not available.", "warning"); return; }
+      const r = data.data;
+      const lines = [
+        "═══════════════════════════════════════",
+        "         PAYMENT RECEIPT",
+        "═══════════════════════════════════════",
+        `Receipt No:    ${r.receiptNo}`,
+        `Date:         ${new Date(r.date).toLocaleDateString()}`,
+        `Name:         ${r.name}`,
+        `Email:        ${r.email}`,
+        `Domain:       ${r.domain}`,
+        `Amount:       ₹${r.amount}`,
+        `Method:       ${r.paymentMethod}`,
+        `Transaction:  ${r.transactionId}`,
+        `Status:       ${r.status}`,
+        "═══════════════════════════════════════",
+        "     DEV/CRAFT Virtual Internship",
+        "═══════════════════════════════════════",
+      ].join("\n");
+      const blob = new Blob([lines], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `receipt-${r.receiptNo || enrollmentId}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { notify("Failed to download receipt.", "error"); }
+  };
+
   // ── Render ──────────────────────────────────────────────────────────────
   return (
     <section
@@ -759,6 +794,7 @@ export default function StudentDashboard({
                     onSubmitProject={handleSubmitProject}
                     onSubmitQuiz={handleSubmitQuiz}
                     onDownloadFromTemplate={handleDownloadFromTemplate}
+                    onDownloadReceipt={handleDownloadReceipt}
                     domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
                     templates={templates}
                     onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
@@ -818,6 +854,7 @@ export default function StudentDashboard({
                       onSubmitProject={handleSubmitProject}
                       onSubmitQuiz={handleSubmitQuiz}
                       onDownloadFromTemplate={handleDownloadFromTemplate}
+                      onDownloadReceipt={handleDownloadReceipt}
                       domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
                       templates={templates}
                       onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
@@ -1338,6 +1375,7 @@ function EnrollmentCard({
   onSubmitProject,
   onSubmitQuiz,
   onDownloadFromTemplate,
+  onDownloadReceipt,
   domainButtons,
   templates,
   onOpenPayment,
@@ -1791,6 +1829,14 @@ function EnrollmentCard({
                       <div style={{ padding: "1rem", background: "#E8F5E9", border: "2px solid #34A853" }}>
                         <strong style={{ color: "#1a5c2e" }}>Certificate Unlocked</strong>
                         <p style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>Payment confirmed. You can now download your certificate from the buttons above.</p>
+                        {enrollment.transactionId && (
+                          <p style={{ fontSize: "0.78rem", color: "#1a5c2e", marginTop: "0.5rem", wordBreak: "break-all" }}>
+                            <strong>Transaction ID:</strong> {enrollment.transactionId}
+                          </p>
+                        )}
+                        <button className="btn-sharp" onClick={() => onDownloadReceipt && onDownloadReceipt(enrollment.id)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", marginTop: "0.5rem", background: "#fff", color: "#000", border: "2px solid #34A853", cursor: "pointer", borderRadius: 0, fontWeight: 700 }}>
+                          Download Receipt
+                        </button>
                       </div>
                     ) : (
                       <div>
