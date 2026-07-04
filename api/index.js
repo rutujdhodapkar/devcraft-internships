@@ -1093,7 +1093,7 @@ const db2 = await initFirebase();
           }
           const db3 = await initFirebase();
           const enrRef = db3.collection("enrollments").doc(enrollmentId);
-          await enrRef.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, updatedAt: now() });
+          await enrRef.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, transactionId: paymentId, updatedAt: now() });
           const snap3 = await enrRef.get();
           const enr = snap3.data();
           if (enr) {
