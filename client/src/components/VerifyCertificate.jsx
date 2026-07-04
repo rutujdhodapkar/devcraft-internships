@@ -48,7 +48,6 @@ export default function VerifyCertificate() {
         alignItems: "center", justifyContent: "center",
         fontFamily: "Arial, sans-serif",
       }}
-      onClick={() => window.history.pushState(null, "", "/") || (window.location.pathname = "/")}
     >
       <div
         onClick={(e) => e.stopPropagation()}
