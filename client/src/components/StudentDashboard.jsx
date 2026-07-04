@@ -738,50 +738,37 @@ export default function StudentDashboard({
             ) : (
               <div>
                 {!selectedEnrollment && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1rem" }}>
-                  {enrollments.map((e) => {
-                    const projects = getProjectsForEnrollment(e);
-                    const submissions = getSubmissions(e);
-                    const totalTasks = projects.length;
-                    const verifiedCount = Object.values(submissions).filter((s) => s?.verified).length;
-                    return (
-                      <div key={e.id} style={{ border: "2px solid #000", background: "#fff" }}>
-                        <button
-                          onClick={() => {
-                            setSelectedEnrollment(e);
-                            setExpandedTaskIdx(-1);
-                          }}
-                          style={{
-                            width: "100%",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            padding: "0.75rem 1rem",
-                            cursor: "pointer",
-                            borderRadius: 0,
-                            border: "none",
-                            background: "transparent",
-                            fontFamily: "inherit",
-                            fontSize: "0.88rem",
-                            textAlign: "left",
-                            opacity: e._hidden ? 0.55 : 1,
-                            transition: "opacity 0.15s",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                            <span style={{ fontWeight: 800, fontSize: "0.9rem" }}>{e.domain || e.domainId || "Internship"}</span>
-                            {e.status === "Completed" && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#080", background: "#efe", padding: "0.15rem 0.4rem", border: "1px solid #080" }}>✓</span>}
-                            {e.status === "Expired" && <span style={{ fontSize: "0.65rem", fontWeight: 700, color: "#c00", background: "#fee", padding: "0.15rem 0.4rem", border: "1px solid #c00" }}>✗</span>}
-                            {e._hidden && <span style={{ fontSize: "0.6rem", fontWeight: 600, color: "#999", padding: "0.15rem 0.4rem", border: "1px solid #ccc" }}>HIDDEN</span>}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                            <span style={{ fontSize: "0.75rem", color: "#666", fontWeight: 600 }}>{verifiedCount}/{totalTasks} verified</span>
-                            <span style={{ fontSize: "0.75rem", fontWeight: 700 }}>→</span>
-                          </div>
-                        </button>
-                      </div>
-                    );
-                  })}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.6rem", marginBottom: "1rem" }}>
+                  {enrollments.map((e) => (
+                    <button
+                      key={e.id}
+                      onClick={() => {
+                        setSelectedEnrollment(e);
+                        setExpandedTaskIdx(-1);
+                      }}
+                      className="btn-sharp"
+                      style={{
+                        padding: "0.5rem 1rem",
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        borderRadius: 0,
+                        background: "#fff",
+                        color: "#000",
+                        border: "2px solid #000",
+                        opacity: e._hidden ? 0.6 : 1,
+                        transition: "opacity 0.15s",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                      }}
+                    >
+                      {e.domain || e.domainId || "Internship"}
+                      {e.status === "Completed" && <span style={{ fontSize: "0.6rem", color: "#080", fontWeight: 800 }}>✓</span>}
+                      {e.status === "Expired" && <span style={{ fontSize: "0.6rem", color: "#c00", fontWeight: 800 }}>✗</span>}
+                      {e._hidden && <span style={{ fontSize: "0.55rem", fontWeight: 600, color: "#999", marginLeft: "0.2rem" }}>HIDDEN</span>}
+                    </button>
+                  ))}
                 </div>
                 )}
                 {selectedEnrollment && (() => {
