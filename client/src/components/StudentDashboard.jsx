@@ -537,6 +537,7 @@ export default function StudentDashboard({
             {[
               { id: "overview", label: "Overview", icon: "\u25C8" },
               { id: "tasks", label: "My Tasks", icon: "\u2630" },
+              { id: "completed", label: "Completed", icon: "\u2713" },
               { id: "referral", label: "Refer & Earn", icon: "\u2197" },
               { id: "hidden", label: "Hidden", icon: "\u2716" },
             ].map((tab) => (
@@ -751,21 +752,24 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "tasks" ? (
           <div>
+            {(() => {
+            const tasksEnrollments = enrollments.filter(e => e.status !== "Completed" && e.status !== "Archived");
+            return (<>
             <div className="tasks-scroll-hint" style={{ display: "none", background: "#fffde7", border: "2px solid #f9a825", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", fontWeight: 600, borderRadius: 0, textAlign: "center" }}>
               On mobile? Please tap <strong>Open Dashboard</strong> above or scroll horizontally to view all tasks.
             </div>
-            {enrollments.length === 0 && getHiddenEnrollments(user.uid).length === 0 ? (
+            {tasksEnrollments.length === 0 && getHiddenEnrollments(user.uid).length === 0 ? (
               <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
                 <p style={{ color: "#888", fontSize: "1rem" }}>You have no active internships. Explore domains to get started.</p>
               </div>
-            ) : enrollments.length === 0 && getHiddenEnrollments(user.uid).length > 0 ? (
+            ) : tasksEnrollments.length === 0 && getHiddenEnrollments(user.uid).length > 0 ? (
               <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
                 <p style={{ color: "#888", fontSize: "1rem" }}>All internships are hidden.</p>
                 <button className="btn-sharp" onClick={() => { getHiddenEnrollments(user.uid).forEach((id) => unhideEnrollmentFromUser(user.uid, id)); loadAll(); notify("All hidden internships restored.", "info"); }} style={{ marginTop: "0.75rem", padding: "0.5rem 1rem", fontSize: "0.82rem" }}>Restore All Hidden</button>
               </div>
-            ) : enrollments.length === 1 ? (
+            ) : tasksEnrollments.length === 1 ? (
               (() => {
-                const enrollment = enrollments[0];
+                const enrollment = tasksEnrollments[0];
                 const projects = getProjectsForEnrollment(enrollment);
                 const submissions = getSubmissions(enrollment);
                 const completionPct = getCompletionPercent(enrollment);
@@ -813,7 +817,7 @@ export default function StudentDashboard({
             ) : (
               <div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
-                  {enrollments.map((e) => (
+                  {tasksEnrollments.map((e) => (
                     <div key={e.id} style={{ border: "2px solid #000", padding: "1rem 1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
                       <div>
                         <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
@@ -870,6 +874,65 @@ export default function StudentDashboard({
                 })()}
               </div>
             )}
+            </>);
+          })()}
+          </div>
+        ) : activeTab === "completed" ? (
+          <div>
+            {(() => {
+              const completedEnrollments = enrollments.filter(e => e.status === "Completed" || e.allowedCertificate === "yes");
+              if (completedEnrollments.length === 0) {
+                return (
+                  <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                    <p style={{ color: "#888", fontSize: "1rem" }}>No completed internships yet. Complete your tasks and payment to see them here.</p>
+                  </div>
+                );
+              }
+              return (
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <p style={{ fontSize: "0.85rem", fontWeight: 700, color: "#555", marginBottom: "0.5rem" }}>{completedEnrollments.length} completed internship{completedEnrollments.length !== 1 ? "s" : ""}</p>
+                  {completedEnrollments.map((enrollment) => {
+                    const projects = getProjectsForEnrollment(enrollment);
+                    const submissions = getSubmissions(enrollment);
+                    const completionPct = getCompletionPercent(enrollment);
+                    const allVerified = projects.length > 0 && projects.every((_, idx) => submissions[idx]?.verified);
+                    const isCompleted = true;
+                    const isExpired = false;
+                    return (
+                      <EnrollmentCard
+                        key={enrollment.id}
+                        enrollment={enrollment}
+                        projects={projects}
+                        submissions={submissions}
+                        completionPct={completionPct}
+                        allVerified={allVerified}
+                        isCompleted={isCompleted}
+                        isExpired={isExpired}
+                        submissionInputs={submissionInputs}
+                        setSubmissionInputs={setSubmissionInputs}
+                        submitting={submitting}
+                        submitSuccess={submitSuccess}
+                        onSubmitProject={handleSubmitProject}
+                        onSubmitQuiz={handleSubmitQuiz}
+                        onDownloadFromTemplate={handleDownloadFromTemplate}
+                        onDownloadReceipt={handleDownloadReceipt}
+                        domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
+                        templates={templates}
+                        onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
+                        paymentStatus={enrollment.paymentStatus}
+                        paymentStage={enrollment.paymentStage}
+                        paymentAmount={enrollment.paymentAmount}
+                        paymentStartAmount={enrollment.paymentStartAmount}
+                        paymentEndAmount={enrollment.paymentEndAmount}
+                        paymentTiming={enrollment.paymentTiming}
+                        user={user}
+                        onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
+                      />
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         ) : activeTab === "referral" ? (
           <div>
