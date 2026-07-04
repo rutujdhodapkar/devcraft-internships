@@ -296,6 +296,17 @@ export async function processEmailCampaign(db, config, dryRun = false) {
       // Stage check
       if (!shouldSendEmail(emailType.id, user.stage)) continue;
 
+      // Payment reminder: only send if user has at least 1 verified task submission
+      if (emailType.id === 'payment_reminder') {
+        const enr = user.enrollment || {};
+        const subs = enr.submissions || {};
+        const hasVerified = Object.values(subs).some(s => s?.verified === true);
+        if (!hasVerified) {
+          results.skipped++;
+          continue;
+        }
+      }
+
       // Category check - skip if user has disabled this category
       const templateMeta = (await import('./emailTemplates.js')).TEMPLATES[emailType.id];
       const category = templateMeta?.defaultCategory || emailType.id;
