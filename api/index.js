@@ -1382,8 +1382,14 @@ async function handleEmail(req, res, parts) {
   if (!db) return send(res, 503, { success: false, message: 'Firebase not configured' });
   const { sendEmail, isConfigured } = await import('../server/brevoClient.js');
   const { renderTemplate, TEMPLATES, getTemplate } = await import('../server/emailTemplates.js');
-  const { runDailyCron, getEmailStats, processEmailCampaign, determineLifecycleStages, EMAIL_TYPES, EMAIL_CATEGORIES } = await import('../server/emailEngine.js');
+  const { runDailyCron, getEmailStats, processEmailCampaign, determineLifecycleStages, EMAIL_TYPES, EMAIL_CATEGORIES, triggerManualType } = await import('../server/emailEngine.js');
 
+  if (sub === 'trigger' && req.method === 'POST') {
+    const { type, email, dryRun } = req.query || {};
+    if (!type) return send(res, 400, { success: false, message: 'type query param required' });
+    const result = await triggerManualType(db, type, email || null, dryRun === 'true');
+    return send(res, 200, { success: true, data: result });
+  }
   if (sub === 'run' && req.method === 'POST') {
     const result = await runDailyCron(db);
     return send(res, 200, { success: true, data: result });

@@ -1525,3 +1525,11 @@ export async function sendTestEmail(email, type, name = "") {
 export async function fetchEmailAutomationLog() {
   return apiFetch("/api/email/automation-log");
 }
+
+export async function triggerManualEmailType(type, email = "", dryRun = false) {
+  const params = { type };
+  if (dryRun) params.dryRun = "true";
+  if (email) params.email = email;
+  const q = new URLSearchParams(params).toString();
+  return apiFetch(`/api/email/trigger?${q}`, { method: "POST" });
+}

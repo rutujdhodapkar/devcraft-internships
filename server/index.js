@@ -753,6 +753,21 @@ app.get('/api/data/audit-log', async (req, res) => {
 
 // ─── Email Automation Routes ────────────────────────────────────────────────
 
+// POST /api/email/trigger — Trigger a specific email type manually
+app.post('/api/email/trigger', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const { type, email, dryRun } = req.query;
+    if (!type) return res.status(400).json({ success: false, message: 'type query param required' });
+    const { triggerManualType } = await import('./emailEngine.js');
+    const result = await triggerManualType(db, type, email || null, dryRun === 'true');
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // POST /api/email/run — Trigger the daily cron manually (admin)
 app.post('/api/email/run', async (req, res) => {
   try {

@@ -84,6 +84,7 @@ import {
   triggerEmailCron,
   sendTestEmail,
   fetchEmailAutomationLog,
+  triggerManualEmailType,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -10553,6 +10554,9 @@ function EmailSection() {
   const [testEmail, setTestEmail] = useState("");
   const [testType, setTestType] = useState("welcome");
   const [configDirty, setConfigDirty] = useState(false);
+  const [manualType, setManualType] = useState("welcome");
+  const [manualEmailFilter, setManualEmailFilter] = useState("");
+  const [manualResult, setManualResult] = useState("");
 
   useEffect(() => { if (tab === "dashboard") loadDashboard(); }, [tab]);
   useEffect(() => { if (tab === "templates") loadTemplates(); }, [tab]);
@@ -10678,6 +10682,30 @@ function EmailSection() {
     setLoading(false);
   }
 
+  async function handleManualTrigger() {
+    if (!confirm(`Send "${manualType}" emails now?`)) return;
+    setLoading(true);
+    setManualResult("");
+    try {
+      const q = new URLSearchParams({ type: manualType });
+      if (manualEmailFilter.trim()) q.set("email", manualEmailFilter.trim());
+      const res = await triggerManualEmailType(manualType, manualEmailFilter.trim());
+      setManualResult(`Type: ${manualType}\nSent: ${res.data?.sent || 0}\nSkipped: ${res.data?.skipped || 0}\nErrors: ${res.data?.errors || 0}\n${manualEmailFilter ? "Filtered by: " + manualEmailFilter : ""}`);
+      notify(`Sent ${res.data?.sent || 0} emails`, "success");
+    } catch (e) { setManualResult("Error: " + e.message); notify("Error: " + e.message, "error"); }
+    setLoading(false);
+  }
+
+  async function handleManualDryRun() {
+    setLoading(true);
+    setManualResult("");
+    try {
+      const res = await triggerManualEmailType(manualType, manualEmailFilter.trim(), true);
+      setManualResult(`Type: ${manualType}\nWould send: ${res.data?.sent || 0}\nWould skip: ${res.data?.skipped || 0}\nTotal eligible: ${res.data?.processed || 0}`);
+    } catch (e) { setManualResult("Error: " + e.message); }
+    setLoading(false);
+  }
+
   async function unsubscribeUser(email) {
     if (!confirm(`Unsubscribe ${email}?`)) return;
     try {
@@ -10689,6 +10717,7 @@ function EmailSection() {
 
   const subTabs = [
     { id: "dashboard", label: "Dashboard" },
+    { id: "manual", label: "Manual Trigger" },
     { id: "config", label: "Config" },
     { id: "templates", label: "Templates" },
     { id: "logs", label: "Logs" },
@@ -10733,6 +10762,49 @@ function EmailSection() {
               {loading ? "..." : "🔍 Dry Run"}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── Manual Trigger ── */}
+      {tab === "manual" && (
+        <div style={sectionStyle}>
+          <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "1rem" }}>Select an email type and optionally filter by user email to send immediately.</p>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end", marginBottom: "1rem" }}>
+            <div style={{ minWidth: "200px" }}>
+              <label style={labelStyle}>Email Type</label>
+              <select value={manualType} onChange={e => setManualType(e.target.value)} style={inputStyle}>
+                {[
+                  { id: "welcome", label: "Welcome" },
+                  { id: "payment_reminder", label: "Payment Reminder" },
+                  { id: "task_reminder", label: "Task Reminder" },
+                  { id: "deadline_urgent", label: "Deadline Urgent" },
+                  { id: "certificate_ready", label: "Certificate Ready" },
+                  { id: "completion", label: "Completion Follow-up" },
+                  { id: "re_engagement", label: "Re-engagement" },
+                  { id: "updates", label: "Updates (Broadcast)" },
+                  { id: "general", label: "General" },
+                ].map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: "200px" }}>
+              <label style={labelStyle}>Filter by Email (optional)</label>
+              <input value={manualEmailFilter} onChange={e => setManualEmailFilter(e.target.value)} placeholder="Leave blank for all eligible users" style={inputStyle} />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <button onClick={handleManualTrigger} disabled={loading} style={{ ...btnStyle, background: "linear-gradient(135deg,#a78bfa,#60a5fa)", color: "#fff" }}>
+              {loading ? "Sending..." : "▶ Send Now"}
+            </button>
+            <button onClick={handleManualDryRun} disabled={loading} style={{ ...btnStyle, background: "#1a1a2e", color: "#888" }}>
+              {loading ? "..." : "🔍 Preview Count"}
+            </button>
+          </div>
+          {manualResult && (
+            <div style={{ ...cardStyle, marginTop: "1rem", border: "1px solid #a78bfa" }}>
+              <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "#a78bfa" }}>Result</div>
+              <div style={{ fontSize: "0.85rem", color: "#aaa", whiteSpace: "pre-wrap" }}>{manualResult}</div>
+            </div>
+          )}
         </div>
       )}
 

@@ -267,13 +267,22 @@ export async function determineLifecycleStages(db) {
   return Object.values(stages);
 }
 
-export async function processEmailCampaign(db, config, dryRun = false) {
+export async function processEmailCampaign(db, config, dryRun = false, onlyType = null) {
   if (!config || Object.keys(config).length === 0) {
     config = await getEmailConfig(db);
   }
 
   const results = { processed: 0, sent: 0, skipped: 0, errors: 0, details: [] };
   const stages = await determineLifecycleStages(db);
+
+  const emailTypesToProcess = onlyType
+    ? EMAIL_TYPES.filter(t => t.id === onlyType)
+    : EMAIL_TYPES;
+
+  if (onlyType && emailTypesToProcess.length === 0) {
+    results.errors++;
+    return results;
+  }
 
   for (const user of stages) {
     if (user.stage === STAGES.UNSUBSCRIBED) {
@@ -289,19 +298,23 @@ export async function processEmailCampaign(db, config, dryRun = false) {
     }
 
     // Determine which email types to send for this user
-    for (const emailType of EMAIL_TYPES) {
+    for (const emailType of emailTypesToProcess) {
       const typeConfig = config[emailType.id];
       if (typeConfig && typeConfig.active === false) continue;
 
       // Stage check
       if (!shouldSendEmail(emailType.id, user.stage)) continue;
 
-      // Payment reminder: only send if user has at least 1 verified task submission
+      // Payment reminder: send if ALL tasks verified, OR if no tasks submitted in 5+ days
       if (emailType.id === 'payment_reminder') {
         const enr = user.enrollment || {};
         const subs = enr.submissions || {};
-        const hasVerified = Object.values(subs).some(s => s?.verified === true);
-        if (!hasVerified) {
+        const allProjects = enr.projects || [];
+        const allVerified = allProjects.length > 0 && allProjects.every((_, i) => subs[i]?.verified === true);
+        const anySubmitted = Object.values(subs).some(s => s?.submittedAt);
+        const daysSinceEnroll = daysSince(enr.createdAt);
+        const noSubmissionIn5Days = !anySubmitted && daysSinceEnroll >= 5;
+        if (!allVerified && !noSubmissionIn5Days) {
           results.skipped++;
           continue;
         }
@@ -483,6 +496,19 @@ export async function processLifecycleTransitions(db) {
   }
 
   return transitions;
+}
+
+export async function triggerManualType(db, type, emailFilter = null, dryRun = false) {
+  console.log(`[EmailEngine] Manual trigger: ${type}${dryRun ? ' (dry run)' : ''}`);
+  const config = await getEmailConfig(db);
+  const results = await processEmailCampaign(db, config, dryRun, type);
+  return {
+    success: true,
+    type,
+    emailFilter,
+    dryRun,
+    ...results,
+  };
 }
 
 export async function runDailyCron(db) {
