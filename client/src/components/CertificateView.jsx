@@ -238,14 +238,6 @@ export default function CertificateView() {
           templateHtml = Object.values(templates).find((v) => v) || FALLBACK_CERTIFICATE;
         }
 
-        // Auto-inject msmeId and qrCodeUrl sections if missing
-        if (!templateHtml.includes("{{msmeId}}")) {
-          templateHtml = templateHtml.replace("</body>", '  <div class="msme-id" style="font-size:10px;color:#888;margin-top:12px;text-align:center">MSME Reg. No: {{msmeId}}</div>\n</body>');
-        }
-        if (!templateHtml.includes("{{qrCodeUrl}}")) {
-          templateHtml = templateHtml.replace("</body>", '  <div class="qr-section" style="margin-top:20px;text-align:center">\n    <img src="{{qrCodeUrl}}" alt="Verify Certificate" style="width:100px;height:100px" />\n    <div style="font-size:9px;color:#aaa;margin-top:4px;text-transform:uppercase;letter-spacing:1px">Scan QR to Verify</div>\n  </div>\n</body>');
-        }
-
         // Fill template with server-signed data
         const vars = {
           ...enrollment,

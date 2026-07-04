@@ -4309,9 +4309,29 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     />
                   </div>
                 ))}
-                <button onClick={handleSaveTemplates} className="btn-sharp" disabled={contentSaving} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+                <button onClick={handleSaveTemplates} className="btn-sharp" disabled={contentSaving} style={{ padding: "0.7rem 2rem" }}>
                   {contentSaving ? "Saving…" : "Save Templates"}
                 </button>
+                <button type="button" className="btn-sharp" onClick={() => {
+                  const updated = { ...templates };
+                  updated.templates = { ...(updated.templates || {}) };
+                  Object.keys(updated.templates).forEach((key) => {
+                    let html = updated.templates[key] || "";
+                    if (!html.includes("{{msmeId}}")) {
+                      html = html.replace("</body>", '  <div class="msme-id" style="font-size:10px;color:#888;margin-top:12px;text-align:center">MSME Reg. No: {{msmeId}}</div>\n</body>');
+                    }
+                    if (!html.includes("{{qrCodeUrl}}")) {
+                      html = html.replace("</body>", '  <div class="qr-section" style="margin-top:20px;text-align:center">\n    <img src="{{qrCodeUrl}}" alt="Verify Certificate" style="width:100px;height:100px" />\n    <div style="font-size:9px;color:#aaa;margin-top:4px;text-transform:uppercase;letter-spacing:1px">Scan QR to Verify</div>\n  </div>\n</body>');
+                    }
+                    updated.templates[key] = html;
+                  });
+                  setTemplates(updated);
+                  notify("MSME & QR injected. Save templates to persist.", "info");
+                }} style={{ padding: "0.7rem 2rem", background: "#fff", color: "#000" }}>
+                  Inject MSME & QR
+                </button>
+                </div>
               </>
             )}
           </div>
