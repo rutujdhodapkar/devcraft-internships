@@ -50,6 +50,7 @@ import {
   saveDodoConfig,
   fetchPaymentMethods,
   savePaymentMethods,
+  fetchOrgSettings,
   fetchAuditLog,
   logAdminAction,
   fetchTheme,
@@ -254,6 +255,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [paymentMethods, setPaymentMethods] = useState(null);
   const [paymentMethodsLoading, setPaymentMethodsLoading] = useState(false);
   const [paymentMethodsSaving, setPaymentMethodsSaving] = useState(false);
+  const [orgSettings, setOrgSettings] = useState({ msmeId: "" });
+  const [orgSaving, setOrgSaving] = useState(false);
   const [payoutConfig, setPayoutConfig] = useState(null);
   const [payoutConfigLoading, setPayoutConfigLoading] = useState(false);
   const [payoutConfigSaving, setPayoutConfigSaving] = useState(false);
@@ -552,6 +555,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         .then((c) => { if (c) setDodoConfig(c); })
         .catch(() => {})
         .finally(() => setDodoConfigLoading(false));
+      fetchOrgSettings()
+        .then((s) => { if (s) setOrgSettings(s); })
+        .catch(() => {});
       setPaymentMethodsLoading(true);
       fetchPaymentMethods()
         .then((m) => setPaymentMethods(m))
@@ -1936,7 +1942,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   {(project?.quizQuestions || []).map((q, qi) => (
                                     <div key={qi} style={{ padding: "0.4rem 0.65rem", marginBottom: "0.3rem", background: "#f9f9f9", border: "1px solid #eee", fontSize: "0.85rem", color: "#333" }}>
                                       <div style={{ fontWeight: 700 }}>Q{qi + 1}: {q.question}</div>
-                                      <div style={{ marginTop: "0.15rem" }}>Answer: <strong>{submission?.quizAnswers?.[qi] ?? "(not answered)"}</strong></div>
+                                      <div style={{ marginTop: "0.15rem" }}>Answer: <strong>{submission?.quizAnswers?.[qi] ?? submission?.answers?.[qi] ?? "(not answered)"}</strong></div>
                                     </div>
                                   ))}
                                 </div>
@@ -1977,7 +1983,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                       <div key={qi} style={{ marginBottom: "0.25rem", padding: "0.25rem 0.4rem", background: "#fafafa", border: "1px solid #eee" }}>
                                         <div style={{ fontWeight: 700 }}>Q{qi + 1}: {q.question}</div>
                                         <div style={{ color: "#555", marginTop: "0.1rem" }}>
-                                          Submitted: <strong>{submission.quizAnswers?.[qi] ?? "(empty)"}</strong>
+                                          Submitted: <strong>{submission.quizAnswers?.[qi] ?? submission.answers?.[qi] ?? "(empty)"}</strong>
                                           {q.answer !== undefined && q.answer !== "" && (
                                             <span style={{ marginLeft: "0.5rem" }}>Correct: <strong style={{ color: "#34A853" }}>{q.answer}</strong></span>
                                           )}
@@ -3888,6 +3894,31 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   )}
                 </div>
 
+                {/* Organization Settings */}
+                <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
+                  <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Organization Settings</h4>
+                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+                    <div>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.25rem" }}>MSME Registration No.</label>
+                      <input type="text" placeholder="e.g. UDYAM-XX-00-0000000" value={orgSettings?.msmeId || ""} onChange={(e) => setOrgSettings((p) => ({ ...p, msmeId: e.target.value }))} style={{ border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "280px" }} />
+                    </div>
+                    <button onClick={async () => {
+                      setOrgSaving(true);
+                      try {
+                        const { saveSiteConfig } = await import("../services/data");
+                        await saveSiteConfig("organization", orgSettings || {});
+                        notify("Organization settings saved!", "success");
+                      } catch (err) {
+                        notify("Failed to save: " + err.message, "error");
+                      } finally {
+                        setOrgSaving(false);
+                      }
+                    }} className="btn-sharp" disabled={orgSaving} style={{ padding: "0.5rem 1.25rem", fontSize: "0.85rem" }}>
+                      {orgSaving ? "Saving…" : "Save Organization Settings"}
+                    </button>
+                  </div>
+                </div>
+
                 {/* Payment Methods Toggles */}
                 <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
                   <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Active Payment Methods</h4>
@@ -5415,7 +5446,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     const projDesc =
                       typeof proj === "object" ? proj.description || "" : "";
                     const subText = isQuiz
-                      ? (proj?.quizQuestions || []).map((q, qi) => `Q${qi+1}: ${q.question}\nAnswer: ${sub?.quizAnswers?.[qi] ?? "(not answered)"}`).join("\n\n")
+                      ? (proj?.quizQuestions || []).map((q, qi) => `Q${qi+1}: ${q.question}\nAnswer: ${sub?.quizAnswers?.[qi] ?? sub?.answers?.[qi] ?? "(not answered)"}`).join("\n\n")
                       : (sub.text || "");
                     const urlMatch = subText.match(/https?:\/\/[^\s<>"']+/);
                     const domainName = enrollment.domain || enrollment.domainId || "";
@@ -8659,7 +8690,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   {(project?.quizQuestions || []).map((q, qi) => (
                                     <div key={qi} style={{ padding: "0.4rem 0.65rem", marginBottom: "0.3rem", background: "#f9f9f9", border: "1px solid #eee", fontSize: "0.85rem", color: "#333" }}>
                                       <div style={{ fontWeight: 700 }}>Q{qi + 1}: {q.question}</div>
-                                      <div style={{ marginTop: "0.15rem" }}>Answer: <strong>{sub?.quizAnswers?.[qi] ?? "(not answered)"}</strong></div>
+                                      <div style={{ marginTop: "0.15rem" }}>Answer: <strong>{sub?.quizAnswers?.[qi] ?? sub?.answers?.[qi] ?? "(not answered)"}</strong></div>
                                     </div>
                                   ))}
                                 </div>
@@ -8702,7 +8733,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                       <div key={q.question || qi} style={{ marginBottom: "0.35rem", padding: "0.3rem 0.5rem", background: "#f9f9f9", border: "1px solid #eee" }}>
                                         <div><strong>Q{qi + 1}:</strong> {q.question}</div>
                                         <div style={{ fontSize: "0.75rem", color: "#555", marginTop: "0.15rem" }}>
-                                          Submitted: <strong>{sub.quizAnswers?.[qi] ?? "(empty)"}</strong>
+                                          Submitted: <strong>{sub.quizAnswers?.[qi] ?? sub.answers?.[qi] ?? "(empty)"}</strong>
                                           {q.answer !== undefined && q.answer !== "" && (
                                             <span style={{ marginLeft: "0.75rem" }}>Correct: <strong style={{ color: "#34A853" }}>{q.answer}</strong></span>
                                           )}

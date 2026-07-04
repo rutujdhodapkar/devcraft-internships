@@ -582,7 +582,11 @@ async function handleData(req, res, routeParts) {
   if (resource === "site-config") {
     const key = req.query?.key || id;
     if (req.method === "GET" && key) return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", key, null))?.value || null });
-    if (req.method === "PUT" && key) return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value: req.body, updatedAt: now() })).value }));
+    if (req.method === "PUT" && key) {
+      // Strip auth fields before storing
+      const { idToken, ...cleanBody } = req.body || {};
+      return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value: cleanBody, updatedAt: now() })).value }));
+    }
   }
   if (resource === "receipt" && id) {
     const enr = await getDoc(db, "enrollments", id, null);
@@ -756,7 +760,37 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       }
     }
     if (extra2 === "submit") Object.assign(patch, { [base]: { text: req.body.submissionText || "", url: req.body.submissionUrl || "", submittedAt: now(), verified: false, rejected: false, resubmit: false } });
-    if (extra2 === "quiz") Object.assign(patch, { [base]: { answers: req.body.answers || {}, project: req.body.project || null, submittedAt: now(), verified: false, rejected: false, resubmit: false, type: "quiz" } });
+    if (extra2 === "quiz") {
+      const quizAnswers = req.body.answers || {};
+      const project = req.body.project || null;
+      const patchData = { quizAnswers, project, submittedAt: now(), verified: false, rejected: false, resubmit: false, type: "quiz" };
+      // Auto-grade MCQ quizzes that have answer keys
+      if (project && project.quizQuestions && Array.isArray(project.quizQuestions)) {
+        const allMCQ = project.quizQuestions.every(q => q.type === "option" && q.options?.length > 0);
+        const allHaveKeys = project.quizQuestions.every(q => q.answer !== undefined && q.answer !== "");
+        if (allMCQ && allHaveKeys) {
+          const results = {};
+          let correctCount = 0;
+          project.quizQuestions.forEach((q, qi) => {
+            const submitted = quizAnswers[qi];
+            const correct = submitted === q.answer;
+            results[qi] = correct;
+            if (correct) correctCount++;
+          });
+          const score = Math.round((correctCount / project.quizQuestions.length) * 100);
+          const passingGrade = project.passingGrade || 100;
+          Object.assign(patchData, {
+            verified: true,
+            verifiedAt: now(),
+            quizScore: score,
+            quizPassed: score >= passingGrade,
+            quizResults: results,
+            aiVerified: true,
+          });
+        }
+      }
+      Object.assign(patch, { [base]: patchData });
+    }
     if (extra2 === "verify") Object.assign(patch, { [`${base}.verified`]: true, [`${base}.verifiedAt`]: now(), [`${base}.rejected`]: false, [`${base}.aiVerified`]: req.body.aiVerified || false });
     if (extra2 === "unverify") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.verifiedAt`]: null, [`${base}.aiVerified`]: false });
     if (extra2 === "feedback") Object.assign(patch, { [`${base}.feedback`]: req.body.feedback || "" });
@@ -1086,7 +1120,7 @@ async function handleQR(req, res, enrollmentId) {
   try {
     const QRCode = await import("qrcode");
     const origin = req.headers["x-forwarded-host"] ? `https://${req.headers["x-forwarded-host"]}` : `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "devcraft.rutujdhodapkar.tech"}`;
-    const verifyUrl = `${origin}/api/verify/${encodeURIComponent(enrollmentId)}`;
+    const verifyUrl = `${origin}/verify/${encodeURIComponent(enrollmentId)}`;
     const svg = await QRCode.toString(verifyUrl, { type: "svg", width: 400, margin: 2, color: { dark: "#000", light: "#fff" } });
     res.setHeader("Content-Type", "image/svg+xml");
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
@@ -1118,6 +1152,109 @@ async function handleVerify(req, res, enrollmentId) {
 
 function escapeHtml(text) {
   return String(text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+async function handleVerifyData(req, res, enrollmentId) {
+  try {
+    const db = await initFirebase();
+    const snap = await db.collection("enrollments").doc(enrollmentId).get();
+    if (!snap.exists) return send(res, 200, { success: false, message: "No intern found with this ID." });
+    const e = snap.data();
+    return send(res, 200, { success: true, data: {
+      name: e.name || "Intern",
+      domain: e.domain || "",
+      status: e.status || "N/A",
+      internId: e.internId || enrollmentId,
+      certificate: e.allowedCertificate === "yes" ? "Available" : "Locked",
+      started: e.createdAt ? new Date(e.createdAt).toLocaleDateString() : "N/A",
+      completed: e.completedAt ? new Date(e.completedAt).toLocaleDateString() : "In progress",
+    }});
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
+}
+
+const CRYPTO_SECRET = process.env.CRYPTO_SECRET || "devcraft-cert-secret-change-in-production";
+
+function parseDuration(durationStr) {
+  if (!durationStr) return 28;
+  const str = String(durationStr).toLowerCase().trim();
+  const num = parseInt(str, 10) || 1;
+  if (str.includes("month")) return num * 30;
+  if (str.includes("week")) return num * 7;
+  if (str.includes("day")) return num;
+  return 28;
+}
+
+async function handleCertificateData(req, res, enrollmentId) {
+  try {
+    const db = await initFirebase();
+    const idToken = req.body?.idToken;
+    const decoded = idToken ? await verifyFirebaseToken(idToken) : null;
+    if (!decoded) return send(res, 401, { success: false, message: "Authentication required." });
+
+    const snap = await db.collection("enrollments").doc(enrollmentId).get();
+    if (!snap.exists) return send(res, 404, { success: false, message: "Enrollment not found." });
+
+    const enrollment = snap.data();
+
+    // Verify ownership or admin
+    const adminEmail = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
+    const adminDoc = adminEmail ? await db.collection("admins").doc(adminEmail).get() : null;
+    const isAdmin = adminDoc?.exists;
+    const isOwner = enrollment.uid === decoded.uid || enrollment.userId === decoded.uid;
+    if (!isAdmin && !isOwner) return send(res, 403, { success: false, message: "Access denied." });
+
+    // Server-side condition check
+    const projects = enrollment.projects || [];
+    const submissions = enrollment.submissions || {};
+    const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
+    const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
+    const eligible = (allVerified || projects.length === 0) && (isPaid || enrollment.status === "Completed");
+    const status = eligible ? "Completed" : (enrollment.status || "Active");
+
+    // Get org settings (MSME ID)
+    const orgDoc = await getDoc(db, "siteConfig", "organization", null);
+    const msmeId = orgDoc?.value?.msmeId || "";
+
+    // Date computations
+    const durationDays = parseDuration(enrollment.duration);
+    const start = new Date(enrollment.createdAt || Date.now());
+    const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    const certDate = enrollment.certificateDate ? new Date(enrollment.certificateDate) : start;
+    const fmt = (d) => d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+    const origin = req.headers["x-forwarded-host"] ? `https://${req.headers["x-forwarded-host"]}` : `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "devcraft.rutujdhodapkar.tech"}`;
+    const qrCodeUrl = `${origin}/api/qr/${encodeURIComponent(enrollment.id || enrollment.internId || enrollmentId)}`;
+
+    const certData = {
+      name: enrollment.name || "",
+      email: enrollment.email || "",
+      domain: enrollment.domain || "",
+      internId: enrollment.internId || enrollment.id || enrollmentId,
+      id: enrollment.id || enrollmentId,
+      status,
+      completed: eligible ? "Yes" : "No",
+      msmeId,
+      date: fmt(certDate),
+      startDate: fmt(start),
+      endDate: fmt(end),
+      qrCodeUrl,
+      eligible,
+      verifiedTasks: allVerified,
+      paymentComplete: isPaid,
+    };
+
+    // HMAC signature
+    const { createHmac } = await import("crypto");
+    const hmac = createHmac("sha256", CRYPTO_SECRET);
+    hmac.update(JSON.stringify({ name: certData.name, domain: certData.domain, status: certData.status, internId: certData.internId, date: certData.date }));
+    certData._signature = hmac.digest("hex");
+
+    return send(res, 200, { success: true, data: certData });
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
 }
 
 async function handleFirebaseProxy(req, res) {
@@ -1257,6 +1394,8 @@ export default async function handler(req, res) {
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
     if (parts[0] === "dodo") return handleDodo(req, res, parts.slice(1));
     if (parts[0] === "qr" && parts[1]) return handleQR(req, res, parts[1]);
+    if (parts[0] === "certificate-data" && parts[1]) return handleCertificateData(req, res, parts[1]);
+    if (parts[0] === "verify-data" && parts[1]) return handleVerifyData(req, res, parts[1]);
     if (parts[0] === "verify" && parts[1]) return handleVerify(req, res, parts[1]);
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });

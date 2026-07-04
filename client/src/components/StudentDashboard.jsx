@@ -172,7 +172,7 @@ export default function StudentDashboard({
       ]);
       setPaymentMethods(pm);
       const hiddenIds = getHiddenEnrollments(user.uid);
-      const activeEnrollments = data.filter((e) => e.status !== "Archived" && !hiddenIds.includes(e.id));
+      const activeEnrollments = data.filter((e) => !hiddenIds.includes(e.id));
       setEnrollments(activeEnrollments);
       setTemplates(tmpl?.templates || tmpl || null);
       setCareerPaths(cpResult.paths || []);
@@ -2103,15 +2103,18 @@ function ProjectBox({
           {isQuiz ? (
             <div>
               {(project?.quizQuestions || []).map((q, qi) => {
-                const qAnswer = sub?.quizAnswers?.[qi];
+                const qAnswer = sub?.quizAnswers?.[qi] ?? sub?.answers?.[qi];
+                const qResult = sub?.quizResults?.[qi];
+                const isCorrect = qResult === true;
+                const isWrong = qResult === false;
                 return (
                   <div
                     key={qi}
                     style={{
                       padding: "0.5rem 0.75rem",
                       marginBottom: "0.4rem",
-                      background: "#f5f5f5",
-                      border: "1px solid #ddd",
+                      background: isCorrect ? "#f0fdf4" : isWrong ? "#fef2f2" : "#f5f5f5",
+                      border: `1px solid ${isCorrect ? "#34A853" : isWrong ? "#EA4335" : "#ddd"}`,
                       fontSize: "0.85rem",
                       color: "#333",
                     }}
@@ -2121,10 +2124,28 @@ function ProjectBox({
                     </div>
                     <div>
                       Your answer: <strong>{qAnswer ?? "(empty)"}</strong>
+                      {isCorrect && <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>✓ Correct</span>}
+                      {isWrong && <span style={{ color: "#EA4335", marginLeft: "0.5rem" }}>✗ Incorrect</span>}
+                      {(qResult === undefined || qResult === null) && sub?.verified && q.answer !== undefined && q.answer !== "" && (
+                        <span style={{ color: "#888", marginLeft: "0.5rem" }}>Correct answer: <strong style={{ color: "#34A853" }}>{q.answer}</strong></span>
+                      )}
                     </div>
                   </div>
                 );
               })}
+              {sub?.quizScore !== undefined && (
+                <div style={{ marginTop: "0.75rem", padding: "0.65rem 0.85rem", background: sub.quizPassed ? "#f0fdf4" : "#fef2f2", border: `2px solid ${sub.quizPassed ? "#34A853" : "#EA4335"}`, display: "flex", alignItems: "center", gap: "0.65rem" }}>
+                  <span style={{ fontSize: "1.2rem" }}>{sub.quizPassed ? "✅" : "❌"}</span>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: "0.88rem", color: sub.quizPassed ? "#1a5c2e" : "#991b1b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                      Quiz Score: {sub.quizScore}% — {sub.quizPassed ? "PASSED" : "FAILED"}
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: sub.quizPassed ? "#2e7d4f" : "#b91c1c", marginTop: "0.15rem" }}>
+                      Passing grade: {project?.passingGrade || 100}%
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div
@@ -2267,12 +2288,30 @@ function ProjectBox({
           >
             <button
               onClick={onSubmit}
-              disabled={isSubmittingNow || (!isQuiz && !inputValue.trim()) || (isQuiz && !inputValue)}
+              disabled={(() => {
+                if (isSubmittingNow) return true;
+                if (!isQuiz) return !inputValue.trim();
+                // Quiz: disable if any question is unanswered
+                const parsed = (() => { try { return JSON.parse(inputValue || "{}"); } catch { return {}; } })();
+                const allAnswered = (project?.quizQuestions || []).every((_, qi) => {
+                  const val = parsed[qi];
+                  return val !== undefined && String(val).trim() !== "";
+                });
+                return !allAnswered;
+              })()}
               className="btn-sharp"
               style={{
                 padding: "0.5rem 1.5rem",
                 fontSize: "0.85rem",
-                opacity: (!inputValue.trim() && !isQuiz) ? 0.5 : 1,
+                opacity: (() => {
+                  if (!isQuiz) return (!inputValue.trim()) ? 0.5 : 1;
+                  const parsed = (() => { try { return JSON.parse(inputValue || "{}"); } catch { return {}; } })();
+                  const allAnswered = (project?.quizQuestions || []).every((_, qi) => {
+                    const val = parsed[qi];
+                    return val !== undefined && String(val).trim() !== "";
+                  });
+                  return allAnswered ? 1 : 0.5;
+                })(),
               }}
             >
               {isSubmittingNow ? "Submitting…" : isQuiz ? "Submit All Answers" : "Submit Project"}

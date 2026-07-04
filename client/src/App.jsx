@@ -14,6 +14,7 @@ import IDCardModal from "./components/IDCardModal";
 import PopupModal from "./components/PopupModal";
 import PolicyPage from "./components/PolicyPage";
 import CertificateView from "./components/CertificateView";
+import VerifyCertificate from "./components/VerifyCertificate";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LogoLoopSection from "./components/LogoLoopSection";
 import SlidingStrip from "./components/SlidingStrip";
@@ -130,6 +131,7 @@ export default function App() {
   const initialView = (() => {
     const path = window.location.pathname;
     if (path.startsWith("/certificate/")) return "certificate";
+    if (path.startsWith("/verify/")) return "verify";
     if (path === "/tandp") return "tandp";
     if (path === "/privacy") return "privacy";
     if (path === "/refund") return "refund";
@@ -137,7 +139,7 @@ export default function App() {
     if (path === "/") return "site";
     return "error";
   })();
-  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp', 'privacy', 'refund', 'certificate', 'error'
+  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp', 'privacy', 'refund', 'certificate', 'verify', 'error'
   const [referralCode, setReferralCode] = useState("");
 
   // Routing Redirection Target
@@ -426,7 +428,7 @@ export default function App() {
 
   // Sync URL with current view for deep-linking
   useEffect(() => {
-    if (currentView === "certificate") return;
+    if (currentView === "certificate" || currentView === "verify") return;
     const map = { tandp: "/tandp", privacy: "/privacy", refund: "/refund", earn: "/earn" };
     const targetPath = map[currentView] || "/";
     if (window.location.pathname !== targetPath) {
@@ -439,11 +441,12 @@ export default function App() {
     const handlePop = () => {
       const path = window.location.pathname;
       if (path.startsWith("/certificate/")) setCurrentView("certificate");
+      else if (path.startsWith("/verify/")) setCurrentView("verify");
       else if (path === "/tandp") setCurrentView("tandp");
       else if (path === "/privacy") setCurrentView("privacy");
       else if (path === "/refund") setCurrentView("refund");
       else if (path === "/earn") setCurrentView("earn");
-      else if (["tandp", "privacy", "refund", "certificate", "earn"].includes(currentView)) setCurrentView("site");
+      else if (["tandp", "privacy", "refund", "certificate", "earn", "verify"].includes(currentView)) setCurrentView("site");
     };
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
@@ -823,6 +826,8 @@ export default function App() {
         );
       case "certificate":
         return <CertificateView />;
+      case "verify":
+        return <VerifyCertificate />;
       case "error":
         return <ErrorPage />;
       case "site":

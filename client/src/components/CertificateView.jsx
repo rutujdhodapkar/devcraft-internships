@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { fetchEnrollmentById, fetchTemplates, fetchCareerPaths } from "../services/data";
+import { fetchEnrollmentById, fetchTemplates } from "../services/data";
+import { getFirebaseIdToken } from "../firebase";
 
-function parseDuration(durationStr) {
-  if (!durationStr) return 28;
-  const str = String(durationStr).toLowerCase().trim();
-  const num = parseInt(str, 10) || 1;
-  if (str.includes("month")) return num * 30;
-  if (str.includes("week")) return num * 7;
-  if (str.includes("day")) return num;
-  return 28;
+function fillTemplate(html, vars) {
+  let result = html;
+  Object.entries(vars).forEach(([k, v]) => {
+    result = result.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v || "");
+  });
+  return result;
 }
 
 const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
@@ -87,6 +86,17 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
   .meta-item { text-align: center; }
   .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888; }
   .meta-value { font-weight: 700; margin-top: 4px; }
+  .cert-status {
+    margin-top: 16px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    display: inline-block;
+  }
+  .cert-status.completed { background: #34A853; color: #fff; }
+  .cert-status.pending { background: #FBBC05; color: #5a4000; }
   .footer-text {
     margin-top: 24px;
     font-size: 10px;
@@ -94,6 +104,13 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
     text-align: center;
     letter-spacing: 0.5px;
   }
+  .qr-section {
+    margin-top: 20px;
+    text-align: center;
+  }
+  .qr-section img { width: 100px; height: 100px; }
+  .qr-label { font-size: 9px; color: #aaa; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .msme-id { font-size: 10px; color: #888; margin-top: 12px; text-align: center; }
   .print-btn-wrap { text-align: center; margin: 20px 0; }
   .print-btn {
     background: #000; color: #fff; border: 1px solid #000;
@@ -122,6 +139,7 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
     The candidate demonstrated commitment, completed assigned project work,
     and met the program completion criteria reviewed by DevCraft.
   </div>
+  <div class="cert-status">{{status}}</div>
   <div class="meta-row">
     <div class="meta-item">
       <div class="meta-label">Date of Issue</div>
@@ -136,25 +154,22 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
       <div class="meta-value">{{id}}</div>
     </div>
   </div>
+  <div class="msme-id">MSME Reg. No: {{msmeId}}</div>
+  <div class="qr-section">
+    <img src="{{qrCodeUrl}}" alt="Verify Certificate" />
+    <div class="qr-label">Scan QR to Verify</div>
+  </div>
   <div class="footer-text">DevCraft &mdash; Authorized Signatory</div>
 </div>
 </body>
 </html>`;
-
-function fillTemplate(html, vars) {
-  let result = html;
-  Object.entries(vars).forEach(([k, v]) => {
-    result = result.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v || "");
-  });
-  return result;
-}
 
 export default function CertificateView() {
   const [html, setHtml] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const path = window.location.pathname; // /certificate/<enrollmentId>/<templateName>
+    const path = window.location.pathname;
     const parts = path.split("/").filter(Boolean);
     if (parts.length < 3 || parts[0] !== "certificate") {
       setError("Invalid certificate link.");
@@ -166,35 +181,37 @@ export default function CertificateView() {
 
     (async () => {
       try {
-        const [enrollment, tmplData, cpResult] = await Promise.all([
+        const token = await getFirebaseIdToken();
+        if (!token) {
+          setError("Authentication required. Please log in first.");
+          return;
+        }
+
+        // Fetch server-verified certificate data (gated: payment + tasks verified)
+        const certRes = await fetch(`/api/certificate-data/${encodeURIComponent(enrollmentId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: token }),
+        });
+        const certJson = await certRes.json();
+        if (!certJson.success) {
+          setError(certJson.message || "Certificate not available.");
+          return;
+        }
+
+        const certData = certJson.data;
+        if (!certData.eligible && templateName.toLowerCase().includes("certificate")) {
+          setError("Certificate is not yet available. Complete all tasks and payment first.");
+          return;
+        }
+
+        const [enrollment, tmplData] = await Promise.all([
           fetchEnrollmentById(enrollmentId),
           fetchTemplates(),
-          fetchCareerPaths(),
         ]);
         if (cancelled) return;
-        if (!enrollment) {
-          setError("Enrollment not found.");
-          return;
-        }
 
         const templateNameLower = templateName.toLowerCase();
-        const careerPaths = cpResult?.paths || [];
-        const matchedPath = careerPaths.find(
-          (cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain
-        );
-        const certProjects = matchedPath?.projects?.length > 0
-          ? matchedPath.projects
-          : (enrollment.projects && Array.isArray(enrollment.projects) && enrollment.projects.length > 0
-            ? enrollment.projects
-            : []);
-        const certSubs = enrollment.submissions || {};
-        const certAllVerified = certProjects.length > 0 && certProjects.every((_, idx) => certSubs[idx]?.verified);
-        const certUnlocked = enrollment.allowedCertificate === "yes" || ((certAllVerified || certProjects.length === 0) && (enrollment.paymentStatus === "paid" || enrollment.status === "Completed"));
-        if (templateNameLower.includes("certificate") && !certUnlocked) {
-          setError("Certificate is not yet available. Complete payment and task verification first.");
-          return;
-        }
-
         const templates = tmplData?.templates || {};
         const allKeys = Object.keys(templates).filter((k) => k !== "templateOrder");
         let templateHtml = templates[templateName];
@@ -216,33 +233,25 @@ export default function CertificateView() {
         if (!templateHtml) {
           templateHtml = Object.values(templates).find((v) => v) || FALLBACK_CERTIFICATE;
         }
-        const durationDays = parseDuration(matchedPath?.duration || enrollment.duration);
-        const start = new Date(enrollment.createdAt || Date.now());
-        const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
-        const startDate = start.toLocaleDateString("en-US", {
-          year: "numeric", month: "long", day: "numeric",
-        });
-        const endDate = end.toLocaleDateString("en-US", {
-          year: "numeric", month: "long", day: "numeric",
-        });
-        const certDate = enrollment.certificateDate ? new Date(enrollment.certificateDate) : start;
-        const date = certDate.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
 
-        const qrCodeUrl = `${window.location.origin}/api/qr/${encodeURIComponent(enrollment.id || enrollment.internId || "")}`;
-        const filled = fillTemplate(templateHtml, {
+        // Fill template with server-signed data
+        const vars = {
           ...enrollment,
-          qrCodeUrl,
-          date,
-          startDate,
-          endDate,
-          internId: enrollment.internId || enrollment.id || "",
-          id: enrollment.id || enrollment.internId || "",
-        });
+          name: certData.name,
+          domain: certData.domain,
+          internId: certData.internId,
+          id: certData.id,
+          status: certData.status,
+          completed: certData.completed,
+          msmeId: certData.msmeId,
+          date: certData.date,
+          startDate: certData.startDate,
+          endDate: certData.endDate,
+          qrCodeUrl: certData.qrCodeUrl,
+          _signature: certData._signature,
+        };
 
+        const filled = fillTemplate(templateHtml, vars);
         setHtml(filled);
       } catch (err) {
         if (!cancelled) setError("Failed to load certificate: " + err.message);

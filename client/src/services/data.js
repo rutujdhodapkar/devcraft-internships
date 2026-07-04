@@ -1128,6 +1128,11 @@ export async function saveDodoConfig(config) {
   return config;
 }
 
+export async function fetchOrgSettings() {
+  const d = await dbGet("siteConfig/organization");
+  return d?.value || null;
+}
+
 export async function fetchPaymentMethods() {
   const d = await dbGet("siteConfig/paymentMethods");
   return d?.value || { upi: true, dodo: false };
