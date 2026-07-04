@@ -1466,12 +1466,123 @@ async function handleEmail(req, res, parts) {
   }
   if (sub === 'unsubscribe' && req.method === 'GET') {
     const email = req.query?.email;
+    const done = req.query?.done;
     if (!email) return send(res, 400, { success: false, message: 'Email required' });
     const docId = email.toLowerCase().replace(/\./g, ',');
     const snap = await db.collection('emailSubscriptions').doc(docId).get();
-    if (snap.exists) await db.collection('emailSubscriptions').doc(docId).update({ status: 'unsubscribed', unsubscribedAt: new Date().toISOString() });
-    else await db.collection('emailSubscriptions').doc(docId).set({ email: email.toLowerCase(), status: 'unsubscribed', categories: {}, unsubscribedAt: new Date().toISOString(), subscribedAt: new Date().toISOString() });
-    return send(res, 200, { success: true, message: 'Unsubscribed successfully' });
+    const subData = snap.exists ? snap.data() : null;
+
+    if (done === 'all') {
+      if (subData) await db.collection('emailSubscriptions').doc(docId).update({ status: 'unsubscribed', unsubscribedAt: new Date().toISOString() });
+      else await db.collection('emailSubscriptions').doc(docId).set({ email: email.toLowerCase(), status: 'unsubscribed', categories: {}, subscribedAt: new Date().toISOString(), unsubscribedAt: new Date().toISOString() });
+      res.setHeader('Content-Type', 'text/html');
+      return res.status(200).send(
+        `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Unsubscribed</title><style>
+          *{margin:0;padding:0;box-sizing:border-box}
+          body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+          .card{max-width:520px;width:100%;border:2px solid #000;box-shadow:6px 6px 0 #000;padding:32px}
+          h1{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+          .sub{color:#888;font-size:13px;margin-bottom:20px}
+          hr{border:none;border-top:2px solid #000;margin:16px 0}
+          .btn{display:inline-block;padding:10px 24px;background:#000;color:#fff;text-decoration:none;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border:2px solid #000}
+          p{font-size:14px;color:#444;margin-bottom:10px}
+          .msg{padding:10px 14px;border:2px solid #34A853;font-size:13px;font-weight:700;margin-bottom:16px}
+        </style></head><body>
+        <div class="card">
+          <h1>Unsubscribed</h1>
+          <div class="sub">DEV/CRAFT Internship Platform</div>
+          <div class="msg">You have been unsubscribed from all emails.</div>
+          <p>You will not receive any further messages from DEV/CRAFT.</p>
+          <hr><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>
+        </div></body></html>`
+      );
+    }
+
+    // Load categories from config
+    const categories = {};
+    try {
+      const cfgSnap = await db.collection('siteConfig').doc('emailConfig').get();
+      if (cfgSnap.exists) {
+        const cfg = cfgSnap.data();
+        for (const [key, val] of Object.entries(cfg.types || {})) {
+          if (val.active !== false) {
+            categories[key] = { label: key.replace(/_/g, ' ') };
+          }
+        }
+      }
+    } catch (_) {}
+
+    const catParam = req.query?.cat || '';
+    const isUnsubscribed = subData?.status === 'unsubscribed';
+    const catCheckboxes = Object.entries(categories).map(([key]) =>
+      `<label><input type="checkbox" name="cats" value="${key}"${!isUnsubscribed || key === catParam ? ' checked' : ''}>${key.replace(/_/g, ' ')}</label>`
+    ).join('');
+
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(
+      `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Email Preferences</title><style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+        .card{max-width:520px;width:100%;border:2px solid #000;box-shadow:6px 6px 0 #000;padding:32px}
+        h1{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+        .sub{color:#888;font-size:13px;margin-bottom:20px}
+        hr{border:none;border-top:2px solid #000;margin:16px 0}
+        .btn{display:inline-block;padding:10px 24px;background:#000;color:#fff;text-decoration:none;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border:2px solid #000;cursor:pointer;font-family:inherit}
+        .btn-outline{background:#fff;color:#000;font-size:11px;padding:6px 14px}
+        p{font-size:14px;color:#444;margin-bottom:10px;line-height:1.6}
+        label{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;color:#333;cursor:pointer;border-bottom:1px solid #eee}
+        label input{margin:0;width:16px;height:16px;accent-color:#000;cursor:pointer}
+      </style></head><body>
+      <div class="card">
+        <h1>Email Preferences</h1>
+        <div class="sub">DEV/CRAFT Internship Platform</div>
+        <p>Manage the types of emails you receive.</p>
+        <hr>
+        <form method="POST" action="/api/email/unsubscribe" style="margin-bottom:16px">
+          <input type="hidden" name="email" value="${email}">
+          ${catCheckboxes || '<p style="color:#888">No categories available.</p>'}
+          <hr>
+          <button type="submit" class="btn" style="margin-top:4px">Save Preferences</button>
+        </form>
+        <a href="/api/email/unsubscribe?email=${encodeURIComponent(email)}&done=all" class="btn btn-outline">Unsubscribe from All</a>
+      </div></body></html>`
+    );
+  }
+
+  if (sub === 'unsubscribe' && req.method === 'POST') {
+    const { email, cats } = req.body || {};
+    if (!email) return send(res, 400, { success: false, message: 'Email required' });
+    const docId = email.toLowerCase().replace(/\./g, ',');
+    const categories = {};
+    if (cats) {
+      const selected = Array.isArray(cats) ? cats : [cats];
+      selected.forEach(c => { categories[c] = true; });
+    }
+    await db.collection('emailSubscriptions').doc(docId).set({
+      email: email.toLowerCase(), categories, status: 'subscribed',
+      subscribedAt: new Date().toISOString(), lastUpdated: new Date().toISOString(),
+    }, { merge: true });
+    res.setHeader('Content-Type', 'text/html');
+    return res.status(200).send(
+      `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Preferences Saved</title><style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+        .card{max-width:520px;width:100%;border:2px solid #000;box-shadow:6px 6px 0 #000;padding:32px}
+        h1{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+        .sub{color:#888;font-size:13px;margin-bottom:20px}
+        hr{border:none;border-top:2px solid #000;margin:16px 0}
+        .btn{display:inline-block;padding:10px 24px;background:#000;color:#fff;text-decoration:none;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border:2px solid #000}
+        p{font-size:14px;color:#444;margin-bottom:10px}
+        .msg{padding:10px 14px;border:2px solid #34A853;font-size:13px;font-weight:700;margin-bottom:16px}
+      </style></head><body>
+      <div class="card">
+        <h1>Preferences Saved</h1>
+        <div class="sub">DEV/CRAFT Internship Platform</div>
+        <div class="msg">Your email preferences have been updated.</div>
+        <p>You will only receive the email types you selected.</p>
+        <hr><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>
+      </div></body></html>`
+    );
   }
   if (sub === 'subscriptions' && req.method === 'GET') {
     const snap = await db.collection('emailSubscriptions').get();

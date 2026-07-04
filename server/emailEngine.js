@@ -320,10 +320,10 @@ export async function processEmailCampaign(db, config, dryRun = false, onlyType 
         }
       }
 
-      // Category check - skip if user has disabled this category
+      // Category check - skip if user has opted out of this category
       const templateMeta = (await import('./emailTemplates.js')).TEMPLATES[emailType.id];
       const category = templateMeta?.defaultCategory || emailType.id;
-      if (sub?.categories && sub.categories[category] === false) {
+      if (sub?.categories && Object.keys(sub.categories).length > 0 && sub.categories[category] !== true) {
         results.skipped++;
         continue;
       }
@@ -379,7 +379,7 @@ export async function processEmailCampaign(db, config, dryRun = false, onlyType 
         totalProjects: (enr.projects || []).length,
         status: user.stage,
         completedAt: enr.completedAt ? new Date(enr.completedAt).toLocaleDateString() : '',
-        unsubscribeUrl: `https://devcraft.rutujdhodapkar.tech/api/email/unsubscribe?email=${encodeURIComponent(user.email)}`,
+        unsubscribeUrl: `https://devcraft.rutujdhodapkar.tech/api/email/unsubscribe?email=${encodeURIComponent(user.email)}&cat=${encodeURIComponent(category)}`,
       };
 
       // Check for custom template in Firestore

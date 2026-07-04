@@ -7,6 +7,28 @@ export function isConfigured() {
   return Boolean(BREVO_API_KEY);
 }
 
+function stripHtml(html) {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getPreferenceUrl(email) {
+  return `https://devcraft.rutujdhodapkar.tech/api/email/unsubscribe?email=${encodeURIComponent(email)}`;
+}
+
+function getMailtoUnsubscribe(email) {
+  return `mailto:support@rutujdhodapkar.tech?subject=Unsubscribe&body=Please%20unsubscribe%20${encodeURIComponent(email)}`;
+}
+
 export async function sendEmail({ to, subject, html, type, category, unsubscribeUrl }) {
   if (!BREVO_API_KEY) {
     console.warn('[Brevo] API key not configured. Email not sent.');
@@ -18,19 +40,25 @@ export async function sendEmail({ to, subject, html, type, category, unsubscribe
   }
 
   const emails = Array.isArray(to) ? to : [to];
+  const emailAddr = typeof emails[0] === 'string' ? emails[0] : emails[0].email;
+  const prefUrl = unsubscribeUrl || getPreferenceUrl(emailAddr);
+  const mailtoUnsub = getMailtoUnsubscribe(emailAddr);
+  const plainText = stripHtml(html);
+
   const payload = {
     sender: { name: FROM_NAME, email: FROM_EMAIL },
     to: emails.map(e => typeof e === 'string' ? { email: e } : e),
     subject,
     htmlContent: html,
+    textContent: plainText,
     headers: {
       'X-Category': category || type || 'general',
       'X-Email-Type': type || 'general',
+      'List-Unsubscribe': `<${mailtoUnsub}>, <${prefUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     },
-    ...(unsubscribeUrl ? {
-      params: { UNSUBSCRIBE_URL: unsubscribeUrl },
-      tag: type || 'general',
-    } : {}),
+    params: { UNSUBSCRIBE_URL: prefUrl },
+    tag: type || 'general',
   };
 
   try {

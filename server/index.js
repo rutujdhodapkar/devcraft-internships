@@ -975,24 +975,129 @@ app.get('/api/email/logs/stats', async (req, res) => {
   }
 });
 
-// GET /api/email/unsubscribe — Unsubscribe endpoint (link in emails)
+function prefPage(title, body) {
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Email Preferences</title><style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+    .card{max-width:520px;width:100%;border:2px solid #000;box-shadow:6px 6px 0 #000;padding:32px}
+    h1{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+    .sub{color:#888;font-size:13px;margin-bottom:20px}
+    hr{border:none;border-top:2px solid #000;margin:16px 0}
+    .btn{display:inline-block;padding:10px 24px;background:#000;color:#fff;text-decoration:none;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border:2px solid #000;cursor:pointer;font-family:inherit}
+    .btn-outline{background:#fff;color:#000;margin-right:8px}
+    .btn-sm{padding:6px 14px;font-size:11px}
+    p{font-size:14px;color:#444;margin-bottom:10px;line-height:1.6}
+    .tag{display:inline-block;padding:2px 8px;font-size:11px;font-weight:700;background:#000;color:#fff;text-transform:uppercase;letter-spacing:0.5px;margin-right:4px;margin-bottom:4px}
+    form{margin-top:12px}
+    label{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:14px;color:#333;cursor:pointer;border-bottom:1px solid #eee}
+    label input{margin:0;width:16px;height:16px;accent-color:#000;cursor:pointer}
+    .msg{padding:10px 14px;border:2px solid #34A853;font-size:13px;font-weight:700;margin-bottom:16px}
+  </style></head><body>
+  <div class="card">
+    <h1>${title}</h1>
+    <div class="sub">DEV/CRAFT Internship Platform</div>
+    ${body}
+  </div></body></html>`;
+}
+
+// GET /api/email/unsubscribe — Preference center (link in emails)
 app.get('/api/email/unsubscribe', async (req, res) => {
   try {
     const db = await initFirebase();
     const email = req.query.email;
+    const done = req.query.done;
     if (!email || !db) {
-      return res.status(400).send('<html><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><div style="text-align:center"><h2>Error</h2><p>Invalid unsubscribe link.</p></div></body></html>');
+      return res.status(400).send(prefPage('Error', '<p>Invalid unsubscribe link. Please check the link and try again.</p>'));
     }
     const docId = email.toLowerCase().replace(/\./g, ',');
     const snap = await db.collection('emailSubscriptions').doc(docId).get();
-    if (snap.exists) {
-      await db.collection('emailSubscriptions').doc(docId).update({ status: 'unsubscribed', unsubscribedAt: new Date().toISOString() });
-    } else {
-      await db.collection('emailSubscriptions').doc(docId).set({ email: email.toLowerCase(), status: 'unsubscribed', categories: {}, unsubscribedAt: new Date().toISOString(), subscribedAt: new Date().toISOString() });
+    let sub = snap.exists ? snap.data() : null;
+    const categories = {};
+
+    // Load all email types from config
+    try {
+      const cfgSnap = await db.collection('siteConfig').doc('emailConfig').get();
+      if (cfgSnap.exists) {
+        const cfg = cfgSnap.data();
+        for (const [key, val] of Object.entries(cfg.types || {})) {
+          if (val.active !== false) {
+            categories[key] = { label: key.replace(/_/g, ' '), active: sub ? sub.categories?.[key] !== false : true };
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (done === 'all') {
+      if (sub) {
+        await db.collection('emailSubscriptions').doc(docId).update({ status: 'unsubscribed', unsubscribedAt: new Date().toISOString() });
+      } else {
+        await db.collection('emailSubscriptions').doc(docId).set({ email: email.toLowerCase(), status: 'unsubscribed', categories: {}, subscribedAt: new Date().toISOString(), unsubscribedAt: new Date().toISOString() });
+      }
+      return res.send(prefPage('Unsubscribed',
+        `<div class="msg">You have been unsubscribed from all emails.</div>
+        <p>You will not receive any further messages from DEV/CRAFT. If you change your mind, you can re-subscribe from your dashboard.</p>
+        <hr><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>`));
     }
-    res.send(`<html><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0"><div style="text-align:center;max-width:400px;padding:20px"><h2 style="color:#a78bfa">Unsubscribed ✅</h2><p style="color:#aaa;margin-top:12px">You've been unsubscribed from all DEV/CRAFT emails. You won't receive any further messages.</p><a href="https://devcraft.rutujdhodapkar.tech" style="display:inline-block;margin-top:20px;padding:10px 24px;background:linear-gradient(135deg,#a78bfa,#60a5fa);color:#fff;text-decoration:none;border-radius:6px;font-size:14px">Return to Website</a></div></body></html>`);
+
+    const isGloballyUnsubscribed = sub?.status === 'unsubscribed';
+    const catEntries = Object.entries(categories);
+
+    if (done === 'preferences' || req.query.saved) {
+      return res.send(prefPage('Preferences Saved',
+        `<div class="msg">Your email preferences have been updated.</div>
+        <p>You will only receive the email types you have selected above. You can update these preferences at any time.</p>
+        <hr><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>`));
+    }
+
+    const catParam = req.query.cat || '';
+    const catCheckboxes = catEntries.map(([key, c]) => {
+      const isChecked = !isGloballyUnsubscribed && (c.active || key === catParam);
+      return `<label><input type="checkbox" name="cats" value="${key}"${isChecked ? ' checked' : ''}>${c.label}</label>`;
+    }).join('');
+
+    res.send(prefPage('Email Preferences',
+      `<p>Manage the types of emails you receive from DEV/CRAFT.</p>
+      <hr>
+      <form method="POST" action="/api/email/unsubscribe" style="margin-bottom:16px">
+        <input type="hidden" name="email" value="${email}">
+        <input type="hidden" name="action" value="preferences">
+        ${catCheckboxes || '<p style="color:#888">No email categories available.</p>'}
+        <hr>
+        <button type="submit" class="btn" style="margin-top:4px">Save Preferences</button>
+      </form>
+      <a href="/api/email/unsubscribe?email=${encodeURIComponent(email)}&done=all" class="btn btn-outline btn-sm" style="font-size:11px">Unsubscribe from All</a>
+      `));
   } catch (error) {
-    res.status(500).send('<html><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><div style="text-align:center"><h2>Error</h2><p>Something went wrong. Please try again.</p></div></body></html>');
+    res.status(500).send(prefPage('Error', '<p>Something went wrong. Please try again later.</p>'));
+  }
+});
+
+// POST /api/email/unsubscribe — Save category preferences
+app.post('/api/email/unsubscribe', express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    const db = await initFirebase();
+    const { email, action } = req.body;
+    if (!email || !db) return res.redirect('/api/email/unsubscribe?email=');
+
+    const docId = email.toLowerCase().replace(/\./g, ',');
+    const cats = req.body.cats;
+    const categories = {};
+    if (cats) {
+      const selected = Array.isArray(cats) ? cats : [cats];
+      selected.forEach(c => { categories[c] = true; });
+    }
+
+    const data = {
+      email: email.toLowerCase(),
+      categories,
+      status: 'subscribed',
+      subscribedAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString(),
+    };
+    await db.collection('emailSubscriptions').doc(docId).set(data, { merge: true });
+    res.redirect(`/api/email/unsubscribe?email=${encodeURIComponent(email)}&saved=1`);
+  } catch (error) {
+    res.status(500).send(prefPage('Error', '<p>Could not save preferences. Please try again.</p>'));
   }
 });
 
