@@ -165,7 +165,7 @@ export default function StudentDashboard({
     try {
       await autoExpireEnrollments();
       const [data, tmpl, cpResult, refStat, pm] = await Promise.all([
-        fetchUserEnrollments(user.uid),
+        fetchUserEnrollments(user.uid, user.email),
         fetchTemplates(),
         fetchCareerPaths(),
         fetchUserReferralStat(user.email),

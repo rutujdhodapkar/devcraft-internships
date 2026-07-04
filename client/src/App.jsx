@@ -345,7 +345,7 @@ export default function App() {
               const curView = currentViewRef.current;
               const redirectTarget = authRedirectRef.current;
               if (penDomain) {
-                const existingEnrollments = await fetchUserEnrollments(currentUser.uid);
+                const existingEnrollments = await fetchUserEnrollments(currentUser.uid, currentUser.email);
                 const alreadyApplied = existingEnrollments.some(
                   (e) =>
                     e.domainId === penDomain.id ||
@@ -371,7 +371,7 @@ export default function App() {
                 }
               } else {
                 try {
-                  const userEnrs = await fetchUserEnrollments(currentUser.uid);
+                  const userEnrs = await fetchUserEnrollments(currentUser.uid, currentUser.email);
                   if (
                     curView !== "admin" &&
                     curView !== "site" &&
@@ -530,7 +530,7 @@ export default function App() {
 
     try {
       setAuthLoading(true);
-      const existingEnrollments = await fetchUserEnrollments(user.uid);
+      const existingEnrollments = await fetchUserEnrollments(user.uid, user.email);
       const alreadyApplied = existingEnrollments.some(
         (e) =>
           e.domainId === domainObj.id ||
@@ -629,7 +629,7 @@ export default function App() {
 
       // Execute pending enrollment if exists
       if (pendingEnrollmentDomain) {
-        const existingEnrollments = await fetchUserEnrollments(user.uid);
+        const existingEnrollments = await fetchUserEnrollments(user.uid, user.email);
         const alreadyApplied = existingEnrollments.some(
           (e) =>
             e.domainId === pendingEnrollmentDomain.id ||
@@ -672,7 +672,7 @@ export default function App() {
     if (!user) return;
     setIdCardLoading(true);
     try {
-      const enrollments = await fetchUserEnrollments(user.uid);
+      const enrollments = await fetchUserEnrollments(user.uid, user.email);
       const activeEnrollment =
         enrollments.find((e) => e.status !== "Archived") || enrollments[0];
       setIdCardEnrollment(activeEnrollment || null);

@@ -357,8 +357,27 @@ export async function enrollStudent(uid, profile, domainObj) {
 
 export async function fetchEnrollments() { return dbList("enrollments"); }
 
-export async function fetchUserEnrollments(uid) {
+export async function fetchUserEnrollments(uid, email) {
   const list = await dbQueryList("enrollments", "uid", uid);
+  // Also fetch by email to catch manually-added interns where uid was not set
+  if (email) {
+    try {
+      const emailList = await dbQueryList("enrollments", "email", email);
+      const existingIds = new Set(list.map((e) => e.id));
+      const patches = [];
+      for (const e of emailList) {
+        if (!existingIds.has(e.id)) {
+          if (!e.uid || e.uid === "") {
+            patches.push(dbPatch(`enrollments/${e.id}`, { uid, updatedAt: new Date().toISOString() }).catch(() => {}));
+          }
+          list.push(e);
+          existingIds.add(e.id);
+        }
+      }
+      // Fire uid patches in background
+      if (patches.length > 0) Promise.all(patches);
+    } catch {}
+  }
   return list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 }
 
