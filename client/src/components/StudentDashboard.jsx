@@ -677,12 +677,13 @@ export default function StudentDashboard({
                 <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                   {enrollments.map((e, ei) => {
                     const cp = careerPaths.find((cp) => cp.id === e.domainId || cp.title === e.domain);
-                    const buttons = cp?.buttons || [];
+                    const cpButtons = cp?.buttons || [];
+                    const effButtons = cpButtons.length > 0 ? cpButtons : Object.keys(templates || {}).map((key) => ({ label: key, templateName: key }));
                     return (
                       <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
                         <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.domain || e.domainId}:</span>
-                        <span style={{ fontSize: "0.78rem", color: "#888" }}>Status: {e.status}</span>
-                        {buttons.map((btn, bi) => (
+                        <span style={{ fontSize: "0.78rem", fontWeight: 700, color: e.status === "Completed" || e.paymentStatus === "paid" ? "#34A853" : "#EA4335" }}>Status: {e.status}</span>
+                        {effButtons.map((btn, bi) => (
                           <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName, true)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                             {btn.label}
                           </button>
@@ -754,12 +755,14 @@ export default function StudentDashboard({
                     onSubmitQuiz={handleSubmitQuiz}
                     onDownloadFromTemplate={handleDownloadFromTemplate}
                     domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
+                    templates={templates}
                     onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
                     paymentStatus={enrollment.paymentStatus}
                     paymentStage={enrollment.paymentStage}
                     paymentAmount={enrollment.paymentAmount}
                     paymentStartAmount={enrollment.paymentStartAmount}
                     paymentEndAmount={enrollment.paymentEndAmount}
+                    paymentTiming={enrollment.paymentTiming}
                     user={user}
                     onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
                   />
@@ -773,7 +776,7 @@ export default function StudentDashboard({
                     <div key={e.id} style={{ border: "2px solid #000", padding: "1rem 1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
                       <div>
                         <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
-                        <div style={{ fontSize: "0.8rem", color: "#888", fontWeight: 700 }}>Status: {e.status}</div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, color: e.status === "Completed" || e.paymentStatus === "paid" ? "#34A853" : "#EA4335" }}>Status: {e.status}</div>
                       </div>
                       <div style={{ display: "flex", gap: "0.5rem" }}>
                         <button type="button" className="btn-sharp" onClick={() => { hideEnrollmentFromUser(user.uid, e.id); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
@@ -811,6 +814,7 @@ export default function StudentDashboard({
                       onSubmitQuiz={handleSubmitQuiz}
                       onDownloadFromTemplate={handleDownloadFromTemplate}
                       domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
+                      templates={templates}
                       onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
                       paymentStatus={enrollment.paymentStatus}
                       paymentStage={enrollment.paymentStage}
@@ -1330,6 +1334,7 @@ function EnrollmentCard({
   onSubmitQuiz,
   onDownloadFromTemplate,
   domainButtons,
+  templates,
   onOpenPayment,
   paymentStatus,
   paymentStage,
@@ -1741,13 +1746,20 @@ function EnrollmentCard({
           <div
             style={{ display: "flex", gap: "1rem", flexDirection: "column" }}
           >
-              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                {(domainButtons || []).map((btn, bi) => (
-                  <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName, true)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
-                    {btn.label}
-                  </button>
-                ))}
-              </div>
+              {(() => {
+                const effButtons = (domainButtons || []).length > 0
+                  ? domainButtons
+                  : Object.keys(templates || {}).map((key) => ({ label: key, templateName: key }));
+                return (
+                  <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                    {effButtons.map((btn, bi) => (
+                      <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName, true)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
 
             {/* Conditional Payment section — hide only when completed */}
             {!isCompleted && (
