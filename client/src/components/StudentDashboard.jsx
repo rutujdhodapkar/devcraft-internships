@@ -713,7 +713,6 @@ export default function StudentDashboard({
                   {enrollments.map((e, ei) => {
                     const cp = careerPaths.find((cp) => cp.id === e.domainId || cp.title === e.domain);
                     const cpButtons = cp?.buttons || [];
-                    const effButtons = cpButtons.length > 0 ? cpButtons : Object.keys(templates || {}).map((key) => ({ label: key, templateName: key }));
                     const pjs = getProjectsForEnrollment(e);
                     const subs = getSubmissions(e);
                     const allV = pjs.length > 0 && pjs.every((_, i) => subs[i]?.verified);
@@ -723,7 +722,7 @@ export default function StudentDashboard({
                       <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
                         <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.domain || e.domainId}:</span>
                         <span style={{ fontSize: "0.78rem", fontWeight: 700, color: e.status === "Completed" || e.paymentStatus === "paid" ? "#34A853" : "#EA4335" }}>Status: {e.status}</span>
-                        {docsAvail && effButtons.map((btn, bi) => (
+                        {docsAvail && cpButtons.map((btn, bi) => (
                           <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName, true)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                             {btn.label}
                           </button>
@@ -1773,12 +1772,9 @@ function EnrollmentCard({
               <p style={{ fontSize: "0.85rem", color: "#cc6666", marginTop: "0.35rem" }}>Contact admin to discuss reinstatement or extension options.</p>
             </div>
           )}
-          {(() => {
+          {(domainButtons || []).length > 0 && (() => {
             const docsUnlocked = enrollment.allowedCertificate === "yes" || (allVerified && isEndPaid);
             if (!docsUnlocked) return null;
-            const effButtons = (domainButtons || []).length > 0
-              ? domainButtons
-              : Object.keys(templates || {}).map((key) => ({ label: key, templateName: key }));
             return (
               <>
                 <h4
@@ -1794,7 +1790,7 @@ function EnrollmentCard({
                   Your Documents
                 </h4>
                 <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                  {effButtons.map((btn, bi) => (
+                  {domainButtons.map((btn, bi) => (
                     <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName, true)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                       {btn.label}
                     </button>
