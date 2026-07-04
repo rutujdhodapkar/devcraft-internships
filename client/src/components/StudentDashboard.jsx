@@ -417,9 +417,12 @@ export default function StudentDashboard({
     setVerifyEnrollment(enrollment);
   };
 
-  const openCertificateUrl = (enrollment, templateName) => {
+  const openCertificateUrl = async (enrollment, templateName) => {
     const id = enrollment.id || enrollment.internId;
     if (!id) { notify("Enrollment ID not found.", "error"); return; }
+    const { getFirebaseIdToken } = await import("../firebase");
+    const token = await getFirebaseIdToken();
+    if (token) sessionStorage.setItem("cert_token", token);
     const name = templateName.toLowerCase().replace(/\s+/g, "-");
     window.location.href = `/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`;
   };

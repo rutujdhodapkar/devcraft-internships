@@ -10417,7 +10417,7 @@ function AddInternSection() {
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "0.15rem 0.5rem", background: e.status === "Completed" ? "#E8F5E9" : "#FFF8E1", border: "1px solid #ccc" }}>{e.status || "Active"}</span>
                   <span style={{ fontSize: "0.72rem", color: "#aaa", fontFamily: "monospace" }}>{e.internId || e.id}</span>
                   {effButtons.map((btn, bi) => (
-                    <button key={bi} className="btn-sharp" onClick={() => { const id = e.id || e.internId; if (!id) return; const name = btn.templateName.toLowerCase().replace(/\s+/g, "-"); window.location.href = `/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`; }} style={{ padding: "0.35rem 0.85rem", fontSize: "0.75rem", borderRadius: 0 }}>
+                    <button key={bi} className="btn-sharp" onClick={async () => { const id = e.id || e.internId; if (!id) return; const { getFirebaseIdToken } = await import("../firebase"); const token = await getFirebaseIdToken(); if (token) sessionStorage.setItem("cert_token", token); const name = btn.templateName.toLowerCase().replace(/\s+/g, "-"); window.location.href = `/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`; }} style={{ padding: "0.35rem 0.85rem", fontSize: "0.75rem", borderRadius: 0 }}>
                       {btn.label}
                     </button>
                   ))}

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fetchEnrollmentById, fetchTemplates } from "../services/data";
-import { getFirebaseIdToken } from "../firebase";
+import { getFirebaseIdToken, auth } from "../firebase";
 
 function fillTemplate(html, vars) {
   let result = html;
@@ -181,7 +181,11 @@ export default function CertificateView() {
 
     (async () => {
       try {
-        const token = await getFirebaseIdToken();
+        if (auth?.authStateReady) await auth.authStateReady();
+        let token = await getFirebaseIdToken();
+        if (!token) {
+          token = sessionStorage.getItem("cert_token");
+        }
         if (!token) {
           setError("Authentication required. Please log in first.");
           return;
