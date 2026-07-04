@@ -4,6 +4,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import apiHandler from '../api/index.js';
+import { sendEmail, isConfigured } from './brevoClient.js';
+import { renderTemplate, TEMPLATES, getTemplate } from './emailTemplates.js';
+import { runDailyCron, getEmailStats, processEmailCampaign, processLifecycleTransitions, determineLifecycleStages, EMAIL_TYPES, EMAIL_CATEGORIES } from './emailEngine.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -748,8 +751,302 @@ app.get('/api/data/audit-log', async (req, res) => {
   }
 });
 
-app.all('/api/*', apiHandler);
+// ─── Email Automation Routes ────────────────────────────────────────────────
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+// POST /api/email/run — Trigger the daily cron manually (admin)
+app.post('/api/email/run', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const result = await runDailyCron(db);
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 });
+
+// POST /api/email/dry-run — Preview what would be sent without sending
+app.post('/api/email/dry-run', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const config = req.body.config || {};
+    const stages = await determineLifecycleStages(db);
+    const result = await processEmailCampaign(db, config, true);
+    return res.json({ success: true, data: { ...result, totalUsers: stages.length } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/email/send-test — Send a test email to a specific address
+app.post('/api/email/send-test', async (req, res) => {
+  try {
+    const { email, type, name, domain } = req.body;
+    if (!email || !type) return res.status(400).json({ success: false, message: 'email and type required' });
+    if (!isConfigured()) return res.status(500).json({ success: false, message: 'Brevo not configured. Add BREVO_API_KEY to .env' });
+    const rendered = renderTemplate(type, {
+      name: name || 'Test User',
+      domain: domain || 'Web Development',
+      amount: '200',
+      enrolledSince: '5 days ago',
+      deadline: '2026-07-10',
+      daysUntilDeadline: '3',
+      pendingTasks: '2',
+      taskList: [{ title: 'Project 1', status: 'Pending' }, { title: 'Project 2', status: 'Pending' }],
+      completedProjects: '1',
+      totalProjects: '3',
+      status: 'active',
+      completedAt: '2026-07-01',
+      unsubscribeUrl: `https://devcraft.rutujdhodapkar.tech/api/email/unsubscribe?email=${encodeURIComponent(email)}`,
+    });
+    if (!rendered) return res.status(400).json({ success: false, message: `Unknown email type: ${type}` });
+    const result = await sendEmail({ to: email, subject: rendered.subject, html: rendered.html, type });
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/email/templates — List all available templates
+app.get('/api/email/templates', (req, res) => {
+  const templates = {};
+  for (const [type, tpl] of Object.entries(TEMPLATES)) {
+    templates[type] = {
+      subject: tpl.subject,
+      defaultCategory: tpl.defaultCategory || 'general',
+      sendOnce: tpl.sendOnce || false,
+      intervalDays: tpl.intervalDays || 0,
+    };
+  }
+  return res.json({ success: true, data: templates });
+});
+
+// GET /api/email/templates/:type — Get template with preview HTML
+app.get('/api/email/templates/:type', async (req, res) => {
+  try {
+    const { type } = req.params;
+    const tpl = getTemplate(type);
+    if (!tpl) return res.status(404).json({ success: false, message: `Unknown template: ${type}` });
+    const db = await initFirebase();
+    let customHtml = null;
+    let customSubject = null;
+    if (db) {
+      try {
+        const snap = await db.collection('emailTemplates').doc(type).get();
+        if (snap.exists) {
+          customHtml = snap.data().html || null;
+          customSubject = snap.data().subject || null;
+        }
+      } catch (e) {}
+    }
+    return res.json({
+      success: true,
+      data: {
+        type,
+        subject: tpl.subject,
+        defaultCategory: tpl.defaultCategory || 'general',
+        sendOnce: tpl.sendOnce || false,
+        intervalDays: tpl.intervalDays || 0,
+        defaultHtml: tpl.html({ name: '{{name}}', domain: '{{domain}}', UNSUBSCRIBE_URL: '{{unsubscribeUrl}}' }),
+        customHtml,
+        customSubject,
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/email/templates/:type — Save custom template
+app.put('/api/email/templates/:type', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const { type } = req.params;
+    const { html, subject } = req.body;
+    await db.collection('emailTemplates').doc(type).set({
+      html: html || '',
+      subject: subject || '',
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    return res.json({ success: true, data: { type, updated: true } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// DELETE /api/email/templates/:type — Reset to default template
+app.delete('/api/email/templates/:type', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const { type } = req.params;
+    await db.collection('emailTemplates').doc(type).delete();
+    return res.json({ success: true, data: { type, reset: true } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/email/config — Get email automation config
+app.get('/api/email/config', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const snap = await db.collection('siteConfig').doc('emailConfig').get();
+    const config = snap.exists ? snap.data().value || {} : {};
+    return res.json({ success: true, data: config });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// PUT /api/email/config — Save email automation config
+app.put('/api/email/config', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    await db.collection('siteConfig').doc('emailConfig').set({
+      value: req.body,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    return res.json({ success: true, data: req.body });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/email/stats — Email statistics
+app.get('/api/email/stats', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const stats = await getEmailStats(db);
+    return res.json({ success: true, data: stats });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/email/logs — View email logs (paginated)
+app.get('/api/email/logs', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const { limit: limitParam, type, status, email } = req.query;
+    const maxLimit = Math.min(parseInt(limitParam) || 100, 500);
+    let query = db.collection('emailLogs').orderBy('sentAt', 'desc').limit(maxLimit);
+    const snap = await query.get();
+    let logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (type) logs = logs.filter(l => l.type === type);
+    if (status) logs = logs.filter(l => l.status === status);
+    if (email) logs = logs.filter(l => l.email?.includes(email.toLowerCase()));
+    return res.json({ success: true, data: logs });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/email/logs/stats — Aggregated log stats
+app.get('/api/email/logs/stats', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const stats = await getEmailStats(db);
+    return res.json({ success: true, data: stats });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/email/unsubscribe — Unsubscribe endpoint (link in emails)
+app.get('/api/email/unsubscribe', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    const email = req.query.email;
+    if (!email || !db) {
+      return res.status(400).send('<html><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><div style="text-align:center"><h2>Error</h2><p>Invalid unsubscribe link.</p></div></body></html>');
+    }
+    const docId = email.toLowerCase().replace(/\./g, ',');
+    const snap = await db.collection('emailSubscriptions').doc(docId).get();
+    if (snap.exists) {
+      await db.collection('emailSubscriptions').doc(docId).update({ status: 'unsubscribed', unsubscribedAt: new Date().toISOString() });
+    } else {
+      await db.collection('emailSubscriptions').doc(docId).set({ email: email.toLowerCase(), status: 'unsubscribed', categories: {}, unsubscribedAt: new Date().toISOString(), subscribedAt: new Date().toISOString() });
+    }
+    res.send(`<html><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;margin:0"><div style="text-align:center;max-width:400px;padding:20px"><h2 style="color:#a78bfa">Unsubscribed ✅</h2><p style="color:#aaa;margin-top:12px">You've been unsubscribed from all DEV/CRAFT emails. You won't receive any further messages.</p><a href="https://devcraft.rutujdhodapkar.tech" style="display:inline-block;margin-top:20px;padding:10px 24px;background:linear-gradient(135deg,#a78bfa,#60a5fa);color:#fff;text-decoration:none;border-radius:6px;font-size:14px">Return to Website</a></div></body></html>`);
+  } catch (error) {
+    res.status(500).send('<html><body style="background:#0a0a0a;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><div style="text-align:center"><h2>Error</h2><p>Something went wrong. Please try again.</p></div></body></html>');
+  }
+});
+
+// GET /api/email/subscriptions — List all subscriptions
+app.get('/api/email/subscriptions', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const snap = await db.collection('emailSubscriptions').get();
+    const subs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return res.json({ success: true, data: subs });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/email/subscriptions/update — Update a user's subscription preferences
+app.post('/api/email/subscriptions/update', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const { email, status, categories } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: 'Email required' });
+    const docId = emailDocId(email);
+    const existing = await db.collection('emailSubscriptions').doc(docId).get();
+    const update = { email: email.toLowerCase(), updatedAt: new Date().toISOString() };
+    if (status) update.status = status;
+    if (categories) update.categories = categories;
+    if (!existing.exists) {
+      update.subscribedAt = new Date().toISOString();
+      update.status = update.status || 'active';
+      update.categories = update.categories || {};
+    }
+    await db.collection('emailSubscriptions').doc(docId).set(update, { merge: true });
+    return res.json({ success: true, data: { docId, ...update } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/email/automation-log — View lifecycle transitions
+app.get('/api/email/automation-log', async (req, res) => {
+  try {
+    const db = await initFirebase();
+    if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
+    const snap = await db.collection('emailAutomationLog').orderBy('triggeredAt', 'desc').limit(200).get();
+    const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return res.json({ success: true, data: logs });
+  } catch (error) {
+    // Fallback if no index exists
+    try {
+      const db = await initFirebase();
+      const snap = await db.collection('emailAutomationLog').get();
+      const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      logs.sort((a, b) => new Date(b.triggeredAt || 0) - new Date(a.triggeredAt || 0));
+      return res.json({ success: true, data: logs.slice(0, 200) });
+    } catch (e2) {
+      return res.status(500).json({ success: false, message: e2.message });
+    }
+  }
+});
+
+// GET /api/email/types — List all email types and categories
+app.get('/api/email/types', (req, res) => {
+  return res.json({ success: true, data: { types: EMAIL_TYPES, categories: EMAIL_CATEGORIES } });
+});
+
+function emailDocId(email) {
+  return email.toLowerCase().replace(/\./g, ',');
+}
+
+app.all('/api/*', apiHandler);

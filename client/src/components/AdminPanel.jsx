@@ -70,6 +70,20 @@ import {
   fetchRootAdmin,
   setRootAdmin,
   createEnrollment,
+  fetchEmailTypes,
+  fetchEmailConfig,
+  saveEmailConfig,
+  fetchEmailTemplates,
+  fetchEmailTemplate,
+  saveEmailTemplate,
+  resetEmailTemplate,
+  fetchEmailStats,
+  fetchEmailLogs,
+  fetchEmailSubscriptions,
+  updateEmailSubscription,
+  triggerEmailCron,
+  sendTestEmail,
+  fetchEmailAutomationLog,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -127,6 +141,7 @@ const TABS = [
   { id: "csv-export", label: "CSV Export" },
   { id: "referral-leaderboard", label: "Referral Leaderboard" },
   { id: "logged-in-users", label: "Logged In Users" },
+  { id: "email", label: "Email Automation" },
 ];
 
 const DEFAULT_HOMEPAGE = {
@@ -8046,6 +8061,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "csv-export" && <CSVExportSection />}
         {activeTab === "referral-leaderboard" && <ReferralLeaderboardSection />}
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
+        {activeTab === "email" && <EmailSection />}
         {activeTab === "add-intern" && <AddInternSection />}
       </div>
 
@@ -10516,6 +10532,449 @@ function AddInternSection() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Email Automation ── */
+function EmailSection() {
+  const [tab, setTab] = useState("dashboard");
+  const [config, setConfig] = useState(null);
+  const [templates, setTemplates] = useState({});
+  const [templateDetail, setTemplateDetail] = useState(null);
+  const [stats, setStats] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
+  const [automationLog, setAutomationLog] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [editHtml, setEditHtml] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [testType, setTestType] = useState("welcome");
+  const [configDirty, setConfigDirty] = useState(false);
+
+  useEffect(() => { if (tab === "dashboard") loadDashboard(); }, [tab]);
+  useEffect(() => { if (tab === "templates") loadTemplates(); }, [tab]);
+  useEffect(() => { if (tab === "logs") loadLogs(); }, [tab]);
+  useEffect(() => { if (tab === "subscriptions") loadSubscriptions(); }, [tab]);
+  useEffect(() => { if (tab === "automation") loadAutomationLog(); }, [tab]);
+
+  async function loadDashboard() {
+    setLoading(true);
+    try {
+      const [cfg, st] = await Promise.all([fetchEmailConfig(), fetchEmailStats()]);
+      setConfig(cfg.data || {});
+      setStats(st.data || {});
+    } catch (e) { setMessage("Error loading: " + e.message); }
+    setLoading(false);
+  }
+
+  async function loadTemplates() {
+    setLoading(true);
+    try {
+      const tpls = await fetchEmailTemplates();
+      setTemplates(tpls.data || {});
+    } catch (e) { setMessage("Error loading templates: " + e.message); }
+    setLoading(false);
+  }
+
+  async function openTemplate(type) {
+    try {
+      const tpl = await fetchEmailTemplate(type);
+      setTemplateDetail(tpl.data);
+      setEditHtml(tpl.data.customHtml || tpl.data.defaultHtml || "");
+      setEditSubject(tpl.data.customSubject || tpl.data.subject || "");
+    } catch (e) { setMessage("Error: " + e.message); }
+  }
+
+  async function saveTemplate() {
+    if (!templateDetail) return;
+    try {
+      await saveEmailTemplate(templateDetail.type, { html: editHtml, subject: editSubject });
+      notify("Template saved", "success");
+      openTemplate(templateDetail.type);
+    } catch (e) { notify("Error: " + e.message, "error"); }
+  }
+
+  async function resetTemplate() {
+    if (!templateDetail) return;
+    if (!confirm("Reset to default template?")) return;
+    try {
+      await resetEmailTemplate(templateDetail.type);
+      notify("Template reset", "success");
+      openTemplate(templateDetail.type);
+    } catch (e) { notify("Error: " + e.message, "error"); }
+  }
+
+  async function loadLogs() {
+    setLoading(true);
+    try {
+      const l = await fetchEmailLogs({ limit: 200 });
+      setLogs(l.data || []);
+    } catch (e) { setMessage("Error: " + e.message); }
+    setLoading(false);
+  }
+
+  async function loadSubscriptions() {
+    setLoading(true);
+    try {
+      const subs = await fetchEmailSubscriptions();
+      setSubscriptions(subs.data || []);
+    } catch (e) { setMessage("Error: " + e.message); }
+    setLoading(false);
+  }
+
+  async function loadAutomationLog() {
+    setLoading(true);
+    try {
+      const al = await fetchEmailAutomationLog();
+      setAutomationLog(al.data || []);
+    } catch (e) { setMessage("Error: " + e.message); }
+    setLoading(false);
+  }
+
+  async function updateConfig(key, value) {
+    const updated = { ...config, [key]: value };
+    setConfig(updated);
+    setConfigDirty(true);
+  }
+
+  async function saveConfig() {
+    try {
+      await saveEmailConfig(config);
+      notify("Config saved", "success");
+      setConfigDirty(false);
+    } catch (e) { notify("Error: " + e.message, "error"); }
+  }
+
+  async function handleRunCron() {
+    if (!confirm("Run email automation now? This will send emails.")) return;
+    setLoading(true);
+    try {
+      const res = await triggerEmailCron();
+      notify(`Done! Sent: ${res.data?.emailResults?.sent || 0}, Skipped: ${res.data?.emailResults?.skipped || 0}`, "success");
+      loadDashboard();
+    } catch (e) { notify("Error: " + e.message, "error"); }
+    setLoading(false);
+  }
+
+  async function handleDryRun() {
+    setLoading(true);
+    try {
+      const res = await triggerEmailCron(true);
+      setMessage(`Dry run: would send ${res.data?.sent || 0} emails to ${res.data?.processed || 0} eligible users`);
+    } catch (e) { setMessage("Error: " + e.message); }
+    setLoading(false);
+  }
+
+  async function handleSendTest() {
+    if (!testEmail) { notify("Enter a test email", "warning"); return; }
+    setLoading(true);
+    try {
+      await sendTestEmail(testEmail, testType);
+      notify(`Test ${testType} email sent to ${testEmail}`, "success");
+    } catch (e) { notify("Error: " + e.message, "error"); }
+    setLoading(false);
+  }
+
+  async function unsubscribeUser(email) {
+    if (!confirm(`Unsubscribe ${email}?`)) return;
+    try {
+      await updateEmailSubscription(email, { status: "unsubscribed" });
+      notify(`${email} unsubscribed`, "success");
+      loadSubscriptions();
+    } catch (e) { notify("Error: " + e.message, "error"); }
+  }
+
+  const subTabs = [
+    { id: "dashboard", label: "Dashboard" },
+    { id: "config", label: "Config" },
+    { id: "templates", label: "Templates" },
+    { id: "logs", label: "Logs" },
+    { id: "subscriptions", label: "Subscriptions" },
+    { id: "automation", label: "Automation Log" },
+  ];
+
+  const sectionStyle = { padding: "1.5rem 0" };
+  const labelStyle = { display: "block", marginBottom: "0.25rem", fontSize: "0.8rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.05em" };
+  const inputStyle = { background: "#1a1a2e", color: "#e5e5e5", border: "1px solid #2a2a3e", borderRadius: "6px", padding: "0.5rem 0.75rem", width: "100%", fontSize: "0.9rem" };
+  const cardStyle = { background: "#111", border: "1px solid #2a2a3e", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" };
+  const btnStyle = { padding: "0.5rem 1rem", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem", borderBottom: "1px solid #2a2a3e", paddingBottom: "1rem" }}>
+        {subTabs.map(t => (
+          <button key={t.id} onClick={() => { setTab(t.id); setMessage(""); }}
+            style={{ ...btnStyle, background: tab === t.id ? "linear-gradient(135deg,#a78bfa,#60a5fa)" : "#1a1a2e", color: tab === t.id ? "#fff" : "#888" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {message && <div style={{ background: "#1a1a2e", color: "#a78bfa", padding: "0.75rem 1rem", borderRadius: "6px", marginBottom: "1rem", fontSize: "0.9rem" }}>{message}</div>}
+
+      {/* ── Dashboard ── */}
+      {tab === "dashboard" && (
+        <div style={sectionStyle}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
+            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#a78bfa" }}>{stats?.totalSent || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Total Sent</div></div>
+            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#f87171" }}>{stats?.totalFailed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Failed</div></div>
+            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#60a5fa" }}>{stats?.sentToday || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Sent Today</div></div>
+            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#34d399" }}>{stats?.totalSubscribed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Subscribed</div></div>
+            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#fbbf24" }}>{stats?.totalUnsubscribed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Unsubscribed</div></div>
+          </div>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <button onClick={handleRunCron} disabled={loading} style={{ ...btnStyle, background: "linear-gradient(135deg,#a78bfa,#60a5fa)", color: "#fff" }}>
+              {loading ? "Running..." : "▶ Run Automation Now"}
+            </button>
+            <button onClick={handleDryRun} disabled={loading} style={{ ...btnStyle, background: "#1a1a2e", color: "#888" }}>
+              {loading ? "..." : "🔍 Dry Run"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Config ── */}
+      {tab === "config" && config && (
+        <div style={sectionStyle}>
+          <div style={cardStyle}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
+              <span style={{ fontWeight: 600 }}>Enable Automation</span>
+              <label style={{ position: "relative", display: "inline-block", width: "44px", height: "24px" }}>
+                <input type="checkbox" checked={config.enabled || false} onChange={e => updateConfig("enabled", e.target.checked)}
+                  style={{ opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", cursor: "pointer", inset: 0, background: config.enabled ? "#a78bfa" : "#333", borderRadius: "12px", transition: "0.3s" }}>
+                  <span style={{ position: "absolute", height: "18px", width: "18px", borderRadius: "50%", background: "#fff", top: "3px", left: config.enabled ? "23px" : "3px", transition: "0.3s" }} />
+                </span>
+              </label>
+            </div>
+          </div>
+          <div style={{ fontSize: "0.85rem", color: "#888", marginBottom: "1rem" }}>Configure each email type below. The engine checks intervals, max sends, and user categories before dispatching.</div>
+          <div style={{ display: "grid", gap: "1rem", marginBottom: "1rem" }}>
+            {[
+              { id: "welcome", label: "Welcome", desc: "Sent once when user enrolls" },
+              { id: "payment_reminder", label: "Payment Reminder", desc: "Repeats every N days for max duration" },
+              { id: "task_reminder", label: "Task Reminder", desc: "Sent when deadline is approaching and tasks remain" },
+              { id: "deadline_urgent", label: "Deadline Urgent", desc: "Daily when deadline < 3 days" },
+              { id: "certificate_ready", label: "Certificate Ready", desc: "1 email when certificate is issued" },
+              { id: "completion", label: "Completion Follow-up", desc: "1 email after graduation" },
+              { id: "re_engagement", label: "Re-engagement", desc: "Sent to inactive users every 7 days (max 3)" },
+              { id: "updates", label: "Updates", desc: "Broadcast to all active users" },
+              { id: "general", label: "General", desc: "On-demand announcements" },
+            ].map(({ id, label, desc }) => {
+              const typeCfg = config[id] || { active: true, intervalDays: 3, maxSends: 10, maxDurationDays: 60 };
+              return (
+                <div key={id} style={cardStyle}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: "0.95rem", textTransform: "capitalize" }}>{label}</span>
+                      <div style={{ fontSize: "0.75rem", color: "#666", marginTop: "2px" }}>{desc}</div>
+                    </div>
+                    <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px" }}>
+                      <input type="checkbox" checked={typeCfg.active !== false}
+                        onChange={e => { const upd = { ...config, [id]: { ...typeCfg, active: e.target.checked } }; setConfig(upd); setConfigDirty(true); }}
+                        style={{ opacity: 0, width: 0, height: 0 }} />
+                      <span style={{ position: "absolute", cursor: "pointer", inset: 0, background: typeCfg.active !== false ? "#a78bfa" : "#333", borderRadius: "11px", transition: "0.3s" }}>
+                        <span style={{ position: "absolute", height: "16px", width: "16px", borderRadius: "50%", background: "#fff", top: "3px", left: typeCfg.active !== false ? "21px" : "3px", transition: "0.3s" }} />
+                      </span>
+                    </label>
+                  </div>
+                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                    <div>
+                      <label style={{ fontSize: "0.7rem", color: "#666", display: "block", marginBottom: "2px" }}>Interval (days)</label>
+                      <input type="number" min="0" value={typeCfg.intervalDays ?? 3}
+                        onChange={e => { const upd = { ...config, [id]: { ...typeCfg, intervalDays: parseInt(e.target.value) || 0 } }; setConfig(upd); setConfigDirty(true); }}
+                        style={{ ...inputStyle, width: "70px", textAlign: "center", padding: "0.3rem 0.5rem" }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.7rem", color: "#666", display: "block", marginBottom: "2px" }}>Max Sends</label>
+                      <input type="number" min="0" value={typeCfg.maxSends ?? 10}
+                        onChange={e => { const upd = { ...config, [id]: { ...typeCfg, maxSends: parseInt(e.target.value) || 0 } }; setConfig(upd); setConfigDirty(true); }}
+                        style={{ ...inputStyle, width: "70px", textAlign: "center", padding: "0.3rem 0.5rem" }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: "0.7rem", color: "#666", display: "block", marginBottom: "2px" }}>Max Duration (days)</label>
+                      <input type="number" min="0" value={typeCfg.maxDurationDays ?? 60}
+                        onChange={e => { const upd = { ...config, [id]: { ...typeCfg, maxDurationDays: parseInt(e.target.value) || 0 } }; setConfig(upd); setConfigDirty(true); }}
+                        style={{ ...inputStyle, width: "70px", textAlign: "center", padding: "0.3rem 0.5rem" }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={saveConfig} style={{ ...btnStyle, background: configDirty ? "linear-gradient(135deg,#a78bfa,#60a5fa)" : "#333", color: configDirty ? "#fff" : "#666", cursor: configDirty ? "pointer" : "default" }} disabled={!configDirty}>
+            {configDirty ? "Save Config" : "Saved"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Templates ── */}
+      {tab === "templates" && (
+        <div style={sectionStyle}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem", marginBottom: "1.5rem" }}>
+            {Object.entries(templates).map(([type, tpl]) => (
+              <div key={type} onClick={() => openTemplate(type)} style={{ ...cardStyle, cursor: "pointer", border: templateDetail?.type === type ? "1px solid #a78bfa" : "1px solid #2a2a3e" }}>
+                <div style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: "0.25rem", textTransform: "capitalize" }}>{type.replace(/_/g, " ")}</div>
+                <div style={{ fontSize: "0.75rem", color: "#666" }}>{tpl.subject?.slice(0, 40)}...</div>
+                <div style={{ fontSize: "0.7rem", color: "#888", marginTop: "0.25rem" }}>Category: {tpl.defaultCategory}</div>
+              </div>
+            ))}
+          </div>
+
+          {templateDetail && (
+            <div style={cardStyle}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <h3 style={{ fontSize: "1.1rem", textTransform: "capitalize", color: "#f0f0f0" }}>{templateDetail.type.replace(/_/g, " ")}</h3>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <button onClick={resetTemplate} style={{ ...btnStyle, background: "#2a1a1a", color: "#f87171" }}>Reset to Default</button>
+                </div>
+              </div>
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label style={labelStyle}>Subject</label>
+                <input value={editSubject} onChange={e => setEditSubject(e.target.value)} style={inputStyle} />
+              </div>
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label style={labelStyle}>HTML Template</label>
+                <textarea value={editHtml} onChange={e => setEditHtml(e.target.value)} rows={15}
+                  style={{ ...inputStyle, fontFamily: "monospace", fontSize: "0.8rem", resize: "vertical", minHeight: "300px" }} />
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button onClick={saveTemplate} style={{ ...btnStyle, background: "linear-gradient(135deg,#a78bfa,#60a5fa)", color: "#fff" }}>Save Template</button>
+                <button onClick={() => setTemplateDetail(null)} style={{ ...btnStyle, background: "#1a1a2e", color: "#888" }}>Close</button>
+              </div>
+              <details style={{ marginTop: "1rem" }}>
+                <summary style={{ cursor: "pointer", color: "#888", fontSize: "0.85rem" }}>Available Variables</summary>
+                <div style={{ padding: "0.75rem", background: "#0a0a0a", borderRadius: "6px", marginTop: "0.5rem", fontSize: "0.8rem", fontFamily: "monospace", color: "#aaa" }}>
+                  {"{{name}} — User's name\n{{email}} — Email address\n{{domain}} — Internship domain\n{{amount}} — Payment amount\n{{deadline}} — Deadline date\n{{daysUntilDeadline}} — Days left\n{{pendingTasks}} — Pending task count\n{{taskList}} — Task list (for list templates)\n{{completedProjects}} — Completed count\n{{totalProjects}} — Total count\n{{status}} — Lifecycle stage\n{{completedAt}} — Completion date\n{{unsubscribeUrl}} — Unsubscribe link"}
+                </div>
+              </details>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Logs ── */}
+      {tab === "logs" && (
+        <div style={sectionStyle}>
+          <button onClick={loadLogs} style={{ ...btnStyle, background: "#1a1a2e", color: "#888", marginBottom: "1rem" }}>🔄 Refresh Logs</button>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #2a2a3e", color: "#888", textAlign: "left" }}>
+                  <th style={{ padding: "0.5rem" }}>Email</th>
+                  <th style={{ padding: "0.5rem" }}>Type</th>
+                  <th style={{ padding: "0.5rem" }}>Status</th>
+                  <th style={{ padding: "0.5rem" }}>Sent At</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log, i) => (
+                  <tr key={log.id || i} style={{ borderBottom: "1px solid #1a1a2e" }}>
+                    <td style={{ padding: "0.5rem", color: "#ccc" }}>{log.email}</td>
+                    <td style={{ padding: "0.5rem", textTransform: "capitalize" }}>{log.type?.replace(/_/g, " ")}</td>
+                    <td style={{ padding: "0.5rem", color: log.status === "sent" ? "#34d399" : "#f87171" }}>{log.status}</td>
+                    <td style={{ padding: "0.5rem", color: "#888" }}>{log.sentAt ? formatDate(new Date(log.sentAt)) : "—"}</td>
+                  </tr>
+                ))}
+                {logs.length === 0 && <tr><td colSpan={4} style={{ padding: "1rem", textAlign: "center", color: "#555" }}>No logs yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Subscriptions ── */}
+      {tab === "subscriptions" && (
+        <div style={sectionStyle}>
+          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
+            <button onClick={loadSubscriptions} style={{ ...btnStyle, background: "#1a1a2e", color: "#888" }}>🔄 Refresh</button>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #2a2a3e", color: "#888", textAlign: "left" }}>
+                  <th style={{ padding: "0.5rem" }}>Email</th>
+                  <th style={{ padding: "0.5rem" }}>Status</th>
+                  <th style={{ padding: "0.5rem" }}>Categories</th>
+                  <th style={{ padding: "0.5rem" }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscriptions.map((sub, i) => (
+                  <tr key={sub.id || i} style={{ borderBottom: "1px solid #1a1a2e" }}>
+                    <td style={{ padding: "0.5rem", color: "#ccc" }}>{sub.email}</td>
+                    <td style={{ padding: "0.5rem", color: sub.status === "active" ? "#34d399" : "#f87171" }}>{sub.status}</td>
+                    <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>
+                      {sub.categories ? Object.entries(sub.categories).filter(([, v]) => v).map(([k]) => k).join(", ") : "All"}
+                    </td>
+                    <td style={{ padding: "0.5rem" }}>
+                      {sub.status === "active" && (
+                        <button onClick={() => unsubscribeUser(sub.email)} style={{ ...btnStyle, background: "#2a1a1a", color: "#f87171", fontSize: "0.75rem", padding: "0.3rem 0.6rem" }}>Unsubscribe</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {subscriptions.length === 0 && <tr><td colSpan={4} style={{ padding: "1rem", textAlign: "center", color: "#555" }}>No subscriptions yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Automation Log ── */}
+      {tab === "automation" && (
+        <div style={sectionStyle}>
+          <button onClick={loadAutomationLog} style={{ ...btnStyle, background: "#1a1a2e", color: "#888", marginBottom: "1rem" }}>🔄 Refresh</button>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid #2a2a3e", color: "#888", textAlign: "left" }}>
+                  <th style={{ padding: "0.5rem" }}>Email</th>
+                  <th style={{ padding: "0.5rem" }}>From</th>
+                  <th style={{ padding: "0.5rem" }}>To</th>
+                  <th style={{ padding: "0.5rem" }}>Reason</th>
+                  <th style={{ padding: "0.5rem" }}>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {automationLog.map((log, i) => (
+                  <tr key={log.id || i} style={{ borderBottom: "1px solid #1a1a2e" }}>
+                    <td style={{ padding: "0.5rem", color: "#ccc" }}>{log.email}</td>
+                    <td style={{ padding: "0.5rem", textTransform: "capitalize" }}>{log.fromStage || log.from}</td>
+                    <td style={{ padding: "0.5rem", textTransform: "capitalize", color: "#a78bfa" }}>{log.toStage || log.to}</td>
+                    <td style={{ padding: "0.5rem", color: "#888" }}>{log.reason || ""}</td>
+                    <td style={{ padding: "0.5rem", color: "#888", fontSize: "0.75rem" }}>{log.triggeredAt ? formatDate(new Date(log.triggeredAt)) : "—"}</td>
+                  </tr>
+                ))}
+                {automationLog.length === 0 && <tr><td colSpan={5} style={{ padding: "1rem", textAlign: "center", color: "#555" }}>No automation events yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Send Test Section (always visible) ── */}
+      <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid #2a2a3e" }}>
+        <h4 style={{ marginBottom: "0.75rem", fontSize: "0.95rem" }}>Send Test Email</h4>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end" }}>
+          <div style={{ flex: 1, minWidth: "200px" }}>
+            <label style={labelStyle}>Email</label>
+            <input value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="test@example.com" style={inputStyle} />
+          </div>
+          <div style={{ minWidth: "150px" }}>
+            <label style={labelStyle}>Type</label>
+            <select value={testType} onChange={e => setTestType(e.target.value)} style={inputStyle}>
+              {Object.keys(templates).map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
+            </select>
+          </div>
+          <button onClick={handleSendTest} disabled={loading} style={{ ...btnStyle, background: "linear-gradient(135deg,#a78bfa,#60a5fa)", color: "#fff", height: "fit-content" }}>
+            {loading ? "Sending..." : "Send Test"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

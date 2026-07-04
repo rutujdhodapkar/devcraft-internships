@@ -1,0 +1,36 @@
+name: Email Automation Daily Cron
+
+on:
+  schedule:
+    # 2:00 PM IST = 8:30 UTC
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub Actions tab
+    inputs:
+      dry_run:
+        description: 'Dry run (no emails sent)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  email-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Email Automation
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            echo "Running dry run..."
+            curl -s -X POST "${{ secrets.API_BASE_URL }}/api/email/dry-run" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.API_CRON_SECRET }}" \
+              -d '{}'
+          else
+            echo "Running full email automation..."
+            curl -s -X POST "${{ secrets.API_BASE_URL }}/api/email/run" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer ${{ secrets.API_CRON_SECRET }}"
+          fi

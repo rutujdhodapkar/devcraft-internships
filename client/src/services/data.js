@@ -1466,3 +1466,62 @@ export async function exportEnrollmentsCSV() {
   const csv = [headers.join(","), ...rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
   return csv;
 }
+
+// ─── Email Automation API ──────────────────────────────────────────────────
+export async function fetchEmailTypes() {
+  return apiFetch("/api/email/types");
+}
+
+export async function fetchEmailConfig() {
+  return apiFetch("/api/email/config");
+}
+
+export async function saveEmailConfig(config) {
+  return apiFetch("/api/email/config", { method: "PUT", body: JSON.stringify(config) });
+}
+
+export async function fetchEmailTemplates() {
+  return apiFetch("/api/email/templates");
+}
+
+export async function fetchEmailTemplate(type) {
+  return apiFetch(`/api/email/templates/${type}`);
+}
+
+export async function saveEmailTemplate(type, { html, subject }) {
+  return apiFetch(`/api/email/templates/${type}`, { method: "PUT", body: JSON.stringify({ html, subject }) });
+}
+
+export async function resetEmailTemplate(type) {
+  return apiFetch(`/api/email/templates/${type}`, { method: "DELETE" });
+}
+
+export async function fetchEmailStats() {
+  return apiFetch("/api/email/stats");
+}
+
+export async function fetchEmailLogs(params = {}) {
+  const q = new URLSearchParams(params).toString();
+  return apiFetch(`/api/email/logs${q ? "?" + q : ""}`);
+}
+
+export async function fetchEmailSubscriptions() {
+  return apiFetch("/api/email/subscriptions");
+}
+
+export async function updateEmailSubscription(email, { status, categories }) {
+  return apiFetch("/api/email/subscriptions/update", { method: "POST", body: JSON.stringify({ email, status, categories }) });
+}
+
+export async function triggerEmailCron(dryRun = false) {
+  if (dryRun) return apiFetch("/api/email/dry-run", { method: "POST", body: JSON.stringify({}) });
+  return apiFetch("/api/email/run", { method: "POST" });
+}
+
+export async function sendTestEmail(email, type, name = "") {
+  return apiFetch("/api/email/send-test", { method: "POST", body: JSON.stringify({ email, type, name }) });
+}
+
+export async function fetchEmailAutomationLog() {
+  return apiFetch("/api/email/automation-log");
+}

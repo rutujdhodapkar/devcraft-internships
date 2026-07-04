@@ -1375,6 +1375,131 @@ async function handleFirebaseProxy(req, res) {
   }
 }
 
+// ─── Email Automation ──────────────────────────────────────────────────────
+async function handleEmail(req, res, parts) {
+  const sub = parts[0] || '';
+  const db = await initFirebase();
+  if (!db) return send(res, 503, { success: false, message: 'Firebase not configured' });
+  const { sendEmail, isConfigured } = await import('../server/brevoClient.js');
+  const { renderTemplate, TEMPLATES, getTemplate } = await import('../server/emailTemplates.js');
+  const { runDailyCron, getEmailStats, processEmailCampaign, determineLifecycleStages, EMAIL_TYPES, EMAIL_CATEGORIES } = await import('../server/emailEngine.js');
+
+  if (sub === 'run' && req.method === 'POST') {
+    const result = await runDailyCron(db);
+    return send(res, 200, { success: true, data: result });
+  }
+  if (sub === 'dry-run' && req.method === 'POST') {
+    const config = req.body?.config || {};
+    const result = await processEmailCampaign(db, config, true);
+    return send(res, 200, { success: true, data: result });
+  }
+  if (sub === 'send-test' && req.method === 'POST') {
+    const { email, type, name, domain } = req.body || {};
+    if (!email || !type) return send(res, 400, { success: false, message: 'email and type required' });
+    const rendered = renderTemplate(type, {
+      name: name || 'Test User', domain: domain || 'Web Development', amount: '200',
+      enrolledSince: '5 days ago', deadline: '2026-07-10', daysUntilDeadline: '3',
+      pendingTasks: '2', taskList: [{ title: 'Project 1', status: 'Pending' }],
+      completedProjects: '1', totalProjects: '3', status: 'active',
+      completedAt: '2026-07-01',
+      unsubscribeUrl: `https://devcraft.rutujdhodapkar.tech/api/email/unsubscribe?email=${encodeURIComponent(email)}`,
+    });
+    if (!rendered) return send(res, 400, { success: false, message: `Unknown email type: ${type}` });
+    const result = await sendEmail({ to: email, subject: rendered.subject, html: rendered.html, type });
+    return send(res, 200, { success: true, data: result });
+  }
+  if (sub === 'templates' && !parts[1] && req.method === 'GET') {
+    const templates = {};
+    for (const [type, tpl] of Object.entries(TEMPLATES)) {
+      templates[type] = { subject: tpl.subject, defaultCategory: tpl.defaultCategory || 'general', sendOnce: tpl.sendOnce || false, intervalDays: tpl.intervalDays || 0 };
+    }
+    return send(res, 200, { success: true, data: templates });
+  }
+  if (sub === 'templates' && parts[1] && req.method === 'GET') {
+    const tpl = getTemplate(parts[1]);
+    if (!tpl) return send(res, 404, { success: false, message: `Unknown template: ${parts[1]}` });
+    let customHtml = null, customSubject = null;
+    try { const snap = await db.collection('emailTemplates').doc(parts[1]).get(); if (snap.exists) { customHtml = snap.data().html; customSubject = snap.data().subject; } } catch (e) {}
+    return send(res, 200, { success: true, data: { type: parts[1], subject: tpl.subject, defaultCategory: tpl.defaultCategory || 'general', sendOnce: tpl.sendOnce || false, intervalDays: tpl.intervalDays || 0, customHtml, customSubject } });
+  }
+  if (sub === 'templates' && parts[1] && req.method === 'PUT') {
+    const { html, subject } = req.body || {};
+    await db.collection('emailTemplates').doc(parts[1]).set({ html: html || '', subject: subject || '', updatedAt: new Date().toISOString() }, { merge: true });
+    return send(res, 200, { success: true, data: { type: parts[1], updated: true } });
+  }
+  if (sub === 'templates' && parts[1] && req.method === 'DELETE') {
+    await db.collection('emailTemplates').doc(parts[1]).delete();
+    return send(res, 200, { success: true, data: { type: parts[1], reset: true } });
+  }
+  if (sub === 'config' && req.method === 'GET') {
+    const snap = await db.collection('siteConfig').doc('emailConfig').get();
+    return send(res, 200, { success: true, data: snap.exists ? snap.data().value || {} : {} });
+  }
+  if (sub === 'config' && req.method === 'PUT') {
+    await db.collection('siteConfig').doc('emailConfig').set({ value: req.body || {}, updatedAt: new Date().toISOString() }, { merge: true });
+    return send(res, 200, { success: true, data: req.body || {} });
+  }
+  if (sub === 'stats' && req.method === 'GET') {
+    const stats = await getEmailStats(db);
+    return send(res, 200, { success: true, data: stats });
+  }
+  if (sub === 'logs' && req.method === 'GET') {
+    const maxLimit = Math.min(parseInt(req.query?.limit) || 100, 500);
+    try {
+      const snap = await db.collection('emailLogs').orderBy('sentAt', 'desc').limit(maxLimit).get();
+      let logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      if (req.query?.type) logs = logs.filter(l => l.type === req.query.type);
+      if (req.query?.status) logs = logs.filter(l => l.status === req.query.status);
+      return send(res, 200, { success: true, data: logs });
+    } catch (e) {
+      const snap = await db.collection('emailLogs').get();
+      let logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      logs.sort((a, b) => new Date(b.sentAt || 0) - new Date(a.sentAt || 0));
+      return send(res, 200, { success: true, data: logs.slice(0, maxLimit) });
+    }
+  }
+  if (sub === 'unsubscribe' && req.method === 'GET') {
+    const email = req.query?.email;
+    if (!email) return send(res, 400, { success: false, message: 'Email required' });
+    const docId = email.toLowerCase().replace(/\./g, ',');
+    const snap = await db.collection('emailSubscriptions').doc(docId).get();
+    if (snap.exists) await db.collection('emailSubscriptions').doc(docId).update({ status: 'unsubscribed', unsubscribedAt: new Date().toISOString() });
+    else await db.collection('emailSubscriptions').doc(docId).set({ email: email.toLowerCase(), status: 'unsubscribed', categories: {}, unsubscribedAt: new Date().toISOString(), subscribedAt: new Date().toISOString() });
+    return send(res, 200, { success: true, message: 'Unsubscribed successfully' });
+  }
+  if (sub === 'subscriptions' && req.method === 'GET') {
+    const snap = await db.collection('emailSubscriptions').get();
+    return send(res, 200, { success: true, data: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+  }
+  if (sub === 'subscriptions' && parts[1] === 'update' && req.method === 'POST') {
+    const { email, status, categories } = req.body || {};
+    if (!email) return send(res, 400, { success: false, message: 'Email required' });
+    const docId = email.toLowerCase().replace(/\./g, ',');
+    const existing = await db.collection('emailSubscriptions').doc(docId).get();
+    const update = { email: email.toLowerCase(), updatedAt: new Date().toISOString() };
+    if (status) update.status = status;
+    if (categories) update.categories = categories;
+    if (!existing.exists) { update.subscribedAt = new Date().toISOString(); update.status = update.status || 'active'; update.categories = update.categories || {}; }
+    await db.collection('emailSubscriptions').doc(docId).set(update, { merge: true });
+    return send(res, 200, { success: true, data: { docId, ...update } });
+  }
+  if (sub === 'automation-log' && req.method === 'GET') {
+    try {
+      const snap = await db.collection('emailAutomationLog').orderBy('triggeredAt', 'desc').limit(200).get();
+      return send(res, 200, { success: true, data: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+    } catch (e) {
+      const snap = await db.collection('emailAutomationLog').get();
+      const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      logs.sort((a, b) => new Date(b.triggeredAt || 0) - new Date(a.triggeredAt || 0));
+      return send(res, 200, { success: true, data: logs.slice(0, 200) });
+    }
+  }
+  if (sub === 'types' && req.method === 'GET') {
+    return send(res, 200, { success: true, data: { types: EMAIL_TYPES, categories: EMAIL_CATEGORIES } });
+  }
+  return send(res, 404, { success: false, message: `Unknown email endpoint: ${sub}` });
+}
+
 export default async function handler(req, res) {
   try {
   // Ensure root admin exists in the admins collection on first request
@@ -1393,6 +1518,7 @@ export default async function handler(req, res) {
     if (parts[0] === "firebase-proxy") return handleFirebaseProxy(req, res);
     if (parts[0] === "data") return handleData(req, res, parts.slice(1));
     if (parts[0] === "dodo") return handleDodo(req, res, parts.slice(1));
+    if (parts[0] === "email") return handleEmail(req, res, parts.slice(1));
     if (parts[0] === "qr" && parts[1]) return handleQR(req, res, parts[1]);
     if (parts[0] === "certificate-data" && parts[1]) return handleCertificateData(req, res, parts[1]);
     if (parts[0] === "verify-data" && parts[1]) return handleVerifyData(req, res, parts[1]);
