@@ -4278,6 +4278,10 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 }} style={{ alignSelf: "flex-start", fontSize: "0.8rem", padding: "0.35rem 0.75rem" }}>
                   + Add Template
                 </button>
+                <div style={{ padding: "0.75rem", background: "#fffde7", border: "2px solid #f9a825", marginBottom: "1rem", fontSize: "0.78rem" }}>
+                  <strong>Available template variables:</strong><br />
+                  <code>{`{{name}} {{domain}} {{status}} {{date}} {{startDate}} {{endDate}} {{internId}} {{id}} {{msmeId}} {{qrCodeUrl}} {{_signature}} {{completed}}`}</code>
+                </div>
                 {(templates.templateOrder || []).map((key) => (
                   <div key={key} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", border: "1px solid #ddd", padding: "1rem" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
