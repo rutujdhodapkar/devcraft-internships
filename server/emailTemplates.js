@@ -3,31 +3,30 @@ const BASE_WRAPPER = `<!DOCTYPE html>
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;background:#0a0a0a;color:#e5e5e5;line-height:1.6}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;background:#fff;color:#333;line-height:1.6}
   .wrapper{max-width:600px;margin:0 auto;padding:20px}
-  .header{text-align:center;padding:32px 20px 24px;background:linear-gradient(135deg,#111 0%,#1a1a2e 100%);border-radius:16px 16px 0 0;border-bottom:2px solid #2a2a3e}
-  .header h1{font-size:22px;font-weight:700;background:linear-gradient(135deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-  .header p{color:#888;font-size:13px;margin-top:4px}
-  .body{padding:32px 24px;background:#111;border-radius:0 0 16px 16px}
-  .body h2{font-size:18px;font-weight:600;margin-bottom:12px;color:#f0f0f0}
-  .body p{font-size:14px;color:#aaa;margin-bottom:16px;line-height:1.7}
-  .body ul{list-style:none;padding:0;margin:0 0 16px}
-  .body ul li{padding:10px 14px;background:#1a1a2e;border-radius:8px;margin-bottom:8px;font-size:13px;color:#ccc;border-left:3px solid #a78bfa}
-  .body ul li strong{color:#f0f0f0}
-  .btn{display:inline-block;padding:12px 28px;background:linear-gradient(135deg,#a78bfa,#60a5fa);color:#fff!important;text-decoration:none;border-radius:8px;font-size:14px;font-weight:600;margin:8px 0 16px}
-  .btn:hover{opacity:.9}
-  .footer{text-align:center;padding:24px 20px;background:#0a0a0a;border-top:1px solid #1a1a2e;border-radius:0 0 16px 16px}
-  .footer p{font-size:12px;color:#555;margin-bottom:4px}
-  .footer a{color:#60a5fa;text-decoration:none;font-size:12px}
-  .footer a:hover{text-decoration:underline}
-  .divider{height:1px;background:#1a1a2e;margin:20px 0}
-  .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:600;background:#1a1a2e;color:#a78bfa}
-  .highlight{color:#a78bfa;font-weight:600}
+  .header{text-align:center;padding:32px 20px 20px;background:#fff;border-bottom:2px solid #000}
+  .header h1{font-size:20px;font-weight:800;color:#000;text-transform:uppercase;letter-spacing:1px}
+  .header p{color:#666;font-size:13px;margin-top:4px}
+  .body{padding:28px 24px;background:#fff;border-bottom:2px solid #000}
+  .body h2{font-size:17px;font-weight:700;margin-bottom:12px;color:#000}
+  .body p{font-size:14px;color:#444;margin-bottom:14px;line-height:1.7}
+  .body ul{list-style:none;padding:0;margin:0 0 14px}
+  .body ul li{padding:8px 12px;background:#f5f5f5;margin-bottom:6px;font-size:13px;color:#333;border-left:3px solid #000}
+  .body ul li strong{color:#000}
+  .btn{display:inline-block;padding:10px 24px;background:#000;color:#fff!important;text-decoration:none;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin:6px 0 14px;border:2px solid #000}
+  .btn:hover{opacity:.8}
+  .footer{text-align:center;padding:20px;background:#fff}
+  .footer p{font-size:12px;color:#999;margin-bottom:4px}
+  .footer a{color:#000;text-decoration:underline;font-size:12px}
+  .divider{height:2px;background:#000;margin:18px 0}
+  .badge{display:inline-block;padding:3px 10px;font-size:11px;font-weight:700;background:#000;color:#fff;text-transform:uppercase;letter-spacing:0.5px}
+  .highlight{font-weight:700;color:#000}
+  table{border-collapse:collapse;width:100%;font-size:14px;color:#444;margin-bottom:14px}
+  table td{padding:6px 0;border-bottom:1px solid #eee}
+  .label{color:#888;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;font-weight:700}
   @media(max-width:480px){
-    .wrapper{padding:10px}
-    .body{padding:20px 16px}
-    .header{padding:24px 16px 20px}
-    .header h1{font-size:18px}
+    .wrapper{padding:10px}.body{padding:20px 16px}.header{padding:24px 16px 18px}.header h1{font-size:17px}
   }
 </style></head>
 <body>
@@ -36,53 +35,39 @@ const BASE_WRAPPER = `<!DOCTYPE html>
     <h1>{{HEADING}}</h1>
     <p>{{SUBHEADING}}</p>
   </div>
-  <div class="body">
-    {{CONTENT}}
-  </div>
+  <div class="body">{{CONTENT}}</div>
   <div class="footer">
     <p>DEV/CRAFT Internship Platform</p>
-    <p style="margin-top:8px"><a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a> &middot; <a href="https://devcraft.rutujdhodapkar.tech">Visit Website</a></p>
-    <p style="margin-top:8px;color:#444;font-size:11px">You received this email because you registered on DEV/CRAFT.</p>
+    <p style="margin-top:6px"><a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a> &middot; <a href="https://devcraft.rutujdhodapkar.tech">Visit Website</a></p>
+    <p style="margin-top:6px;color:#bbb;font-size:11px">You received this email because you are registered on DEV/CRAFT.</p>
   </div>
 </div>
 </body>
 </html>`;
 
-function fill(template, vars) {
-  let html = template;
-  for (const [k, v] of Object.entries(vars)) {
-    html = html.replace(new RegExp(`\\\\{\\\\{${k}\\\\}\\\\}`, 'g'), v ?? '');
-  }
-  return html;
-}
-
-function wrap(content, heading, subheading, extraVars = {}) {
-  let html = BASE_WRAPPER
+function wrap(content, heading, subheading) {
+  return BASE_WRAPPER
     .replace('{{HEADING}}', heading)
     .replace('{{SUBHEADING}}', subheading)
     .replace('{{CONTENT}}', content);
-  for (const [k, v] of Object.entries(extraVars)) {
-    html = html.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v ?? '');
-  }
-  return html;
 }
 
 export const TEMPLATES = {
   welcome: {
-    subject: 'Welcome to DEV/CRAFT — Your Internship Awaits!',
+    subject: 'Welcome to DEV/CRAFT — Your Internship Awaits',
     defaultCategory: 'welcome',
     build: (vars) => wrap(`
-      <h2>Welcome, ${vars.name || 'there'}! 👋</h2>
-      <p>Thank you for joining <strong>DEV/CRAFT</strong> — we're excited to have you on board!</p>
-      <p>You've taken the first step toward gaining real-world experience. Here's what happens next:</p>
+      <h2>Welcome, ${vars.name || 'Student'}</h2>
+      <p>Thank you for joining <strong>DEV/CRAFT</strong>. You have taken the first step toward gaining hands-on industry experience.</p>
+      <p>Here is how the program works:</p>
       <ul>
-        <li><strong>1. Browse Domains</strong> — Explore our career paths in Web Dev, AI, Python, and more</li>
-        <li><strong>2. Enroll Free</strong> — Sign up with Google and enroll in your chosen domain instantly</li>
-        <li><strong>3. Complete Projects</strong> — Work through hands-on projects at your own pace</li>
-        <li><strong>4. Get Certified</strong> — Receive a verified completion certificate</li>
+        <li><strong>1. Select a Domain</strong> — Choose from Web Development, AI, Python, and more</li>
+        <li><strong>2. Enroll</strong> — Sign in with Google and enroll in your chosen domain</li>
+        <li><strong>3. Complete Projects</strong> — Work through practical projects at your own pace</li>
+        <li><strong>4. Receive Certificate</strong> — Get a verified completion certificate after review</li>
       </ul>
       <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Browse Domains</a></div>
-    `, 'Welcome to DEV/CRAFT! 🚀', 'Your hands-on internship journey starts here'),
+    `, 'Welcome to DEV/CRAFT', 'Your internship journey starts here'),
     sendOnce: true
   },
 
@@ -91,105 +76,103 @@ export const TEMPLATES = {
     defaultCategory: 'payment',
     build: (vars) => wrap(`
       <h2>Payment Pending, ${vars.name || 'Student'}</h2>
-      <p>Your enrollment in <strong>${vars.domain || 'your chosen domain'}</strong> is almost complete — just the payment step remaining.</p>
+      <p>Your enrollment in <strong>${vars.domain || 'your chosen domain'}</strong> is awaiting payment to proceed with verification and certification.</p>
       <div class="divider"></div>
-      <table style="width:100%;font-size:14px;color:#aaa;margin-bottom:16px">
-        <tr><td style="padding:6px 0">Domain</td><td style="text-align:right;color:#f0f0f0">${vars.domain || '—'}</td></tr>
-        <tr><td style="padding:6px 0">Amount</td><td style="text-align:right;color:#f0f0f0;font-weight:600">₹${vars.amount || '200'}</td></tr>
-        <tr><td style="padding:6px 0">Enrolled Since</td><td style="text-align:right;color:#f0f0f0">${vars.enrolledSince || '—'}</td></tr>
+      <table>
+        <tr><td class="label">Domain</td><td style="text-align:right;font-weight:600;color:#000">${vars.domain || '—'}</td></tr>
+        <tr><td class="label">Amount</td><td style="text-align:right;font-weight:600;color:#000">Rs ${vars.amount || '200'}</td></tr>
+        <tr><td class="label">Enrolled Since</td><td style="text-align:right;color:#333">${vars.enrolledSince || '—'}</td></tr>
       </table>
-      <p>Complete your payment to unlock project submissions and start working toward your certificate.</p>
-      <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech/dashboard">Pay Now</a></div>
-    `, 'Payment Reminder 💳', `Hi ${vars.name || 'Student'}, your enrollment is waiting`),
+      <p>Complete your payment to unlock project submissions and work toward your certificate.</p>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech/dashboard">Complete Payment</a></div>
+    `, 'Payment Reminder', 'Complete your enrollment'),
     sendOnce: false,
     intervalDays: 3,
     maxDurationDays: 60
   },
 
   task_reminder: {
-    subject: 'Tasks Pending — Deadline Approaching',
+    subject: 'Pending Tasks — Deadline Approaching',
     defaultCategory: 'task',
     build: (vars) => wrap(`
-      <h2>You Have Pending Tasks, ${vars.name || 'Intern'}!</h2>
+      <h2>Pending Tasks, ${vars.name || 'Intern'}</h2>
       <p>Your <strong>${vars.domain || 'internship'}</strong> has <span class="highlight">${vars.pendingTasks || 'some'}</span> project(s) awaiting submission.</p>
-      <div class="badge">Deadline: ${vars.deadline || 'Soon'}</div>
-      <p style="margin-top:16px">Don't wait until the last minute — submit your work and get feedback from our team.</p>
+      <div class="badge">Deadline: ${vars.deadline || 'Set'}</div>
+      <p style="margin-top:14px">Submit your completed work to receive feedback from the review team.</p>
       <ul>
         ${(vars.taskList || []).map(t => `<li><strong>${t.title || 'Project'}</strong> — ${t.status || 'Pending'}</li>`).join('')}
       </ul>
       <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech/dashboard">View Tasks</a></div>
-    `, 'Tasks Reminder ⏰', `${vars.pendingTasks || 0} project(s) pending for ${vars.domain || 'your internship'}`),
+    `, 'Task Reminder', `${vars.pendingTasks || 0} project(s) remaining for ${vars.domain || 'your domain'}`),
     sendOnce: false,
     intervalDays: 2,
     triggerIf: 'deadline_approaching'
   },
 
   deadline_urgent: {
-    subject: '⚠️ Urgent: Deadline TOMORROW',
+    subject: 'Urgent: Deadline Approaching',
     defaultCategory: 'task',
     build: (vars) => wrap(`
-      <h2>Deadline Alert — Act Now!</h2>
-      <p style="color:#f87171;font-weight:600">Your internship deadline is in ${vars.daysUntilDeadline || 'less than 3'} day(s)!</p>
-      <p>You still have <span class="highlight">${vars.pendingTasks || 0}</span> unsubmitted project(s). If you miss the deadline, your enrollment may expire.</p>
+      <h2>Deadline Alert, ${vars.name || 'Intern'}</h2>
+      <p style="font-weight:700">Your internship deadline is in ${vars.daysUntilDeadline || 'less than 3'} day(s).</p>
+      <p>You have <span class="highlight">${vars.pendingTasks || 0}</span> unsubmitted project(s). Submissions received after the deadline may not be accepted.</p>
       <ul>
         ${(vars.taskList || []).map(t => `<li><strong>${t.title || 'Project'}</strong> — ${t.status || 'Pending'}</li>`).join('')}
       </ul>
-      <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech/dashboard">Submit Now</a></div>
-      <p style="font-size:12px;color:#666;margin-top:12px">Need more time? Contact support to discuss an extension.</p>
-    `, '⚠️ Urgent Deadline Notice', `Only ${vars.daysUntilDeadline || 'a few'} day(s) left — submit your work!`),
+      <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech/dashboard">Submit Work</a></div>
+      <p style="font-size:12px;color:#999;margin-top:12px">Need more time? Contact support to request an extension.</p>
+    `, 'Urgent Deadline Notice', 'Act now to complete your projects'),
     sendOnce: false,
     intervalDays: 1,
     triggerIf: 'deadline_urgent'
   },
 
   certificate_ready: {
-    subject: '🎉 Your Certificate is Ready!',
+    subject: 'Your Certificate is Ready for Download',
     defaultCategory: 'certificate',
     build: (vars) => wrap(`
-      <h2>Congratulations, ${vars.name || 'Graduate'}! 🎉</h2>
-      <p>We're thrilled to announce that you have successfully completed your <strong>${vars.domain || 'internship'}</strong> at DEV/CRAFT!</p>
-      <div style="text-align:center;padding:20px;background:#1a1a2e;border-radius:12px;margin:16px 0">
-        <p style="font-size:32px;margin-bottom:8px">🎓</p>
-        <p style="font-size:16px;font-weight:600;color:#f0f0f0">${vars.domain || 'Internship'} — Completed</p>
-        <p style="font-size:13px;color:#888">${vars.completedAt || ''}</p>
+      <h2>Congratulations, ${vars.name || 'Graduate'}</h2>
+      <p>You have successfully completed your <strong>${vars.domain || 'internship'}</strong> at DEV/CRAFT. Your verified completion certificate is now available.</p>
+      <div style="text-align:center;padding:20px;background:#f5f5f5;border:2px solid #000;margin:16px 0">
+        <p style="font-size:15px;font-weight:700;color:#000;margin:0 0 4px">${vars.domain || 'Internship'} — Completed</p>
+        <p style="font-size:12px;color:#888;margin:0">${vars.completedAt || ''}</p>
       </div>
-      <p>Your verified completion certificate is now available for download from your dashboard.</p>
       <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech/dashboard">Download Certificate</a></div>
-      <p style="font-size:13px;color:#888;margin-top:16px">Share your achievement on LinkedIn and tag us!</p>
-    `, 'Certificate Ready! 🎓', `${vars.name || 'Graduate'}, you did it!`),
+      <p style="font-size:13px;color:#888;margin-top:14px">You can also share your achievement on LinkedIn.</p>
+    `, 'Certificate Ready', 'Your certificate is available for download'),
     sendOnce: true
   },
 
   completion: {
-    subject: 'You Graduated — What\'s Next?',
+    subject: 'Program Completed — Next Steps with DEV/CRAFT',
     defaultCategory: 'general',
     build: (vars) => wrap(`
-      <h2>You're a DEV/CRAFT Graduate, ${vars.name || 'Alum'}! 🎉</h2>
-      <p>You've successfully completed your journey through <strong>${vars.domain || 'your program'}</strong>. Here are some things you can do next:</p>
+      <h2>Well Done, ${vars.name || 'Graduate'}</h2>
+      <p>You have successfully completed your <strong>${vars.domain || 'program'}</strong> at DEV/CRAFT. Here are some suggested next steps:</p>
       <ul>
-        <li><strong>Add to LinkedIn</strong> — Feature your certificate under "Licenses & Certifications"</li>
-        <li><strong>Refer Friends</strong> — Share your referral code and earn rewards</li>
-        <li><strong>Explore More</strong> — Check out advanced domains to continue learning</li>
+        <li><strong>Add to LinkedIn</strong> — Feature your certificate under Licenses and Certifications</li>
+        <li><strong>Refer Others</strong> — Share your referral code with friends</li>
+        <li><strong>Explore Advanced Domains</strong> — Continue learning with new career paths</li>
       </ul>
       <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Explore More</a></div>
-    `, 'Congratulations, Graduate! 🎉', 'Your next journey awaits'),
+    `, 'Program Completed', 'Your next journey awaits'),
     sendOnce: true
   },
 
   re_engagement: {
-    subject: 'We Miss You — Come Back to DEV/CRAFT!',
+    subject: 'Continue Your DEV/CRAFT Internship',
     defaultCategory: 'general',
     build: (vars) => wrap(`
-      <h2>It's Been A While, ${vars.name || 'there'}! 👋</h2>
-      <p>We noticed you haven't been active on DEV/CRAFT recently. Your progress is still saved — come back and pick up where you left off!</p>
-      <p>Here's a quick recap of your journey:</p>
+      <h2>Welcome Back, ${vars.name || 'Student'}</h2>
+      <p>We noticed your DEV/CRAFT account has been inactive. Your progress is still saved and you can resume where you left off.</p>
+      <p>Current progress:</p>
       <ul>
-        <li><strong>Domain:</strong> ${vars.domain || 'Not enrolled yet'}</li>
-        <li><strong>Projects Completed:</strong> ${vars.completedProjects || 0}/${vars.totalProjects || 0}</li>
+        <li><strong>Domain:</strong> ${vars.domain || 'Not enrolled'}</li>
+        <li><strong>Projects Completed:</strong> ${vars.completedProjects || 0} of ${vars.totalProjects || 0}</li>
         <li><strong>Status:</strong> ${vars.status || 'Active'}</li>
       </ul>
       <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech/dashboard">Resume Learning</a></div>
-    `, 'We Miss You! 👋', 'Come back and continue your internship journey'),
+    `, 'Resume Your Internship', 'Continue where you left off'),
     sendOnce: false,
     intervalDays: 7,
     maxSends: 3
@@ -199,13 +182,13 @@ export const TEMPLATES = {
     subject: 'Latest Updates from DEV/CRAFT',
     defaultCategory: 'updates',
     build: (vars) => wrap(`
-      <h2>Hey ${vars.name || 'there'}! Here's What's New</h2>
-      <p>Stay up-to-date with the latest from DEV/CRAFT. We're constantly adding new domains, features, and opportunities for you.</p>
+      <h2>Updates, ${vars.name || 'Student'}</h2>
+      <p>Stay informed about the latest developments at DEV/CRAFT. New domains and platform improvements are added regularly.</p>
       <ul>
-        ${(vars.updates || ['New domains added!', 'Platform improvements', 'New features on your dashboard']).map(u => `<li>${u}</li>`).join('')}
+        ${(vars.updates || ['New domains have been added', 'Platform features have been improved', 'New tools are available on your dashboard']).map(u => `<li>${u}</li>`).join('')}
       </ul>
-      <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech">See What's New</a></div>
-    `, 'Latest Updates 📬', 'New things happening at DEV/CRAFT'),
+      <div style="text-align:center"><a class="btn" href="https://devcraft.rutujdhodapkar.tech">View Updates</a></div>
+    `, 'Latest Updates', 'Check out what is new at DEV/CRAFT'),
     sendOnce: false,
     intervalDays: 7,
     isBroadcast: true
@@ -215,10 +198,10 @@ export const TEMPLATES = {
     subject: 'Announcement from DEV/CRAFT',
     defaultCategory: 'general',
     build: (vars) => wrap(`
-      <h2>${vars.title || 'Important Announcement'}</h2>
-      ${vars.message ? `<p>${vars.message}</p>` : '<p>We have an important update to share with you.</p>'}
+      <h2>${vars.title || 'Announcement'}</h2>
+      ${vars.message ? `<p>${vars.message}</p>` : '<p>An important update regarding DEV/CRAFT.</p>'}
       ${vars.ctaText && vars.ctaUrl ? `<div style="text-align:center"><a class="btn" href="${vars.ctaUrl}">${vars.ctaText}</a></div>` : ''}
-    `, vars.title || 'Announcement 📢', vars.subtitle || ''),
+    `, vars.title || 'Announcement', vars.subtitle || ''),
     sendOnce: false,
     intervalDays: 0,
     isBroadcast: true
@@ -233,8 +216,8 @@ export function getTemplate(type) {
     defaultCategory: tpl.defaultCategory || 'general',
     html: (vars) => {
       const allVars = {
-        name: 'There',
-        domain: '',
+        name: vars.name || 'Student',
+        domain: vars.domain || '',
         UNSUBSCRIBE_URL: vars.unsubscribeUrl || 'https://devcraft.rutujdhodapkar.tech/unsubscribe',
         ...vars,
       };
