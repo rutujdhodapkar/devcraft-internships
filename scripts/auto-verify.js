@@ -292,10 +292,14 @@ async function main() {
           update[`${base}.verifiedAt`] = nowStr;
           update[`${base}.rejected`] = false;
           update[`${base}.rejectedAt`] = null;
+          update[`${base}.resubmit`] = false;
+          update[`${base}.feedback`] = "";
         } else {
           update[`${base}.verifiedAt`] = null;
           update[`${base}.rejected`] = true;
           update[`${base}.rejectedAt`] = nowStr;
+          update[`${base}.resubmit`] = true;
+          update[`${base}.feedback`] = result.message || result.reason || "Task did not meet requirements. Please review and resubmit.";
         }
         await db.collection("enrollments").doc(enrollment.id).update(update);
 
