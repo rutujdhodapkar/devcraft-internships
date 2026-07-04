@@ -10294,7 +10294,7 @@ function AddInternSection() {
     import("../services/data").then(({ fetchCareerPaths, fetchEnrollments }) =>
       Promise.all([
         fetchCareerPaths().then((d) => { setAllPaths(d.paths || []); setRecentInternsCp(d.paths || []); }),
-        fetchEnrollments().then((list) => { setTotalInterns(list.length); setRecentInterns(list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 10)); }),
+        fetchEnrollments().then((list) => { setTotalInterns(list.length); setRecentInterns(list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))); }),
       ])
     );
   }, []);
@@ -10401,22 +10401,23 @@ function AddInternSection() {
         {message && <div style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", border: "2px solid #000", fontSize: "0.85rem", fontWeight: 600, background: message.startsWith("Error") ? "#fee" : "#efe" }}>{message}</div>}
       </div>
 
-      {/* Recent Interns */}
+      {/* All Interns */}
       {recentInterns.length > 0 && (
         <div style={{ marginTop: "2rem" }}>
-          <h4 style={{ fontSize: "1rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>Recent Interns</h4>
+          <h4 style={{ fontSize: "1rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem" }}>All Interns ({recentInterns.length})</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
             {recentInterns.map((e) => {
               const cp = recentInternsCp.find((p) => p.id === e.domainId || p.title === e.domain);
               const buttons = cp?.buttons || [];
+              const effButtons = buttons.length > 0 ? buttons : Object.keys(templates.templates || {}).map((key) => ({ label: key, templateName: key }));
               return (
                 <div key={e.id} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.65rem 0.85rem", background: "#fafafa" }}>
                   <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.name || e.domain}:</span>
                   <span style={{ fontSize: "0.78rem", color: "#888" }}>{e.email || "—"}</span>
                   <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "0.15rem 0.5rem", background: e.status === "Completed" ? "#E8F5E9" : "#FFF8E1", border: "1px solid #ccc" }}>{e.status || "Active"}</span>
                   <span style={{ fontSize: "0.72rem", color: "#aaa", fontFamily: "monospace" }}>{e.internId || e.id}</span>
-                  {buttons.map((btn, bi) => (
-                    <button key={bi} className="btn-sharp" onClick={() => { const id = e.id || e.internId; if (!id) return; const name = btn.templateName.toLowerCase().replace(/\s+/g, "-"); window.open(`/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`, "_blank"); }} style={{ padding: "0.35rem 0.85rem", fontSize: "0.75rem", borderRadius: 0 }}>
+                  {effButtons.map((btn, bi) => (
+                    <button key={bi} className="btn-sharp" onClick={() => { const id = e.id || e.internId; if (!id) return; const name = btn.templateName.toLowerCase().replace(/\s+/g, "-"); window.location.href = `/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`; }} style={{ padding: "0.35rem 0.85rem", fontSize: "0.75rem", borderRadius: 0 }}>
                       {btn.label}
                     </button>
                   ))}

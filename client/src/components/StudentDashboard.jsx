@@ -421,8 +421,7 @@ export default function StudentDashboard({
     const id = enrollment.id || enrollment.internId;
     if (!id) { notify("Enrollment ID not found.", "error"); return; }
     const name = templateName.toLowerCase().replace(/\s+/g, "-");
-    const url = `${window.location.origin}/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`;
-    window.open(url, "_blank");
+    window.location.href = `/certificate/${encodeURIComponent(id)}/${encodeURIComponent(name)}`;
   };
 
   const handleDownloadFromTemplate = (enrollment, templateName, requireUnlock = false) => {
