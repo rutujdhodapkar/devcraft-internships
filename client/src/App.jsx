@@ -908,7 +908,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <style>{`@media(min-width:769px){*,* *{cursor:none!important}}::selection{background:#000;color:#fff}@media(min-width:1024px){html{scroll-behavior:smooth}}@keyframes notifySlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
-      {showLoader && <Loader onFinish={() => setShowLoader(false)} />}
+      {showLoader && currentView !== "verify" && <Loader onFinish={() => setShowLoader(false)} />}
       <CustomCursor />
       {/* Admin Messages Banner */}
       {adminMessages

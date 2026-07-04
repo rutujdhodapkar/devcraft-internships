@@ -28,7 +28,17 @@ export default function VerifyCertificate() {
     })();
   }, []);
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Arial, sans-serif" }}>
+        <div style={{ background: "#fff", padding: "2rem 3rem", border: "3px solid #000", boxShadow: "8px 8px 0 #000", textAlign: "center" }}>
+          <div style={{ width: 32, height: 32, border: "3px solid #000", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 1rem" }} />
+          <p style={{ fontWeight: 700, fontSize: "0.9rem", margin: 0 }}>Verifying Certificate…</p>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -255,14 +255,7 @@ export default function CertificateView() {
           _signature: certData._signature,
         };
 
-        // Auto-inject MSME & QR if not already in template
-        let filled = fillTemplate(templateHtml, vars);
-        if (certData.msmeId && !filled.includes("msme")) {
-          filled = filled.replace("</body>", `<div class="msme-id">MSME Reg. No: ${certData.msmeId}</div>\n</body>`);
-        }
-        if (certData.qrCodeUrl && !filled.includes("qrCodeUrl") && !filled.includes("qr-code") && !filled.includes("qr_section")) {
-          filled = filled.replace("</body>", `<div class="qr-section" style="text-align:center;margin-top:1.5rem"><img src="${certData.qrCodeUrl}" alt="Verify Certificate" style="width:120px;height:120px" /><br /><span style="font-size:0.75rem;color:#666">Scan QR to Verify</span></div>\n</body>`);
-        }
+        const filled = fillTemplate(templateHtml, vars);
         setHtml(filled);
       } catch (err) {
         if (!cancelled) setError("Failed to load certificate: " + err.message);

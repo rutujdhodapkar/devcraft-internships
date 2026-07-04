@@ -1,0 +1,25 @@
+name: Auto Verify Tasks (NVIDIA AI)
+
+on:
+  schedule:
+    - cron: "30 6 * * *"    # 12:00 PM IST (UTC+5:30 → 06:30 UTC)
+  workflow_dispatch:         # allow manual trigger
+
+jobs:
+  auto-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install firebase-admin@14
+
+      - name: Run auto-verification
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: node scripts/auto-verify.js
