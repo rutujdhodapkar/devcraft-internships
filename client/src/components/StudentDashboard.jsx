@@ -710,6 +710,9 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "tasks" ? (
           <div>
+            <div className="tasks-scroll-hint" style={{ display: "none", background: "#fffde7", border: "2px solid #f9a825", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", fontWeight: 600, borderRadius: 0, textAlign: "center" }}>
+              On mobile? Please tap <strong>Open Dashboard</strong> above or scroll horizontally to view all tasks.
+            </div>
             {enrollments.length === 0 && getHiddenEnrollments(user.uid).length === 0 ? (
               <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
                 <p style={{ color: "#888", fontSize: "1rem" }}>You have no active internships. Explore domains to get started.</p>
