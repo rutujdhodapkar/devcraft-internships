@@ -1210,8 +1210,7 @@ async function handleCertificateData(req, res, enrollmentId) {
     const submissions = enrollment.submissions || {};
     const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
     const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
-    const hasTxId = !!enrollment.transactionId;
-    const eligible = (allVerified || projects.length === 0) && (isPaid || enrollment.status === "Completed") && hasTxId;
+    const eligible = enrollment.allowedCertificate === "yes" || ((allVerified || projects.length === 0) && (isPaid || enrollment.status === "Completed"));
     const status = eligible ? "Completed" : (enrollment.status || "Active");
 
     // Get org settings (MSME ID)

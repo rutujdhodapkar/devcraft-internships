@@ -10303,7 +10303,7 @@ function ProgressTimeline({ enrollmentId }) {
 function AddInternSection() {
   const [form, setForm] = useState({
     name: "", email: "", phone: "", college: "", city: "", country: "",
-    domain: "", domainId: "", upiId: "", uid: "",
+    domain: "", domainId: "", upiId: "", uid: "", photoURL: "",
     status: "Active", paymentStatus: "none", paymentAmount: 0,
     referralCode: "", startDate: "", endDate: "", completedAt: "",
     allowedCertificate: "no", documents: "",
@@ -10314,11 +10314,13 @@ function AddInternSection() {
   const [totalInterns, setTotalInterns] = useState(null);
   const [recentInterns, setRecentInterns] = useState([]);
   const [recentInternsCp, setRecentInternsCp] = useState([]);
+  const [allTemplates, setAllTemplates] = useState({ templates: {}, templateOrder: [] });
   useEffect(() => {
-    import("../services/data").then(({ fetchCareerPaths, fetchEnrollments }) =>
+    import("../services/data").then(({ fetchCareerPaths, fetchEnrollments, fetchTemplates }) =>
       Promise.all([
         fetchCareerPaths().then((d) => { setAllPaths(d.paths || []); setRecentInternsCp(d.paths || []); }),
         fetchEnrollments().then((list) => { setTotalInterns(list.length); setRecentInterns(list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))); }),
+        fetchTemplates().then((t) => { if (t) setAllTemplates(t); }),
       ])
     );
   }, []);
@@ -10348,7 +10350,7 @@ function AddInternSection() {
       });
       setMessage(`Intern added successfully! ID: ${enrollment.internId}`);
       setTotalInterns((p) => (p !== null ? p + 1 : p));
-      setForm({ name: "", email: "", phone: "", college: "", city: "", country: "", domain: "", domainId: "", upiId: "", uid: "", status: "Active", paymentStatus: "none", paymentAmount: 0, referralCode: "", startDate: "", endDate: "", completedAt: "", allowedCertificate: "no", documents: "" });
+      setForm({ name: "", email: "", phone: "", college: "", city: "", country: "", domain: "", domainId: "", upiId: "", uid: "", photoURL: "", status: "Active", paymentStatus: "none", paymentAmount: 0, referralCode: "", startDate: "", endDate: "", completedAt: "", allowedCertificate: "no", documents: "" });
       // Refresh recent interns list
       import("../services/data").then(({ fetchEnrollments }) => fetchEnrollments().then((list) => setRecentInterns(list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 10))));
     } catch (err) { setMessage("Error: " + err.message); }
@@ -10374,6 +10376,7 @@ function AddInternSection() {
           <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Country</label><input value={form.country} onChange={(e) => setForm((p) => ({ ...p, country: e.target.value }))} style={s} /></div>
           <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>UPI ID</label><input value={form.upiId} onChange={(e) => setForm((p) => ({ ...p, upiId: e.target.value }))} style={s} /></div>
           <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>UID (Firebase)</label><input value={form.uid} onChange={(e) => setForm((p) => ({ ...p, uid: e.target.value }))} style={s} placeholder="Optional" /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Photo URL</label><input value={form.photoURL} onChange={(e) => setForm((p) => ({ ...p, photoURL: e.target.value }))} style={s} placeholder="https://..." /></div>
         </div>
 
         <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Domain *</label>
@@ -10433,7 +10436,7 @@ function AddInternSection() {
             {recentInterns.map((e) => {
               const cp = recentInternsCp.find((p) => p.id === e.domainId || p.title === e.domain);
               const buttons = cp?.buttons || [];
-              const effButtons = buttons.length > 0 ? buttons : Object.keys(templates.templates || {}).map((key) => ({ label: key, templateName: key }));
+              const effButtons = buttons.length > 0 ? buttons : Object.keys(allTemplates.templates || {}).map((key) => ({ label: key, templateName: key }));
               return (
                 <div key={e.id} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.65rem 0.85rem", background: "#fafafa" }}>
                   <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.name || e.domain}:</span>
