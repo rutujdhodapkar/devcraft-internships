@@ -1004,6 +1004,45 @@ export async function updateEnrollmentField(enrollmentId, field, value) {
   await dbPatch(`enrollments/${enrollmentId}`, { [field]: value, updatedAt: new Date().toISOString() });
 }
 
+export async function createEnrollment(data) {
+  const id = data.internId || `DEV-CRAFT-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, "0")}`;
+  const enrollment = {
+    id,
+    internId: id,
+    uid: data.uid || "",
+    name: data.name || "Student",
+    email: data.email || "",
+    photoURL: data.photoURL || "",
+    phone: data.phone || "",
+    college: data.college || "",
+    city: data.city || "",
+    country: data.country || "",
+    upiId: data.upiId || "",
+    domain: data.domain || "",
+    domainId: data.domainId || "",
+    projects: data.projects || [],
+    referralCode: (data.referralCode || "").toUpperCase().trim(),
+    status: data.status || "Active",
+    allowedCertificate: data.allowedCertificate || "no",
+    submissions: data.submissions || {},
+    paymentStatus: data.paymentStatus || "none",
+    paymentStage: data.paymentStage || "none",
+    paymentAmount: data.paymentAmount || 0,
+    paymentStartAmount: data.paymentStartAmount || 0,
+    paymentEndAmount: data.paymentEndAmount || 0,
+    paymentTiming: data.paymentTiming || "end",
+    paymentIntentId: data.paymentIntentId || "",
+    overrideCompleted: data.overrideCompleted || false,
+    createdAt: data.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  if (data.startDate) enrollment.startDate = data.startDate;
+  if (data.endDate) enrollment.endDate = data.endDate;
+  if (data.completedAt) enrollment.completedAt = data.completedAt;
+  await dbPut(`enrollments/${id}`, enrollment);
+  return enrollment;
+}
+
 export async function aiGradeQuiz(questions, answers) {
   const data = await apiFetch("/api/ai/grade-quiz", { method: "POST", body: JSON.stringify({ questions, answers }) });
   return data.data;

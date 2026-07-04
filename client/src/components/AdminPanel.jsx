@@ -68,6 +68,7 @@ import {
   updateEnrollmentField,
   fetchRootAdmin,
   setRootAdmin,
+  createEnrollment,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -121,6 +122,7 @@ const TABS = [
   { id: "refund", label: "Refund" },
   { id: "footer", label: "Footer" },
   { id: "popup", label: "Popup" },
+  { id: "add-intern", label: "+ Add Intern" },
   { id: "csv-export", label: "CSV Export" },
   { id: "referral-leaderboard", label: "Referral Leaderboard" },
   { id: "logged-in-users", label: "Logged In Users" },
@@ -7989,6 +7991,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "csv-export" && <CSVExportSection />}
         {activeTab === "referral-leaderboard" && <ReferralLeaderboardSection />}
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
+        {activeTab === "add-intern" && <AddInternSection />}
       </div>
 
       {/* ── INTERN SUBMISSION DETAIL MODAL ── */}
@@ -10237,6 +10240,110 @@ function ProgressTimeline({ enrollmentId }) {
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function AddInternSection() {
+  const [form, setForm] = useState({
+    name: "", email: "", phone: "", college: "", city: "", country: "",
+    domain: "", domainId: "", upiId: "", uid: "",
+    status: "Active", paymentStatus: "none", paymentAmount: 0,
+    referralCode: "", startDate: "", endDate: "", completedAt: "",
+    allowedCertificate: "no",
+  });
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [allPaths, setAllPaths] = useState([]);
+  useEffect(() => {
+    import("../services/data").then(({ fetchCareerPaths }) =>
+      fetchCareerPaths().then((d) => setAllPaths(d.paths || []))
+    );
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!form.name.trim() || !form.domain.trim()) {
+      setMessage("Name and Domain are required."); return;
+    }
+    setSaving(true); setMessage("");
+    try {
+      const enrollment = await createEnrollment({
+        ...form,
+        domainId: form.domainId || form.domain,
+        projects: allPaths.find((p) => p.id === form.domainId || p.title === form.domain)?.projects || [],
+        startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
+        endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
+        completedAt: form.completedAt ? new Date(form.completedAt).toISOString() : undefined,
+        createdAt: new Date().toISOString(),
+      });
+      setMessage(`Intern added successfully! ID: ${enrollment.internId}`);
+      setForm({ name: "", email: "", phone: "", college: "", city: "", country: "", domain: "", domainId: "", upiId: "", uid: "", status: "Active", paymentStatus: "none", paymentAmount: 0, referralCode: "", startDate: "", endDate: "", completedAt: "", allowedCertificate: "no" });
+    } catch (err) { setMessage("Error: " + err.message); }
+    finally { setSaving(false); }
+  };
+
+  const s = { border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
+
+  return (
+    <div style={{ maxWidth: "700px" }}>
+      <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.25rem" }}>Add Intern Manually</h3>
+      <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>Create a new enrollment with custom start/end dates and status.</p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Name *</label><input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Email</label><input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Phone</label><input value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>College</label><input value={form.college} onChange={(e) => setForm((p) => ({ ...p, college: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>City</label><input value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Country</label><input value={form.country} onChange={(e) => setForm((p) => ({ ...p, country: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>UPI ID</label><input value={form.upiId} onChange={(e) => setForm((p) => ({ ...p, upiId: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>UID (Firebase)</label><input value={form.uid} onChange={(e) => setForm((p) => ({ ...p, uid: e.target.value }))} style={s} placeholder="Optional" /></div>
+        </div>
+
+        <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Domain *</label>
+          <select value={form.domainId || form.domain} onChange={(e) => { const p = allPaths.find((x) => x.id === e.target.value); setForm((f) => ({ ...f, domainId: e.target.value, domain: p?.title || e.target.value, paymentAmount: p?.paymentAmount || f.paymentAmount })); }} style={s}>
+            <option value="">-- Select Domain --</option>
+            {allPaths.map((p) => (<option key={p.id} value={p.id}>{p.title}</option>))}
+          </select>
+        </div>
+
+        <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Referral Code</label><input value={form.referralCode} onChange={(e) => setForm((p) => ({ ...p, referralCode: e.target.value }))} style={s} /></div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.75rem" }}>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Start Date</label><input type="date" value={form.startDate} onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>End Date</label><input type="date" value={form.endDate} onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Completed At</label><input type="date" value={form.completedAt} onChange={(e) => setForm((p) => ({ ...p, completedAt: e.target.value }))} style={s} /></div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Status</label>
+            <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} style={s}>
+              <option value="Active">Active</option>
+              <option value="Completed">Completed</option>
+              <option value="Expired">Expired</option>
+            </select>
+          </div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Payment Status</label>
+            <select value={form.paymentStatus} onChange={(e) => setForm((p) => ({ ...p, paymentStatus: e.target.value }))} style={s}>
+              <option value="none">None</option>
+              <option value="paid">Paid</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Payment Amount (₹)</label><input type="number" min="0" value={form.paymentAmount} onChange={(e) => setForm((p) => ({ ...p, paymentAmount: +e.target.value }))} style={s} /></div>
+          <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Allow Certificate</label>
+            <select value={form.allowedCertificate} onChange={(e) => setForm((p) => ({ ...p, allowedCertificate: e.target.value }))} style={s}>
+              <option value="no">No</option>
+              <option value="yes">Yes</option>
+            </select>
+          </div>
+        </div>
+
+        <button className="btn-sharp" disabled={saving} onClick={handleSubmit} style={{ padding: "0.7rem 2rem", fontSize: "0.9rem", fontWeight: 700, alignSelf: "flex-start", marginTop: "0.5rem" }}>
+          {saving ? "Adding…" : "Add Intern"}
+        </button>
+        {message && <div style={{ marginTop: "0.5rem", padding: "0.5rem 0.75rem", border: "2px solid #000", fontSize: "0.85rem", fontWeight: 600, background: message.startsWith("Error") ? "#fee" : "#efe" }}>{message}</div>}
       </div>
     </div>
   );
