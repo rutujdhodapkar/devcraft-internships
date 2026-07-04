@@ -10251,14 +10251,18 @@ function AddInternSection() {
     domain: "", domainId: "", upiId: "", uid: "",
     status: "Active", paymentStatus: "none", paymentAmount: 0,
     referralCode: "", startDate: "", endDate: "", completedAt: "",
-    allowedCertificate: "no",
+    allowedCertificate: "no", documents: "",
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [allPaths, setAllPaths] = useState([]);
+  const [totalInterns, setTotalInterns] = useState(null);
   useEffect(() => {
-    import("../services/data").then(({ fetchCareerPaths }) =>
-      fetchCareerPaths().then((d) => setAllPaths(d.paths || []))
+    import("../services/data").then(({ fetchCareerPaths, fetchEnrollments }) =>
+      Promise.all([
+        fetchCareerPaths().then((d) => setAllPaths(d.paths || [])),
+        fetchEnrollments().then((list) => setTotalInterns(list.length)).catch(() => {}),
+      ])
     );
   }, []);
 
@@ -10268,17 +10272,26 @@ function AddInternSection() {
     }
     setSaving(true); setMessage("");
     try {
+      const projects = JSON.parse(JSON.stringify(allPaths.find((p) => p.id === form.domainId || p.title === form.domain)?.projects || []));
+      const docLines = form.documents.trim().split("\n").filter(Boolean).map((url) => ({ title: "Document", url: url.trim(), description: "" }));
+      if (docLines.length > 0) {
+        projects.forEach((p) => {
+          if (!p.documents) p.documents = [];
+          p.documents.push(...docLines);
+        });
+      }
       const enrollment = await createEnrollment({
         ...form,
         domainId: form.domainId || form.domain,
-        projects: allPaths.find((p) => p.id === form.domainId || p.title === form.domain)?.projects || [],
+        projects,
         startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
         endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
         completedAt: form.completedAt ? new Date(form.completedAt).toISOString() : undefined,
         createdAt: new Date().toISOString(),
       });
       setMessage(`Intern added successfully! ID: ${enrollment.internId}`);
-      setForm({ name: "", email: "", phone: "", college: "", city: "", country: "", domain: "", domainId: "", upiId: "", uid: "", status: "Active", paymentStatus: "none", paymentAmount: 0, referralCode: "", startDate: "", endDate: "", completedAt: "", allowedCertificate: "no" });
+      setTotalInterns((p) => (p !== null ? p + 1 : p));
+      setForm({ name: "", email: "", phone: "", college: "", city: "", country: "", domain: "", domainId: "", upiId: "", uid: "", status: "Active", paymentStatus: "none", paymentAmount: 0, referralCode: "", startDate: "", endDate: "", completedAt: "", allowedCertificate: "no", documents: "" });
     } catch (err) { setMessage("Error: " + err.message); }
     finally { setSaving(false); }
   };
@@ -10287,8 +10300,11 @@ function AddInternSection() {
 
   return (
     <div style={{ maxWidth: "700px" }}>
-      <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.25rem" }}>Add Intern Manually</h3>
-      <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>Create a new enrollment with custom start/end dates and status.</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+        <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", margin: 0 }}>Add Intern Manually</h3>
+        {totalInterns !== null && <div style={{ border: "2px solid #000", padding: "0.35rem 0.75rem", fontWeight: 700, fontSize: "0.82rem" }}>Total Interns: {totalInterns}</div>}
+      </div>
+      <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>Create a new enrollment with custom start/end dates and status. Setting status to "Completed" auto-verifies all tasks.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
           <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Name *</label><input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} style={s} /></div>
@@ -10338,6 +10354,10 @@ function AddInternSection() {
               <option value="yes">Yes</option>
             </select>
           </div>
+        </div>
+
+        <div><label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Document URLs (one per line)</label>
+          <textarea value={form.documents} onChange={(e) => setForm((p) => ({ ...p, documents: e.target.value }))} rows={3} style={s} placeholder="https://example.com/doc1.pdf&#10;https://example.com/doc2.pdf" />
         </div>
 
         <button className="btn-sharp" disabled={saving} onClick={handleSubmit} style={{ padding: "0.7rem 2rem", fontSize: "0.9rem", fontWeight: 700, alignSelf: "flex-start", marginTop: "0.5rem" }}>

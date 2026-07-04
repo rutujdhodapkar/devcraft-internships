@@ -1006,6 +1006,18 @@ export async function updateEnrollmentField(enrollmentId, field, value) {
 
 export async function createEnrollment(data) {
   const id = data.internId || `DEV-CRAFT-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, "0")}`;
+  const isCompleted = data.status === "Completed";
+  const projects = data.projects || [];
+  // If status is Completed, auto-verify all submissions and set transactionId
+  let submissions = data.submissions || {};
+  let transactionId = data.transactionId || "";
+  if (isCompleted && projects.length > 0 && Object.keys(submissions).length === 0) {
+    submissions = {};
+    projects.forEach((_, i) => { submissions[i] = { verified: true, verifiedAt: new Date().toISOString() }; });
+  }
+  if (isCompleted && !transactionId) {
+    transactionId = `manual_${id}_${Date.now()}`;
+  }
   const enrollment = {
     id,
     internId: id,
@@ -1020,25 +1032,26 @@ export async function createEnrollment(data) {
     upiId: data.upiId || "",
     domain: data.domain || "",
     domainId: data.domainId || "",
-    projects: data.projects || [],
+    projects,
     referralCode: (data.referralCode || "").toUpperCase().trim(),
     status: data.status || "Active",
-    allowedCertificate: data.allowedCertificate || "no",
-    submissions: data.submissions || {},
-    paymentStatus: data.paymentStatus || "none",
-    paymentStage: data.paymentStage || "none",
+    allowedCertificate: isCompleted ? "yes" : (data.allowedCertificate || "no"),
+    submissions,
+    paymentStatus: isCompleted ? "paid" : (data.paymentStatus || "none"),
+    paymentStage: isCompleted ? "fully_paid" : (data.paymentStage || "none"),
     paymentAmount: data.paymentAmount || 0,
     paymentStartAmount: data.paymentStartAmount || 0,
     paymentEndAmount: data.paymentEndAmount || 0,
     paymentTiming: data.paymentTiming || "end",
     paymentIntentId: data.paymentIntentId || "",
+    transactionId,
     overrideCompleted: data.overrideCompleted || false,
+    completedAt: isCompleted && !data.completedAt ? new Date().toISOString() : (data.completedAt || null),
     createdAt: data.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
   if (data.startDate) enrollment.startDate = data.startDate;
   if (data.endDate) enrollment.endDate = data.endDate;
-  if (data.completedAt) enrollment.completedAt = data.completedAt;
   await dbPut(`enrollments/${id}`, enrollment);
   return enrollment;
 }
