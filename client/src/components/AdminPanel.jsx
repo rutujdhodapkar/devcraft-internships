@@ -10725,40 +10725,41 @@ function EmailSection() {
     { id: "automation", label: "Automation Log" },
   ];
 
-  const sectionStyle = { padding: "1.5rem 0" };
-  const labelStyle = { display: "block", marginBottom: "0.25rem", fontSize: "0.8rem", color: "#888", textTransform: "uppercase", letterSpacing: "0.05em" };
-  const inputStyle = { background: "#1a1a2e", color: "#e5e5e5", border: "1px solid #2a2a3e", borderRadius: "6px", padding: "0.5rem 0.75rem", width: "100%", fontSize: "0.9rem" };
-  const cardStyle = { background: "#111", border: "1px solid #2a2a3e", borderRadius: "8px", padding: "1rem", marginBottom: "1rem" };
-  const btnStyle = { padding: "0.5rem 1rem", borderRadius: "6px", border: "none", cursor: "pointer", fontSize: "0.85rem", fontWeight: 600 };
+  const cardStyle = { border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "4px 4px 0 #000" };
+  const bx = cardStyle;
+  const labelStyle = { fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.3rem", display: "block" };
+  const inputStyle = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box", background: "#fff", color: "#000" };
+  const btnStyle = { border: "2px solid #000", padding: "0.4rem 1rem", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" };
+  const sectionStyle = { padding: "0" };
 
   return (
     <div>
-      <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem", borderBottom: "1px solid #2a2a3e", paddingBottom: "1rem" }}>
+      <div style={{ display: "flex", gap: "0", flexWrap: "wrap", marginBottom: "1.5rem", borderBottom: "2px solid #000" }}>
         {subTabs.map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); setMessage(""); }}
-            style={{ ...btnStyle, background: tab === t.id ? "linear-gradient(135deg,#a78bfa,#60a5fa)" : "#1a1a2e", color: tab === t.id ? "#fff" : "#888" }}>
+          <button key={t.id} onClick={() => { setTab(t.id); setMessage(""); setManualResult(""); }}
+            style={{ ...btnStyle, border: "2px solid #000", borderBottom: tab === t.id ? "2px solid #fff" : "2px solid #000", background: tab === t.id ? "#fff" : "#000", color: tab === t.id ? "#000" : "#fff", marginBottom: "-2px" }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {message && <div style={{ background: "#1a1a2e", color: "#a78bfa", padding: "0.75rem 1rem", borderRadius: "6px", marginBottom: "1rem", fontSize: "0.9rem" }}>{message}</div>}
+      {message && <div style={{ border: "2px solid #000", padding: "0.6rem 1rem", background: "#fff", marginBottom: "1rem", fontSize: "0.85rem", fontWeight: 700 }}>{message}</div>}
 
       {/* ── Dashboard ── */}
       {tab === "dashboard" && (
         <div style={sectionStyle}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#a78bfa" }}>{stats?.totalSent || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Total Sent</div></div>
+            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#000" }}>{stats?.totalSent || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Total Sent</div></div>
             <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#f87171" }}>{stats?.totalFailed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Failed</div></div>
             <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#60a5fa" }}>{stats?.sentToday || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Sent Today</div></div>
             <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#34d399" }}>{stats?.totalSubscribed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Subscribed</div></div>
             <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#fbbf24" }}>{stats?.totalUnsubscribed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Unsubscribed</div></div>
           </div>
           <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <button onClick={handleRunCron} disabled={loading} style={{ ...btnStyle, background: "linear-gradient(135deg,#a78bfa,#60a5fa)", color: "#fff" }}>
+            <button onClick={handleRunCron} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff" }}>
               {loading ? "Running..." : "▶ Run Automation Now"}
             </button>
-            <button onClick={handleDryRun} disabled={loading} style={{ ...btnStyle, background: "#1a1a2e", color: "#888" }}>
+            <button onClick={handleDryRun} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff" }}>
               {loading ? "..." : "🔍 Dry Run"}
             </button>
           </div>
@@ -10792,16 +10793,16 @@ function EmailSection() {
             </div>
           </div>
           <div style={{ display: "flex", gap: "0.75rem" }}>
-            <button onClick={handleManualTrigger} disabled={loading} style={{ ...btnStyle, background: "linear-gradient(135deg,#a78bfa,#60a5fa)", color: "#fff" }}>
+            <button onClick={handleManualTrigger} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff" }}>
               {loading ? "Sending..." : "▶ Send Now"}
             </button>
-            <button onClick={handleManualDryRun} disabled={loading} style={{ ...btnStyle, background: "#1a1a2e", color: "#888" }}>
+            <button onClick={handleManualDryRun} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff" }}>
               {loading ? "..." : "🔍 Preview Count"}
             </button>
           </div>
           {manualResult && (
-            <div style={{ ...cardStyle, marginTop: "1rem", border: "1px solid #a78bfa" }}>
-              <div style={{ fontWeight: 600, marginBottom: "0.5rem", color: "#a78bfa" }}>Result</div>
+            <div style={{ ...cardStyle, marginTop: "1rem" }}>
+              <div style={{ fontWeight: 700, marginBottom: "0.5rem", textTransform: "uppercase", fontSize: "0.75rem" }}>Result</div>
               <div style={{ fontSize: "0.85rem", color: "#aaa", whiteSpace: "pre-wrap" }}>{manualResult}</div>
             </div>
           )}
@@ -10817,7 +10818,7 @@ function EmailSection() {
               <label style={{ position: "relative", display: "inline-block", width: "44px", height: "24px" }}>
                 <input type="checkbox" checked={config.enabled || false} onChange={e => updateConfig("enabled", e.target.checked)}
                   style={{ opacity: 0, width: 0, height: 0 }} />
-                <span style={{ position: "absolute", cursor: "pointer", inset: 0, background: config.enabled ? "#a78bfa" : "#333", borderRadius: "12px", transition: "0.3s" }}>
+                <span style={{ position: "absolute", cursor: "pointer", inset: 0, background: config.enabled ? "#000" : "#ccc", borderRadius: "12px", transition: "0.3s" }}>
                   <span style={{ position: "absolute", height: "18px", width: "18px", borderRadius: "50%", background: "#fff", top: "3px", left: config.enabled ? "23px" : "3px", transition: "0.3s" }} />
                 </span>
               </label>
@@ -10848,7 +10849,7 @@ function EmailSection() {
                       <input type="checkbox" checked={typeCfg.active !== false}
                         onChange={e => { const upd = { ...config, [id]: { ...typeCfg, active: e.target.checked } }; setConfig(upd); setConfigDirty(true); }}
                         style={{ opacity: 0, width: 0, height: 0 }} />
-                      <span style={{ position: "absolute", cursor: "pointer", inset: 0, background: typeCfg.active !== false ? "#a78bfa" : "#333", borderRadius: "11px", transition: "0.3s" }}>
+                      <span style={{ position: "absolute", cursor: "pointer", inset: 0, background: typeCfg.active !== false ? "#000" : "#ccc", borderRadius: "11px", transition: "0.3s" }}>
                         <span style={{ position: "absolute", height: "16px", width: "16px", borderRadius: "50%", background: "#fff", top: "3px", left: typeCfg.active !== false ? "21px" : "3px", transition: "0.3s" }} />
                       </span>
                     </label>
@@ -10877,7 +10878,7 @@ function EmailSection() {
               );
             })}
           </div>
-          <button onClick={saveConfig} style={{ ...btnStyle, background: configDirty ? "linear-gradient(135deg,#a78bfa,#60a5fa)" : "#333", color: configDirty ? "#fff" : "#666", cursor: configDirty ? "pointer" : "default" }} disabled={!configDirty}>
+          <button onClick={saveConfig} style={{ ...btnStyle, background: configDirty ? "#000" : "#ccc", color: configDirty ? "#fff" : "#888", cursor: configDirty ? "pointer" : "default" }} disabled={!configDirty}>
             {configDirty ? "Save Config" : "Saved"}
           </button>
         </div>
@@ -10888,7 +10889,7 @@ function EmailSection() {
         <div style={sectionStyle}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem", marginBottom: "1.5rem" }}>
             {Object.entries(templates).map(([type, tpl]) => (
-              <div key={type} onClick={() => openTemplate(type)} style={{ ...cardStyle, cursor: "pointer", border: templateDetail?.type === type ? "1px solid #a78bfa" : "1px solid #2a2a3e" }}>
+              <div key={type} onClick={() => openTemplate(type)} style={{ ...cardStyle, cursor: "pointer", border: templateDetail?.type === type ? "2px solid #000" : "2px solid #000" }}>
                 <div style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: "0.25rem", textTransform: "capitalize" }}>{type.replace(/_/g, " ")}</div>
                 <div style={{ fontSize: "0.75rem", color: "#666" }}>{tpl.subject?.slice(0, 40)}...</div>
                 <div style={{ fontSize: "0.7rem", color: "#888", marginTop: "0.25rem" }}>Category: {tpl.defaultCategory}</div>
@@ -10914,8 +10915,8 @@ function EmailSection() {
                   style={{ ...inputStyle, fontFamily: "monospace", fontSize: "0.8rem", resize: "vertical", minHeight: "300px" }} />
               </div>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button onClick={saveTemplate} style={{ ...btnStyle, background: "linear-gradient(135deg,#a78bfa,#60a5fa)", color: "#fff" }}>Save Template</button>
-                <button onClick={() => setTemplateDetail(null)} style={{ ...btnStyle, background: "#1a1a2e", color: "#888" }}>Close</button>
+                <button onClick={saveTemplate} style={{ ...btnStyle, background: "#000", color: "#fff" }}>Save Template</button>
+                <button onClick={() => setTemplateDetail(null)} style={{ ...btnStyle, background: "#000", color: "#fff" }}>Close</button>
               </div>
               <details style={{ marginTop: "1rem" }}>
                 <summary style={{ cursor: "pointer", color: "#888", fontSize: "0.85rem" }}>Available Variables</summary>
@@ -10931,11 +10932,11 @@ function EmailSection() {
       {/* ── Logs ── */}
       {tab === "logs" && (
         <div style={sectionStyle}>
-          <button onClick={loadLogs} style={{ ...btnStyle, background: "#1a1a2e", color: "#888", marginBottom: "1rem" }}>🔄 Refresh Logs</button>
+          <button onClick={loadLogs} style={{ ...btnStyle, background: "#000", color: "#fff", marginBottom: "1rem" }}>🔄 Refresh Logs</button>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #2a2a3e", color: "#888", textAlign: "left" }}>
+                <tr style={{ borderBottom: "1px solid #000", color: "#888", textAlign: "left" }}>
                   <th style={{ padding: "0.5rem" }}>Email</th>
                   <th style={{ padding: "0.5rem" }}>Type</th>
                   <th style={{ padding: "0.5rem" }}>Status</th>
@@ -10944,7 +10945,7 @@ function EmailSection() {
               </thead>
               <tbody>
                 {logs.map((log, i) => (
-                  <tr key={log.id || i} style={{ borderBottom: "1px solid #1a1a2e" }}>
+                  <tr key={log.id || i} style={{ borderBottom: "1px solid #ddd" }}>
                     <td style={{ padding: "0.5rem", color: "#ccc" }}>{log.email}</td>
                     <td style={{ padding: "0.5rem", textTransform: "capitalize" }}>{log.type?.replace(/_/g, " ")}</td>
                     <td style={{ padding: "0.5rem", color: log.status === "sent" ? "#34d399" : "#f87171" }}>{log.status}</td>
@@ -10962,12 +10963,12 @@ function EmailSection() {
       {tab === "subscriptions" && (
         <div style={sectionStyle}>
           <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
-            <button onClick={loadSubscriptions} style={{ ...btnStyle, background: "#1a1a2e", color: "#888" }}>🔄 Refresh</button>
+            <button onClick={loadSubscriptions} style={{ ...btnStyle, background: "#000", color: "#fff" }}>🔄 Refresh</button>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #2a2a3e", color: "#888", textAlign: "left" }}>
+                <tr style={{ borderBottom: "1px solid #000", color: "#888", textAlign: "left" }}>
                   <th style={{ padding: "0.5rem" }}>Email</th>
                   <th style={{ padding: "0.5rem" }}>Status</th>
                   <th style={{ padding: "0.5rem" }}>Categories</th>
@@ -10976,7 +10977,7 @@ function EmailSection() {
               </thead>
               <tbody>
                 {subscriptions.map((sub, i) => (
-                  <tr key={sub.id || i} style={{ borderBottom: "1px solid #1a1a2e" }}>
+                  <tr key={sub.id || i} style={{ borderBottom: "1px solid #ddd" }}>
                     <td style={{ padding: "0.5rem", color: "#ccc" }}>{sub.email}</td>
                     <td style={{ padding: "0.5rem", color: sub.status === "active" ? "#34d399" : "#f87171" }}>{sub.status}</td>
                     <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>
@@ -10999,11 +11000,11 @@ function EmailSection() {
       {/* ── Automation Log ── */}
       {tab === "automation" && (
         <div style={sectionStyle}>
-          <button onClick={loadAutomationLog} style={{ ...btnStyle, background: "#1a1a2e", color: "#888", marginBottom: "1rem" }}>🔄 Refresh</button>
+          <button onClick={loadAutomationLog} style={{ ...btnStyle, background: "#000", color: "#fff", marginBottom: "1rem" }}>🔄 Refresh</button>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #2a2a3e", color: "#888", textAlign: "left" }}>
+                <tr style={{ borderBottom: "1px solid #000", color: "#888", textAlign: "left" }}>
                   <th style={{ padding: "0.5rem" }}>Email</th>
                   <th style={{ padding: "0.5rem" }}>From</th>
                   <th style={{ padding: "0.5rem" }}>To</th>
@@ -11013,10 +11014,10 @@ function EmailSection() {
               </thead>
               <tbody>
                 {automationLog.map((log, i) => (
-                  <tr key={log.id || i} style={{ borderBottom: "1px solid #1a1a2e" }}>
+                  <tr key={log.id || i} style={{ borderBottom: "1px solid #ddd" }}>
                     <td style={{ padding: "0.5rem", color: "#ccc" }}>{log.email}</td>
                     <td style={{ padding: "0.5rem", textTransform: "capitalize" }}>{log.fromStage || log.from}</td>
-                    <td style={{ padding: "0.5rem", textTransform: "capitalize", color: "#a78bfa" }}>{log.toStage || log.to}</td>
+                    <td style={{ padding: "0.5rem", textTransform: "capitalize", color: "#000" }}>{log.toStage || log.to}</td>
                     <td style={{ padding: "0.5rem", color: "#888" }}>{log.reason || ""}</td>
                     <td style={{ padding: "0.5rem", color: "#888", fontSize: "0.75rem" }}>{log.triggeredAt ? formatDate(new Date(log.triggeredAt)) : "—"}</td>
                   </tr>
@@ -11029,7 +11030,7 @@ function EmailSection() {
       )}
 
       {/* ── Send Test Section (always visible) ── */}
-      <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid #2a2a3e" }}>
+      <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "2px solid #000" }}>
         <h4 style={{ marginBottom: "0.75rem", fontSize: "0.95rem" }}>Send Test Email</h4>
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end" }}>
           <div style={{ flex: 1, minWidth: "200px" }}>
@@ -11042,7 +11043,7 @@ function EmailSection() {
               {Object.keys(templates).map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
             </select>
           </div>
-          <button onClick={handleSendTest} disabled={loading} style={{ ...btnStyle, background: "linear-gradient(135deg,#a78bfa,#60a5fa)", color: "#fff", height: "fit-content" }}>
+          <button onClick={handleSendTest} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff", height: "fit-content" }}>
             {loading ? "Sending..." : "Send Test"}
           </button>
         </div>
