@@ -743,7 +743,7 @@ export default function StudentDashboard({
                     const projects = getProjectsForEnrollment(e);
                     const submissions = getSubmissions(e);
                     const totalTasks = projects.length;
-                    const verifiedCount = submissions.filter((s) => s?.verified).length;
+                    const verifiedCount = Object.values(submissions).filter((s) => s?.verified).length;
                     return (
                       <div key={e.id} style={{ border: "2px solid #000", background: "#fff" }}>
                         <button
@@ -791,7 +791,7 @@ export default function StudentDashboard({
                   const allVerified = projects.length > 0 && projects.every((_, idx) => submissions[idx]?.verified);
                   const isCompleted = enrollment.status === "Completed";
                   const totalTasks = projects.length;
-                  const verifiedCount = submissions.filter((s) => s?.verified).length;
+                  const verifiedCount = Object.values(submissions).filter((s) => s?.verified).length;
                   return (
                     <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem", marginBottom: "1rem" }}>
