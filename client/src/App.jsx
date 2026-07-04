@@ -377,6 +377,7 @@ export default function App() {
                     curView !== "site" &&
                     curView !== "tandp" &&
                     curView !== "certificate" &&
+                    curView !== "verify" &&
                     userEnrs.length > 0
                   ) {
                     setCurrentView("dashboard");

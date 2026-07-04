@@ -8439,6 +8439,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       const isSubmitted = !!sub?.submittedAt;
                       const isVerified = !!sub?.verified;
                       const isResubmit = !!sub?.resubmit;
+                      const isAiProcessed = !!sub?.aiVerified;
                       const vKey = `${selectedIntern.id}_${idx}`;
                       const projectTitle =
                         typeof project === "object"
@@ -8469,19 +8470,23 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           style={{
                             border: isVerified
                               ? "2px solid #34A853"
-                              : isResubmit
-                                ? "2px solid #EA4335"
-                                : isSubmitted
-                                  ? "2px solid #FBBC05"
-                                  : "1px dashed #ccc",
+                              : isAiProcessed
+                                ? "2px solid #FF6B35"
+                                : isResubmit
+                                  ? "2px solid #EA4335"
+                                  : isSubmitted
+                                    ? "2px solid #FBBC05"
+                                    : "1px dashed #ccc",
                             padding: "1.25rem",
                             background: isVerified
                               ? "#f0fdf4"
-                              : isResubmit
-                                ? "#fff5f5"
-                                : isSubmitted
-                                  ? "#fffdf0"
-                                  : "#fafafa",
+                              : isAiProcessed
+                                ? "#fff4eb"
+                                : isResubmit
+                                  ? "#fff5f5"
+                                  : isSubmitted
+                                    ? "#fffdf0"
+                                    : "#fafafa",
                             borderRadius: 0,
                           }}
                         >
@@ -8637,7 +8642,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   RESUBMIT REQUESTED
                                 </span>
                               )}
-                              {!isVerified && isSubmitted && (
+                              {isAiProcessed && !isVerified && (
+                                <span
+                                  style={{
+                                    background: "#FF6B35",
+                                    color: "#fff",
+                                    fontSize: "0.7rem",
+                                    fontWeight: 900,
+                                    padding: "0.2rem 0.6rem",
+                                  }}
+                                >
+                                  AI REJECTED
+                                </span>
+                              )}
+                              {!isVerified && isSubmitted && !isAiProcessed && (
                                 <button
                                   onClick={() =>
                                     handleVerifyProject(selectedIntern.id, idx)
@@ -8659,7 +8677,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     : "Verify"}
                                 </button>
                               )}
-                              {!isVerified && isSubmitted && (
+                              {!isVerified && isSubmitted && !isAiProcessed && (
                                 <button
                                   onClick={() =>
                                     setShowRejectInput((prev) => ({
@@ -8782,6 +8800,50 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   {new Date(sub.verifiedAt).toLocaleString()}
                                 </div>
                               )}
+                              {isAiProcessed && sub.aiReason && (
+                                <div
+                                  style={{
+                                    marginTop: "0.5rem",
+                                    padding: "0.5rem 0.7rem",
+                                    background: "#fff",
+                                    border: "1px solid #FF6B35",
+                                    fontSize: "0.82rem",
+                                    color: "#333",
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 700, marginBottom: "0.25rem", color: "#FF6B35", textTransform: "uppercase", fontSize: "0.7rem" }}>
+                                    AI Verification — Confidence: {sub.aiConfidence ?? "?"}%
+                                  </div>
+                                  <div style={{ marginBottom: "0.3rem" }}>{sub.aiReason}</div>
+                                  {sub.aiMessage && (
+                                    <div style={{ fontStyle: "italic", color: "#666", borderTop: "1px solid #eee", marginTop: "0.3rem", paddingTop: "0.3rem" }}>
+                                      {sub.aiMessage}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {isAiProcessed && !isVerified && (
+                            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                              <button
+                                onClick={() => handleVerifyProject(selectedIntern.id, idx)}
+                                disabled={verifyingProject[vKey]}
+                                style={{
+                                  padding: "0.3rem 0.85rem",
+                                  fontSize: "0.78rem",
+                                  fontWeight: 800,
+                                  border: "2px solid #34A853",
+                                  background: verifyingProject[vKey] ? "#34A853" : "#fff",
+                                  color: verifyingProject[vKey] ? "#fff" : "#34A853",
+                                  cursor: "pointer",
+                                  borderRadius: 0,
+                                  flex: 1,
+                                }}
+                              >
+                                {verifyingProject[vKey] ? "…" : "Override — Verify"}
+                              </button>
                             </div>
                           )}
 

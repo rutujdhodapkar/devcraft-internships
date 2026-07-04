@@ -278,16 +278,26 @@ async function main() {
 
         const nowStr = new Date().toISOString();
         const base = `submissions.${index}`;
-        await db.collection("enrollments").doc(enrollment.id).update({
+        const update = {
           [`${base}.verified`]: result.verified,
-          [`${base}.verifiedAt`]: result.verified ? nowStr : null,
           [`${base}.aiVerified`]: true,
+          [`${base}.verifiedBy`]: "ai",
           [`${base}.aiConfidence`]: result.confidence,
           [`${base}.aiReason`]: result.reason,
           [`${base}.aiMessage`]: result.message || "",
           [`${base}.aiVerifiedAt`]: nowStr,
           updatedAt: nowStr,
-        });
+        };
+        if (result.verified) {
+          update[`${base}.verifiedAt`] = nowStr;
+          update[`${base}.rejected`] = false;
+          update[`${base}.rejectedAt`] = null;
+        } else {
+          update[`${base}.verifiedAt`] = null;
+          update[`${base}.rejected`] = true;
+          update[`${base}.rejectedAt`] = nowStr;
+        }
+        await db.collection("enrollments").doc(enrollment.id).update(update);
 
         if (result.verified) {
           verified++;
