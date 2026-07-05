@@ -698,10 +698,12 @@ export default function StudentDashboard({
                     const isPaid = e.paymentTiming === "both" ? e.paymentStage === "fully_paid" : e.paymentStatus === "paid";
                     const docsAvail = e.allowedCertificate === "yes" || (allV && isPaid);
                     return (
-                      <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
-                        <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.domain || e.domainId}:</span>
-                        <span style={{ fontSize: "0.78rem", fontWeight: 700, color: e.status === "Completed" || e.paymentStatus === "paid" ? "#34A853" : "#EA4335" }}>Status: {e.status}</span>
-                        <div style={{ marginLeft: "auto", display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                      <div key={ei} style={{ display: "flex", alignItems: "center", gap: "0.75rem", justifyContent: "space-between", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.75rem 1rem", background: "#fafafa" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+                          <span style={{ fontSize: "0.82rem", fontWeight: 800, minWidth: "140px", textTransform: "uppercase" }}>{e.domain || e.domainId}:</span>
+                          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: e.status === "Completed" || e.paymentStatus === "paid" ? "#34A853" : "#EA4335" }}>Status: {e.status}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                           {docsAvail && effButtons.map((btn, bi) => (
                             <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName, true)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                               {btn.label}
@@ -1828,11 +1830,9 @@ function EnrollmentCard({
                     <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                       Please complete the payment to unlock your internship projects.
                     </p>
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                        Pay ₹{displayStartAmount || displayAmount || 99}
-                      </button>
-                    </div>
+                    <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                      Pay ₹{displayStartAmount || displayAmount || 99}
+                    </button>
                   </div>
                 )}
                 {pTiming !== "start" && submittedCount >= projects.length && (
@@ -1849,22 +1849,18 @@ function EnrollmentCard({
                             <strong>Transaction ID:</strong> {enrollment.transactionId}
                           </p>
                         )}
-                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
-                          <button className="btn-sharp" onClick={() => onDownloadReceipt && onDownloadReceipt(enrollment.id)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", background: "#fff", color: "#000", border: "2px solid #34A853", cursor: "pointer", borderRadius: 0, fontWeight: 700 }}>
-                            Download Receipt
-                          </button>
-                        </div>
+                        <button className="btn-sharp" onClick={() => onDownloadReceipt && onDownloadReceipt(enrollment.id)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", marginTop: "0.5rem", background: "#fff", color: "#000", border: "2px solid #34A853", cursor: "pointer", borderRadius: 0, fontWeight: 700 }}>
+                          Download Receipt
+                        </button>
                       </div>
                     ) : (
                       <div>
                         <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                           All tasks submitted! Complete the payment to unlock your certificate.
                         </p>
-                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                          <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                            Pay ₹{displayEndAmount || displayAmount || 99}
-                          </button>
-                        </div>
+                        <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                          Pay ₹{displayEndAmount || displayAmount || 99}
+                        </button>
                       </div>
                           )}
                         </div>
@@ -1892,7 +1888,7 @@ function EnrollmentCard({
           )}
 
           {allVerified && enrollment.transactionId && !isCompleted && (
-            <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+            <div style={{ marginTop: "1rem", textAlign: "center" }}>
               <button
                 onClick={() => onMarkComplete(enrollment)}
                 className="btn-sharp"
