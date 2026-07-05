@@ -1,6 +1,12 @@
-name: NVIDIA Verify
+name: NVIDIA Auto Verify
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/auto-verify.yml'
+  schedule:
+    - cron: '45 12 * * *'
   workflow_dispatch:
 
 jobs:
