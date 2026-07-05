@@ -1,7 +1,6 @@
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { getFirestore } from 'firebase-admin/firestore';
-import { cert } from 'firebase-admin/credential';
 import { CONFIG } from './config.js';
 
 let rtdbApp = null;
