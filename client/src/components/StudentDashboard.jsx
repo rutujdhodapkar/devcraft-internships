@@ -123,15 +123,27 @@ export default function StudentDashboard({
     loadAll();
   };
 
+  function getCache(key) {
+    try { const m = document.cookie.match(new RegExp(`(^| )${key}=([^;]+)`)); return m ? JSON.parse(decodeURIComponent(m[2])) : null; } catch { return null; }
+  }
+  function setCache(key, value, days = 7) {
+    const d = new Date(); d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
+    document.cookie = `${key}=${encodeURIComponent(JSON.stringify(value))};expires=${d.toUTCString()};path=/`;
+  }
+
   const loadAll = async () => {
     setLoading(true);
     setError("");
     try {
       await autoExpireEnrollments();
-      const [data, tmpl, cpResult, refStat, pm] = await Promise.all([
+      let tmpl = getCache('templatesCache');
+      let cpResult = getCache('careerPathsCache');
+      if (!tmpl) tmpl = await fetchTemplates();
+      if (!cpResult) cpResult = await fetchCareerPaths();
+      setCache('templatesCache', tmpl);
+      setCache('careerPathsCache', cpResult);
+      const [data, refStat, pm] = await Promise.all([
         fetchUserEnrollments(user.uid, user.email),
-        fetchTemplates(),
-        fetchCareerPaths(),
         fetchUserReferralStat(user.email),
         fetchPaymentMethods(),
       ]);
@@ -1816,9 +1828,11 @@ function EnrollmentCard({
                     <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                       Please complete the payment to unlock your internship projects.
                     </p>
-                    <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                      Pay ₹{displayStartAmount || displayAmount || 99}
-                    </button>
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                        Pay ₹{displayStartAmount || displayAmount || 99}
+                      </button>
+                    </div>
                   </div>
                 )}
                 {pTiming !== "start" && submittedCount >= projects.length && (
@@ -1835,18 +1849,22 @@ function EnrollmentCard({
                             <strong>Transaction ID:</strong> {enrollment.transactionId}
                           </p>
                         )}
-                        <button className="btn-sharp" onClick={() => onDownloadReceipt && onDownloadReceipt(enrollment.id)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", marginTop: "0.5rem", background: "#fff", color: "#000", border: "2px solid #34A853", cursor: "pointer", borderRadius: 0, fontWeight: 700 }}>
-                          Download Receipt
-                        </button>
+                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+                          <button className="btn-sharp" onClick={() => onDownloadReceipt && onDownloadReceipt(enrollment.id)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", background: "#fff", color: "#000", border: "2px solid #34A853", cursor: "pointer", borderRadius: 0, fontWeight: 700 }}>
+                            Download Receipt
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div>
                         <p style={{ fontSize: "0.85rem", color: "#555", marginBottom: "1rem" }}>
                           All tasks submitted! Complete the payment to unlock your certificate.
                         </p>
-                        <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                          Pay ₹{displayEndAmount || displayAmount || 99}
-                        </button>
+                        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                          <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
+                            Pay ₹{displayEndAmount || displayAmount || 99}
+                          </button>
+                        </div>
                       </div>
                           )}
                         </div>
@@ -1874,7 +1892,7 @@ function EnrollmentCard({
           )}
 
           {allVerified && enrollment.transactionId && !isCompleted && (
-            <div style={{ marginTop: "1rem", textAlign: "center" }}>
+            <div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
               <button
                 onClick={() => onMarkComplete(enrollment)}
                 className="btn-sharp"
