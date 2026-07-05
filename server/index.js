@@ -7,6 +7,7 @@ import apiHandler from '../api/index.js';
 import { sendEmail, isConfigured } from './brevoClient.js';
 import { renderTemplate, TEMPLATES, getTemplate } from './emailTemplates.js';
 import { runDailyCron, getEmailStats, processEmailCampaign, processLifecycleTransitions, determineLifecycleStages, EMAIL_TYPES, EMAIL_CATEGORIES } from './emailEngine.js';
+import { initCosmosDb, FieldValue } from './cosmos.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,47 +34,6 @@ async function loadEnvFile() {
 }
 
 await loadEnvFile();
-
-function getServiceAccount() {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-  if (raw) {
-    const json = raw.trim().startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8');
-    const parsed = JSON.parse(json);
-    if (parsed.private_key) parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
-    return parsed;
-  }
-  if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-    return {
-      project_id: process.env.FIREBASE_PROJECT_ID || 'login-data-680b9',
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    };
-  }
-  return null;
-}
-
-let fbInitPromise = null;
-async function initFirebase() {
-  if (fbInitPromise) return fbInitPromise;
-  fbInitPromise = (async () => {
-    const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-    const { getFirestore } = await import('firebase-admin/firestore');
-    const apps = getApps();
-    if (apps.length) return getFirestore(apps[0], 'intern');
-    const sa = getServiceAccount();
-    if (!sa) {
-      // Return null so the server stays alive — routes handle the missing db gracefully
-      console.warn('[Firebase] Credentials not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in server/.env to enable database features.');
-      return null;
-    }
-    const app = initializeApp({
-      credential: cert(sa),
-      projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || 'login-data-680b9',
-    });
-    return getFirestore(app, 'intern');
-  })();
-  return fbInitPromise;
-}
 
 const INQUIRIES_FILE = path.join(__dirname, 'inquiries.json');
 const REFERRALS_FILE = path.join(__dirname, 'referrals.json');
@@ -504,7 +464,7 @@ app.post('/api/dodo/create-checkout-session', async (req, res) => {
     let productId = DODO_PRODUCT_ID;
     if (!productId) {
       try {
-        const db = await initFirebase();
+        const db = await initCosmosDb();
         const snap = await db.collection('siteConfig').doc('dodoConfig').get();
         const val = snap.data();
         productId = val?.value?.productId || null;
@@ -560,7 +520,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
     const paymentId = payload.id || payload.payment_id || '';
     if (eventType === 'payment.succeeded' && enrollmentId) {
       try {
-        const db = await initFirebase();
+        const db = await initCosmosDb();
         if (DODO_KEY && paymentId) {
           try {
             const pmtRes = await dodoApi(`/payments/${paymentId}`);
@@ -583,7 +543,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
       } catch (fbErr) { console.error('Firebase update failed:', fbErr.message); }
     } else if (eventType === 'payment.failed' && enrollmentId) {
       try {
-        const db = await initFirebase();
+        const db = await initCosmosDb();
         await db.collection('enrollments').doc(enrollmentId).update({ paymentStatus: 'failed', updatedAt: new Date().toISOString() });
       } catch {}
     }
@@ -597,7 +557,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
 // Firebase proxy (used by client to access Firestore via Admin SDK)
 app.post('/api/firebase-proxy', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) {
       return res.status(503).json({ success: false, message: 'Firebase not configured on this server. Add FIREBASE_SERVICE_ACCOUNT_KEY to server/.env' });
     }
@@ -668,11 +628,10 @@ app.post('/api/firebase-proxy', async (req, res) => {
 // Auto-expire active enrollments past their deadline
 app.post('/api/auto-expire-enrollments', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) {
       return res.status(503).json({ success: false, message: 'Firebase not configured' });
     }
-    const { FieldValue } = await import('firebase-admin/firestore');
     const now = new Date().toISOString();
     const snap = await db.collection('enrollments')
       .where('status', '==', 'Active')
@@ -699,7 +658,7 @@ app.post('/api/auto-expire-enrollments', async (req, res) => {
 // Enrollment status (used by client for polling after Dodo payment)
 app.get('/api/enrollment-status/:id', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const snap = await db.collection('enrollments').doc(req.params.id).get();
     const data = snap.data();
     return res.json({ paymentStatus: data?.paymentStatus || 'none', paymentIntentId: data?.paymentIntentId || '' });
@@ -711,8 +670,7 @@ app.get('/api/enrollment-status/:id', async (req, res) => {
 // ─── Referral visits (dedicated API via Firestore) ────────────────────────
 app.post('/api/data/referral-visits', async (req, res) => {
   try {
-    const db = await initFirebase();
-    const { FieldValue } = await import('firebase-admin/firestore');
+    const db = await initCosmosDb();
     const code = String(req.body.referralCode || '').toUpperCase().trim();
     const snap = code ? await db.collection('referrals').doc(code).get() : null;
     const referral = snap?.exists ? { id: snap.id, ...snap.data() } : null;
@@ -731,7 +689,7 @@ app.post('/api/data/referral-visits', async (req, res) => {
 // ─── Audit log (dedicated API via Firestore) ─────────────────────────────
 app.post('/api/data/audit-log', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const ref = await db.collection('auditLog').add({ ...req.body, createdAt: new Date().toISOString() });
     return res.json({ success: true, data: { id: ref.id, ...req.body } });
   } catch (error) {
@@ -741,7 +699,7 @@ app.post('/api/data/audit-log', async (req, res) => {
 
 app.get('/api/data/audit-log', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const snap = await db.collection('auditLog').get();
     const data = snap.empty ? [] : snap.docs.map(d => ({ id: d.id, ...d.data() }));
     data.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -756,7 +714,7 @@ app.get('/api/data/audit-log', async (req, res) => {
 // POST /api/email/trigger — Trigger a specific email type manually
 app.post('/api/email/trigger', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const { type, email, dryRun } = req.query;
     if (!type) return res.status(400).json({ success: false, message: 'type query param required' });
@@ -771,7 +729,7 @@ app.post('/api/email/trigger', async (req, res) => {
 // POST /api/email/run — Trigger the daily cron manually (admin)
 app.post('/api/email/run', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const result = await runDailyCron(db);
     return res.json({ success: true, data: result });
@@ -783,7 +741,7 @@ app.post('/api/email/run', async (req, res) => {
 // POST /api/email/dry-run — Preview what would be sent without sending
 app.post('/api/email/dry-run', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const config = req.body.config || {};
     const stages = await determineLifecycleStages(db);
@@ -843,7 +801,7 @@ app.get('/api/email/templates/:type', async (req, res) => {
     const { type } = req.params;
     const tpl = getTemplate(type);
     if (!tpl) return res.status(404).json({ success: false, message: `Unknown template: ${type}` });
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     let customHtml = null;
     let customSubject = null;
     if (db) {
@@ -876,7 +834,7 @@ app.get('/api/email/templates/:type', async (req, res) => {
 // PUT /api/email/templates/:type — Save custom template
 app.put('/api/email/templates/:type', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const { type } = req.params;
     const { html, subject } = req.body;
@@ -894,7 +852,7 @@ app.put('/api/email/templates/:type', async (req, res) => {
 // DELETE /api/email/templates/:type — Reset to default template
 app.delete('/api/email/templates/:type', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const { type } = req.params;
     await db.collection('emailTemplates').doc(type).delete();
@@ -907,7 +865,7 @@ app.delete('/api/email/templates/:type', async (req, res) => {
 // GET /api/email/config — Get email automation config
 app.get('/api/email/config', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const snap = await db.collection('siteConfig').doc('emailConfig').get();
     const config = snap.exists ? snap.data().value || {} : {};
@@ -920,7 +878,7 @@ app.get('/api/email/config', async (req, res) => {
 // PUT /api/email/config — Save email automation config
 app.put('/api/email/config', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     await db.collection('siteConfig').doc('emailConfig').set({
       value: req.body,
@@ -935,7 +893,7 @@ app.put('/api/email/config', async (req, res) => {
 // GET /api/email/stats — Email statistics
 app.get('/api/email/stats', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const stats = await getEmailStats(db);
     return res.json({ success: true, data: stats });
@@ -947,7 +905,7 @@ app.get('/api/email/stats', async (req, res) => {
 // GET /api/email/logs — View email logs (paginated)
 app.get('/api/email/logs', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const { limit: limitParam, type, status, email } = req.query;
     const maxLimit = Math.min(parseInt(limitParam) || 100, 500);
@@ -966,7 +924,7 @@ app.get('/api/email/logs', async (req, res) => {
 // GET /api/email/logs/stats — Aggregated log stats
 app.get('/api/email/logs/stats', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const stats = await getEmailStats(db);
     return res.json({ success: true, data: stats });
@@ -1003,7 +961,7 @@ function prefPage(title, body) {
 // GET /api/email/unsubscribe — Preference center (link in emails)
 app.get('/api/email/unsubscribe', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const email = req.query.email;
     const done = req.query.done;
     if (!email || !db) {
@@ -1075,7 +1033,7 @@ app.get('/api/email/unsubscribe', async (req, res) => {
 // POST /api/email/unsubscribe — Save category preferences
 app.post('/api/email/unsubscribe', express.urlencoded({ extended: true }), async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const { email, action } = req.body;
     if (!email || !db) return res.redirect('/api/email/unsubscribe?email=');
 
@@ -1104,7 +1062,7 @@ app.post('/api/email/unsubscribe', express.urlencoded({ extended: true }), async
 // GET /api/email/subscriptions — List all subscriptions
 app.get('/api/email/subscriptions', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const snap = await db.collection('emailSubscriptions').get();
     const subs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1117,7 +1075,7 @@ app.get('/api/email/subscriptions', async (req, res) => {
 // POST /api/email/subscriptions/update — Update a user's subscription preferences
 app.post('/api/email/subscriptions/update', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const { email, status, categories } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email required' });
@@ -1141,7 +1099,7 @@ app.post('/api/email/subscriptions/update', async (req, res) => {
 // GET /api/email/automation-log — View lifecycle transitions
 app.get('/api/email/automation-log', async (req, res) => {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
     const snap = await db.collection('emailAutomationLog').orderBy('triggeredAt', 'desc').limit(200).get();
     const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1149,7 +1107,7 @@ app.get('/api/email/automation-log', async (req, res) => {
   } catch (error) {
     // Fallback if no index exists
     try {
-      const db = await initFirebase();
+      const db = await initCosmosDb();
       const snap = await db.collection('emailAutomationLog').get();
       const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       logs.sort((a, b) => new Date(b.triggeredAt || 0) - new Date(a.triggeredAt || 0));

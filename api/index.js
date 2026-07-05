@@ -1,71 +1,16 @@
+import { initCosmosDb } from "../server/cosmos.js";
+
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
-const FIRESTORE_DB_ID = "intern";
 
 function send(res, status, payload) {
   res.status(status).json(payload);
 }
 
-function getServiceAccount() {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-  if (raw) {
-    const json = raw.trim().startsWith("{") ? raw : Buffer.from(raw, "base64").toString("utf8");
-    const parsed = JSON.parse(json);
-    if (parsed.private_key) parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
-    return parsed;
-  }
-  if (process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
-    return {
-      project_id: process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-    };
-  }
-  return null;
-}
-
-let fbInitPromise = null;
-let _getAuth = null;
-async function initFirebase() {
-  if (fbInitPromise) return fbInitPromise;
-  fbInitPromise = (async () => {
-    const { initializeApp, getApps, cert } = await import("firebase-admin/app");
-    const { getFirestore } = await import("firebase-admin/firestore");
-    try {
-      const { getAuth: _ga } = await import("firebase-admin/auth");
-      _getAuth = _ga;
-    } catch (e) {
-      console.warn("firebase-admin/auth not available (CJS/ESM compat), admin auth checks disabled:", e.message);
-    }
-    const apps = getApps();
-    if (apps.length) return getFirestore(apps[0], FIRESTORE_DB_ID);
-    const sa = getServiceAccount();
-    if (!sa) {
-      console.warn("Firebase Admin credentials are not configured. Set FIREBASE_SERVICE_ACCOUNT_KEY in environment variables.");
-      return null;
-    }
-
-    const app = initializeApp({
-      credential: cert(sa),
-      projectId: sa.project_id || process.env.FIREBASE_PROJECT_ID || "login-data-680b9",
-    });
-    return getFirestore(app, FIRESTORE_DB_ID);
-  })();
-  return fbInitPromise;
-}
-
 async function verifyFirebaseToken(idToken) {
   if (!idToken) return null;
-  // Try firebase-admin/auth first
-  if (_getAuth) {
-    try {
-      const decoded = await _getAuth().verifyIdToken(idToken);
-      return decoded;
-    } catch { return null; }
-  }
-  // Fallback: verify via Firebase REST API
   try {
-    const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || "AIzaSyCn_dJ21ga0CuErOdvnYxO7mwIm9elFie8";
+    const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || "AIzaSyCn_dJ21ga0CuErOdvnYxO7mwIm9elFie8";
     if (!apiKey) return null;
     const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
       method: "POST",
@@ -463,7 +408,7 @@ async function handleAiGradeQuiz(req, res) {
 async function handleData(req, res, routeParts) {
   const [resource, id, sub, extra, extra2] = routeParts;
 
-  const db = await initFirebase();
+  const db = await initCosmosDb();
 
   if (resource === "career-paths") {
     if (req.method === "GET") {
@@ -843,7 +788,8 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     if (extra2 === "reject") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.rejected`]: true, [`${base}.resubmit`]: true, [`${base}.feedback`]: req.body.feedback || "", [`${base}.rejectedAt`]: now() });
   }
   await db.collection("enrollments").doc(id).update(patch);
-  if (extra2 === "verify") {
+  const shouldCheckCompletion = extra2 === "verify" || sub === "payment-status";
+  if (shouldCheckCompletion) {
     try {
       const snap = await db.collection("enrollments").doc(id).get();
       const enr = snap.data();
@@ -1082,7 +1028,7 @@ async function handleDodo(req, res, parts) {
       let productId = DODO_PRODUCT_ID;
       if (!productId) {
         try {
-const db2 = await initFirebase();
+const db2 = await initCosmosDb();
       const snap2 = await db2.collection("siteConfig").doc("dodoConfig").get();
           const val = snap2.data();
           productId = val?.value?.productId || null;
@@ -1137,7 +1083,7 @@ const db2 = await initFirebase();
             console.warn("Dodo webhook: payment verification failed for", paymentId);
             return send(res, 402, { received: false, error: "payment verification failed" });
           }
-          const db3 = await initFirebase();
+          const db3 = await initCosmosDb();
           const enrRef = db3.collection("enrollments").doc(enrollmentId);
           await enrRef.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, transactionId: paymentId, updatedAt: now() });
           const snap3 = await enrRef.get();
@@ -1152,7 +1098,7 @@ const db2 = await initFirebase();
           }
         } catch (e) { console.error("Dodo webhook update failed:", e.message); }
       } else if (eventType === "payment.failed" && enrollmentId) {
-        try { const db4 = await initFirebase(); await db4.collection("enrollments").doc(enrollmentId).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}
+        try { const db4 = await initCosmosDb(); await db4.collection("enrollments").doc(enrollmentId).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}
       }
       return send(res, 200, { received: true });
     }
@@ -1178,7 +1124,7 @@ async function handleQR(req, res, enrollmentId) {
 
 async function handleVerify(req, res, enrollmentId) {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const snap = await db.collection("enrollments").doc(enrollmentId).get();
     let html;
     if (!snap.exists) {
@@ -1202,7 +1148,7 @@ function escapeHtml(text) {
 
 async function handleVerifyData(req, res, enrollmentId) {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const snap = await db.collection("enrollments").doc(enrollmentId).get();
     if (!snap.exists) return send(res, 200, { success: false, message: "No intern found with this ID." });
     const e = snap.data();
@@ -1234,7 +1180,7 @@ function parseDuration(durationStr) {
 
 async function handleCertificateData(req, res, enrollmentId) {
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const idToken = req.body?.idToken;
     const decoded = idToken ? await verifyFirebaseToken(idToken) : null;
     if (!decoded) return send(res, 401, { success: false, message: "Authentication required." });
@@ -1306,7 +1252,7 @@ async function handleCertificateData(req, res, enrollmentId) {
 async function handleFirebaseProxy(req, res) {
   if (req.method !== "POST") return send(res, 405, { success: false, message: "Only POST allowed" });
   try {
-    const db = await initFirebase();
+    const db = await initCosmosDb();
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return send(res, 400, { success: false, message: "action and path required" });
 
@@ -1424,7 +1370,7 @@ async function handleFirebaseProxy(req, res) {
 // ─── Email Automation ──────────────────────────────────────────────────────
 async function handleEmail(req, res, parts) {
   const sub = parts[0] || '';
-  const db = await initFirebase();
+  const db = await initCosmosDb();
   if (!db) return send(res, 503, { success: false, message: 'Firebase not configured' });
   const { sendEmail, isConfigured } = await import('../server/brevoClient.js');
   const { renderTemplate, TEMPLATES, getTemplate } = await import('../server/emailTemplates.js');
@@ -1667,7 +1613,7 @@ export default async function handler(req, res) {
   try {
   // Ensure root admin exists in the admins collection on first request
   try {
-    const fDb = await initFirebase();
+    const fDb = await initCosmosDb();
     if (fDb) await setDoc(fDb, "admins", emailId(ROOT_ADMIN_EMAIL), { email: ROOT_ADMIN_EMAIL, createdAt: new Date().toISOString() }, true);
   } catch (_) { /* non-blocking */ }
   const rawUrl = (req.url || "");
