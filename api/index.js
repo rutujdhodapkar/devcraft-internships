@@ -1251,6 +1251,24 @@ async function handleCertificateData(req, res, enrollmentId) {
 
 async function handleFirebaseProxy(req, res) {
   if (req.method !== "POST") return send(res, 405, { success: false, message: "Only POST allowed" });
+
+  // Forward to Express server if configured (bypasses Cosmos DB firewall on Vercel)
+  const targetUrl = process.env.EXPRESS_SERVER_URL;
+  if (targetUrl) {
+    try {
+      const forwardRes = await fetch(`${targetUrl.replace(/\/$/, "")}/api/firebase-proxy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req.body),
+      });
+      const json = await forwardRes.json();
+      return send(res, forwardRes.status, json);
+    } catch (e) {
+      console.error("[firebase-proxy] Forward failed:", e.message);
+      // Fall through to direct Cosmos DB if forward fails
+    }
+  }
+
   try {
     const db = await initCosmosDb();
     const { action, path, data, query } = req.body || {};
