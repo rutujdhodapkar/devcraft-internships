@@ -2,8 +2,6 @@ name: NVIDIA Verify
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '52 12 * * *'
 
 jobs:
   verify:
