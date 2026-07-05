@@ -33,11 +33,11 @@ function getServiceAccount() {
 export function getRTDB() {
   if (rtdbApp) return admin.database(rtdbApp);
   const sa = getServiceAccount();
-  if (!sa && !process.env.FIREBASE_DATABASE_EMULATOR_HOST) {
-    throw new Error('No service account available for RTDB');
-  }
   rtdbApp = admin.initializeApp(
-    { databaseURL: CONFIG.rtdb.url, credential: sa ? admin.credential.cert(sa) : undefined },
+    {
+      databaseURL: CONFIG.rtdb.url,
+      ...(sa ? { credential: admin.credential.cert(sa) } : {}),
+    },
     'email-rtdb'
   );
   return admin.database(rtdbApp);

@@ -50,6 +50,7 @@ jobs:
           DOMAIN: ${{ secrets.DOMAIN || 'https://devcraft.rutujdhodapkar.tech' }}
           APPROVER_EMAIL: ${{ secrets.APPROVER_EMAIL || 'rutujdhodapkar@gmail.com' }}
           BREVO_DAILY_LIMIT: ${{ secrets.BREVO_DAILY_LIMIT || '300' }}
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
           BREVO_PER_MINUTE_LIMIT: '20'
           WORKER_BATCH_SIZE: '50'
           WORKER_MAX_RETRIES: '5'
