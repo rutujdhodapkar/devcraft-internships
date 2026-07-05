@@ -406,10 +406,20 @@ export default function StudentDashboard({
     if (requireUnlock && enrollment.allowedCertificate !== "yes") {
       const projects = getProjectsForEnrollment(enrollment);
       const submissions = getSubmissions(enrollment);
+      const submittedCount = projects.filter((_, i) => submissions[i]?.submittedAt || submissions[i]?.verified).length;
+      const allSubmitted = projects.length > 0 && projects.every((_, i) => submissions[i]?.submittedAt || submissions[i]?.verified);
       const allV = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
       const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
-      if (!allV || !isPaid) {
-        notify("This document is not yet available. Complete all tasks and payment first.", "warning");
+      if (!allSubmitted) {
+        notify(`Submit all projects first (${submittedCount}/${projects.length} submitted).`, "warning");
+        return;
+      }
+      if (!allV) {
+        notify("Projects pending review. Wait for admin to verify.", "warning");
+        return;
+      }
+      if (!isPaid) {
+        notify("Payment pending. Complete payment to access documents.", "warning");
         return;
       }
     }
