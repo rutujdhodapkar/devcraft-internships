@@ -1,8 +1,7 @@
 name: NVIDIA Auto Verify
 
 on:
-  repository_dispatch:
-    types: [auto-verify]
+  workflow_dispatch:
 
 jobs:
   verify:
