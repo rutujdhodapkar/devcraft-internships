@@ -2,7 +2,7 @@ name: Auto Verify Tasks (NVIDIA AI)
 
 on:
   schedule:
-    - cron: "30 6 * * *"    # 12:00 PM IST (UTC+5:30 → 06:30 UTC)
+    - cron: "45 8 * * *"    # 2:15 PM IST (UTC+5:30 → 08:45 UTC)
   workflow_dispatch:         # allow manual trigger
 
 jobs:

@@ -173,9 +173,9 @@ function buildPrompt(taskTitle, taskDescription, taskNotice, submissionText, sub
       parts.push(`\n--- File: ${file.path || file.name || "unknown"} ---\n${file.content || ""}`);
     }
     parts.push("\n=== END OF CODE ===");
-    parts.push("\nCRITICAL: Carefully check if the code above actually implements what was asked in the task. Check for: 1) Does the code solve the problem described? 2) Are there any placeholder/boilerplate/todo comments? 3) Does the code look like it was written specifically for this task? If the code is wrong, incomplete, or doesn't match the task, set verified to false with specific reasons.");
+    parts.push("\nCheck if the code implements the task. Missing dataset files are acceptable — focus on logic, structure, and whether it matches the task title. Minor TODOs or boilerplate comments are okay if the core functionality is present.");
   } else {
-    parts.push("\nIMPORTANT: No actual code could be fetched from the student's submission. The provided link may be invalid, private, or not a code repository. You MUST set verified to false and explain that the code could not be accessed. Do NOT verify submissions whose code cannot be read.");
+    parts.push("\nNote: No code repository could be accessed (link may be invalid, private, or not a repo). If the submission text clearly describes the work done, matches the task title, and explains the approach properly, you may still verify it. Missing dataset files are acceptable — focus on code logic and structure.");
   }
   parts.push("\nRespond with ONLY valid JSON (no markdown, no extra text): { verified: boolean, confidence: number (0-100), reason: string, message: string }");
   return parts.join("\n");
@@ -192,7 +192,7 @@ async function callNvidiaApi(prompt) {
       messages: [
         {
           role: "system",
-          content: "You are a STRICT internship task verifier. Compare the student's submission against the task requirements. If code is provided, check if it actually implements what was asked. If no code could be fetched, evaluate based on the submission text description. Be biased toward rejection — only verify if you are CERTAIN. Respond ONLY with valid JSON (no markdown, no extra text): { verified: boolean, confidence: number (0-100), reason: string, message: string }",
+          content: "You are an internship task reviewer. Evaluate the student's submission against the task requirements. The code should be error-free, match the task title/description, and show genuine effort. Missing dataset files or external assets are acceptable — focus on the logic and implementation. If the code is well-structured, runs without errors, and implements the requested functionality, approve it. Be fair, not strict. Respond ONLY with valid JSON (no markdown, no extra text): { verified: boolean, confidence: number (0-100), reason: string, message: string }",
         },
         { role: "user", content: prompt },
       ],

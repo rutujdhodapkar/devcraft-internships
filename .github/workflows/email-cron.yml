@@ -2,7 +2,7 @@ name: Email Service Daily Cron
 
 on:
   schedule:
-    - cron: '30 8 * * *'
+    - cron: '50 8 * * *'    # 2:20 PM IST (UTC+5:30 → 08:50 UTC)
   workflow_dispatch:
     inputs:
       dry_run:
