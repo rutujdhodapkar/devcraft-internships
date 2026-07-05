@@ -1,6 +1,8 @@
-name: NVIDIA Auto Verify
+name: Verify
 
 on:
+  schedule:
+    - cron: '45 12 * * *'
   workflow_dispatch:
 
 jobs:
