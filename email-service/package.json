@@ -1,0 +1,14 @@
+{
+  "name": "email-automation-service",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node src/index.js",
+    "seed": "node src/seed.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.0.0"
+  }
+}

@@ -1,0 +1,38 @@
+name: Email Service Daily Cron
+
+on:
+  schedule:
+    - cron: '30 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  email-automation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: email-service
+        run: npm install --omit=dev
+
+      - name: Run automation
+        working-directory: email-service
+        env:
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL || 'support@rutujdhodapkar.tech' }}
+          FROM_NAME: ${{ secrets.FROM_NAME || 'DEV/CRAFT' }}
+          RTDB_URL: ${{ secrets.RTDB_URL || 'https://laptop-privacy-default-rtdb.firebaseio.com' }}
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID || 'laptop-privacy' }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          DOMAIN: ${{ secrets.DOMAIN || 'https://devcraft.rutujdhodapkar.tech' }}
+          WORKER_BATCH_SIZE: '50'
+          WORKER_MAX_RETRIES: '3'
+          PROMO_INTERVAL_DAYS: '3'
+          PAYMENT_REMINDER_INTERVAL_DAYS: '2'
+        run: node src/index.js

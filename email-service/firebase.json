@@ -1,0 +1,46 @@
+{
+  "database": {
+    "rules": {
+      "rules": {
+        "email_queue": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$id": {
+            ".validate": "newData.hasChildren(['notificationId', 'applicationId', 'email', 'template'])"
+          }
+        },
+        "email_queue_applications": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "$id": {
+            ".validate": "newData.hasChildren(['applicationId', 'email'])"
+          }
+        },
+        "email_logs": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "email_templates": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "completed_jobs": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "failed_jobs": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "scheduler": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "analytics": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
+      }
+    }
+  }
+}
