@@ -65,11 +65,62 @@ function sanitize(s) {
   return (s || '').replace(/[.#$\[\]\/]/g, '_');
 }
 
-// Run directly: node src/seed.js
+// JSON import: node src/seed.js ./applications-export.json
+// Firestore:   FIREBASE_SERVICE_ACCOUNT_KEY=... node src/seed.js
+export async function seedFromJSON(filePath) {
+  const fs = await import('fs');
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const docs = JSON.parse(raw);
+  const rtdb = getRTDB();
+  let count = 0;
+
+  const list = Array.isArray(docs) ? docs : (docs.documents || docs.applications || []);
+  for (const doc of list) {
+    const app = doc.id ? doc : { id: doc.$id || doc._id || `app_${count}`, ...doc };
+    const email = app.email || app.userEmail || '';
+    if (!email) continue;
+    const entry = buildEntry(app);
+    await rtdb.ref(`email_queue_applications/${sanitize(app.id)}`).set(entry);
+    count++;
+  }
+  console.log(`[Seed] Imported ${count} applications from JSON`);
+  return count;
+}
+
+function buildEntry(app) {
+  return {
+    applicationId: app.id,
+    internshipId: app.internshipId || app.domainId || '',
+    userId: app.userId || app.user_id || '',
+    email: (app.email || app.userEmail || '').toLowerCase(),
+    fullName: app.fullName || app.name || app.userName || 'Student',
+    internshipDomain: app.domain || app.internshipDomain || '',
+    internshipTitle: app.title || app.internshipTitle || app.domain || '',
+    currentState: mapState(app),
+    paymentStatus: app.paymentStatus || app.payment || '',
+    paymentAmount: app.paymentAmount || app.amount || '200',
+    paymentDueDate: app.paymentDueDate || app.paymentDue || '',
+    internshipEndDate: app.internshipEndDate || app.deadline || app.endDate || '',
+    createdAt: app.createdAt || app.created_at || app.applicationDate || '',
+    completedAt: app.completedAt || app.completionDate || '',
+    certificateReady: app.certificateReady === true || app.certificateGenerated === true || false,
+    completed: app.completed === true || app.status === 'completed' || app.status === 'graduated' || false,
+    expired: app.expired === true || app.status === 'expired' || false,
+    tasks: app.projects || app.tasks || {},
+    lastEvent: '',
+    lastProcessedAt: '',
+  };
+}
+
+// Run directly
 if (process.argv[1]?.endsWith('seed.js')) {
-  import('./db.js').then(() => {
-    seedFromFirestore()
-      .then(() => process.exit(0))
-      .catch(() => process.exit(1));
-  });
+  const jsonPath = process.argv[2];
+  if (jsonPath && jsonPath.endsWith('.json')) {
+    seedFromJSON(jsonPath).then(() => process.exit(0)).catch(() => process.exit(1));
+  } else {
+    seedFromFirestore().then(() => process.exit(0)).catch(e => {
+      console.error('Firestore seed failed. Export Firestore data to JSON and run: node src/seed.js ./export.json');
+      process.exit(1);
+    });
+  }
 }
