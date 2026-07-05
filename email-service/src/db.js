@@ -32,14 +32,7 @@ function getServiceAccount() {
 
 export function getRTDB() {
   if (rtdbApp) return admin.database(rtdbApp);
-  const sa = getServiceAccount();
-  rtdbApp = admin.initializeApp(
-    {
-      databaseURL: CONFIG.rtdb.url,
-      ...(sa ? { credential: admin.credential.cert(sa) } : {}),
-    },
-    'email-rtdb'
-  );
+  rtdbApp = admin.initializeApp({ databaseURL: CONFIG.rtdb.url }, 'email-rtdb');
   return admin.database(rtdbApp);
 }
 
