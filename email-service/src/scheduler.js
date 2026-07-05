@@ -187,11 +187,13 @@ async function hasQueuedTemplate(applicationId, template, email) {
 }
 
 async function getLastSentDate(applicationId, template, email) {
-  const completed = await rtdbGet('completed_jobs') || {};
   let latest = null;
-  for (const job of Object.values(completed)) {
-    if (job.applicationId === applicationId && job.template === template && job.email === email && job.createdAt) {
-      if (!latest || job.createdAt > latest) latest = job.createdAt;
+  for (const col of ['completed_jobs', 'failed_jobs']) {
+    const data = await rtdbGet(col) || {};
+    for (const job of Object.values(data)) {
+      if (job.applicationId === applicationId && job.template === template && job.email === email && job.processedAt) {
+        if (!latest || job.processedAt > latest) latest = job.processedAt;
+      }
     }
   }
   return latest;
