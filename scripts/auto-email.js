@@ -62,43 +62,62 @@ async function enqueueVerificationEmails() {
   console.log('[Enqueue] Checking recent verifications...');
   const yesterday = new Date(Date.now() - 86400000).toISOString();
   const snap = await db().collection('enrollments').get();
-  let queued = 0;
 
+  const byEmail = {};
   for (const doc of snap.docs) {
     const d = doc.data();
     if (!d.email) continue;
     const subs = d.submissions || {};
+    const results = [];
     for (const [idx, sub] of Object.entries(subs)) {
       if (!sub.verified && !sub.rejected) continue;
       if (!sub.aiVerifiedAt || sub.aiVerifiedAt < yesterday) continue;
-
-      const dedupKey = `${doc.id}_${idx}_${sub.verified ? 'verified' : 'rejected'}`;
+      results.push({
+        projectIndex: parseInt(idx),
+        projectTitle: d.projects?.[parseInt(idx)]?.title || `Project ${parseInt(idx) + 1}`,
+        verified: !!sub.verified, reason: sub.aiReason || '',
+      });
+    }
+    if (results.length === 0) continue;
+    const email = d.email.toLowerCase();
+    if (!byEmail[email]) {
+      const dedupKey = `summary_${email}_${new Date().toISOString().slice(0, 10)}`;
       const existing = await db().collection('emailQueue')
         .where('dedupKey', '==', dedupKey).limit(1).get();
       if (!existing.empty) continue;
-
-      await db().collection('emailQueue').add({
+      byEmail[email] = {
         dedupKey, email: d.email, fullName: d.name || d.displayName || '',
-        template: 'verification_result', category: 'task',
+        template: 'verification_summary', category: 'task',
         status: 'pending', retryCount: 0,
-        payload: { projectIndex: idx, verified: sub.verified, reason: sub.aiReason || '' },
+        payload: { results, domain: d.domain || '', totalProjects: (d.projects || []).length },
         createdAt: now(),
-      });
-      queued++;
+      };
+    } else {
+      byEmail[email].payload.results.push(...results);
     }
   }
-  console.log(`[Enqueue] Queued ${queued} verification emails`);
+
+  const entries = Object.values(byEmail);
+  for (const entry of entries) {
+    await db().collection('emailQueue').add(entry);
+  }
+  console.log(`[Enqueue] Queued ${entries.length} summary emails (${Object.keys(byEmail).length} users)`);
 }
 
 // ─── NVIDIA email generation ──────────────────────────────────────────────
 
 async function generateEmailContent(template, vars) {
-  const prompt = `You write emails for DEV/CRAFT internship platform.
-Template: ${template}
-Student: ${vars.fullName || 'Student'}  
-Project ${vars.payload?.projectIndex !== undefined ? '#' + (parseInt(vars.payload.projectIndex) + 1) : ''}
-${vars.payload?.verified ? 'Their submission was VERIFIED.' : 'Their submission needs changes.'}
-${vars.payload?.reason ? `Reason: ${vars.payload.reason}` : ''}
+  const results = vars.payload?.results || [];
+  const verified = results.filter(r => r.verified);
+  const rejected = results.filter(r => !r.verified);
+  const summary = results.map(r =>
+    `- ${r.projectTitle}: ${r.verified ? 'VERIFIED' : 'NEEDS CHANGES'}${r.reason ? ' (' + r.reason + ')' : ''}`
+  ).join('\n');
+  const prompt = `You write a single summary email for DEV/CRAFT internship platform.
+Student: ${vars.fullName || 'Student'}
+Domain: ${vars.payload?.domain || ''}
+Recent results:\n${summary || 'No recent changes'}
+Write ONE email covering ALL results above.
 Return ONLY JSON: { "subject": "...", "html": "..." }
 HTML: inline styles, professional, black/white, include CTA button to dashboard.`;
 
@@ -138,13 +157,19 @@ async function sendBrevo({ to, subject, html, tag }) {
 
 function fallbackHtml(template, vars) {
   const p = vars.payload || {};
-  const verified = p.verified;
+  const results = p.results || [];
   const name = vars.fullName || 'Student';
-  const title = verified ? 'Submission Verified' : 'Submission Update';
-  const msg = verified
-    ? `Your project submission has been verified! Great work, ${name}.`
-    : `Your project submission needs revision. ${p.reason || 'Please check the feedback and resubmit.'}`;
-  const body = `<h2>${msg}</h2>
+  const verifiedCount = results.filter(r => r.verified).length;
+  const totalCount = results.length;
+  const allVerified = verifiedCount === totalCount;
+  const title = allVerified ? 'Project Updates — All Verified' : 'Project Updates — Action Needed';
+  const items = results.map(r =>
+    `<tr><td style="padding:8px 0;border-bottom:1px solid #eee">${r.projectTitle}</td><td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;font-weight:700;color:${r.verified ? '#090' : '#c00'}">${r.verified ? '✓ Verified' : '✗ Needs Changes'}</td></tr>`
+  ).join('');
+  const body = `<h2>${allVerified ? 'Great work, ' + name + '!' : 'Update for ' + name}</h2>
+<p>${verifiedCount} of ${totalCount} recent project submission(s) were verified.</p>
+${!allVerified ? '<p style="color:#c00;font-weight:700">Some submissions need revision. Check feedback and resubmit.</p>' : ''}
+<table style="width:100%;border-collapse:collapse;margin:16px 0">${items}</table>
 <div style="text-align:center;margin-top:20px">
   <a href="https://devcraft.rutujdhodapkar.tech/dashboard" style="display:inline-block;padding:10px 24px;background:#000;color:#fff;text-decoration:none;font-weight:700;text-transform:uppercase">View Dashboard</a>
 </div>`;
