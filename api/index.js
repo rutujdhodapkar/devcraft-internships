@@ -248,9 +248,9 @@ async function fetchCodeFromUrls(text, url) {
     if (seen.has(lower)) continue;
     seen.add(lower);
 
-    const match = u.match(/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\/|$|\.git)/);
-    if (match) {
-      const owner = match[1], repo = match[2].replace(/\.git$/, "");
+    const ghMatch = u.match(/github\.com\/([\w.-]+)\/([\w.-]+?)(?:\/|$|\.git)/);
+    if (ghMatch) {
+      const owner = ghMatch[1], repo = ghMatch[2].replace(/\.git$/, "");
       const blobMatch = u.match(/github\.com\/[\w.-]+\/[\w.-]+\/blob\/([^/]+)\/(.+)/);
       const treeMatch = u.match(/github\.com\/[\w.-]+\/[\w.-]+\/tree\/([^/]+)(?:\/(.*))?/);
 
@@ -271,7 +271,53 @@ async function fetchCodeFromUrls(text, url) {
       continue;
     }
 
+    // GitLab: blob URL → raw URL
+    const glMatch = u.match(/gitlab\.com\/([\w.-]+)\/([\w.-]+?)(?:\/|$)/);
+    if (glMatch) {
+      const glOwner = glMatch[1], glRepo = glMatch[2];
+      const glBlob = u.match(/gitlab\.com\/[\w.-]+\/[\w.-]+\/-\/blob\/([^/]+)\/(.+)/);
+      if (glBlob) {
+        const rawUrl = `https://gitlab.com/${glOwner}/${glRepo}/-/raw/${glBlob[1]}/${glBlob[2]}`;
+        try {
+          const res = await fetch(rawUrl);
+          if (res.ok) {
+            const content = await res.text();
+            codeFiles.push({ path: `${glRepo}/${glBlob[2]}`, content: content.slice(0, 10000) });
+          }
+        } catch {}
+      }
+      continue;
+    }
+
+    // Bitbucket: src URL → raw URL
+    const bbMatch = u.match(/bitbucket\.org\/([\w.-]+)\/([\w.-]+?)(?:\/|$)/);
+    if (bbMatch) {
+      const bbOwner = bbMatch[1], bbRepo = bbMatch[2];
+      const bbSrc = u.match(/bitbucket\.org\/[\w.-]+\/[\w.-]+\/src\/([^/]+)\/(.+)/);
+      if (bbSrc) {
+        const rawUrl = `https://bitbucket.org/${bbOwner}/${bbRepo}/raw/${bbSrc[1]}/${bbSrc[2]}`;
+        try {
+          const res = await fetch(rawUrl);
+          if (res.ok) {
+            const content = await res.text();
+            codeFiles.push({ path: `${bbRepo}/${bbSrc[2]}`, content: content.slice(0, 10000) });
+          }
+        } catch {}
+      }
+      continue;
+    }
+
     if (/(?:raw\.githubusercontent|github\.io)/i.test(u) && u.startsWith("http")) {
+      try {
+        const res = await fetch(u);
+        if (res.ok) {
+          const content = await res.text();
+          codeFiles.push({ path: u, content: content.slice(0, 10000) });
+        }
+      } catch {}
+    }
+    // Also try any raw-looking URL (direct file)
+    if (/\.(js|jsx|ts|tsx|py|html|css|json|md|txt|rs|go|rb|php|java|cpp|c|cs|swift|kt|scala|sql|sh|yml|yaml)$/i.test(u) && u.startsWith("http")) {
       try {
         const res = await fetch(u);
         if (res.ok) {

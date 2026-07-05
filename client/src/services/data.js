@@ -970,6 +970,10 @@ export async function verifyTaskWithAI(params) {
   return { success: true, data: data.data };
 }
 
+export async function fetchAiPendingEnrollments() {
+  return dbQueryList("enrollments", "status", "Active");
+}
+
 export async function fetchUPISettings() {
   const d = await dbGet("siteConfig/upiSettings");
   return d?.value || null;

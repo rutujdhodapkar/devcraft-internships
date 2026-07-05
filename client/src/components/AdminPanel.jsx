@@ -85,6 +85,7 @@ import {
   sendTestEmail,
   fetchEmailAutomationLog,
   triggerManualEmailType,
+  fetchAiPendingEnrollments,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -197,6 +198,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [aiError, setAiError] = useState("");
   const [verifyingAll, setVerifyingAll] = useState(false);
   const [pushingAll, setPushingAll] = useState(false);
+  const [aiPendingEnrollments, setAiPendingEnrollments] = useState([]);
+  const [aiPendingLoading, setAiPendingLoading] = useState(false);
 
   // Referrals tab state
   const [referralDateFrom, setReferralDateFrom] = useState("");
@@ -595,6 +598,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         })
         .catch(() => {})
         .finally(() => setUserTypesLoading(false));
+    }
+    if (activeTab === "verify-ai") {
+      setAiPendingLoading(true);
+      fetchAiPendingEnrollments()
+        .then(setAiPendingEnrollments)
+        .catch(() => {})
+        .finally(() => setAiPendingLoading(false));
     }
   }, [activeTab]);
 
@@ -5466,9 +5476,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             {(() => {
               // Collect all unverified submissions across all enrollments
               const unverifiedList = [];
-              const activeEnrollments = data.requests.filter(
-                (e) => e.status !== "Archived",
-              );
+              const activeEnrollments = aiPendingEnrollments.length > 0
+                ? aiPendingEnrollments.filter((e) => e.status !== "Archived")
+                : data.requests.filter((e) => e.status !== "Archived");
               activeEnrollments.forEach((enrollment) => {
                 const projects = getProjectsForEnrollment(enrollment);
                 const submissions = getSubmissions(enrollment);
@@ -5477,7 +5487,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   const isQuiz = (proj?.type || "text") === "quiz";
                   if (
                     sub &&
-                    sub.submittedAt &&
+                    (sub.submittedAt || sub.text || sub.quizAnswers || sub.answers) &&
                     sub.verified !== true &&
                     !sub.resubmit
                   ) {
