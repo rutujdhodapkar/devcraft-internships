@@ -406,22 +406,14 @@ export default function StudentDashboard({
     if (requireUnlock && enrollment.allowedCertificate !== "yes") {
       const projects = getProjectsForEnrollment(enrollment);
       const submissions = getSubmissions(enrollment);
-      const submittedCount = projects.filter((_, i) => submissions[i]?.submittedAt || submissions[i]?.verified).length;
-      const allSubmitted = projects.length > 0 && projects.every((_, i) => submissions[i]?.submittedAt || submissions[i]?.verified);
       const allV = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
       const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
-      if (!allSubmitted) {
-        notify(`Submit all projects first (${submittedCount}/${projects.length} submitted).`, "warning");
-        return;
-      }
-      if (!allV) {
-        notify("Projects pending review. Wait for admin to verify.", "warning");
-        return;
-      }
-      if (!isPaid) {
-        notify("Payment pending. Complete payment to access documents.", "warning");
-        return;
-      }
+      let msg = "";
+      if (!allV && !isPaid) msg = "Complete all tasks and payment first.";
+      else if (!allV) msg = "Complete all tasks first.";
+      else if (!isPaid) msg = "Complete payment first.";
+      notify(msg || "Document not yet available.", "warning");
+      return;
     }
     openCertificateUrl(enrollment, templateName);
   };
@@ -714,8 +706,8 @@ export default function StudentDashboard({
                           <span style={{ fontSize: "0.78rem", fontWeight: 700, color: e.status === "Completed" || e.paymentStatus === "paid" ? "#34A853" : "#EA4335" }}>Status: {e.status}</span>
                         </div>
                         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-                          {docsAvail && effButtons.map((btn, bi) => (
-                            <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName, true)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
+                          {effButtons.map((btn, bi) => (
+                            <button key={`b-${bi}`} className="btn-sharp" onClick={() => handleDownloadFromTemplate(e, btn.templateName, btn.showWhen === "after")} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", borderRadius: 0 }}>
                               {btn.label}
                             </button>
                           ))}
@@ -1820,7 +1812,7 @@ function EnrollmentCard({
                 </h4>
                 <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
                   {effButtons.map((btn, bi) => (
-                    <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName, true)} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
+                    <button key={bi} className="btn-sharp" onClick={() => onDownloadFromTemplate(enrollment, btn.templateName, btn.showWhen === "after")} style={{ padding: "0.6rem 1.5rem", fontSize: "0.85rem", borderRadius: 0 }}>
                       {btn.label}
                     </button>
                   ))}
