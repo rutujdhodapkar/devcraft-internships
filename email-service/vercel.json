@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/unsubscribe.js": {
+      "maxDuration": 10
+    }
+  }
+}

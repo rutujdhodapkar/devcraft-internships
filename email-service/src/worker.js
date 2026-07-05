@@ -4,60 +4,23 @@ import { renderTemplate } from './templateEngine.js';
 import { sendEmail } from './emailProvider.js';
 import { logSend, logError, recordAnalytics } from './logger.js';
 import { runScheduler } from './scheduler.js';
-import { getManualUpdates } from './firestoreReader.js';
-import { enqueue } from './queueManager.js';
 import { now } from './utils.js';
+import { rtdbGet } from './db.js';
 
 export async function runWorker() {
   console.log('[Worker] Starting email processing cycle');
 
-  // Phase 1: Fetch manual updates from Firestore
-  await fetchAndQueueManualUpdates();
-
-  // Phase 2: Run lifecycle scheduler
+  // Phase 1: Run lifecycle scheduler (reads/writes only RTDB)
   await runScheduler();
 
-  // Phase 3: Process pending email queue
+  // Phase 2: Process pending email queue
   const results = await processQueue();
 
-  // Phase 4: Archive old jobs
+  // Phase 3: Archive old jobs
   await archiveOldJobs(30);
 
   console.log(`[Worker] Cycle complete — sent: ${results.sent}, failed: ${results.failed}, skipped: ${results.skipped}`);
   return results;
-}
-
-async function fetchAndQueueManualUpdates() {
-  try {
-    const events = await getManualUpdates();
-    if (events.length === 0) return;
-
-    console.log(`[Worker] ${events.length} manual updates from Firestore`);
-
-    for (const event of events) {
-      try {
-        await enqueue({
-          applicationId: event.applicationId,
-          internshipId: event.internshipId,
-          userId: event.userId,
-          email: event.email,
-          fullName: event.fullName,
-          internshipDomain: event.internshipDomain,
-          internshipTitle: event.internshipTitle,
-          eventType: event.eventType,
-          template: event.eventType,
-          category: event.category,
-          currentState: event.currentState,
-          payload: event.payload || {},
-          status: STATUS.PENDING,
-        });
-      } catch (err) {
-        console.error(`[Worker] Failed to queue manual event:`, err.message);
-      }
-    }
-  } catch (err) {
-    console.error(`[Worker] Failed to fetch manual updates:`, err.message);
-  }
 }
 
 async function processQueue() {
@@ -94,6 +57,20 @@ async function processJob(job) {
   console.log(`[Worker] Processing ${job.notificationId} — ${job.template} → ${job.email}`);
 
   await markProcessing(job.notificationId);
+
+  // Check subscription preferences in RTDB
+  const subKey = job.email.toLowerCase().replace(/[.#$\[\]\/]/g, '_');
+  const sub = await rtdbGet(`email_subscriptions/${subKey}`);
+  if (sub?.status === 'unsubscribed') {
+    console.log(`[Worker] Skipped ${job.notificationId} — user unsubscribed`);
+    await markCompleted(job.notificationId, { skipped: true, reason: 'unsubscribed' });
+    return { success: true, skipped: true };
+  }
+  if (sub?.categories && Object.keys(sub.categories).length > 0 && !sub.categories[job.category] && !sub.categories[job.template]) {
+    console.log(`[Worker] Skipped ${job.notificationId} — category ${job.category} not opted in`);
+    await markCompleted(job.notificationId, { skipped: true, reason: 'category_opted_out' });
+    return { success: true, skipped: true };
+  }
 
   const rendered = await renderTemplate(job.template, {
     ...job.payload,

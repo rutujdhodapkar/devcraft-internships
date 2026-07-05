@@ -204,6 +204,7 @@ export async function renderTemplate(templateName, payload) {
   const vars = {
     ...payload,
     UNSUBSCRIBE_URL: `${payload.domain || 'https://devcraft.rutujdhodapkar.tech'}/api/email/unsubscribe?email=${encodeURIComponent(payload.email || '')}`,
+    UNSUBSCRIBE_LINK: `${payload.domain || 'https://devcraft.rutujdhodapkar.tech'}/api/email/unsubscribe?email=${encodeURIComponent(payload.email || '')}`,
   };
 
   let subject = tpl.subject;
