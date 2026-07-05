@@ -23,7 +23,7 @@ function initFirebase() {
   if (getApps().length > 0) return;
   const sa = resolveSA();
   const app = initializeApp({ credential: cert(sa), databaseURL: RTDB_URL });
-  globalThis.__db = getFirestore(app);
+  globalThis.__db = getFirestore(app, FIRESTORE_DB_ID);
   globalThis.__rtdb = getDatabase(app);
 }
 
