@@ -1326,42 +1326,6 @@ export async function saveHomepageSettings(settings) {
   return saveSiteConfig("homepage", settings);
 }
 
-// Coupons
-export async function fetchCoupons() {
-  const d = await dbGet("siteConfig/coupons");
-  return d?.value || [];
-}
-
-export async function saveCoupons(coupons) {
-  await dbPut("siteConfig/coupons", { value: coupons, updatedAt: new Date().toISOString() });
-  return coupons;
-}
-
-export async function validateCoupon(code) {
-  if (!code || !code.trim()) return { valid: false, message: "Enter a coupon code." };
-  const all = await fetchCoupons();
-  const c = all.find((c) => c.code === code.toUpperCase().trim());
-  if (!c) return { valid: false, message: "Invalid coupon code." };
-  if (!c.active) return { valid: false, message: "This coupon has expired or been deactivated." };
-  if (c.expiryDate) {
-    const expiry = c.expiryDate?.seconds ? new Date(c.expiryDate.seconds * 1000) : new Date(c.expiryDate);
-    if (expiry < new Date(new Date().toDateString())) return { valid: false, message: "This coupon has expired." };
-  }
-  const used = c.usedCount || 0;
-  if (c.maxUses && used >= c.maxUses) return { valid: false, message: "This coupon has reached its usage limit." };
-  const discountPercent = Math.min(100, Math.max(0, Number(c.discountPercent) || 0));
-  return { valid: true, coupon: c, discountPercent, message: `${discountPercent}% discount applied!` };
-}
-
-export async function incrementCouponUsage(code) {
-  if (!code) return;
-  const all = await fetchCoupons();
-  const idx = all.findIndex((c) => c.code === code.toUpperCase().trim());
-  if (idx === -1) return;
-  all[idx] = { ...all[idx], usedCount: (all[idx].usedCount || 0) + 1 };
-  await saveCoupons(all);
-}
-
 // Receipt
 export async function fetchReceipt(enrollmentId) {
   return apiFetch(`/api/data/receipt/${enrollmentId}`);

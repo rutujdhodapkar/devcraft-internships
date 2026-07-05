@@ -16,8 +16,7 @@ import {
   fetchPaymentMethods,
   autoExpireEnrollments,
   markEnrollmentComplete,
-  validateCoupon,
-  incrementCouponUsage,
+
   hideEnrollmentFromUser,
   getHiddenEnrollments,
   unhideEnrollmentFromUser,
@@ -58,10 +57,7 @@ export default function StudentDashboard({
   const [paymentMethod, setPaymentMethod] = useState(null); // 'upi' | 'dodo' | null
   const [showPaymentChoice, setShowPaymentChoice] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState(null);
-  const [couponCode, setCouponCode] = useState("");
-  const [couponError, setCouponError] = useState("");
-  const [couponDiscount, setCouponDiscount] = useState(0); // percent
-  const [validatingCoupon, setValidatingCoupon] = useState(false);
+
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "overview");
   const [referralStat, setReferralStat] = useState(null);
@@ -118,44 +114,11 @@ export default function StudentDashboard({
       : (enrollment.paymentEndAmount || enrollment.paymentAmount || 99);
   };
 
-  const getDiscountedAmount = (enrollment) => {
-    const full = getFullAmount(enrollment);
-    if (couponDiscount <= 0) return full;
-    return Math.round(full * (100 - couponDiscount) / 100);
-  };
-
-  const handleApplyCoupon = async () => {
-    const code = couponCode.trim();
-    if (!code) { setCouponError("Enter a coupon code."); return; }
-    setValidatingCoupon(true);
-    setCouponError("");
-    try {
-      const result = await validateCoupon(code);
-      if (result.valid) {
-        setCouponDiscount(result.discountPercent);
-        setCouponError("");
-      } else {
-        setCouponDiscount(0);
-        setCouponError(result.message);
-      }
-    } catch (err) {
-      setCouponDiscount(0);
-      setCouponError("Failed to validate coupon.");
-    } finally {
-      setValidatingCoupon(false);
-    }
-  };
-
   const handlePaymentSuccess = async () => {
-    if (couponCode.trim() && couponDiscount > 0) {
-      try { await incrementCouponUsage(couponCode.trim()); } catch (e) { console.warn("incrementCouponUsage:", e.message); }
-    }
     setShowPaymentModal(false);
     setShowPaymentChoice(false);
     setPaymentEnrollment(null);
     setPaymentMethod(null);
-    setCouponCode("");
-    setCouponDiscount(0);
     setCouponError("");
     loadAll();
   };
@@ -1342,53 +1305,23 @@ export default function StudentDashboard({
             <div style={{ height: "6px", background: "#000", marginBottom: "1.5rem", margin: "-2rem -2rem 1.5rem -2rem" }} />
             <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.5rem" }}>Choose Payment Method</h3>
 
-            {couponDiscount > 0 ? (
-              <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>
-                Amount: <strong>₹{getDiscountedAmount(paymentEnrollment)}</strong>
-                <span style={{ textDecoration: "line-through", color: "#aaa", marginLeft: "0.5rem" }}>₹{getFullAmount(paymentEnrollment)}</span>
-                <span style={{ color: "#34A853", marginLeft: "0.4rem", fontWeight: 700 }}>({couponDiscount}% off)</span>
-              </p>
-            ) : (
-              <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>
-                Amount: <strong>₹{getFullAmount(paymentEnrollment)}</strong>
-              </p>
-            )}
-
-            {/* Coupon Code Input */}
-            <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", alignItems: "center" }}>
-              <input
-                type="text"
-                value={couponCode}
-                onChange={(e) => { setCouponCode(e.target.value.toUpperCase()); setCouponError(""); setCouponDiscount(0); }}
-                placeholder="Discount Code"
-                disabled={couponDiscount > 0}
-                style={{ flex: 1, padding: "0.45rem 0.6rem", border: "2px solid #000", borderRadius: 0, fontSize: "0.85rem", fontFamily: "monospace", fontWeight: 700, textTransform: "uppercase" }}
-              />
-              {couponDiscount > 0 ? (
-                <button onClick={() => { setCouponCode(""); setCouponDiscount(0); setCouponError(""); }} className="btn-sharp" style={{ padding: "0.45rem 0.75rem", fontSize: "0.78rem", background: "#EA4335", color: "#fff", border: "2px solid #c5221f", cursor: "pointer", borderRadius: 0, whiteSpace: "nowrap" }}>
-                  Remove
-                </button>
-              ) : (
-                <button onClick={handleApplyCoupon} disabled={validatingCoupon} className="btn-sharp" style={{ padding: "0.45rem 0.75rem", fontSize: "0.78rem", background: "#000", color: "#fff", border: "2px solid #000", cursor: "pointer", borderRadius: 0, whiteSpace: "nowrap" }}>
-                  {validatingCoupon ? "..." : "Apply"}
-                </button>
-              )}
-            </div>
-            {couponError && <p style={{ fontSize: "0.78rem", color: "#EA4335", marginBottom: "1rem" }}>{couponError}</p>}
+            <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>
+              Amount: <strong>₹{getFullAmount(paymentEnrollment)}</strong>
+            </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {(paymentMethods?.upi !== false) && (
                 <button onClick={() => { setPaymentMethod("upi"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800 }}>
-                  Pay ₹{getDiscountedAmount(paymentEnrollment)} {couponDiscount > 0 ? "(UPI)" : ""}
+                  Pay ₹{getFullAmount(paymentEnrollment)}
                 </button>
               )}
               {(paymentMethods?.dodo === true) && (
                 <button onClick={() => { setPaymentMethod("dodo"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800, background: "#000", color: "#fff" }}>
-                  Pay ₹{getDiscountedAmount(paymentEnrollment)} {couponDiscount > 0 ? "(Card)" : ""}
+                  Pay ₹{getFullAmount(paymentEnrollment)}
                 </button>
               )}
             </div>
-            <button onClick={() => { setShowPaymentChoice(false); setPaymentEnrollment(null); setCouponCode(""); setCouponDiscount(0); setCouponError(""); }} className="btn-sharp" style={{ marginTop: "1rem", background: "#fff", color: "#000", border: "2px solid #000", padding: "0.5rem 1.5rem", fontSize: "0.82rem" }}>
+            <button onClick={() => { setShowPaymentChoice(false); setPaymentEnrollment(null); }} className="btn-sharp" style={{ marginTop: "1rem", background: "#fff", color: "#000", border: "2px solid #000", padding: "0.5rem 1.5rem", fontSize: "0.82rem" }}>
               Cancel
             </button>
           </div>
@@ -1397,17 +1330,17 @@ export default function StudentDashboard({
       {showPaymentModal && paymentEnrollment && paymentMethod === "upi" && (
         <UPIPaymentModal
           enrollmentId={paymentEnrollment.id}
-          amount={getDiscountedAmount(paymentEnrollment)}
+          amount={getFullAmount(paymentEnrollment)}
           onSuccess={handlePaymentSuccess}
-          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); setCouponCode(""); setCouponDiscount(0); setCouponError(""); }}
+          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
         />
       )}
       {showPaymentModal && paymentEnrollment && paymentMethod === "dodo" && (
         <DodoPaymentModal
           enrollmentId={paymentEnrollment.id}
-          amount={getDiscountedAmount(paymentEnrollment)}
+          amount={getFullAmount(paymentEnrollment)}
           onSuccess={handlePaymentSuccess}
-          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); setCouponCode(""); setCouponDiscount(0); setCouponError(""); }}
+          onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
           userEmail={user?.email}
           userName={user?.displayName}
         />

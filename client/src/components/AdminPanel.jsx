@@ -55,8 +55,7 @@ import {
   logAdminAction,
   fetchTheme,
   saveTheme,
-  fetchCoupons,
-  saveCoupons,
+
   exportEnrollmentsCSV,
   fetchEnrollments,
   fetchReferralLeaderboard,
@@ -133,7 +132,7 @@ const TABS = [
   { id: "manage admins", label: "Admins" },
   { id: "audit-log", label: "Audit Log" },
   { id: "theme", label: "Theme" },
-  { id: "coupons", label: "Coupons" },
+
   { id: "terms", label: "Terms" },
   { id: "privacy", label: "Privacy" },
   { id: "refund", label: "Refund" },
@@ -8068,7 +8067,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             <HeaderSettingsSection />
           </div>
         )}
-        {activeTab === "coupons" && <CouponsSection />}
+
         {activeTab === "csv-export" && <CSVExportSection />}
         {activeTab === "referral-leaderboard" && <ReferralLeaderboardSection />}
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
@@ -10159,73 +10158,6 @@ function HeaderSettingsSection() {
       <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ width: "100%", marginTop: "1.25rem" }}>
         {saving ? "Saving..." : "Save Header Settings"}
       </button>
-    </div>
-  );
-}
-
-/* ── Coupons ── */
-function CouponsSection() {
-  const [coupons, setCoupons] = useState([]);
-  const [enrollments, setEnrollments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [newCode, setNewCode] = useState("");
-  const [newDiscount, setNewDiscount] = useState(10);
-  const [newMaxUses, setNewMaxUses] = useState(1);
-  const [newExpiry, setNewExpiry] = useState("");
-  useEffect(() => {
-    Promise.all([fetchCoupons(), fetchEnrollments()]).then(([c, e]) => {
-      setCoupons(c);
-      setEnrollments(e);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, []);
-  const getCouponStats = (code) => {
-    const applied = enrollments.filter((e) => e.couponCode === code || e.appliedCoupon?.code === code);
-    const paid = applied.filter((e) => e.paymentStatus === "paid" || e.paymentStage === "fully_paid");
-    return { applied: applied.length, paid: paid.length };
-  };
-  const addCoupon = () => {
-    if (!newCode.trim()) return notify("Enter a coupon code.", "warning");
-    setCoupons([...coupons, { code: newCode.toUpperCase().trim(), discountPercent: Math.min(100, Math.max(0, Number(newDiscount))), maxUses: Number(newMaxUses), expiryDate: newExpiry, active: true, createdAt: new Date().toISOString() }]);
-    setNewCode(""); setNewDiscount(10); setNewMaxUses(1); setNewExpiry("");
-  };
-  const toggleCoupon = (i) => { const c = [...coupons]; c[i] = { ...c[i], active: !c[i].active }; setCoupons(c); };
-  const saveAll = async () => { try { await saveCoupons(coupons); notify("Coupons saved.", "success"); } catch (err) { notify("Failed: " + err.message, "error"); } };
-  if (loading) return <div style={{ color: "#888" }}>Loading coupons...</div>;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "4px 4px 0 #000" }}>
-        <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Add New Coupon</h4>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
-          <div><label style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Code</label><input type="text" value={newCode} onChange={(e) => setNewCode(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "110px" }} /></div>
-          <div><label style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Discount %</label><input type="number" min="0" max="100" value={newDiscount} onChange={(e) => setNewDiscount(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "70px" }} /></div>
-          <div><label style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Max Uses</label><input type="number" min="1" value={newMaxUses} onChange={(e) => setNewMaxUses(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "70px" }} /></div>
-          <div><label style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem" }}>Expiry</label><input type="date" value={newExpiry} onChange={(e) => setNewExpiry(e.target.value)} style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none" }} /></div>
-          <button onClick={addCoupon} className="btn-sharp" style={{ padding: "0.4rem 1rem", fontSize: "0.82rem" }}>Add</button>
-        </div>
-      </div>
-      <div style={{ border: "2px solid #000", boxShadow: "4px 4px 0 #000" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1rem", borderBottom: "2px solid #000", background: "#fafafa" }}>
-          <h4 style={{ fontWeight: 800 }}>Existing Coupons ({coupons.length})</h4>
-          <button onClick={saveAll} className="btn-sharp" style={{ padding: "0.35rem 1rem", fontSize: "0.8rem" }}>Save All Coupons</button>
-        </div>
-        {coupons.length === 0 ? (
-          <div style={{ padding: "1.5rem", color: "#888", textAlign: "center", fontSize: "0.85rem" }}>No coupons yet.</div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {coupons.map((c, i) => {
-              const stats = getCouponStats(c.code);
-              return (
-                <div key={c.code || i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.6rem 1rem", borderBottom: "1px solid #eee", gap: "0.75rem", flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 800, fontFamily: "monospace", fontSize: "0.9rem" }}>{c.code}</span>
-                  <span style={{ fontSize: "0.82rem", color: "#555" }}>{c.discountPercent}% off | Max {c.maxUses} uses{c.expiryDate ? ` | Expires ${new Date(c.expiryDate).toLocaleDateString()}` : ""}{c.usedCount !== undefined ? ` | Used ${c.usedCount}x` : ""}</span>
-                  <span style={{ fontSize: "0.8rem", fontWeight: 700 }}>{stats.applied > 0 ? <span style={{ color: "#4285F4" }}>{stats.applied} applied</span> : null}{stats.paid > 0 ? <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>{stats.paid} paid</span> : stats.applied > 0 ? <span style={{ color: "#FBBC05", marginLeft: "0.5rem" }}>0 paid</span> : null}</span>
-                  <button onClick={() => toggleCoupon(i)} style={{ padding: "0.25rem 0.65rem", fontSize: "0.72rem", fontWeight: 700, border: "2px solid #000", background: c.active ? "#34A853" : "#EA4335", color: "#fff", cursor: "pointer", borderRadius: 0 }}>{c.active ? "Active" : "Inactive"}</button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
