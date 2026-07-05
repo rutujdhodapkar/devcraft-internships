@@ -1,9 +1,9 @@
-import { getFirestore, getRTDB } from './db.js';
+import { getFirestoreDB, getRTDB } from './db.js';
 
 export async function seedFromFirestore() {
   console.log('[Seed] Starting — pulling applications from Firestore');
 
-  const fs = getFirestore();
+  const fs = getFirestoreDB();
   const rtdb = getRTDB();
 
   try {

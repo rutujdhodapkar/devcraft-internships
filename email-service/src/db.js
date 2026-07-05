@@ -1,25 +1,13 @@
-import admin from 'firebase-admin';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getDatabase } from 'firebase-admin/database';
+import { getFirestore } from 'firebase-admin/firestore';
+import { cert } from 'firebase-admin/credential';
 import { CONFIG } from './config.js';
 
 let rtdbApp = null;
 let fsApp = null;
 
 function getServiceAccount() {
-  const raw = CONFIG.rtdb.serviceAccount || CONFIG.firestore.privateKey
-    ? JSON.stringify({
-        type: 'service_account',
-        project_id: CONFIG.firestore.projectId,
-        private_key_id: 'auto',
-        private_key: CONFIG.firestore.privateKey,
-        client_email: CONFIG.firestore.clientEmail,
-        client_id: 'auto',
-        auth_uri: 'https://accounts.google.com/o/oauth2/auth',
-        token_uri: 'https://oauth2.googleapis.com/token',
-        auth_provider_x509_cert_url: 'https://www.googleapis.com/oauth2/v1/certs',
-        client_x509_cert_url: `https://www.googleapis.com/robot/v1/metadata/x509/${encodeURIComponent(CONFIG.firestore.clientEmail)}`,
-      })
-    : null;
-  if (raw) return JSON.parse(raw);
   const envKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   if (envKey) {
     const json = envKey.trim().startsWith('{') ? envKey : Buffer.from(envKey, 'base64').toString('utf8');
@@ -31,20 +19,20 @@ function getServiceAccount() {
 }
 
 export function getRTDB() {
-  if (rtdbApp) return admin.database(rtdbApp);
-  rtdbApp = admin.initializeApp({ databaseURL: CONFIG.rtdb.url }, 'email-rtdb');
-  return admin.database(rtdbApp);
+  if (rtdbApp) return getDatabase(rtdbApp);
+  rtdbApp = initializeApp({ databaseURL: CONFIG.rtdb.url }, 'email-rtdb');
+  return getDatabase(rtdbApp);
 }
 
-export function getFirestore() {
-  if (fsApp) return admin.firestore(fsApp);
+export function getFirestoreDB() {
+  if (fsApp) return getFirestore(fsApp);
   const sa = getServiceAccount();
   if (!sa) throw new Error('No service account available for Firestore');
-  fsApp = admin.initializeApp(
-    { projectId: CONFIG.firestore.projectId, credential: admin.credential.cert(sa) },
+  fsApp = initializeApp(
+    { projectId: CONFIG.firestore.projectId, credential: cert(sa) },
     'email-fs'
   );
-  return admin.firestore(fsApp);
+  return getFirestore(fsApp);
 }
 
 export async function rtdbGet(path) {

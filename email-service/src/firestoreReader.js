@@ -1,10 +1,10 @@
-import { getFirestore } from './db.js';
+import { getFirestoreDB } from './db.js';
 import { CONFIG } from './config.js';
 
 let lastPollTime = null;
 
 export async function getManualUpdates() {
-  const db = getFirestore();
+  const db = getFirestoreDB();
   const events = [];
 
   try {
