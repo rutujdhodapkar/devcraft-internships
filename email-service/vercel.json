@@ -1,6 +1,8 @@
 {
   "functions": {
     "api/unsubscribe.js": { "maxDuration": 10 },
-    "api/sync-webhook.js": { "maxDuration": 10 }
+    "api/sync-webhook.js": { "maxDuration": 10 },
+    "api/approve.js": { "maxDuration": 10 },
+    "api/reject.js": { "maxDuration": 10 }
   }
 }
