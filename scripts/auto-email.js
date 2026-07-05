@@ -164,25 +164,30 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 async function syncEnrollments() {
   console.log('[Sync] Reading enrollments...');
   const snap = await db().collection('enrollments').get();
+  const existingApps = (await rtdbGet('email_queue_applications')) || {};
   let synced = 0;
+  const updates = {};
   for (const doc of snap.docs) {
     const d = doc.data();
     if (!d.email) continue;
     const appId = (d.email || doc.id).toLowerCase().replace(/[.#$\[\]\/]/g, '_');
-    const existing = await rtdbGet(`email_queue_applications/${appId}`);
-    if (!existing) {
-      await rtdbSet(`email_queue_applications/${appId}`, {
-        applicationId: doc.id, email: d.email,
-        fullName: d.name || d.displayName || '',
-        internshipDomain: d.domain || '',
-        internshipTitle: d.domain || '',
-        paymentStatus: d.paymentStatus || d.paymentStage || 'none',
-        currentState: 'synced', lastSyncedAt: now(),
-      });
-      synced++;
-    }
+    if (existingApps[appId]) continue;
+    updates[`email_queue_applications/${appId}`] = {
+      applicationId: doc.id, email: d.email,
+      fullName: d.name || d.displayName || '',
+      internshipDomain: d.domain || '',
+      internshipTitle: d.domain || '',
+      paymentStatus: d.paymentStatus || d.paymentStage || 'none',
+      currentState: 'synced', lastSyncedAt: now(),
+    };
+    synced++;
   }
-  console.log(`[Sync] Synced ${synced} new (${snap.docs.length} total in Firestore)`);
+  if (synced > 0) {
+    await rtdb().ref().update(updates);
+    console.log(`[Sync] Synced ${synced} new (${snap.docs.length} total)`);
+  } else {
+    console.log(`[Sync] All ${snap.docs.length} already synced`);
+  }
 }
 
 // ─── Process queue ────────────────────────────────────────────────────────
