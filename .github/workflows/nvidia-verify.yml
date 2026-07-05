@@ -3,11 +3,18 @@ name: NVIDIA Verify
 on:
   workflow_dispatch:
   schedule:
-    - cron: '25 12 * * *'
+    - cron: '35 12 * * *'
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "hello"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install firebase-admin@14
+      - run: node scripts/auto-verify.js
+        env:
+          FIREBASE_SERVICE_ACCOUNT_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
