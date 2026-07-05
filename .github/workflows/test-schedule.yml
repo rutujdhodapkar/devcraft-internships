@@ -1,5 +1,7 @@
 name: Test Schedule
 on:
+  push:
+    branches: [master]
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
@@ -9,4 +11,4 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Cron works at $(date)"
+      - run: echo "Triggered by ${{ github.event_name }} at $(date)"
