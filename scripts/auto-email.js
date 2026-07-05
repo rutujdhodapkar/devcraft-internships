@@ -83,8 +83,9 @@ async function enqueueVerificationEmails() {
     if (!byEmail[email]) {
       const dedupKey = `summary_${email}_${new Date().toISOString().slice(0, 10)}`;
       const existing = await db().collection('emailQueue')
-        .where('dedupKey', '==', dedupKey).limit(1).get();
-      if (!existing.empty) continue;
+        .where('dedupKey', '==', dedupKey).limit(5).get();
+      const active = existing.docs.find(d => !['failed'].includes(d.data().status));
+      if (active) continue;
       byEmail[email] = {
         dedupKey, email: d.email, fullName: d.name || d.displayName || '',
         template: 'verification_summary', category: 'task',
