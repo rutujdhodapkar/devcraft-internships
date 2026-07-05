@@ -9749,6 +9749,8 @@ const th = {
   textTransform: "uppercase",
   letterSpacing: "0.5px",
   whiteSpace: "nowrap",
+  background: "#000",
+  color: "#fff",
 };
 const td = {
   padding: "0.6rem 0.85rem",
@@ -9787,6 +9789,13 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
     { border: "#999", bg: "#f9f9f9", label: "No payment, no tasks" },
   ];
 
+  const isCertUnlocked = (enrollment) => {
+    const projs = getProjectsForEnrollment(enrollment);
+    const subs = getSubmissions(enrollment);
+    const allV = projs.length > 0 && projs.every((_, i) => subs[i]?.verified);
+    const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
+    return enrollment.allowedCertificate === "yes" || ((allV || projs.length === 0) && (isPaid || enrollment.status === "Completed"));
+  };
   const isCompletionReady = (e) => {
     const projects = getProjectsForEnrollment(e);
     if (projects.length === 0) return { ready: false, reason: "No projects assigned" };
@@ -10324,7 +10333,7 @@ function ReferralLeaderboardSection() {
           <thead>
             <tr style={{ background: "#000", color: "#fff", textTransform: "uppercase", fontSize: "0.72rem" }}>
               <th style={{ padding: "0.5rem", border: "1px solid #000" }}>Rank</th>
-              <th style={{ padding: "0.5rem", border: "1px solid #000" }}>Name</th>
+              <th style={{ padding: "0.5rem", border: "1px solid #000" }}>Email</th>
               <th style={{ padding: "0.5rem", border: "1px solid #000" }}>Referral Code</th>
               <th style={{ padding: "0.5rem", border: "1px solid #000" }}>Interns</th>
               <th style={{ padding: "0.5rem", border: "1px solid #000" }}>Completed</th>
@@ -10335,7 +10344,7 @@ function ReferralLeaderboardSection() {
             {entries.map((e, i) => (
               <tr key={i} style={{ background: i % 2 === 0 ? "#fafafa" : "#fff" }}>
                 <td style={{ padding: "0.5rem", border: "1px solid #ddd", textAlign: "center", fontWeight: 700 }}>{i + 1}</td>
-                <td style={{ padding: "0.5rem", border: "1px solid #ddd", fontWeight: 600 }}>{e.name}</td>
+                <td style={{ padding: "0.5rem", border: "1px solid #ddd", fontWeight: 600 }}>{e.email}</td>
                 <td style={{ padding: "0.5rem", border: "1px solid #ddd", fontFamily: "monospace" }}>{e.code}</td>
                 <td style={{ padding: "0.5rem", border: "1px solid #ddd", textAlign: "center" }}>{e.interns}</td>
                 <td style={{ padding: "0.5rem", border: "1px solid #ddd", textAlign: "center" }}>{e.completed}</td>
@@ -10936,7 +10945,7 @@ function EmailSection() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #000", color: "#888", textAlign: "left" }}>
+                <tr style={{ background: "#000", color: "#fff", textAlign: "left" }}>
                   <th style={{ padding: "0.5rem" }}>Email</th>
                   <th style={{ padding: "0.5rem" }}>Type</th>
                   <th style={{ padding: "0.5rem" }}>Status</th>
@@ -10968,7 +10977,7 @@ function EmailSection() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #000", color: "#888", textAlign: "left" }}>
+                <tr style={{ background: "#000", color: "#fff", textAlign: "left" }}>
                   <th style={{ padding: "0.5rem" }}>Email</th>
                   <th style={{ padding: "0.5rem" }}>Status</th>
                   <th style={{ padding: "0.5rem" }}>Categories</th>
@@ -11004,7 +11013,7 @@ function EmailSection() {
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #000", color: "#888", textAlign: "left" }}>
+                <tr style={{ background: "#000", color: "#fff", textAlign: "left" }}>
                   <th style={{ padding: "0.5rem" }}>Email</th>
                   <th style={{ padding: "0.5rem" }}>From</th>
                   <th style={{ padding: "0.5rem" }}>To</th>

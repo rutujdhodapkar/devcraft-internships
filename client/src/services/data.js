@@ -1374,7 +1374,7 @@ export async function fetchReferralLeaderboard() {
     .map((r) => {
       const interns = enrollments.filter((e) => (e.referralCode || "").toUpperCase().trim() === (r.code || "").toUpperCase().trim());
       const completedPaid = interns.filter((i) => i.status === "Completed" && i.paymentStatus === "paid");
-      return { name: r.name, code: r.code, interns: interns.length, completed: completedPaid.length, earnings: completedPaid.length * rewardPerCompletion };
+      return { name: r.name, email: r.email || r.name, code: r.code, interns: interns.length, completed: completedPaid.length, earnings: completedPaid.length * rewardPerCompletion };
     })
     .sort((a, b) => b.completed - a.completed);
 }
