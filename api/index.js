@@ -1,4 +1,6 @@
 import { initCosmosDb } from "../server/cosmos.js";
+import { generateText, generateImage, buildPromoPrompt } from "../server/aiContent.js";
+import { postToLinkedIn, handleCallback as linkedinCallback, getAuthUrl, getStoredToken } from "../server/linkedin.js";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -1609,6 +1611,55 @@ async function handleEmail(req, res, parts) {
   return send(res, 404, { success: false, message: `Unknown email endpoint: ${sub}` });
 }
 
+async function handleLinkedIn(req, res, parts) {
+  const sub = parts[0];
+  if (sub === "auth") return send(res, 200, { success: true, url: getAuthUrl() });
+  if (sub === "callback") {
+    try {
+      const result = await linkedinCallback(req.query?.code || req.body?.code);
+      return send(res, 200, { success: true, data: result });
+    } catch (e) {
+      return send(res, 400, { success: false, message: e.message });
+    }
+  }
+  if (sub === "status") {
+    const token = getStoredToken();
+    return send(res, 200, { success: true, authenticated: !!token.accessToken });
+  }
+  if (sub === "post") {
+    const adminEmail = await requireAdminFromDb(req, res);
+    if (!adminEmail) return;
+    try {
+      const db = await initCosmosDb();
+      const enrollments = db ? await (await db.collection("enrollments").get()).docs.map(d => d.data()) : [];
+      const activeCount = enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length;
+      const prompt = buildPromoPrompt(activeCount, "new projects completed");
+      const [text, imageB64] = await Promise.all([generateText(prompt), generateImage("DEV/CRAFT internships")]);
+      const result = await postToLinkedIn(text, imageB64);
+      return send(res, 200, { success: true, data: { post: result, text } });
+    } catch (e) {
+      return send(res, 500, { success: false, message: e.message });
+    }
+  }
+  return send(res, 404, { success: false, message: "Unknown linkedin route" });
+}
+
+async function requireAdminFromDb(req, res) {
+  const token = req.headers.authorization?.replace("Bearer ", "") || req.body?.idToken || "";
+  if (!token) { send(res, 401, { success: false, message: "No auth token" }); return null; }
+  try {
+    const decoded = await verifyFirebaseToken(token);
+    if (!decoded) { send(res, 401, { success: false, message: "Invalid token" }); return null; }
+    const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
+    if (email === ROOT_ADMIN_EMAIL) return email;
+    if (!email) { send(res, 403, { success: false, message: "No email in token" }); return null; }
+    const db = await initCosmosDb();
+    const adminDoc = await getDoc(db, "admins", emailId(email), null);
+    if (!adminDoc) { send(res, 403, { success: false, message: "Admin access required" }); return null; }
+    return email;
+  } catch { send(res, 401, { success: false, message: "Auth failed" }); return null; }
+}
+
 export default async function handler(req, res) {
   try {
   // Ensure root admin exists in the admins collection on first request
@@ -1632,6 +1683,7 @@ export default async function handler(req, res) {
     if (parts[0] === "certificate-data" && parts[1]) return handleCertificateData(req, res, parts[1]);
     if (parts[0] === "verify-data" && parts[1]) return handleVerifyData(req, res, parts[1]);
     if (parts[0] === "verify" && parts[1]) return handleVerify(req, res, parts[1]);
+    if (parts[0] === "linkedin") return handleLinkedIn(req, res, parts.slice(1));
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {

@@ -143,6 +143,7 @@ const TABS = [
   { id: "referral-leaderboard", label: "Referral Leaderboard" },
   { id: "logged-in-users", label: "Logged In Users" },
   { id: "email", label: "Email Automation" },
+  { id: "linkedin", label: "LinkedIn" },
 ];
 
 const DEFAULT_HOMEPAGE = {
@@ -8073,6 +8074,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
         {activeTab === "email" && <EmailSection />}
         {activeTab === "add-intern" && <AddInternSection />}
+        {activeTab === "linkedin" && <LinkedInPostSection />}
       </div>
 
       {/* ── INTERN SUBMISSION DETAIL MODAL ── */}
@@ -10999,6 +11001,87 @@ function EmailSection() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function LinkedInPostSection() {
+  const [status, setStatus] = useState({ authenticated: false });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+
+  const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
+
+  async function getToken() {
+    const { getFirebaseIdToken } = await import("../firebase");
+    return getFirebaseIdToken();
+  }
+
+  async function checkStatus() {
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API_BASE}/api/linkedin/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      setStatus(json.data || { authenticated: false });
+    } catch {}
+  }
+
+  useEffect(() => { checkStatus(); }, []);
+
+  async function handleConnect() {
+    const token = await getToken();
+    const res = await fetch(`${API_BASE}/api/linkedin/auth`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json = await res.json();
+    if (json.url) window.open(json.url, "_blank");
+  }
+
+  async function handlePost() {
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API_BASE}/api/linkedin/post`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json();
+      if (!json.success) { setError(json.message || "Post failed"); return; }
+      setResult(json.data);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div>
+      <h3 style={{ fontWeight: 800, marginBottom: "1rem" }}>LinkedIn Automation</h3>
+      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+        <div style={{ padding: "1rem", border: "2px solid #000", background: status.authenticated ? "#E8F5E9" : "#FFF3E0" }}>
+          <strong>Status:</strong> {status.authenticated ? "Connected" : "Not connected"}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+        {!status.authenticated && (
+          <button className="btn-sharp" onClick={handleConnect} style={{ padding: "0.6rem 1.5rem", fontWeight: 800 }}>
+            Connect LinkedIn
+          </button>
+        )}
+        <button className="btn-sharp" onClick={handlePost} disabled={loading} style={{ padding: "0.6rem 1.5rem", fontWeight: 800, opacity: loading ? 0.6 : 1 }}>
+          {loading ? "Generating & Posting..." : "Generate & Post to LinkedIn"}
+        </button>
+      </div>
+      {error && <p style={{ color: "#D32F2F", marginTop: "1rem" }}>{error}</p>}
+      {result && (
+        <div style={{ marginTop: "1rem", padding: "1rem", border: "2px solid #34A853", background: "#E8F5E9" }}>
+          <strong>Posted!</strong>
+          <p style={{ marginTop: "0.5rem", fontSize: "0.85rem" }}>{result.text}</p>
+        </div>
+      )}
     </div>
   );
 }
