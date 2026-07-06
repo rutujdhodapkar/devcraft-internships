@@ -575,8 +575,9 @@ async function handleData(req, res, routeParts) {
     const key = req.query?.key || id;
     if (req.method === "GET" && key) return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", key, null))?.value || null });
     if (req.method === "PUT" && key) {
-      const cleanBody = typeof req.body === "string" ? req.body : (() => { const { idToken, ...rest } = req.body || {}; return rest; })();
-      return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value: cleanBody, updatedAt: now() })).value }));
+      const raw = req.body || {};
+      const value = typeof raw === "string" ? raw : raw.value;
+      return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value, updatedAt: now() })).value }));
     }
   }
   if (resource === "receipt" && id) {

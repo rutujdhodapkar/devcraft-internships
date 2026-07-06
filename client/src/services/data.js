@@ -1190,7 +1190,7 @@ export async function fetchSiteConfig(key) {
 export async function saveSiteConfig(key, value) {
   await apiFetch(`/api/data/site-config?key=${encodeURIComponent(key)}`, {
     method: "PUT",
-    body: JSON.stringify(value),
+    body: JSON.stringify({ value }),
   });
   return value;
 }
