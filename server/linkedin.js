@@ -24,9 +24,14 @@ async function saveTokenStore(data) {
   } catch {}
 }
 
+function getRedirectUri() {
+  const base = (process.env.BASE_URL || "").replace(/\/+$/, "");
+  return `${base}/api/linkedin/callback`;
+}
+
 export function getAuthUrl() {
-  const redirectUri = `${process.env.BASE_URL || ""}/api/linkedin/callback`;
-  return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=w_member_social%20r_liteprofile`;
+  const redirectUri = getRedirectUri();
+  return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=w_member_social%20openid%20profile%20email&state=devcraft`;
 }
 
 export async function getStoredToken() {
@@ -34,7 +39,7 @@ export async function getStoredToken() {
 }
 
 export async function handleCallback(code) {
-  const redirectUri = `${process.env.BASE_URL || ""}/api/linkedin/callback`;
+  const redirectUri = getRedirectUri();
   const res = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -58,7 +63,7 @@ async function getAccessToken() {
   if (!store.accessToken) return null;
   if (Date.now() < store.expiresAt) return store.accessToken;
   if (store.refreshToken) {
-    const redirectUri = `${process.env.BASE_URL || ""}/api/linkedin/callback`;
+    const redirectUri = getRedirectUri();
     const res = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
