@@ -1616,14 +1616,19 @@ async function handleLinkedIn(req, res, parts) {
   if (sub === "auth") return send(res, 200, { success: true, url: getAuthUrl() });
   if (sub === "callback") {
     try {
-      const result = await linkedinCallback(req.query?.code || req.body?.code);
-      return send(res, 200, { success: true, data: result });
+      const query = Object.fromEntries(new URL(req.url, "http://x").searchParams);
+      const code = query.code || req.body?.code;
+      if (!code) return send(res, 400, { success: false, message: "No authorization code received" });
+      await linkedinCallback(code);
+      res.writeHead(302, { Location: "/admin?linkedin=connected" });
+      return res.end();
     } catch (e) {
-      return send(res, 400, { success: false, message: e.message });
+      res.writeHead(302, { Location: `/admin?linkedin=error&message=${encodeURIComponent(e.message)}` });
+      return res.end();
     }
   }
   if (sub === "status") {
-    const token = getStoredToken();
+    const token = await getStoredToken();
     return send(res, 200, { success: true, authenticated: !!token.accessToken });
   }
   if (sub === "post") {
