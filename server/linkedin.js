@@ -46,11 +46,11 @@ async function getMemberUrn(accessToken) {
     const res = await fetch("https://api.linkedin.com/v2/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!res.ok) return "urn:li:person:current_user";
+    if (!res.ok) return "urn:li:member:current_user";
     const json = await res.json();
-    return `urn:li:person:${json.id}`;
+    return `urn:li:member:${json.id}`;
   } catch {
-    return "urn:li:person:current_user";
+    return "urn:li:member:current_user";
   }
 }
 
@@ -105,7 +105,7 @@ export async function postToLinkedIn(text, imageBase64) {
   const token = await getAccessToken();
   if (!token) throw new Error("LinkedIn not authenticated. Set up LinkedIn app first.");
   const store = await getTokenStore();
-  const author = store.memberUrn || "urn:li:person:current_user";
+  const author = store.memberUrn || "urn:li:member:current_user";
 
   let mediaUrn = null;
   if (imageBase64) {
