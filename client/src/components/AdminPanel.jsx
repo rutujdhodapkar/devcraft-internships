@@ -511,7 +511,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setTermsLoading(true);
       import("../services/data").then(({ fetchTermsContent }) =>
         fetchTermsContent()
-          .then((data) => setTermsContent(data || ""))
+          .then((data) => setTermsContent(typeof data === "string" ? data : ""))
           .catch(() => setTermsContent(""))
           .finally(() => setTermsLoading(false)),
       );
@@ -520,7 +520,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setPrivacyLoading(true);
       import("../services/data").then(({ fetchPrivacyContent }) =>
         fetchPrivacyContent()
-          .then((data) => setPrivacyContent(data || ""))
+          .then((data) => setPrivacyContent(typeof data === "string" ? data : ""))
           .catch(() => setPrivacyContent(""))
           .finally(() => setPrivacyLoading(false)),
       );
@@ -529,7 +529,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setRefundLoading(true);
       import("../services/data").then(({ fetchRefundContent }) =>
         fetchRefundContent()
-          .then((data) => setRefundContent(data || ""))
+          .then((data) => setRefundContent(typeof data === "string" ? data : ""))
           .catch(() => setRefundContent(""))
           .finally(() => setRefundLoading(false)),
       );

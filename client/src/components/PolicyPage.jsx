@@ -22,7 +22,7 @@ export default function PolicyPage({ type, onBackToSite }) {
     setLoading(true);
     import("../services/data")
       .then((mod) => mod[fn]())
-      .then((content) => setHtml(content || ""))
+      .then((content) => setHtml(typeof content === "string" ? content : ""))
       .catch(() => setHtml(""))
       .finally(() => setLoading(false));
   }, [type]);
