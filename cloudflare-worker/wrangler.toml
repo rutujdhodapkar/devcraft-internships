@@ -1,9 +1,0 @@
-name = "linkedin-automation-worker"
-main = "src/index.js"
-compatibility_date = "2024-01-01"
-
-[vars]
-VERCEL_API_URL = "https://devcraft.rutujdhodapkar.tech"
-
-[[triggers.crons]]
-crons = ["0 8 * * *"]

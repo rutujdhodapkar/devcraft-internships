@@ -1,6 +1,5 @@
 import { initCosmosDb } from "../server/cosmos.js";
 import { generateText, generateImage, buildPromoPrompt } from "../server/aiContent.js";
-import { postToLinkedIn, handleCallback as linkedinCallback, getAuthUrl, getStoredToken } from "../server/linkedin.js";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -1666,10 +1665,6 @@ async function handleLinkedIn(req, res, parts) {
 }
 
 async function requireAdminFromDb(req, res) {
-  // Allow cron jobs with shared secret
-  const cronSecret = req.headers["x-cron-secret"];
-  if (cronSecret && cronSecret === process.env.CRON_SECRET) return "cron";
-
   const token = req.headers.authorization?.replace("Bearer ", "") || req.body?.idToken || "";
   if (!token) { send(res, 401, { success: false, message: "No auth token" }); return null; }
   try {
@@ -1708,7 +1703,6 @@ export default async function handler(req, res) {
     if (parts[0] === "certificate-data" && parts[1]) return handleCertificateData(req, res, parts[1]);
     if (parts[0] === "verify-data" && parts[1]) return handleVerifyData(req, res, parts[1]);
     if (parts[0] === "verify" && parts[1]) return handleVerify(req, res, parts[1]);
-    if (parts[0] === "linkedin") return handleLinkedIn(req, res, parts.slice(1));
     if (parts[0] === "auto-expire-enrollments") return handleAutoExpire(req, res);
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
