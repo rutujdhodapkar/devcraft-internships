@@ -11065,6 +11065,18 @@ function LinkedInPostSection() {
           <strong>Status:</strong> {status.authenticated ? "Connected" : "Not connected"}
         </div>
       </div>
+      {!status.authenticated && (
+        <div style={{ marginBottom: "1rem", padding: "0.8rem", border: "1px solid #FFB74D", background: "#FFF8E1", fontSize: "0.85rem" }}>
+          <strong>Setup required:</strong> Create a LinkedIn App at{" "}
+          <a href="https://www.linkedin.com/developers/apps" target="_blank" rel="noreferrer">linkedin.com/developers/apps</a>
+          <ol style={{ margin: "0.5rem 0 0 1.2rem", padding: 0 }}>
+            <li>Create a new app &rarr; add <strong>Share on LinkedIn</strong> product</li>
+            <li>Set OAuth 2.0 redirect URL to <code>https://devcraft.rutujdhodapkar.tech/api/linkedin/callback</code></li>
+            <li>Add <code>LINKEDIN_CLIENT_ID</code>, <code>LINKEDIN_CLIENT_SECRET</code>, <code>BASE_URL</code> to Vercel env vars</li>
+            <li>Redeploy Vercel, then click <strong>Connect LinkedIn</strong> below</li>
+          </ol>
+        </div>
+      )}
       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
         {!status.authenticated && (
           <button className="btn-sharp" onClick={handleConnect} style={{ padding: "0.6rem 1.5rem", fontWeight: 800 }}>

@@ -1613,7 +1613,12 @@ async function handleEmail(req, res, parts) {
 
 async function handleLinkedIn(req, res, parts) {
   const sub = parts[0];
-  if (sub === "auth") return send(res, 200, { success: true, url: getAuthUrl() });
+  if (sub === "auth") {
+    if (!process.env.LINKEDIN_CLIENT_ID || !process.env.LINKEDIN_CLIENT_SECRET) {
+      return send(res, 400, { success: false, message: "LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET not set in Vercel env vars" });
+    }
+    return send(res, 200, { success: true, url: getAuthUrl() });
+  }
   if (sub === "callback") {
     try {
       const query = Object.fromEntries(new URL(req.url, "http://x").searchParams);
