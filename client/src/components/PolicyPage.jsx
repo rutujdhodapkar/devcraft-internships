@@ -36,7 +36,6 @@ export default function PolicyPage({ type, onBackToSite }) {
         </button>
       </div>
       <div style={{ maxWidth: "800px", width: "100%", margin: "0 auto", padding: "3rem 1.5rem 5rem" }}>
-        <h1 style={{ fontSize: "2rem", fontWeight: 900, marginBottom: "1.5rem" }}>{titleMap[type] || "Policy"}</h1>
         {loading ? (
           <div style={{ textAlign: "center", color: "#888", padding: "3rem 0" }}>Loading…</div>
         ) : html ? (
