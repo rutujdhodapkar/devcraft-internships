@@ -1,0 +1,29 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "email-automation": {
+      "type": "local",
+      "command": ["node", "mcp-email/server.js"],
+      "enabled": true,
+      "environment": {
+        "BREVO_API_KEY": "{env:BREVO_API_KEY}",
+        "FROM_EMAIL": "{env:FROM_EMAIL}",
+        "FROM_NAME": "{env:FROM_NAME}"
+      }
+    },
+    "social-automation": {
+      "type": "local",
+      "command": ["node", "mcp-social/server.js"],
+      "enabled": true,
+      "environment": {
+        "TWITTER_API_KEY": "{env:TWITTER_API_KEY}",
+        "LINKEDIN_ACCESS_TOKEN": "{env:LINKEDIN_ACCESS_TOKEN}",
+        "LINKEDIN_PERSON_ID": "{env:LINKEDIN_PERSON_ID}",
+        "INSTAGRAM_TOKEN": "{env:INSTAGRAM_TOKEN}",
+        "NVIDIA_API_KEY": "{env:NVIDIA_API_KEY}",
+        "CF_ACCOUNT_ID": "{env:CF_ACCOUNT_ID}",
+        "CF_API_TOKEN": "{env:CF_API_TOKEN}"
+      }
+    }
+  }
+}
