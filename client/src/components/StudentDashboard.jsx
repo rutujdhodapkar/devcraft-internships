@@ -403,7 +403,7 @@ export default function StudentDashboard({
   };
 
   const handleDownloadFromTemplate = (enrollment, templateName, requireUnlock = false) => {
-    if (requireUnlock && enrollment.allowedCertificate !== "yes") {
+    if (enrollment.allowedCertificate !== "yes") {
       const projects = getProjectsForEnrollment(enrollment);
       const submissions = getSubmissions(enrollment);
       const allV = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
