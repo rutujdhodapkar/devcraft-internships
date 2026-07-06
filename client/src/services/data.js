@@ -2,6 +2,7 @@ const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhod
 
 // Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
 import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
+import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cookies";
 
 async function _rtdbRead(path) {
   try { const s = await rtdbGet(ref(rtdb, path)); return s.val(); } catch { return null; }
@@ -86,9 +87,15 @@ const FALLBACK_FAQS = [
 
 async function dbProxy(action, path, data, query) {
   const key = _cacheKey(action, path, query);
+  const ck = `db_${key}`;
+  const siteConfigRead = path.startsWith("siteConfig/");
   if (action === "get" || action === "list" || action === "query") {
     const cached = _cacheGet(key);
     if (cached) return cached;
+    if (siteConfigRead) {
+      const cookieData = getCookie(ck);
+      if (cookieData !== null) return cookieData;
+    }
   }
   const body = { action, path, data, query };
   if (action !== "get" && action !== "list" && action !== "query") {
@@ -104,9 +111,13 @@ async function dbProxy(action, path, data, query) {
   if (!res.ok || json.success === false) throw new Error(json.message || `Proxy ${action} ${path} failed`);
   const result = json.data;
   if (action === "get" || action === "list" || action === "query") {
-    if (result !== null) _cacheSet(key, result);
+    if (result !== null) {
+      _cacheSet(key, result);
+      if (siteConfigRead) { try { const s = JSON.stringify(result); if (s.length < 3500) setCookie(ck, result); } catch {} }
+    }
   } else {
     _cacheClear(path);
+    removeCookie(ck);
   }
   return result;
 }
@@ -166,7 +177,7 @@ async function apiFetch(path, options = {}) {
   const text = await response.text();
   const data = text ? JSON.parse(text) : {};
   if (!response.ok || data.success === false) throw new Error(data.message || data.error || "Request failed.");
-  if (method !== "GET") _cacheClear();
+  if (method !== "GET") { _cacheClear(); clearCookies(); }
   return data;
 }
 
@@ -1183,8 +1194,12 @@ export async function logAdminAction(action, details = {}) {
 
 // Site config (generic key-value)
 export async function fetchSiteConfig(key) {
+  const cached = getCookie(`sc_${key}`);
+  if (cached !== null) return cached;
   const data = await apiFetch(`/api/data/site-config?key=${encodeURIComponent(key)}`);
-  return data.data || null;
+  const result = data.data || null;
+  if (result !== null) setCookie(`sc_${key}`, result);
+  return result;
 }
 
 export async function saveSiteConfig(key, value) {
@@ -1192,6 +1207,7 @@ export async function saveSiteConfig(key, value) {
     method: "PUT",
     body: JSON.stringify({ value }),
   });
+  removeCookie(`sc_${key}`);
   return value;
 }
 
