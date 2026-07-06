@@ -111,48 +111,70 @@ export async function postToLinkedIn(text, imageBase64) {
 
   let mediaUrn = null;
   if (imageBase64) {
-    const registerRes = await fetch("https://api.linkedin.com/v2/assets?action=registerUpload", {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0" },
-      body: JSON.stringify({
-        registerUploadRequest: {
-          recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
-          owner: author,
-          serviceRelationships: [{ relationshipType: "OWNER", identifier: "urn:li:userGeneratedContent" }],
-        },
-      }),
-    });
-    if (registerRes.ok) {
-      const regJson = await registerRes.json();
-      const uploadUrl = regJson.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
-      const asset = regJson.value?.asset;
-      if (uploadUrl && asset) {
-        const imgBuffer = Buffer.from(imageBase64, "base64");
-        await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": "image/png" }, body: imgBuffer });
-        mediaUrn = asset;
+    try {
+      const registerRes = await fetch("https://api.linkedin.com/v2/assets?action=registerUpload", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0" },
+        body: JSON.stringify({
+          registerUploadRequest: {
+            recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
+            owner: author,
+            serviceRelationships: [{ relationshipType: "OWNER", identifier: "urn:li:userGeneratedContent" }],
+          },
+        }),
+      });
+      if (registerRes.ok) {
+        const regJson = await registerRes.json();
+        const uploadUrl = regJson.value?.uploadMechanism?.["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]?.uploadUrl;
+        const asset = regJson.value?.asset;
+        if (uploadUrl && asset) {
+          const imgBuffer = Buffer.from(imageBase64, "base64");
+          await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": "image/png" }, body: imgBuffer });
+          mediaUrn = asset;
+        }
       }
+    } catch (e) {
+      console.error("[LinkedIn] Image upload failed:", e.message);
     }
   }
 
-  const postBody = {
+  const postBody = mediaUrn ? {
     author,
-    lifecycleState: "PUBLISHED",
-    specificContent: {
-      "com.linkedin.ugc.ShareContent": {
-        shareCommentary: { text },
-        shareMediaCategory: mediaUrn ? "IMAGE" : "NONE",
-      },
+    commentary: text,
+    visibility: "PUBLIC",
+    distribution: {
+      feedDistribution: "MAIN_FEED",
+      targetEntities: [],
+      thirdPartyDistributionChannels: []
     },
-    visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" },
+    lifecycleState: "PUBLISHED",
+    isReshareDisabledByAuthor: false,
+    content: {
+      media: {
+        id: mediaUrn
+      }
+    }
+  } : {
+    author,
+    commentary: text,
+    visibility: "PUBLIC",
+    distribution: {
+      feedDistribution: "MAIN_FEED",
+      targetEntities: [],
+      thirdPartyDistributionChannels: []
+    },
+    lifecycleState: "PUBLISHED",
+    isReshareDisabledByAuthor: false
   };
 
-  if (mediaUrn) {
-    postBody.specificContent["com.linkedin.ugc.ShareContent"].media = [{ status: "READY", media: mediaUrn }];
-  }
-
-  const postRes = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+  const postRes = await fetch("https://api.linkedin.com/rest/posts", {
     method: "POST",
-    headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0" },
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": "202401"
+    },
     body: JSON.stringify(postBody),
   });
 
