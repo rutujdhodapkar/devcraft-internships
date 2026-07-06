@@ -575,8 +575,7 @@ async function handleData(req, res, routeParts) {
     const key = req.query?.key || id;
     if (req.method === "GET" && key) return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", key, null))?.value || null });
     if (req.method === "PUT" && key) {
-      // Strip auth fields before storing
-      const { idToken, ...cleanBody } = req.body || {};
+      const cleanBody = typeof req.body === "string" ? req.body : (() => { const { idToken, ...rest } = req.body || {}; return rest; })();
       return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value: cleanBody, updatedAt: now() })).value }));
     }
   }
