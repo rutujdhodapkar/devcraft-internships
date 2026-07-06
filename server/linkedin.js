@@ -38,6 +38,19 @@ export async function getStoredToken() {
   return getTokenStore();
 }
 
+async function getMemberUrn(accessToken) {
+  try {
+    const res = await fetch("https://api.linkedin.com/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return "urn:li:person:current_user";
+    const json = await res.json();
+    return json.sub || "urn:li:person:current_user";
+  } catch {
+    return "urn:li:person:current_user";
+  }
+}
+
 export async function handleCallback(code) {
   const redirectUri = getRedirectUri();
   const res = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
@@ -53,7 +66,8 @@ export async function handleCallback(code) {
   });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error_description || "LinkedIn auth failed");
-  const tokenData = { accessToken: json.access_token, refreshToken: json.refresh_token, expiresAt: Date.now() + (json.expires_in || 86400) * 1000 };
+  const memberUrn = await getMemberUrn(json.access_token);
+  const tokenData = { accessToken: json.access_token, refreshToken: json.refresh_token, expiresAt: Date.now() + (json.expires_in || 86400) * 1000, memberUrn };
   await saveTokenStore(tokenData);
   return tokenData;
 }
@@ -87,6 +101,8 @@ async function getAccessToken() {
 export async function postToLinkedIn(text, imageBase64) {
   const token = await getAccessToken();
   if (!token) throw new Error("LinkedIn not authenticated. Set up LinkedIn app first.");
+  const store = await getTokenStore();
+  const author = store.memberUrn || "urn:li:person:current_user";
 
   let mediaUrn = null;
   if (imageBase64) {
@@ -96,7 +112,7 @@ export async function postToLinkedIn(text, imageBase64) {
       body: JSON.stringify({
         registerUploadRequest: {
           recipes: ["urn:li:digitalmediaRecipe:feedshare-image"],
-          owner: "urn:li:person:current_user",
+          owner: author,
           serviceRelationships: [{ relationshipType: "OWNER", identifier: "urn:li:userGeneratedContent" }],
         },
       }),
@@ -114,7 +130,7 @@ export async function postToLinkedIn(text, imageBase64) {
   }
 
   const postBody = {
-    author: "urn:li:person:current_user",
+    author,
     lifecycleState: "PUBLISHED",
     specificContent: {
       "com.linkedin.ugc.ShareContent": {
