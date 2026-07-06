@@ -1,0 +1,124 @@
+name: LinkedIn Automation Agent
+
+on:
+  schedule:
+    - cron: '0 9 * * 1,3,5'
+    - cron: '0 14 * * 1,3,5'
+    - cron: '0 10 * * 5'
+  workflow_dispatch:
+    inputs:
+      accountId:
+        description: 'LinkedIn Account ID (optional)'
+        required: false
+        type: string
+      theme:
+        description: 'Content theme'
+        required: false
+        type: string
+        default: 'Web Development Internship Program'
+      templateType:
+        description: 'Post template type'
+        required: false
+        type: string
+        default: 'promotional'
+      generateImage:
+        description: 'Generate image with post'
+        required: false
+        type: boolean
+        default: true
+
+env:
+  NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+  LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+  LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+  COSMOS_DB_CONNECTION_STRING: ${{ secrets.COSMOS_DB_CONNECTION_STRING }}
+  COSMOS_DB_DATABASE: ${{ secrets.COSMOS_DB_DATABASE || 'devcraft' }}
+  COSMOS_DB_CONTAINER: ${{ secrets.COSMOS_DB_CONTAINER || 'main' }}
+  SERVER_URL: ${{ secrets.SERVER_URL || 'https://your-server.vercel.app' }}
+
+jobs:
+  run-linkedin-agent:
+    name: Run LinkedIn Automation Agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+      
+      - name: Install dependencies
+        run: |
+          cd server
+          npm ci
+      
+      - name: Run LinkedIn Agent
+        run: |
+          cd server
+          node scripts/run-linkedin-agent.js \
+            --account-id="${{ github.event.inputs.accountId || '' }}" \
+            --theme="${{ github.event.inputs.theme || 'Web Development Internship Program' }}" \
+            --template-type="${{ github.event.inputs.templateType || 'promotional' }}" \
+            --generate-image="${{ github.event.inputs.generateImage || 'true' }}"
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          COSMOS_DB_CONNECTION_STRING: ${{ secrets.COSMOS_DB_CONNECTION_STRING }}
+          COSMOS_DB_DATABASE: ${{ secrets.COSMOS_DB_DATABASE || 'devcraft' }}
+          COSMOS_DB_CONTAINER: ${{ secrets.COSMOS_DB_CONTAINER || 'main' }}
+      
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linkedin-agent-logs
+          path: |
+            logs/
+            *.log
+          retention-days: 7
+
+  deploy-cloudflare:
+    name: Deploy to Cloudflare Workers
+    needs: run-linkedin-agent
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install Wrangler
+        run: npm install -g wrangler
+      
+      - name: Deploy to Cloudflare Workers
+        run: |
+          cd cloudflare-worker
+          wrangler deploy --env production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          COSMOS_DB_CONNECTION_STRING: ${{ secrets.COSMOS_DB_CONNECTION_STRING }}
+
+  health-check:
+    name: Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Server Health
+        run: |
+          curl -f "${{ secrets.SERVER_URL || 'https://your-server.vercel.app' }}/api/social/status" || exit 1

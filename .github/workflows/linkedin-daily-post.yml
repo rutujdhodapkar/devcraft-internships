@@ -1,0 +1,16 @@
+name: Daily LinkedIn Post
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
+jobs:
+  post-to-linkedin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger LinkedIn post
+        run: |
+          curl -X POST "${{ secrets.VERCEL_URL }}/api/linkedin/post" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"

@@ -1650,6 +1650,10 @@ async function handleLinkedIn(req, res, parts) {
 }
 
 async function requireAdminFromDb(req, res) {
+  // Allow cron jobs with shared secret
+  const cronSecret = req.headers["x-cron-secret"];
+  if (cronSecret && cronSecret === process.env.CRON_SECRET) return "cron";
+
   const token = req.headers.authorization?.replace("Bearer ", "") || req.body?.idToken || "";
   if (!token) { send(res, 401, { success: false, message: "No auth token" }); return null; }
   try {
