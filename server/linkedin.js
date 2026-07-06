@@ -20,8 +20,8 @@ async function saveTokenStore(data) {
   const db = await getDb();
   if (!db) { console.error("[LinkedIn] No database available"); return; }
   try {
-    await db.collection("_config").doc("linkedinToken").set(data, { merge: true });
-    console.error("[LinkedIn] Token saved successfully");
+    await db.collection("_config").doc("linkedinToken").set(data);
+    console.error("[LinkedIn] Token saved successfully (set without merge)");
   } catch (e) {
     console.error("[LinkedIn] Failed to save token:", e.message);
   }
@@ -46,10 +46,12 @@ async function getMemberUrn(accessToken) {
     const res = await fetch("https://api.linkedin.com/v2/me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!res.ok) return "urn:li:member:current_user";
+    if (!res.ok) { console.error("[LinkedIn] /v2/me failed:", res.status, await res.text()); return "urn:li:member:current_user"; }
     const json = await res.json();
+    console.error("[LinkedIn] /v2/me response:", JSON.stringify(json));
     return `urn:li:member:${json.id}`;
-  } catch {
+  } catch (e) {
+    console.error("[LinkedIn] /v2/me error:", e.message);
     return "urn:li:member:current_user";
   }
 }
