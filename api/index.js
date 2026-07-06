@@ -1623,11 +1623,18 @@ async function handleLinkedIn(req, res, parts) {
     try {
       const query = Object.fromEntries(new URL(req.url, "http://x").searchParams);
       const code = query.code || req.body?.code;
+      const errParam = query.error;
+      if (errParam) {
+        console.error("LinkedIn OAuth error:", errParam, query.error_description);
+        res.writeHead(302, { Location: "/admin" });
+        return res.end();
+      }
       if (!code) return send(res, 400, { success: false, message: "No authorization code received" });
       await linkedinCallback(code);
       res.writeHead(302, { Location: "/admin" });
       return res.end();
     } catch (e) {
+      console.error("LinkedIn callback error:", e.message);
       res.writeHead(302, { Location: "/admin" });
       return res.end();
     }
