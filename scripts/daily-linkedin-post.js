@@ -1,6 +1,8 @@
+const CLIENT_ID = "777c3ev3udb0o2";
+const CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
+const REFRESH_TOKEN = process.env.LINKEDIN_REFRESH_TOKEN;
+const PERSON_ID = process.env.LINKEDIN_PERSON_ID;
 const NVDIA_API_KEY = process.env.NVIDIA_API_KEY || "";
-const LI_AT = process.env.LI_AT;
-const JSESSIONID = process.env.JSESSIONID;
 
 const TEMPLATES = [
   "Join DEV/CRAFT and kickstart your career with hands-on virtual internships. Gain real-world skills, work on real projects, and earn verified completion certificates! 🚀\n\n#VirtualInternship #DEVRAFT #CareerGrowth #TechSkills #Internships",
@@ -12,6 +14,83 @@ const TEMPLATES = [
   "Transform your career with DEV/CRAFT. Our alumni have gone on to work at top tech companies — all starting with a free virtual internship.\n\n#DEVRAFT #CareerTransformation #TechInternships #SuccessStory #LearnTech",
   "🔥 New month, new opportunities! DEV/CRAFT has fresh internship projects waiting for you. Web dev, AI, data science & more — all free with verified certificates.\n\n#DEVRAFT #NewOpportunities #TechInternships #LearnToCode #CareerGoals",
 ];
+
+let accessToken = process.env.LINKEDIN_ACCESS_TOKEN;
+
+async function refreshAccessToken() {
+  if (!REFRESH_TOKEN) {
+    throw new Error("No LINKEDIN_REFRESH_TOKEN set. Run: node scripts/get-linkedin-token.js");
+  }
+  console.log("[DailyPost] Refreshing access token...");
+  const res = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: REFRESH_TOKEN,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Token refresh failed: ${data.error_description || data.error}`);
+  accessToken = data.access_token;
+  const newRefresh = data.refresh_token;
+  console.log(`[DailyPost] Token refreshed (new refresh: ${newRefresh ? "yes" : "no"})`);
+  if (newRefresh) {
+    console.log(`[DailyPost] NOTE: New refresh token received. Update secret:`);
+    console.log(`  gh secret set LINKEDIN_REFRESH_TOKEN --body "${newRefresh}"`);
+  }
+}
+
+async function postToLinkedIn(text) {
+  console.log(`[DailyPost] Posting to LinkedIn...`);
+
+  let author;
+  if (PERSON_ID) {
+    author = `urn:li:person:${PERSON_ID}`;
+  } else {
+    const me = await fetch("https://api.linkedin.com/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const meData = await me.json();
+    if (!me.ok) throw new Error(`LinkedIn auth: ${meData.message || meData.error_description}`);
+    author = `urn:li:person:${meData.sub}`;
+  }
+
+  const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+    },
+    body: JSON.stringify({
+      author,
+      lifecycleState: "PUBLISHED",
+      specificContent: {
+        "com.linkedin.ugc.ShareContent": {
+          shareCommentary: { text },
+          shareMediaCategory: "NONE",
+        },
+      },
+      visibility: {
+        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
+      },
+    }),
+  });
+
+  if (res.status === 401) {
+    console.log("[DailyPost] Token expired, refreshing and retrying...");
+    await refreshAccessToken();
+    return await postToLinkedIn(text);
+  }
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(`LinkedIn API error: ${data.message || JSON.stringify(data)}`);
+  console.log(`[DailyPost] Posted! ID: ${data.id}`);
+  return data;
+}
 
 async function generateWithNVIDIA() {
   if (!NVDIA_API_KEY) return null;
@@ -36,49 +115,9 @@ async function generateWithNVIDIA() {
   } catch { return null; }
 }
 
-function getCsrfToken() {
-  if (!JSESSIONID) return null;
-  const raw = JSESSIONID.replace(/^"|"$/g, '');
-  return raw.startsWith('ajax:') ? raw : `ajax:${raw}`;
-}
-
-async function postViaInternalApi(text) {
-  console.log(`[DailyPost] Posting via internal LinkedIn API...`);
-  const csrf = getCsrfToken();
-  if (!csrf) throw new Error("JSESSIONID not set");
-
-  const payload = {
-    commentary: { text, attributes: [] },
-    lifecycleState: "PUBLISHED",
-    visibility: { "com.linkedin.quasar.MemberNetworkVisibility": "PUBLIC" },
-  };
-
-  const res = await fetch("https://www.linkedin.com/voyager/api/feed/updates", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Cookie": `li_at=${LI_AT}; JSESSIONID="${csrf}"`,
-      "csrf-token": csrf,
-      "x-restli-protocol-version": "2.0.0",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Internal API error ${res.status}: ${body.substring(0, 200)}`);
-  }
-  const data = await res.json();
-  console.log(`[DailyPost] Posted! Activity URN: ${data.activityUrn || data.id || JSON.stringify(data)}`);
-  return data;
-}
-
 async function getContent() {
   const ai = await generateWithNVIDIA();
-  if (ai) {
-    console.log(`[DailyPost] Generated with NVIDIA AI`);
-    return ai;
-  }
+  if (ai) { console.log(`[DailyPost] Generated with NVIDIA AI`); return ai; }
   const idx = new Date().getDate() % TEMPLATES.length;
   console.log(`[DailyPost] Using template #${idx}`);
   return TEMPLATES[idx];
@@ -86,13 +125,13 @@ async function getContent() {
 
 async function main() {
   console.log(`[DailyPost] Starting daily LinkedIn post at ${new Date().toISOString()}`);
+  if (!CLIENT_SECRET) throw new Error("LINKEDIN_CLIENT_SECRET not set");
+  if (!accessToken && !REFRESH_TOKEN) throw new Error("Neither LINKEDIN_ACCESS_TOKEN nor LINKEDIN_REFRESH_TOKEN set");
 
-  if (!LI_AT) throw new Error("LI_AT not set");
-  if (!JSESSIONID) throw new Error("JSESSIONID not set");
-
+  if (!accessToken) await refreshAccessToken();
   const content = await getContent();
   console.log(`[DailyPost] Content:\n${content}\n`);
-  await postViaInternalApi(content);
+  await postToLinkedIn(content);
   console.log(`[DailyPost] Done!`);
 }
 
