@@ -11043,14 +11043,7 @@ function LinkedInPostSection() {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
-    if (json.url) {
-      const popup = window.open(json.url, "linkedin-auth", "width=600,height=700");
-      if (popup) {
-        const timer = setInterval(() => {
-          if (popup.closed) { clearInterval(timer); checkStatus(); }
-        }, 500);
-      }
-    }
+    if (json.url) window.location.href = json.url;
   }
 
   async function handlePost() {

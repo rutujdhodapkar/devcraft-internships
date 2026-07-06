@@ -1625,11 +1625,11 @@ async function handleLinkedIn(req, res, parts) {
       const code = query.code || req.body?.code;
       if (!code) return send(res, 400, { success: false, message: "No authorization code received" });
       await linkedinCallback(code);
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      return res.end("<script>if(window.opener){window.opener.postMessage('linkedin-connected','*')}window.close()</script>LinkedIn connected! You may close this tab.");
+      res.writeHead(302, { Location: "/admin" });
+      return res.end();
     } catch (e) {
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      return res.end("<script>if(window.opener){window.opener.postMessage('linkedin-error','*')}window.close()</script>LinkedIn auth failed: " + e.message);
+      res.writeHead(302, { Location: "/admin" });
+      return res.end();
     }
   }
   if (sub === "status") {
