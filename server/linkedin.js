@@ -31,7 +31,7 @@ function getRedirectUri() {
 
 export function getAuthUrl() {
   const redirectUri = getRedirectUri();
-  return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=w_member_social%20r_liteprofile&state=devcraft`;
+  return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=w_member_social%20openid%20profile%20email&state=devcraft`;
 }
 
 export async function getStoredToken() {
@@ -40,12 +40,12 @@ export async function getStoredToken() {
 
 async function getMemberUrn(accessToken) {
   try {
-    const res = await fetch("https://api.linkedin.com/v2/me", {
+    const res = await fetch("https://api.linkedin.com/v2/userinfo", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) return "urn:li:person:current_user";
     const json = await res.json();
-    return `urn:li:person:${json.id}`;
+    return json.sub || "urn:li:person:current_user";
   } catch {
     return "urn:li:person:current_user";
   }
