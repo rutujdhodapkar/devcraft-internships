@@ -18,10 +18,13 @@ async function getTokenStore() {
 
 async function saveTokenStore(data) {
   const db = await getDb();
-  if (!db) return;
+  if (!db) { console.error("[LinkedIn] No database available"); return; }
   try {
     await db.collection("_config").doc("linkedinToken").set(data, { merge: true });
-  } catch {}
+    console.error("[LinkedIn] Token saved successfully");
+  } catch (e) {
+    console.error("[LinkedIn] Failed to save token:", e.message);
+  }
 }
 
 function getRedirectUri() {

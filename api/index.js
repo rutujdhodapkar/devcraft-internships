@@ -1630,17 +1630,21 @@ async function handleLinkedIn(req, res, parts) {
         return res.end();
       }
       if (!code) return send(res, 400, { success: false, message: "No authorization code received" });
+      console.error("[LinkedIn] Callback received, exchanging code...");
       await linkedinCallback(code);
+      console.error("[LinkedIn] Callback succeeded, redirecting to /admin");
       res.writeHead(302, { Location: "/admin" });
       return res.end();
     } catch (e) {
       console.error("LinkedIn callback error:", e.message);
+      console.error("LinkedIn callback stack:", e.stack);
       res.writeHead(302, { Location: "/admin" });
       return res.end();
     }
   }
   if (sub === "status") {
     const token = await getStoredToken();
+    console.error("[LinkedIn] Status check - authenticated:", !!token.accessToken, "hasMemberUrn:", !!token.memberUrn);
     return send(res, 200, { success: true, authenticated: !!token.accessToken });
   }
   if (sub === "post") {
