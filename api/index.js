@@ -1625,10 +1625,10 @@ async function handleLinkedIn(req, res, parts) {
       const code = query.code || req.body?.code;
       if (!code) return send(res, 400, { success: false, message: "No authorization code received" });
       await linkedinCallback(code);
-      res.writeHead(302, { Location: "/admin?linkedin=connected" });
+      res.writeHead(302, { Location: "/admin" });
       return res.end();
     } catch (e) {
-      res.writeHead(302, { Location: `/admin?linkedin=error&message=${encodeURIComponent(e.message)}` });
+      res.writeHead(302, { Location: "/admin" });
       return res.end();
     }
   }
@@ -1698,10 +1698,36 @@ export default async function handler(req, res) {
     if (parts[0] === "verify-data" && parts[1]) return handleVerifyData(req, res, parts[1]);
     if (parts[0] === "verify" && parts[1]) return handleVerify(req, res, parts[1]);
     if (parts[0] === "linkedin") return handleLinkedIn(req, res, parts.slice(1));
+    if (parts[0] === "auto-expire-enrollments") return handleAutoExpire(req, res);
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {
     console.error("API error:", error);
     return send(res, 500, { success: false, message: error.message || "Server error." });
+  }
+}
+
+async function handleAutoExpire(req, res) {
+  try {
+    const db = await initCosmosDb();
+    if (!db) return send(res, 503, { success: false, message: "Database not configured" });
+    const now = new Date().toISOString();
+    const snap = await db.collection("enrollments").where("status", "==", "Active").get();
+    if (snap.empty) return send(res, 200, { success: true, expired: 0, message: "No active enrollments" });
+    let expired = 0;
+    const batch = db.batch();
+    snap.docs.forEach((doc) => {
+      const data = doc.data();
+      const deadline = data.deadline || data.createdAt;
+      if (deadline && now > deadline) {
+        const ref = db.collection("enrollments").doc(doc.id);
+        batch.update(ref, { status: "Expired", expiredAt: now, updatedAt: now });
+        expired++;
+      }
+    });
+    if (expired > 0) await batch.commit();
+    return send(res, 200, { success: true, expired, message: `${expired} enrollment(s) expired` });
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
   }
 }

@@ -132,6 +132,7 @@ export default function App() {
     const path = window.location.pathname;
     if (path.startsWith("/certificate/")) return "certificate";
     if (path.startsWith("/verify/")) return "verify";
+    if (path === "/admin") return "admin";
     if (path === "/tandp") return "tandp";
     if (path === "/privacy") return "privacy";
     if (path === "/refund") return "refund";
@@ -443,6 +444,7 @@ export default function App() {
       const path = window.location.pathname;
       if (path.startsWith("/certificate/")) setCurrentView("certificate");
       else if (path.startsWith("/verify/")) setCurrentView("verify");
+      else if (path === "/admin") setCurrentView("admin");
       else if (path === "/tandp") setCurrentView("tandp");
       else if (path === "/privacy") setCurrentView("privacy");
       else if (path === "/refund") setCurrentView("refund");

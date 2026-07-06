@@ -11037,7 +11037,7 @@ function LinkedInPostSection() {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
-    if (json.url) window.open(json.url, "_blank");
+    if (json.url) window.location.href = json.url;
   }
 
   async function handlePost() {
