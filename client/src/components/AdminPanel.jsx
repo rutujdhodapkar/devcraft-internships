@@ -11031,13 +11031,26 @@ function LinkedInPostSection() {
 
   useEffect(() => { checkStatus(); }, []);
 
+  useEffect(() => {
+    const handler = (e) => { if (e.data === "linkedin-connected" || e.data === "linkedin-error") checkStatus(); };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
   async function handleConnect() {
     const token = await getToken();
     const res = await fetch(`${API_BASE}/api/linkedin/auth`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     const json = await res.json();
-    if (json.url) window.location.href = json.url;
+    if (json.url) {
+      const popup = window.open(json.url, "linkedin-auth", "width=600,height=700");
+      if (popup) {
+        const timer = setInterval(() => {
+          if (popup.closed) { clearInterval(timer); checkStatus(); }
+        }, 500);
+      }
+    }
   }
 
   async function handlePost() {
