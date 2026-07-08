@@ -1193,8 +1193,9 @@ async function handleCertificateData(req, res, enrollmentId) {
 
     // Verify ownership or admin
     const adminEmail = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
-    const adminDoc = adminEmail ? await db.collection("admins").doc(adminEmail).get() : null;
-    const isAdmin = adminDoc?.exists;
+    const isRootAdmin = adminEmail === cleanId(ROOT_ADMIN_EMAIL).toLowerCase();
+    const adminDoc = adminEmail ? await db.collection("admins").doc(emailId(adminEmail)).get() : null;
+    const isAdmin = isRootAdmin || adminDoc?.exists;
     const isOwner = enrollment.uid === decoded.uid || enrollment.userId === decoded.uid;
     if (!isAdmin && !isOwner) return send(res, 403, { success: false, message: "Access denied." });
 
