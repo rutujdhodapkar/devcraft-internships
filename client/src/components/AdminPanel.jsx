@@ -10492,13 +10492,17 @@ function AddInternSection() {
           p.documents.push(...docLines);
         });
       }
+      const domainObj = allPaths.find((p) => p.id === form.domainId || p.title === form.domain);
       const enrollment = await createEnrollment({
         ...form,
+        name: form.name.trim(),
         domainId: form.domainId || form.domain,
+        domain: domainObj?.title || form.domain,
+        duration: domainObj?.duration || "",
         projects,
-        startDate: form.startDate ? new Date(form.startDate).toISOString() : undefined,
-        endDate: form.endDate ? new Date(form.endDate).toISOString() : undefined,
-        completedAt: form.completedAt ? new Date(form.completedAt).toISOString() : undefined,
+        startDate: form.startDate || undefined,
+        endDate: form.endDate || undefined,
+        completedAt: form.completedAt || undefined,
         createdAt: new Date().toISOString(),
       });
       setMessage(`Intern added successfully! ID: ${enrollment.internId}`);

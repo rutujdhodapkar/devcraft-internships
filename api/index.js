@@ -1283,10 +1283,9 @@ async function handleCertificateData(req, res, enrollmentId) {
     const orgDoc = await getDoc(db, "siteConfig", "organization", null);
     const msmeId = orgDoc?.value?.msmeId || "";
 
-    // Date computations
-    const durationDays = parseDuration(enrollment.duration);
-    const start = new Date(enrollment.createdAt || Date.now());
-    const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
+    // Date computations — use stored startDate/endDate if available, else calculate from createdAt + duration
+    const start = enrollment.startDate ? new Date(enrollment.startDate) : new Date(enrollment.createdAt || Date.now());
+    const end = enrollment.endDate ? new Date(enrollment.endDate) : new Date(start.getTime() + parseDuration(enrollment.duration) * 24 * 60 * 60 * 1000);
     const certDate = enrollment.certificateDate ? new Date(enrollment.certificateDate) : start;
     const fmt = (d) => d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 

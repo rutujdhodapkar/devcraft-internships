@@ -1068,6 +1068,21 @@ export async function createEnrollment(data) {
   if (isCompleted && !transactionId) {
     transactionId = `manual_${id}_${Date.now()}`;
   }
+  // Parse dates properly
+  const now = new Date();
+  const createdAt = data.createdAt || now.toISOString();
+  const parseDate = (val) => {
+    if (!val) return null;
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  };
+  const startDate = parseDate(data.startDate);
+  const endDate = parseDate(data.endDate);
+  const completedAt = isCompleted && !data.completedAt ? now.toISOString() : parseDate(data.completedAt);
+  // Calculate deadline: use endDate if provided, otherwise use duration from startDate
+  const durationMs = parseDurationToMs(data.duration);
+  const deadlineStart = startDate ? new Date(startDate) : new Date(createdAt);
+  const deadline = endDate || new Date(deadlineStart.getTime() + durationMs).toISOString();
   const enrollment = {
     id,
     internId: id,
@@ -1083,6 +1098,7 @@ export async function createEnrollment(data) {
     domain: data.domain || "",
     domainId: data.domainId || "",
     projects,
+    duration: data.duration || "",
     referralCode: (data.referralCode || "").toUpperCase().trim(),
     status: data.status || "Active",
     allowedCertificate: isCompleted ? "yes" : (data.allowedCertificate || "no"),
@@ -1096,12 +1112,13 @@ export async function createEnrollment(data) {
     paymentIntentId: data.paymentIntentId || "",
     transactionId,
     overrideCompleted: data.overrideCompleted || false,
-    completedAt: isCompleted && !data.completedAt ? new Date().toISOString() : (data.completedAt || null),
-    createdAt: data.createdAt || new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    startDate,
+    endDate,
+    deadline,
+    completedAt,
+    createdAt,
+    updatedAt: now.toISOString(),
   };
-  if (data.startDate) enrollment.startDate = data.startDate;
-  if (data.endDate) enrollment.endDate = data.endDate;
   await dbPut(`enrollments/${id}`, enrollment);
   return enrollment;
 }
