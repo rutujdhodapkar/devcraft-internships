@@ -8152,14 +8152,27 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   </div>
                   <button
                     onClick={() => {
+                      const si = selectedIntern;
                       setEditingProfile({
-                        name: selectedIntern.name || "",
-                        email: selectedIntern.email || "",
-                        phone: selectedIntern.phone || "",
-                        college: selectedIntern.college || "",
-                        city: selectedIntern.city || "",
-                        country: selectedIntern.country || "",
-                        upiId: selectedIntern.upiId || "",
+                        name: si.name || "",
+                        email: si.email || "",
+                        phone: si.phone || "",
+                        college: si.college || "",
+                        city: si.city || "",
+                        country: si.country || "",
+                        upiId: si.upiId || "",
+                        uid: si.uid || "",
+                        domain: si.domain || "",
+                        status: si.status || "Active",
+                        paymentStatus: si.paymentStatus || "none",
+                        paymentAmount: si.paymentAmount ?? "",
+                        referralCode: si.referralCode || "",
+                        allowedCertificate: si.allowedCertificate || "no",
+                        startDate: si.startDate ? si.startDate.split("T")[0] : "",
+                        endDate: si.endDate ? si.endDate.split("T")[0] : "",
+                        deadline: si.deadline ? si.deadline.split("T")[0] : "",
+                        completedAt: si.completedAt ? si.completedAt.split("T")[0] : "",
+                        certificateDate: si.certificateDate ? si.certificateDate.split("T")[0] : "",
                       });
                       setShowEditProfile(true);
                     }}
@@ -9301,13 +9314,25 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       {/* ── EDIT INTERN PROFILE MODAL ── */}
       {showEditProfile && selectedIntern && function(){
         const fields = [
-          { key: "name", label: "Name" },
-          { key: "email", label: "Email" },
-          { key: "phone", label: "Phone" },
-          { key: "college", label: "College" },
-          { key: "city", label: "City" },
-          { key: "country", label: "Country" },
-          { key: "upiId", label: "UPI ID" },
+          { key: "name", label: "Name", type: "text" },
+          { key: "email", label: "Email", type: "text" },
+          { key: "phone", label: "Phone", type: "text" },
+          { key: "college", label: "College", type: "text" },
+          { key: "city", label: "City", type: "text" },
+          { key: "country", label: "Country", type: "text" },
+          { key: "upiId", label: "UPI ID", type: "text" },
+          { key: "uid", label: "UID (Firebase)", type: "text" },
+          { key: "domain", label: "Domain", type: "text" },
+          { key: "status", label: "Status", type: "select", options: ["Active", "Completed", "Expired", "Archived"] },
+          { key: "paymentStatus", label: "Payment Status", type: "select", options: ["none", "paid", "failed"] },
+          { key: "paymentAmount", label: "Payment Amount (₹)", type: "number" },
+          { key: "referralCode", label: "Referral Code", type: "text" },
+          { key: "allowedCertificate", label: "Certificate", type: "select", options: ["no", "yes"] },
+          { key: "startDate", label: "Start Date", type: "date" },
+          { key: "endDate", label: "End Date", type: "date" },
+          { key: "deadline", label: "Deadline", type: "date" },
+          { key: "completedAt", label: "Completed At", type: "date" },
+          { key: "certificateDate", label: "Certificate Date", type: "date" },
         ];
         const handleFieldChange = (key, val) => {
           setEditingProfile(prev => ({ ...prev, [key]: val }));
@@ -9350,16 +9375,27 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 <div style={{ fontSize: "0.78rem", color: "#666", marginTop: "0.25rem" }}>{selectedIntern.internId || selectedIntern.id}</div>
               </div>
               <div style={{ padding: "1.25rem 2rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                {fields.map(f => (
-                  <div key={f.key}>
-                    <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem", color: "#555" }}>{f.label}</label>
-                    <input
-                      value={editingProfile[f.key] || ""}
-                      onChange={e => handleFieldChange(f.key, e.target.value)}
-                      style={{ width: "100%", padding: "0.45rem 0.6rem", border: "2px solid #000", fontSize: "0.88rem", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-                    />
-                  </div>
-                ))}
+                {fields.map(f => {
+                  const fieldVal = editingProfile[f.key];
+                  const displayVal = f.type === "date" && fieldVal ? fieldVal.split("T")[0] : (fieldVal ?? "");
+                  return (
+                    <div key={f.key}>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem", color: "#555" }}>{f.label}</label>
+                      {f.type === "select" ? (
+                        <select value={fieldVal || ""} onChange={e => handleFieldChange(f.key, e.target.value)} style={{ width: "100%", padding: "0.45rem 0.6rem", border: "2px solid #000", fontSize: "0.88rem", outline: "none", fontFamily: "inherit", boxSizing: "border-box", background: "#fff" }}>
+                          {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          type={f.type || "text"}
+                          value={displayVal}
+                          onChange={e => handleFieldChange(f.key, e.target.value)}
+                          style={{ width: "100%", padding: "0.45rem 0.6rem", border: "2px solid #000", fontSize: "0.88rem", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div style={{ padding: "1rem 2rem", borderTop: "2px solid #000", display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
                 <button onClick={() => setShowEditProfile(false)} disabled={savingProfile} className="btn-sharp-outline" style={{ padding: "0.5rem 1.25rem", fontSize: "0.82rem", borderRadius: 0 }}>

@@ -649,10 +649,30 @@ async function handleData(req, res, routeParts) {
   if (resource === "admin-update-enrollment" && id) {
     const adminEmail = await requireAdmin(db, req, res);
     if (!adminEmail) return;
-    const allowedFields = ["name", "email", "phone", "college", "city", "country", "upiId", "photoURL", "domain"];
+    const allowedFields = [
+      "name", "email", "phone", "college", "city", "country", "upiId", "photoURL",
+      "domain", "domainId", "uid", "status", "referralCode",
+      "paymentStatus", "paymentStage", "paymentAmount", "paymentStartAmount",
+      "paymentEndAmount", "paymentTiming", "paymentIntentId", "transactionId",
+      "allowedCertificate", "overrideCompleted", "duration",
+    ];
     const updates = {};
     for (const field of allowedFields) {
       if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+    // Handle date fields separately with proper parsing
+    const dateFields = ["startDate", "endDate", "deadline", "completedAt", "createdAt", "certificateDate"];
+    for (const field of dateFields) {
+      if (req.body[field] !== undefined && req.body[field] !== null && req.body[field] !== "") {
+        const d = new Date(req.body[field]);
+        if (!isNaN(d.getTime())) updates[field] = d.toISOString();
+      } else if (req.body[field] === null || req.body[field] === "") {
+        updates[field] = null;
+      }
+    }
+    // Clear fields
+    if (req.body._clearFields) {
+      req.body._clearFields.forEach(f => { updates[f] = null; });
     }
     if (Object.keys(updates).length === 0) return send(res, 400, { success: false, message: "No valid fields to update." });
     updates.updatedAt = now();
