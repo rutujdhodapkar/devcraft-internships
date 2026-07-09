@@ -1,6 +1,6 @@
 const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
 const BREVO_API_URL = 'https://api.brevo.com/v3';
-const FROM_EMAIL = process.env.FROM_EMAIL || 'support@rutujdhodapkar.tech';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'support@fennark.xyz';
 const FROM_NAME = process.env.FROM_NAME || 'DEV/CRAFT';
 
 export function isConfigured() {
@@ -22,11 +22,11 @@ function stripHtml(html) {
 }
 
 function getPreferenceUrl(email) {
-  return `https://devcraft.rutujdhodapkar.tech/api/email/unsubscribe?email=${encodeURIComponent(email)}`;
+  return `https://www.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(email)}`;
 }
 
 function getMailtoUnsubscribe(email) {
-  return `mailto:support@rutujdhodapkar.tech?subject=Unsubscribe&body=Please%20unsubscribe%20${encodeURIComponent(email)}`;
+  return `mailto:support@fennark.xyz?subject=Unsubscribe&body=Please%20unsubscribe%20${encodeURIComponent(email)}`;
 }
 
 export async function sendEmail({ to, subject, html, type, category, unsubscribeUrl }) {

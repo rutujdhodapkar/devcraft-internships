@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const FROM_EMAIL = process.env.FROM_EMAIL || "support@rutujdhodapkar.tech";
+const FROM_EMAIL = process.env.FROM_EMAIL || "support@fennark.xyz";
 const FROM_NAME = process.env.FROM_NAME || "DEV/CRAFT";
 const BREVO_API_URL = "https://api.brevo.com/v3";
 

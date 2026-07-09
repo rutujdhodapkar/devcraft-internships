@@ -70,7 +70,7 @@ export default async function handler(req, res) {
       });
       res.setHeader('Content-Type', 'text/html');
       return res.status(200).send(page('Unsubscribed',
-        '<div class="msg">You have been unsubscribed from all emails.</div><p>You will not receive any further emails from DEV/CRAFT.</p><hr><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>'
+        '<div class="msg">You have been unsubscribed from all emails.</div><p>You will not receive any further emails from DEV/CRAFT.</p><hr><a class="btn" href="https://www.fennark.xyz">Return to Website</a>'
       ));
     }
 
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
 
     res.setHeader('Content-Type', 'text/html');
     return res.status(200).send(page('Preferences Saved',
-      '<div class="msg">Your preferences have been saved.</div><p>You will only receive the email types you selected.</p><hr><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>'
+      '<div class="msg">Your preferences have been saved.</div><p>You will only receive the email types you selected.</p><hr><a class="btn" href="https://www.fennark.xyz">Return to Website</a>'
     ));
   }
 

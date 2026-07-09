@@ -379,7 +379,7 @@ export async function processEmailCampaign(db, config, dryRun = false, onlyType 
         totalProjects: (enr.projects || []).length,
         status: user.stage,
         completedAt: enr.completedAt ? new Date(enr.completedAt).toLocaleDateString() : '',
-        unsubscribeUrl: `https://devcraft.rutujdhodapkar.tech/api/email/unsubscribe?email=${encodeURIComponent(user.email)}&cat=${encodeURIComponent(category)}`,
+        unsubscribeUrl: `https://www.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(user.email)}&cat=${encodeURIComponent(category)}`,
       };
 
       // Check for custom template in Firestore

@@ -4,7 +4,7 @@ export const CONFIG = {
   brevo: {
     apiKey: ENV.BREVO_API_KEY || '',
     apiUrl: 'https://api.brevo.com/v3',
-    fromEmail: ENV.FROM_EMAIL || 'support@rutujdhodapkar.tech',
+    fromEmail: ENV.FROM_EMAIL || 'support@fennark.xyz',
     fromName: ENV.FROM_NAME || 'DEV/CRAFT',
   },
 
@@ -34,7 +34,7 @@ export const CONFIG = {
     promoDelayAfterExpiryDays: parseInt(ENV.PROMO_DELAY_AFTER_EXPIRY_DAYS || '3', 10),
   },
 
-  domain: ENV.DOMAIN || 'https://devcraft.rutujdhodapkar.tech',
+  domain: ENV.DOMAIN || 'https://www.fennark.xyz',
 };
 
 export const STATUS = {

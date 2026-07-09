@@ -11,8 +11,8 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
   const s = settings || {};
   const columns = s.columns || [];
   const contactLinks = s.contactLinks || [
-    { label: "support@rutujdhodapkar.tech", href: "mailto:support@rutujdhodapkar.tech" },
-    { label: "contact.rutujdhodapkar.tech", href: "https://contact.rutujdhodapkar.tech" },
+    { label: "support@fennark.xyz", href: "mailto:support@fennark.xyz" },
+    { label: "contact.fennark.xyz", href: "https://contact.fennark.xyz" },
     { label: "LinkedIn", href: "https://linkedin.com/company/devcraft-internship" },
   ];
   const copyright = s.copyright || `\u00A9 ${new Date().getFullYear()} DEV/CRAFT. All rights reserved.`;

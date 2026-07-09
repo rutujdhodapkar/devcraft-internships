@@ -4020,7 +4020,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           setDodoSetupLoading(true);
                           setDodoSetupResult("");
                           try {
-                            const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.rutujdhodapkar.tech").replace(/\/api\/?$/, "");
+                            const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://www.fennark.xyz").replace(/\/api\/?$/, "");
                             const res = await fetch(`${API_BASE}/api/dodo/setup`, { method: "POST" });
                             const data = await res.json();
                             if (data.success) {

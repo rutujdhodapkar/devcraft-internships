@@ -55,6 +55,6 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html');
   return res.status(200).send(page('Approved',
     `<p>The campaign has been approved and will be sent to <strong>${approval.recipientCount || 0}</strong> recipients.</p>
-    <a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>`
+    <a class="btn" href="https://www.fennark.xyz">Return to Website</a>`
   ));
 }

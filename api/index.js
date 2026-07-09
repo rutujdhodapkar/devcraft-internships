@@ -1104,8 +1104,8 @@ const db2 = await initCosmosDb();
       const body = {
         product_cart: [{ product_id: productId, quantity: 1, amount: amountPaise }],
         metadata: { enrollment_id: enrollmentId },
-        return_url: `${req.headers.origin || "https://devcraft.rutujdhodapkar.tech"}/dashboard?dodo_success=1`,
-        cancel_url: `${req.headers.origin || "https://devcraft.rutujdhodapkar.tech"}/dashboard?dodo_cancelled=1`,
+        return_url: `${req.headers.origin || "https://www.fennark.xyz"}/dashboard?dodo_success=1`,
+        cancel_url: `${req.headers.origin || "https://www.fennark.xyz"}/dashboard?dodo_cancelled=1`,
         billing_address: { country: "IN" },
         feature_flags: { allow_currency_selection: true, redirect_immediately: false },
       };
@@ -1176,7 +1176,7 @@ const db2 = await initCosmosDb();
 async function handleQR(req, res, enrollmentId) {
   try {
     const QRCode = await import("qrcode");
-    const origin = req.headers["x-forwarded-host"] ? `https://${req.headers["x-forwarded-host"]}` : `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "devcraft.rutujdhodapkar.tech"}`;
+    const origin = req.headers["x-forwarded-host"] ? `https://${req.headers["x-forwarded-host"]}` : `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "www.fennark.xyz"}`;
     const verifyUrl = `${origin}/verify/${encodeURIComponent(enrollmentId)}`;
     const svg = await QRCode.toString(verifyUrl, { type: "svg", width: 400, margin: 2, color: { dark: "#000", light: "#fff" } });
     res.setHeader("Content-Type", "image/svg+xml");
@@ -1290,7 +1290,7 @@ async function handleCertificateData(req, res, enrollmentId) {
     const certDate = enrollment.certificateDate ? new Date(enrollment.certificateDate) : start;
     const fmt = (d) => d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-    const origin = req.headers["x-forwarded-host"] ? `https://${req.headers["x-forwarded-host"]}` : `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "devcraft.rutujdhodapkar.tech"}`;
+    const origin = req.headers["x-forwarded-host"] ? `https://${req.headers["x-forwarded-host"]}` : `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "www.fennark.xyz"}`;
     const qrCodeUrl = `${origin}/api/qr/${encodeURIComponent(enrollment.id || enrollment.internId || enrollmentId)}`;
 
     const certData = {
@@ -1474,7 +1474,7 @@ async function handleEmail(req, res, parts) {
       pendingTasks: '2', taskList: [{ title: 'Project 1', status: 'Pending' }],
       completedProjects: '1', totalProjects: '3', status: 'active',
       completedAt: '2026-07-01',
-      unsubscribeUrl: `https://devcraft.rutujdhodapkar.tech/api/email/unsubscribe?email=${encodeURIComponent(email)}`,
+      unsubscribeUrl: `https://www.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(email)}`,
     });
     if (!rendered) return send(res, 400, { success: false, message: `Unknown email type: ${type}` });
     const result = await sendEmail({ to: email, subject: rendered.subject, html: rendered.html, type });
@@ -1559,7 +1559,7 @@ async function handleEmail(req, res, parts) {
           <div class="sub">DEV/CRAFT Internship Platform</div>
           <div class="msg">You have been unsubscribed from all emails.</div>
           <p>You will not receive any further messages from DEV/CRAFT.</p>
-          <hr><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>
+          <hr><a class="btn" href="https://www.fennark.xyz">Return to Website</a>
         </div></body></html>`
       );
     }
@@ -1646,7 +1646,7 @@ async function handleEmail(req, res, parts) {
         <div class="sub">DEV/CRAFT Internship Platform</div>
         <div class="msg">Your email preferences have been updated.</div>
         <p>You will only receive the email types you selected.</p>
-        <hr><a class="btn" href="https://devcraft.rutujdhodapkar.tech">Return to Website</a>
+        <hr><a class="btn" href="https://www.fennark.xyz">Return to Website</a>
       </div></body></html>`
     );
   }
@@ -1756,7 +1756,7 @@ async function requireAdminFromDb(req, res) {
 const ALLOWED_ORIGINS = [
   "https://www.fennark.xyz",
   "https://fennark.xyz",
-  "https://devcraft.rutujdhodapkar.tech",
+  "https://www.fennark.xyz",
   "http://localhost:5173",
   "http://localhost:5174",
 ];

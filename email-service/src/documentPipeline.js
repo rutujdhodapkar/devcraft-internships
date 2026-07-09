@@ -89,7 +89,7 @@ async function getDocumentTemplate(type) {
     <p>We look forward to having you on board.</p>
     <div class="signature">
       DEV/CRAFT Internship Platform<br>
-      support@rutujdhodapkar.tech
+      support@fennark.xyz
     </div>
     </body></html>`,
 
@@ -108,7 +108,7 @@ async function getDocumentTemplate(type) {
     <p>We wish them the best in their future endeavors.</p>
     <div class="signature">
       DEV/CRAFT Internship Platform<br>
-      support@rutujdhodapkar.tech
+      support@fennark.xyz
     </div>
     </body></html>`,
   };

@@ -194,7 +194,7 @@ export default function GetServiceForm({
             </p>
             <div style={{ marginTop: '2.5rem', marginBottom: '2.5rem' }}>
               <a
-                href="https://contact.rutujdhodapkar.tech"
+                href="https://contact.fennark.xyz"
                 target="_blank"
                 rel="noreferrer"
                 className="btn-sharp"

@@ -149,7 +149,7 @@ Email: rutujdhodapkar@gmail.com</p>
 
 <h2>18. Contact Information</h2>
 <p>Email: rutujdhodapkar@gmail.com<br>
-Website: https://devcraft.rutujdhodapkar.tech</p>
+Website: https://www.fennark.xyz</p>
 
 <footer>
 DevCraft is an independent educational and skill-development platform and is not a registered company, university, government organization, or accredited certification body. Certificates are issued solely for participation and educational purposes. No employment, placement, internship, or certificate acceptance is guaranteed.
@@ -253,7 +253,7 @@ Email: rutujdhodapkar@gmail.com</p>
 
 <h2>12. Contact Information</h2>
 <p>Email: rutujdhodapkar@gmail.com<br>
-Website: https://devcraft.rutujdhodapkar.tech</p>
+Website: https://www.fennark.xyz</p>
 
 <footer>
 DevCraft is an independent educational and skill-development platform and is not a registered company, university, government organization, or accredited certification body.

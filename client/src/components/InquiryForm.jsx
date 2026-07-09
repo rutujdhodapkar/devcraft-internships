@@ -138,7 +138,7 @@ export default function InquiryForm({
             <h2>Service request saved.</h2>
             <p>{status.text}</p>
             <div className="button-row">
-              <a href="https://contact.rutujdhodapkar.tech" target="_blank" rel="noreferrer" className="btn-sharp">
+              <a href="https://contact.fennark.xyz" target="_blank" rel="noreferrer" className="btn-sharp">
                 Contact User / Inform Team
               </a>
               <button
@@ -187,7 +187,7 @@ export default function InquiryForm({
                 </div>
                 {status && !status.success && <div className="error-msg">{status.text}</div>}
                 <button className="btn-login" type="submit">Continue</button>
-                <a className="btn-google" href="https://contact.rutujdhodapkar.tech" target="_blank" rel="noreferrer">
+                <a className="btn-google" href="https://contact.fennark.xyz" target="_blank" rel="noreferrer">
                   Custom Contact
                 </a>
               </form>
@@ -238,7 +238,7 @@ export default function InquiryForm({
               <div className={`form-status ${status.success ? 'success' : ''}`}>
                 {status.text}
                 {status.success && (
-                  <a href="https://contact.rutujdhodapkar.tech" target="_blank" rel="noreferrer" className="btn-sharp">
+                  <a href="https://contact.fennark.xyz" target="_blank" rel="noreferrer" className="btn-sharp">
                     Contact User / Inform Team
                   </a>
                 )}
@@ -249,7 +249,7 @@ export default function InquiryForm({
               <button type="submit" className="btn-sharp" disabled={isSubmitting}>
                 {isSubmitting ? 'Saving...' : 'Save Request'}
               </button>
-              <a href="https://contact.rutujdhodapkar.tech" target="_blank" rel="noreferrer" className="btn-sharp-outline">
+              <a href="https://contact.fennark.xyz" target="_blank" rel="noreferrer" className="btn-sharp-outline">
                 Custom Contact
               </a>
             </div>
