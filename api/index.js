@@ -1078,12 +1078,15 @@ const DODO_ENV = process.env.DODO_PAYMENTS_ENVIRONMENT === "live" ? "live" : "te
 
 async function dodoApi(path, options = {}) {
   const base = DODO_ENV === "live" ? "https://live.dodopayments.com" : "https://test.dodopayments.com";
+  const keyPreview = DODO_KEY ? DODO_KEY.slice(0, 8) + "..." : "(empty)";
+  console.log(`Dodo API call: ${base}${path} (env=${DODO_ENV}, key=${keyPreview})`);
   const response = await fetch(`${base}${path}`, {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${DODO_KEY}`, ...(options.headers || {}) },
     ...options,
   });
   if (!response.ok) {
     const text = await response.text();
+    console.error(`Dodo API error ${response.status}: ${text.slice(0, 300)} (key=${keyPreview}, env=${DODO_ENV})`);
     throw new Error(`Dodo API error ${response.status}: ${text.slice(0, 300)}`);
   }
   return response.json();
@@ -1152,6 +1155,9 @@ const db2 = await initCosmosDb();
       const metadata = payload.metadata || {};
       const enrollmentId = metadata.enrollment_id;
       const paymentId = payload.id || payload.payment_id || "";
+      const paymentMethod = payload.payment_method || payload.method || "";
+      const paymentCurrency = payload.currency || "";
+      const paymentAmount = payload.amount || 0;
       if ((eventType === "payment.succeeded") && enrollmentId) {
         try {
           let verifiedStatus = false;
@@ -1159,10 +1165,13 @@ const db2 = await initCosmosDb();
             try {
               const payment = await dodoApi(`/payments/${paymentId}`);
               verifiedStatus = payment?.status === "succeeded";
+              if (payment) {
+                Object.assign(payload, { currency: payment.currency, amount: payment.amount, payment_method: payment.payment_method });
+              }
             } catch {}
           }
           if (!DODO_KEY) {
-            verifiedStatus = true; // trust webhook signature if no API key configured
+            verifiedStatus = true;
           }
           if (!verifiedStatus) {
             console.warn("Dodo webhook: payment verification failed for", paymentId);
@@ -1170,7 +1179,21 @@ const db2 = await initCosmosDb();
           }
           const db3 = await initCosmosDb();
           const enrRef = db3.collection("enrollments").doc(enrollmentId);
-          await enrRef.update({ paymentStatus: "paid", paymentStage: "fully_paid", paidAt: now(), paymentIntentId: paymentId, transactionId: paymentId, updatedAt: now() });
+          const updateData = {
+            paymentStatus: "paid", paymentStage: "fully_paid",
+            paidAt: now(), paymentIntentId: paymentId,
+            transactionId: paymentId, paymentMethod,
+            paymentCurrency, paymentAmount,
+            paymentGateway: "dodo", updatedAt: now()
+          };
+          await enrRef.update(updateData);
+          const historyRef = db3.collection("paymentHistory").doc();
+          await historyRef.set({
+            enrollmentId, paymentId, eventType: "payment.succeeded",
+            amount: paymentAmount, currency: paymentCurrency,
+            method: paymentMethod, gateway: "dodo",
+            createdAt: now(), updatedAt: now()
+          });
           const snap3 = await enrRef.get();
           const enr = snap3.data();
           if (enr) {
@@ -1183,7 +1206,17 @@ const db2 = await initCosmosDb();
           }
         } catch (e) { console.error("Dodo webhook update failed:", e.message); }
       } else if (eventType === "payment.failed" && enrollmentId) {
-        try { const db4 = await initCosmosDb(); await db4.collection("enrollments").doc(enrollmentId).update({ paymentStatus: "failed", updatedAt: now() }); } catch {}
+        try {
+          const db4 = await initCosmosDb();
+          await db4.collection("enrollments").doc(enrollmentId).update({ paymentStatus: "failed", updatedAt: now() });
+          const failRef = db4.collection("paymentHistory").doc();
+          await failRef.set({
+            enrollmentId, paymentId, eventType: "payment.failed",
+            amount: paymentAmount, currency: paymentCurrency,
+            method: paymentMethod, gateway: "dodo",
+            createdAt: now(), updatedAt: now()
+          });
+        } catch {}
       }
       return send(res, 200, { received: true });
     }
@@ -1819,12 +1852,32 @@ export default async function handler(req, res) {
     if (parts[0] === "certificate-data" && parts[1]) return handleCertificateData(req, res, parts[1]);
     if (parts[0] === "verify-data" && parts[1]) return handleVerifyData(req, res, parts[1]);
     if (parts[0] === "verify" && parts[1]) return handleVerify(req, res, parts[1]);
+    if (parts[0] === "payment-history" && parts[1]) return handlePaymentHistory(req, res, parts[1]);
     if (parts[0] === "auto-expire-enrollments") return handleAutoExpire(req, res);
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {
     console.error("API error:", error);
     return send(res, 500, { success: false, message: error.message || "Server error." });
+  }
+}
+
+async function handlePaymentHistory(req, res, enrollmentId) {
+  try {
+    const db = await initCosmosDb();
+    if (!db) return send(res, 503, { success: false, message: "Database not configured" });
+    const snap = await db.collection("paymentHistory").where("enrollmentId", "==", enrollmentId).get();
+    const records = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      const record = { id: doc.id };
+      ["enrollmentId","paymentId","eventType","amount","currency","method","gateway","createdAt","updatedAt"].forEach(k => { record[k] = d[k] ?? null; });
+      records.push(record);
+    });
+    records.sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || "") * -1);
+    return send(res, 200, { success: true, data: records });
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
   }
 }
 

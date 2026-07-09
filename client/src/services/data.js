@@ -1034,6 +1034,14 @@ export async function setPaymentAmount(enrollmentId, paymentAmount) {
   await dbPatch(`enrollments/${enrollmentId}`, { paymentAmount, updatedAt: new Date().toISOString() });
 }
 
+export async function fetchPaymentHistory(enrollmentId) {
+  try {
+    const res = await fetch(`${API_BASE}/api/payment-history/${enrollmentId}`);
+    const data = await res.json();
+    return data.success ? data.data : [];
+  } catch { return []; }
+}
+
 export async function updateEnrollmentField(enrollmentId, field, value) {
   await dbPatch(`enrollments/${enrollmentId}`, { [field]: value, updatedAt: new Date().toISOString() });
 }

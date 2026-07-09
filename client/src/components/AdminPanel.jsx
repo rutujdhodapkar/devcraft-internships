@@ -50,6 +50,7 @@ import {
   saveDodoConfig,
   fetchPaymentMethods,
   savePaymentMethods,
+  fetchPaymentHistory,
   fetchOrgSettings,
   fetchAuditLog,
   logAdminAction,
@@ -141,6 +142,7 @@ const TABS = [
   { id: "footer", label: "Footer" },
   { id: "popup", label: "Popup" },
   { id: "add-intern", label: "+ Add Intern" },
+  { id: "edit-interns", label: "Edit Interns" },
   { id: "csv-export", label: "CSV Export" },
   { id: "referral-leaderboard", label: "Referral Leaderboard" },
   { id: "logged-in-users", label: "Logged In Users" },
@@ -339,6 +341,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [popupContent, setPopupContent] = useState("");
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
+  const [paymentHistory, setPaymentHistory] = useState([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editingProfile, setEditingProfile] = useState({});
   const [savingProfile, setSavingProfile] = useState(false);
@@ -357,6 +360,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         inputs[`${selectedIntern.id}_${idx}`] = sub?.feedback || "";
       });
       setFeedbackInputs((prev) => ({ ...prev, ...inputs }));
+      fetchPaymentHistory(selectedIntern.id).then(setPaymentHistory);
     }
   }, [selectedIntern]);
 
@@ -8078,6 +8082,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
         {activeTab === "email" && <EmailSection />}
         {activeTab === "add-intern" && <AddInternSection />}
+        {activeTab === "edit-interns" && <EditInternsSection />}
       </div>
 
       {/* ── INTERN SUBMISSION DETAIL MODAL ── */}
@@ -9033,6 +9038,25 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 );
               })()}
             </div>
+
+            {/* Payment History */}
+            {paymentHistory.length > 0 && (
+              <div style={{ padding: "1rem 2rem", borderTop: "1px solid #ddd" }}>
+                <div style={{ fontSize: "0.7rem", fontWeight: 900, color: "#888", textTransform: "uppercase", marginBottom: "0.5rem" }}>Payment History (from webhook)</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  {paymentHistory.map((ph) => (
+                    <div key={ph.id} style={{ display: "flex", gap: "0.75rem", alignItems: "center", fontSize: "0.78rem", padding: "0.35rem 0.5rem", background: ph.eventType === "payment.succeeded" ? "#E8F5E9" : "#FFEBEE", borderLeft: ph.eventType === "payment.succeeded" ? "3px solid #34A853" : "3px solid #EA4335" }}>
+                      <span style={{ fontWeight: 700, color: ph.eventType === "payment.succeeded" ? "#34A853" : "#EA4335" }}>{ph.eventType === "payment.succeeded" ? "SUCCESS" : "FAILED"}</span>
+                      {ph.amount && <span>₹{ph.amount}</span>}
+                      {ph.currency && <span style={{ color: "#888" }}>{ph.currency}</span>}
+                      {ph.method && <span style={{ color: "#888" }}>via {ph.method}</span>}
+                      {ph.gateway && <span style={{ color: "#888" }}>({ph.gateway})</span>}
+                      <code style={{ fontSize: "0.7rem", color: "#888", marginLeft: "auto" }}>{ph.paymentId}</code>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Footer Actions */}
             <div
@@ -10652,6 +10676,146 @@ function AddInternSection() {
 }
 
 /* ── Email Automation ── */
+function EditInternsSection() {
+  const [interns, setInterns] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+
+  useEffect(() => { loadInterns(); }, []);
+
+  async function loadInterns() {
+    setLoading(true);
+    try {
+      const { fetchEnrollments } = await import("../services/data");
+      const list = await fetchEnrollments();
+      setInterns(list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)));
+    } catch (e) { setMessage("Error: " + e.message); }
+    finally { setLoading(false); }
+  }
+
+  const s = { border: "2px solid #000", padding: "0.45rem 0.75rem", fontSize: "0.88rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
+  const filtered = interns.filter(i => !search || (i.name || "").toLowerCase().includes(search.toLowerCase()) || (i.email || "").toLowerCase().includes(search.toLowerCase()) || (i.internId || i.id || "").toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "0.75rem" }}>
+        <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", margin: 0 }}>Edit Interns</h3>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <input type="text" placeholder="Search name, email, ID..." value={search} onChange={e => setSearch(e.target.value)} style={{ ...s, width: "220px" }} />
+          <button onClick={loadInterns} className="btn-sharp-outline" style={{ padding: "0.45rem 1rem", fontSize: "0.82rem", borderRadius: 0 }} disabled={loading}>{loading ? "…" : "Refresh"}</button>
+        </div>
+      </div>
+      {message && <div style={{ padding: "0.5rem 0.75rem", border: "2px solid #000", fontSize: "0.85rem", fontWeight: 600, marginBottom: "1rem", background: message.startsWith("Error") ? "#fee" : "#efe" }}>{message}</div>}
+      {loading ? <p>Loading...</p> : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+          {filtered.length === 0 && <p style={{ color: "#888" }}>No interns found.</p>}
+          {filtered.map(intern => (
+            <div key={intern.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap", border: "1px solid #e0e0e0", padding: "0.55rem 0.75rem", background: "#fafafa", fontSize: "0.82rem" }}>
+              <span style={{ fontWeight: 800, minWidth: "130px" }}>{intern.name || "—"}</span>
+              <span style={{ color: "#888", minWidth: "150px" }}>{intern.email || "—"}</span>
+              <span style={{ fontFamily: "monospace", color: "#aaa", fontSize: "0.72rem" }}>{intern.internId || intern.id}</span>
+              <span style={{ padding: "0.15rem 0.4rem", fontSize: "0.72rem", fontWeight: 700, background: intern.status === "Completed" ? "#E8F5E9" : intern.status === "Active" ? "#FFF8E1" : "#eee", border: "1px solid #ccc" }}>{intern.status || "Active"}</span>
+              <span style={{ fontSize: "0.72rem", color: "#666" }}>{intern.domain || ""}</span>
+              <button onClick={() => {
+                setEditForm({
+                  name: intern.name || "", email: intern.email || "", phone: intern.phone || "",
+                  college: intern.college || "", city: intern.city || "", country: intern.country || "",
+                  upiId: intern.upiId || "", uid: intern.uid || "", domain: intern.domain || "",
+                  status: intern.status || "Active", paymentStatus: intern.paymentStatus || "none",
+                  paymentAmount: intern.paymentAmount ?? "", referralCode: intern.referralCode || "",
+                  allowedCertificate: intern.allowedCertificate || "no",
+                  startDate: intern.startDate ? intern.startDate.split("T")[0] : "",
+                  endDate: intern.endDate ? intern.endDate.split("T")[0] : "",
+                  deadline: intern.deadline ? intern.deadline.split("T")[0] : "",
+                  completedAt: intern.completedAt ? intern.completedAt.split("T")[0] : "",
+                  certificateDate: intern.certificateDate ? intern.certificateDate.split("T")[0] : "",
+                });
+                setEditModal(intern);
+              }} className="btn-sharp" style={{ padding: "0.3rem 0.75rem", fontSize: "0.72rem", borderRadius: 0 }}>Edit</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {editModal && function(){
+        const fields = [
+          { key: "name", label: "Name", type: "text" },
+          { key: "email", label: "Email", type: "text" },
+          { key: "phone", label: "Phone", type: "text" },
+          { key: "college", label: "College", type: "text" },
+          { key: "city", label: "City", type: "text" },
+          { key: "country", label: "Country", type: "text" },
+          { key: "upiId", label: "UPI ID", type: "text" },
+          { key: "uid", label: "UID (Firebase)", type: "text" },
+          { key: "domain", label: "Domain", type: "text" },
+          { key: "status", label: "Status", type: "select", options: ["Active", "Completed", "Expired", "Archived"] },
+          { key: "paymentStatus", label: "Payment Status", type: "select", options: ["none", "paid", "failed"] },
+          { key: "paymentAmount", label: "Payment Amount (₹)", type: "number" },
+          { key: "referralCode", label: "Referral Code", type: "text" },
+          { key: "allowedCertificate", label: "Certificate", type: "select", options: ["no", "yes"] },
+          { key: "startDate", label: "Start Date", type: "date" },
+          { key: "endDate", label: "End Date", type: "date" },
+          { key: "deadline", label: "Deadline", type: "date" },
+          { key: "completedAt", label: "Completed At", type: "date" },
+          { key: "certificateDate", label: "Certificate Date", type: "date" },
+        ];
+        return (
+          <div onClick={() => !saving && setEditModal(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1001 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: "#fff", width: "100%", maxWidth: "560px", border: "2px solid #000", position: "relative", maxHeight: "90vh", overflowY: "auto" }}>
+              <div style={{ padding: "1.5rem 2rem", borderBottom: "2px solid #000" }}>
+                <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase" }}>Edit Intern</h3>
+                <div style={{ fontSize: "0.78rem", color: "#666", marginTop: "0.25rem" }}>{editModal.internId || editModal.id} — {editModal.name}</div>
+              </div>
+              <div style={{ padding: "1.25rem 2rem", display: "flex", flexDirection: "column", gap: "0.65rem" }}>
+                {fields.map(f => {
+                  const fieldVal = editForm[f.key];
+                  const displayVal = f.type === "date" && fieldVal ? fieldVal.split("T")[0] : (fieldVal ?? "");
+                  return (
+                    <div key={f.key}>
+                      <label style={{ fontSize: "0.7rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.15rem", color: "#555" }}>{f.label}</label>
+                      {f.type === "select" ? (
+                        <select value={fieldVal || ""} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={{ width: "100%", padding: "0.4rem 0.6rem", border: "2px solid #000", fontSize: "0.85rem", outline: "none", fontFamily: "inherit", boxSizing: "border-box", background: "#fff" }}>
+                          {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <input type={f.type || "text"} value={displayVal} onChange={e => setEditForm(p => ({ ...p, [f.key]: e.target.value }))} style={{ width: "100%", padding: "0.4rem 0.6rem", border: "2px solid #000", fontSize: "0.85rem", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ padding: "1rem 2rem", borderTop: "2px solid #000", display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+                <button onClick={() => setEditModal(null)} disabled={saving} className="btn-sharp-outline" style={{ padding: "0.5rem 1.25rem", fontSize: "0.82rem", borderRadius: 0 }}>Cancel</button>
+                <button onClick={async () => {
+                  setSaving(true);
+                  try {
+                    const { adminUpdateEnrollment } = await import("../services/data");
+                    const res = await adminUpdateEnrollment(editModal.id, editForm);
+                    if (res?.success) {
+                      setMessage("Saved successfully.");
+                      setEditModal(null);
+                      await loadInterns();
+                    } else {
+                      setMessage("Failed to save.");
+                    }
+                  } catch (err) { setMessage("Error: " + err.message); }
+                  finally { setSaving(false); }
+                }} disabled={saving} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", fontSize: "0.82rem", borderRadius: 0, background: "#000", color: "#fff" }}>
+                  {saving ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }()}
+    </div>
+  );
+}
+
 function EmailSection() {
   const [tab, setTab] = useState("dashboard");
   const [config, setConfig] = useState(null);
