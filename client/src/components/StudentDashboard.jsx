@@ -57,7 +57,9 @@ export default function StudentDashboard({
   const [paymentMethod, setPaymentMethod] = useState(null); // 'upi' | 'dodo' | null
   const [showPaymentChoice, setShowPaymentChoice] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState(null);
-
+  const [couponCode, setCouponCode] = useState("");
+  const [couponError, setCouponError] = useState("");
+  const [couponDiscount, setCouponDiscount] = useState(0);
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "overview");
   const [referralStat, setReferralStat] = useState(null);
