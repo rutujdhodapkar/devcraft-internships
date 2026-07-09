@@ -1038,6 +1038,19 @@ export async function updateEnrollmentField(enrollmentId, field, value) {
   await dbPatch(`enrollments/${enrollmentId}`, { [field]: value, updatedAt: new Date().toISOString() });
 }
 
+export async function adminUpdateEnrollment(enrollmentId, updates) {
+  return apiFetch(`/api/data/admin-update-enrollment/${enrollmentId}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function adminDownloadDoc(enrollmentId, docType) {
+  return apiFetch(`/api/data/admin-download/${enrollmentId}?type=${encodeURIComponent(docType)}`, {
+    method: "GET",
+  });
+}
+
 export async function createEnrollment(data) {
   const id = data.internId || `DEV-CRAFT-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, "0")}`;
   const isCompleted = data.status === "Completed";

@@ -597,6 +597,56 @@ async function handleData(req, res, routeParts) {
       }
     });
   }
+  // Admin: download intern document (certificate / offer letter / any doc)
+  if (resource === "admin-download" && id) {
+    const adminEmail = await requireAdmin(db, req, res);
+    if (!adminEmail) return;
+    const enr = await getDoc(db, "enrollments", id, null);
+    if (!enr) return send(res, 404, { success: false, message: "Enrollment not found." });
+    const docType = req.query?.type || "certificate";
+    const allDocs = {
+      certificate: enr.allowedCertificate === "yes",
+      "offer-letter": true,
+      receipt: enr.paymentStatus === "paid",
+    };
+    const allowed = allDocs[docType] !== undefined;
+    if (!allowed) return send(res, 400, { success: false, message: "Unknown document type." });
+    const templatesDoc = await getDoc(db, "config", "templates", null);
+    const tpls = templatesDoc?.value?.templates || {};
+    let html = "";
+    if (docType === "offer-letter") html = tpls["Offer Letter"] || "";
+    else if (docType === "certificate") html = tpls["Certificate"] || "";
+    if (!html) return send(res, 200, { success: true, data: { html: "", message: "No template configured for " + docType } });
+    const vars = {
+      internName: enr.name || "",
+      internId: enr.internId || id,
+      domain: enr.domain || "",
+      college: enr.college || "",
+      city: enr.city || "",
+      country: enr.country || "",
+      email: enr.email || "",
+      date: new Date().toLocaleDateString("en-IN", { year: "numeric", month: "long", day: "numeric" }),
+      certificateId: `CERT-${String(enr.internId || id).toUpperCase()}`,
+    };
+    Object.entries(vars).forEach(([k, v]) => { html = html.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v || ""); });
+    return send(res, 200, { success: true, data: { html, filename: `${docType}_${id}.html` } });
+  }
+  // Admin: update enrollment profile fields
+  if (resource === "admin-update-enrollment" && id) {
+    const adminEmail = await requireAdmin(db, req, res);
+    if (!adminEmail) return;
+    const allowedFields = ["name", "email", "phone", "college", "city", "country", "upiId", "photoURL", "domain"];
+    const updates = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    }
+    if (Object.keys(updates).length === 0) return send(res, 400, { success: false, message: "No valid fields to update." });
+    updates.updatedAt = now();
+    updates.lastEditedBy = adminEmail;
+    await db.collection("enrollments").doc(id).update(updates);
+    const updated = await getDoc(db, "enrollments", id, null);
+    return send(res, 200, { success: true, data: updated });
+  }
   return send(res, 404, { success: false, message: "Unknown API route." });
 }
 

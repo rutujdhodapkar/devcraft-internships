@@ -85,6 +85,8 @@ import {
   fetchEmailAutomationLog,
   triggerManualEmailType,
   fetchAiPendingEnrollments,
+  adminUpdateEnrollment,
+  adminDownloadDoc,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -337,6 +339,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [popupContent, setPopupContent] = useState("");
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editingProfile, setEditingProfile] = useState({});
+  const [savingProfile, setSavingProfile] = useState(false);
   // Task feedback & certificate approval states
   const [feedbackInputs, setFeedbackInputs] = useState({}); // { [enrollmentId_projectIdx]: string }
   const [savingFeedback, setSavingFeedback] = useState({}); // { [key]: bool }
@@ -8145,6 +8150,24 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       {selectedIntern.name}
                     </h3>
                   </div>
+                  <button
+                    onClick={() => {
+                      setEditingProfile({
+                        name: selectedIntern.name || "",
+                        email: selectedIntern.email || "",
+                        phone: selectedIntern.phone || "",
+                        college: selectedIntern.college || "",
+                        city: selectedIntern.city || "",
+                        country: selectedIntern.country || "",
+                        upiId: selectedIntern.upiId || "",
+                      });
+                      setShowEditProfile(true);
+                    }}
+                    className="btn-sharp-outline"
+                    style={{ padding: "0.35rem 0.75rem", fontSize: "0.72rem", borderRadius: 0, flexShrink: 0 }}
+                  >
+                    Edit Profile
+                  </button>
                 </div>
 
                 <div
@@ -8337,6 +8360,32 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 >
                   {isCertUnlocked(selectedIntern) ? "Print Certificate" : "Print Certificate (bypass)"}
                 </button>
+
+                <div style={{ borderTop: "1px solid #ddd", paddingTop: "0.5rem", marginTop: "0.5rem" }}>
+                  <h5 style={{ fontSize: "0.75rem", fontWeight: 900, textTransform: "uppercase", color: "#555", marginBottom: "0.35rem" }}>Download Documents</h5>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                    <button onClick={async () => {
+                      try {
+                        const res = await adminDownloadDoc(selectedIntern.id, "offer-letter");
+                        if (res?.data?.html) {
+                          const w = window.open("", "_blank");
+                          if (w) { w.document.write(res.data.html); w.document.close(); setTimeout(() => w.print(), 500); }
+                        } else notify(res?.data?.message || "No template", "warning");
+                      } catch (e) { notify("Failed: " + e.message, "error"); }
+                    }} className="btn-sharp-outline" style={{ padding: "0.4rem 0.75rem", fontSize: "0.72rem", borderRadius: 0, width: "100%" }}>Download Offer Letter</button>
+                    {selectedIntern.allowedCertificate === "yes" && (
+                      <button onClick={async () => {
+                        try {
+                          const res = await adminDownloadDoc(selectedIntern.id, "certificate");
+                          if (res?.data?.html) {
+                            const w = window.open("", "_blank");
+                            if (w) { w.document.write(res.data.html); w.document.close(); setTimeout(() => w.print(), 500); }
+                          } else notify(res?.data?.message || "No template", "warning");
+                        } catch (e) { notify("Failed: " + e.message, "error"); }
+                      }} className="btn-sharp-outline" style={{ padding: "0.4rem 0.75rem", fontSize: "0.72rem", borderRadius: 0, width: "100%" }}>Download Certificate</button>
+                    )}
+                  </div>
+                </div>
 
                 <div style={{ borderTop: "1px solid #ddd", margin: "0.5rem 0", paddingTop: "0.5rem", fontSize: "0.75rem" }}>
                   <label style={{ fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Certificate Date Override</label>
@@ -9248,6 +9297,82 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           </div>
         </div>
         </div>
+        );
+      }()}
+
+      {/* ── EDIT INTERN PROFILE MODAL ── */}
+      {showEditProfile && selectedIntern && function(){
+        const fields = [
+          { key: "name", label: "Name" },
+          { key: "email", label: "Email" },
+          { key: "phone", label: "Phone" },
+          { key: "college", label: "College" },
+          { key: "city", label: "City" },
+          { key: "country", label: "Country" },
+          { key: "upiId", label: "UPI ID" },
+        ];
+        const handleFieldChange = (key, val) => {
+          setEditingProfile(prev => ({ ...prev, [key]: val }));
+        };
+        const handleSaveProfile = async () => {
+          setSavingProfile(true);
+          try {
+            const res = await adminUpdateEnrollment(selectedIntern.id, editingProfile);
+            if (res?.success && res?.data) {
+              setSelectedIntern(prev => ({ ...prev, ...res.data }));
+              notify("Profile updated successfully.", "success");
+              setShowEditProfile(false);
+              await loadData();
+            } else {
+              notify("Failed to update profile.", "error");
+            }
+          } catch (err) {
+            notify("Error: " + err.message, "error");
+          } finally {
+            setSavingProfile(false);
+          }
+        };
+        return (
+          <div
+            onClick={() => !savingProfile && setShowEditProfile(false)}
+            style={{
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)",
+              display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1001,
+            }}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: "#fff", width: "100%", maxWidth: "520px",
+                border: "2px solid #000", position: "relative",
+              }}
+            >
+              <div style={{ padding: "1.5rem 2rem", borderBottom: "2px solid #000" }}>
+                <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase" }}>Edit Intern Profile</h3>
+                <div style={{ fontSize: "0.78rem", color: "#666", marginTop: "0.25rem" }}>{selectedIntern.internId || selectedIntern.id}</div>
+              </div>
+              <div style={{ padding: "1.25rem 2rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {fields.map(f => (
+                  <div key={f.key}>
+                    <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", display: "block", marginBottom: "0.2rem", color: "#555" }}>{f.label}</label>
+                    <input
+                      value={editingProfile[f.key] || ""}
+                      onChange={e => handleFieldChange(f.key, e.target.value)}
+                      style={{ width: "100%", padding: "0.45rem 0.6rem", border: "2px solid #000", fontSize: "0.88rem", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "1rem 2rem", borderTop: "2px solid #000", display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+                <button onClick={() => setShowEditProfile(false)} disabled={savingProfile} className="btn-sharp-outline" style={{ padding: "0.5rem 1.25rem", fontSize: "0.82rem", borderRadius: 0 }}>
+                  Cancel
+                </button>
+                <button onClick={handleSaveProfile} disabled={savingProfile} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", fontSize: "0.82rem", borderRadius: 0, background: "#000", color: "#fff" }}>
+                  {savingProfile ? "Saving…" : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </div>
         );
       }()}
 
