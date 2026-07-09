@@ -1753,7 +1753,31 @@ async function requireAdminFromDb(req, res) {
   } catch { send(res, 401, { success: false, message: "Auth failed" }); return null; }
 }
 
+const ALLOWED_ORIGINS = [
+  "https://www.fennark.xyz",
+  "https://fennark.xyz",
+  "https://devcraft.rutujdhodapkar.tech",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.some(o => origin.startsWith(o.replace(/\/$/, "")))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", "https://www.fennark.xyz");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "https://www.fennark.xyz");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-id-token");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+}
+
 export default async function handler(req, res) {
+  setCorsHeaders(req, res);
+  if (req.method === "OPTIONS") return send(res, 200, { success: true });
   try {
   // Ensure root admin exists in the admins collection on first request
   try {
