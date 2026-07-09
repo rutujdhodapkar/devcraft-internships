@@ -26,13 +26,24 @@ async function verifyFirebaseToken(idToken) {
 }
 
 async function requireAdmin(db, req, res) {
-  const idToken = req.body?.idToken;
+  const idToken = req.body?.idToken || req.query?.idToken || req.headers["x-id-token"];
   const decoded = idToken ? await verifyFirebaseToken(idToken) : null;
   const email = decoded?.email ? cleanId(decoded.email).toLowerCase() : null;
   if (!email) return send(res, 401, { success: false, message: "Authentication required." });
+  if (email === ROOT_ADMIN_EMAIL) return email;
   const adminDoc = await getDoc(db, "admins", emailId(email), null);
   if (!adminDoc) return send(res, 403, { success: false, message: "Unauthorized. Admin access required." });
   return email;
+}
+
+async function requireAdminFromToken(db, idToken) {
+  if (!idToken) return null;
+  const decoded = await verifyFirebaseToken(idToken);
+  const email = decoded?.email ? cleanId(decoded.email).toLowerCase() : null;
+  if (!email) return null;
+  if (email === ROOT_ADMIN_EMAIL) return email;
+  const adminDoc = await getDoc(db, "admins", emailId(email), null);
+  return adminDoc ? email : null;
 }
 
 async function adminWrite(db, req, res, writeFn) {
@@ -603,14 +614,17 @@ async function handleData(req, res, routeParts) {
     if (!adminEmail) return;
     const enr = await getDoc(db, "enrollments", id, null);
     if (!enr) return send(res, 404, { success: false, message: "Enrollment not found." });
-    const docType = req.query?.type || "certificate";
+    const docType = (req.query?.type || req.body?.type || "certificate").toLowerCase();
     const allDocs = {
-      certificate: enr.allowedCertificate === "yes",
+      certificate: true,
       "offer-letter": true,
-      receipt: enr.paymentStatus === "paid",
+      receipt: true,
     };
-    const allowed = allDocs[docType] !== undefined;
-    if (!allowed) return send(res, 400, { success: false, message: "Unknown document type." });
+    if (!allDocs[docType]) return send(res, 400, { success: false, message: "Unknown document type." });
+    // For certificate, auto-allow if admin is requesting
+    if (enr.allowedCertificate !== "yes" && docType === "certificate") {
+      await db.collection("enrollments").doc(id).update({ allowedCertificate: "yes", updatedAt: now() });
+    }
     const templatesDoc = await getDoc(db, "config", "templates", null);
     const tpls = templatesDoc?.value?.templates || {};
     let html = "";
@@ -1241,10 +1255,19 @@ async function handleCertificateData(req, res, enrollmentId) {
 
     const enrollment = snap.data();
 
-    // Verify ownership or admin
-    const adminEmail = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
-    const adminDoc = adminEmail ? await db.collection("admins").doc(adminEmail).get() : null;
-    const isAdmin = adminDoc?.exists;
+    // Verify ownership or admin (using emailId for Cosmos admin lookup)
+    const adminEmail = decoded?.email ? cleanId(decoded.email).toLowerCase() : null;
+    let isAdmin = false;
+    if (adminEmail) {
+      if (adminEmail === ROOT_ADMIN_EMAIL) {
+        isAdmin = true;
+      } else {
+        try {
+          const adminSnap = await db.collection("admins").doc(emailId(adminEmail)).get();
+          isAdmin = adminSnap?.exists;
+        } catch {}
+      }
+    }
     const isOwner = enrollment.uid === decoded.uid || enrollment.userId === decoded.uid;
     if (!isAdmin && !isOwner) return send(res, 403, { success: false, message: "Access denied." });
 

@@ -1046,8 +1046,11 @@ export async function adminUpdateEnrollment(enrollmentId, updates) {
 }
 
 export async function adminDownloadDoc(enrollmentId, docType) {
-  return apiFetch(`/api/data/admin-download/${enrollmentId}?type=${encodeURIComponent(docType)}`, {
-    method: "GET",
+  const { getFirebaseIdToken } = await import("../firebase");
+  const idToken = await getFirebaseIdToken();
+  return apiFetch(`/api/data/admin-download/${enrollmentId}`, {
+    method: "POST",
+    body: JSON.stringify({ type: docType, idToken }),
   });
 }
 

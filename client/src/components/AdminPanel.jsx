@@ -8373,17 +8373,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         } else notify(res?.data?.message || "No template", "warning");
                       } catch (e) { notify("Failed: " + e.message, "error"); }
                     }} className="btn-sharp-outline" style={{ padding: "0.4rem 0.75rem", fontSize: "0.72rem", borderRadius: 0, width: "100%" }}>Download Offer Letter</button>
-                    {selectedIntern.allowedCertificate === "yes" && (
-                      <button onClick={async () => {
-                        try {
-                          const res = await adminDownloadDoc(selectedIntern.id, "certificate");
-                          if (res?.data?.html) {
-                            const w = window.open("", "_blank");
-                            if (w) { w.document.write(res.data.html); w.document.close(); setTimeout(() => w.print(), 500); }
-                          } else notify(res?.data?.message || "No template", "warning");
-                        } catch (e) { notify("Failed: " + e.message, "error"); }
-                      }} className="btn-sharp-outline" style={{ padding: "0.4rem 0.75rem", fontSize: "0.72rem", borderRadius: 0, width: "100%" }}>Download Certificate</button>
-                    )}
+                    <button onClick={async () => {
+                      try {
+                        const res = await adminDownloadDoc(selectedIntern.id, "certificate");
+                        if (res?.data?.html) {
+                          const w = window.open("", "_blank");
+                          if (w) { w.document.write(res.data.html); w.document.close(); setTimeout(() => w.print(), 500); }
+                        } else notify(res?.data?.message || "No template", "warning");
+                      } catch (e) { notify("Failed: " + e.message, "error"); }
+                    }} className="btn-sharp-outline" style={{ padding: "0.4rem 0.75rem", fontSize: "0.72rem", borderRadius: 0, width: "100%" }}>Download Certificate</button>
                   </div>
                 </div>
 
