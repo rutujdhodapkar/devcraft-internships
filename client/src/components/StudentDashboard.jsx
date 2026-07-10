@@ -22,10 +22,6 @@ import {
   unhideEnrollmentFromUser,
   fetchBadges,
   fetchUserBadges,
-  fetchSubscriptionPlans,
-  fetchUserSubscription,
-  updateUserSubscription,
-  fetchMilestones,
 } from "../services/data";
 import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
@@ -527,7 +523,6 @@ export default function StudentDashboard({
               { id: "completed", label: "Completed", icon: "\u2713" },
               { id: "referral", label: "Refer & Earn", icon: "\u2197" },
               { id: "badges", label: "Badges", icon: "\u2606" },
-              { id: "subscription", label: "Subscription", icon: "\u25C7" },
               { id: "hidden", label: "Hidden", icon: "\u2716" },
             ].map((tab) => (
               <button
@@ -1154,8 +1149,6 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "badges" ? (
           <BadgesTab user={user} fetchBadges={fetchBadges} fetchUserBadges={fetchUserBadges} />
-        ) : activeTab === "subscription" ? (
-          <SubscriptionTab user={user} fetchSubscriptionPlans={fetchSubscriptionPlans} fetchUserSubscription={fetchUserSubscription} updateUserSubscription={updateUserSubscription} notify={notify} />
         ) : enrollments.length === 0 ? (
           <div
             style={{
@@ -1391,10 +1384,12 @@ export default function StudentDashboard({
 }
 
 /* ── Badges & Micro-Certs Tab ── */
+/* ── Badges & Micro-Certs Tab (with HTML templates) ── */
 function BadgesTab({ user, fetchBadges, fetchUserBadges }) {
   const [badges, setBadges] = useState([]);
   const [userBadges, setUserBadges] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [previewBadge, setPreviewBadge] = useState(null);
 
   useEffect(() => {
     Promise.all([
@@ -1408,6 +1403,16 @@ function BadgesTab({ user, fetchBadges, fetchUserBadges }) {
 
   const earnedIds = new Set((userBadges || []).map(b => b.badgeId || b.id));
 
+  function renderHtmlTemplate(tpl, badge) {
+    if (!tpl) return null;
+    let html = tpl
+      .replace(/\{\{badge\.title\}\}/g, badge.title || "")
+      .replace(/\{\{badge\.icon\}\}/g, badge.icon || "")
+      .replace(/\{\{badge\.description\}\}/g, badge.description || "")
+      .replace(/\{\{badge\.type\}\}/g, badge.type || "");
+    return { __html: html };
+  }
+
   return (
     <div>
       <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
@@ -1416,124 +1421,66 @@ function BadgesTab({ user, fetchBadges, fetchUserBadges }) {
         {badges.length === 0 ? (
           <p style={{ color: "#888", fontStyle: "italic", fontSize: "0.9rem" }}>No badges available yet.</p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "1rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem" }}>
             {badges.map(b => {
               const earned = earnedIds.has(b.id);
               return (
                 <div key={b.id} style={{
                   border: `2px solid ${earned ? "#34A853" : "#ddd"}`,
-                  padding: "1rem",
+                  padding: b.htmlTemplate ? "0" : "1rem",
                   textAlign: "center",
                   background: earned ? "#f0fdf4" : "#fafafa",
                   opacity: earned ? 1 : 0.6,
                   transition: "all 0.2s",
-                }}>
-                  <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{b.icon || "★"}</div>
-                  <div style={{ fontWeight: 800, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.25rem" }}>{b.title}</div>
-                  <div style={{ fontSize: "0.7rem", color: "#888", marginBottom: "0.5rem" }}>{b.type === "micro-cert" ? "Micro-Certification" : "Badge"}</div>
-                  <div style={{
-                    display: "inline-block",
-                    padding: "0.15rem 0.6rem",
-                    fontSize: "0.65rem",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    background: earned ? "#34A853" : "#ccc",
-                    color: "#fff",
-                  }}>
-                    {earned ? "Earned" : "Locked"}
-                  </div>
-                  {b.description && <div style={{ fontSize: "0.7rem", color: "#666", marginTop: "0.4rem" }}>{b.description}</div>}
+                  overflow: "hidden",
+                  cursor: b.htmlTemplate ? "pointer" : "default",
+                }}
+                  onClick={() => { if (b.htmlTemplate) setPreviewBadge(previewBadge?.id === b.id ? null : b); }}
+                >
+                  {b.htmlTemplate && earned ? (
+                    <div dangerouslySetInnerHTML={renderHtmlTemplate(b.htmlTemplate, b)} />
+                  ) : (
+                    <>
+                      <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{b.icon || "★"}</div>
+                      <div style={{ fontWeight: 800, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.25rem" }}>{b.title}</div>
+                      <div style={{ fontSize: "0.7rem", color: "#888", marginBottom: "0.5rem" }}>{b.type === "micro-cert" ? "Micro-Certification" : "Badge"}</div>
+                      <div style={{
+                        display: "inline-block",
+                        padding: "0.15rem 0.6rem",
+                        fontSize: "0.65rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        background: earned ? "#34A853" : "#ccc",
+                        color: "#fff",
+                      }}>
+                        {earned ? "Earned" : "Locked"}
+                      </div>
+                      {b.description && <div style={{ fontSize: "0.7rem", color: "#666", marginTop: "0.4rem" }}>{b.description}</div>}
+                    </>
+                  )}
                 </div>
               );
             })}
           </div>
         )}
       </div>
-    </div>
-  );
-}
 
-/* ── Subscription Tab ── */
-function SubscriptionTab({ user, fetchSubscriptionPlans, fetchUserSubscription, updateUserSubscription, notify }) {
-  const [plans, setPlans] = useState([]);
-  const [sub, setSub] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activating, setActivating] = useState(null);
-
-  useEffect(() => {
-    Promise.all([
-      fetchSubscriptionPlans().catch(() => []),
-      fetchUserSubscription(user?.uid).catch(() => null),
-    ]).then(([p, s]) => { setPlans(p); setSub(s); })
-      .finally(() => setLoading(false));
-  }, [user?.uid]);
-
-  const handleActivate = async (planId) => {
-    setActivating(planId);
-    try {
-      await updateUserSubscription(user?.uid, planId, "active");
-      setSub(await fetchUserSubscription(user?.uid));
-      notify("Subscription activated!", "success");
-    } catch (e) { notify("Error: " + e.message, "error"); }
-    finally { setActivating(null); }
-  };
-
-  if (loading) return <div style={{ color: "#888", padding: "2rem", textAlign: "center" }}>Loading plans...</div>;
-
-  return (
-    <div>
-      {sub && (
-        <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>My Subscription</h3>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-            <span style={{ fontWeight: 800, fontSize: "0.95rem" }}>Plan: {sub.planId || "N/A"}</span>
-            <span style={{
-              padding: "0.15rem 0.6rem", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase",
-              background: sub.status === "active" ? "#34A853" : sub.status === "cancelled" ? "#EA4335" : "#FBBC05",
-              color: "#fff",
-            }}>{sub.status}</span>
+      {previewBadge && (
+        <div onClick={() => setPreviewBadge(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, padding: "1.5rem" }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", border: "3px solid #000", boxShadow: "10px 10px 0 #000", maxWidth: "500px", width: "100%", padding: "2rem", textAlign: "center" }}>
+            {previewBadge.htmlTemplate ? (
+              <div dangerouslySetInnerHTML={renderHtmlTemplate(previewBadge.htmlTemplate, previewBadge)} />
+            ) : (
+              <>
+                <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>{previewBadge.icon || "★"}</div>
+                <h2 style={{ fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>{previewBadge.title}</h2>
+                <p style={{ color: "#666", marginBottom: "0.5rem" }}>{previewBadge.description}</p>
+              </>
+            )}
+            <button onClick={() => setPreviewBadge(null)} className="btn-sharp" style={{ marginTop: "1rem", padding: "0.5rem 1.5rem" }}>Close</button>
           </div>
-          {sub.startedAt && <div style={{ fontSize: "0.8rem", color: "#888", marginTop: "0.3rem" }}>Since {new Date(sub.startedAt).toLocaleDateString()}</div>}
         </div>
       )}
-      <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
-        <h3 style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>Freelancer Plans</h3>
-        <p style={{ color: "#666", fontSize: "0.85rem", marginBottom: "1rem" }}>Choose a plan to unlock more features and opportunities.</p>
-        {plans.length === 0 ? (
-          <p style={{ color: "#888", fontStyle: "italic", fontSize: "0.9rem" }}>No plans available yet.</p>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: "1rem" }}>
-            {plans.map(p => {
-              const isActive = sub?.planId === p.id && sub?.status === "active";
-              const isCurrent = sub?.planId === p.id;
-              return (
-                <div key={p.id} style={{
-                  border: `2px solid ${isActive ? "#34A853" : p.popular ? "#000" : "#ddd"}`,
-                  padding: "1.25rem",
-                  background: isActive ? "#f0fdf4" : "#fff",
-                  display: "flex",
-                  flexDirection: "column",
-                  position: "relative",
-                }}>
-                  {p.popular && !isActive && <div style={{ position: "absolute", top: "-1px", right: "-1px", background: "#000", color: "#fff", padding: "0.2rem 0.6rem", fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase" }}>Popular</div>}
-                  <div style={{ fontWeight: 900, fontSize: "1rem", textTransform: "uppercase", marginBottom: "0.25rem" }}>{p.name}</div>
-                  <div style={{ fontSize: "0.78rem", color: "#666", marginBottom: "0.5rem" }}>{p.description}</div>
-                  <div style={{ fontSize: "1.5rem", fontWeight: 900, marginBottom: "0.75rem" }}>${p.price}<span style={{ fontSize: "0.7rem", fontWeight: 400, color: "#888" }}>/{p.interval}</span></div>
-                  <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem 0", flex: 1 }}>
-                    {(p.features || []).map((f, fi) => <li key={fi} style={{ fontSize: "0.78rem", padding: "0.25rem 0", borderBottom: "1px solid #eee" }}>✓ {f}</li>)}
-                  </ul>
-                  <button onClick={() => handleActivate(p.id)} disabled={activating === p.id || isActive} style={{
-                    width: "100%", padding: "0.6rem", fontSize: "0.82rem", fontWeight: 700, textTransform: "uppercase", cursor: isActive ? "default" : "pointer",
-                    background: isActive ? "#34A853" : "#000", color: "#fff", border: "2px solid #000", borderColor: isActive ? "#34A853" : "#000",
-                  }}>
-                    {activating === p.id ? "Activating..." : isActive ? "Active" : isCurrent ? "Reactivate" : "Activate"}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

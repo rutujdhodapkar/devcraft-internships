@@ -403,6 +403,83 @@ Respond ONLY with a valid JSON object (no markdown, no extra text):
   }
 });
 
+// ─── AI Badge Criteria Evaluation ─────────────────────────────────────────
+app.post('/api/ai/evaluate-badge-criteria', async (req, res) => {
+  const { criteria, userData } = req.body;
+
+  if (!criteria) {
+    return res.status(400).json({ success: false, qualifies: false, reason: 'No criteria provided' });
+  }
+
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
+    const completed = userData?.completedCount || 0;
+    const active = userData?.activeCount || 0;
+    const lower = criteria.toLowerCase();
+    let qualifies = false;
+    if (lower.includes('complete') || lower.includes('completed')) {
+      const nums = lower.match(/(\d+)/);
+      const min = nums ? parseInt(nums[1]) : 1;
+      qualifies = completed >= min;
+    } else if (lower.includes('active') || lower.includes('enrolled')) {
+      qualifies = active > 0;
+    } else if (lower.includes('any') || lower.includes('all')) {
+      qualifies = active + completed > 0;
+    }
+    return res.json({ success: true, qualifies, reason: qualifies ? 'Criteria met (fallback)' : 'Criteria not met (fallback)' });
+  }
+
+  try {
+    const enrollSummary = (userData?.enrollments || []).map(e => ({
+      domain: e.domain || e.domainId,
+      status: e.status,
+      paymentStatus: e.paymentStatus,
+      createdAt: e.createdAt,
+    }));
+
+    const prompt = `You are a badge eligibility evaluator. Determine if a user qualifies for a badge based on the following criteria.
+
+CRITERIA: "${criteria}"
+
+USER DATA:
+- Completed enrollments: ${userData?.completedCount || 0}
+- Active enrollments: ${userData?.activeCount || 0}
+- Enrollment details: ${JSON.stringify(enrollSummary)}
+
+Respond with a valid JSON object only (no markdown, no extra text):
+{
+  "qualifies": boolean,
+  "reason": "short explanation"
+}`;
+
+    const response = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: 'meta/llama-3.3-70b-instruct',
+        messages: [
+          { role: 'system', content: 'You evaluate badge eligibility. Respond with JSON only.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 200,
+      }),
+    });
+
+    if (!response.ok) throw new Error(`NVIDIA API error ${response.status}`);
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { qualifies: false, reason: 'Could not parse AI response' };
+
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Badge AI eval error:', error.message);
+    return res.json({ success: true, qualifies: false, reason: 'Evaluation error: ' + error.message });
+  }
+});
+
 // ─── Dodo Payments ─────────────────────────────────────────────────────────
 const DODO_API_KEY = process.env.DODO_PAYMENTS_API_KEY;
 const DODO_WEBHOOK_SECRET = process.env.DODO_PAYMENTS_WEBHOOK_SECRET;

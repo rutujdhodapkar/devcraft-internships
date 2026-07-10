@@ -90,11 +90,7 @@ import {
   adminDownloadDoc,
   fetchBadges,
   saveBadges,
-  fetchMilestones,
-  saveMilestones,
-  releaseMilestonePayment,
-  fetchSubscriptionPlans,
-  saveSubscriptionPlans,
+  checkAndAwardBadges,
   fetchAgencies,
   saveAgency,
   approveAgency,
@@ -169,8 +165,6 @@ const TAB_GROUPS = [
     tabs: [
       { id: "agencies", label: "Agencies" },
       { id: "badges", label: "Badges" },
-      { id: "milestones", label: "Milestones" },
-      { id: "subscriptions", label: "Subscriptions" },
     ],
   },
   {
@@ -8151,8 +8145,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "add-intern" && <AddInternSection />}
         {activeTab === "edit-interns" && <EditInternsSection />}
         {activeTab === "badges" && <BadgesSection />}
-        {activeTab === "milestones" && <MilestonesSection />}
-        {activeTab === "subscriptions" && <SubscriptionsSection />}
         {activeTab === "agencies" && <AgenciesSection />}
       </div>
 
@@ -10888,14 +10880,17 @@ function EditInternsSection() {
 }
 
 /* ── Badges & Micro-Certifications ── */
+/* ── Skill Badges & Micro-Certifications (enhanced) ── */
 function BadgesSection() {
   const [badges, setBadges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [awarding, setAwarding] = useState(false);
+  const [awardResult, setAwardResult] = useState(null);
 
   useEffect(() => { fetchBadges().then(setBadges).catch(() => {}).finally(() => setLoading(false)); }, []);
 
-  const addBadge = () => setBadges(p => [...p, { id: "b_" + Date.now(), title: "", description: "", icon: "★", type: "badge", criteria: "" }]);
+  const addBadge = () => setBadges(p => [...p, { id: "b_" + Date.now(), title: "", description: "", icon: "★", type: "badge", criteriaType: "manual", criteria: "", htmlTemplate: "" }]);
 
   const updateBadge = (idx, field, value) => setBadges(p => { const c = [...p]; c[idx] = { ...c[idx], [field]: value }; return c; });
 
@@ -10903,155 +10898,64 @@ function BadgesSection() {
 
   const handleSave = async () => { setSaving(true); try { await saveBadges(badges); await logAdminAction("save-badges", { admin: user?.email || "admin" }); notify("Badges saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
 
+  const handleCheckAndAward = async () => { setAwarding(true); setAwardResult(null); try { const r = await checkAndAwardBadges(user?.email || "admin"); setAwardResult(r); notify(`Badge check complete: ${r.length} badge(s) awarded!`, "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setAwarding(false); } };
+
   const s = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
 
   if (loading) return <div style={{ color: "#888" }}>Loading...</div>;
 
   return (
-    <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Skill Badges & Micro-Certifications</span>
-        <button onClick={addBadge} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Badge</button>
+    <div>
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <button onClick={handleCheckAndAward} disabled={awarding} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", background: "#000", color: "#fff", fontSize: "0.82rem", fontWeight: 700, cursor: awarding ? "wait" : "pointer" }}>
+          {awarding ? "Checking..." : "Check & Award Badges"}
+        </button>
+        {awardResult && (
+          <span style={{ fontSize: "0.82rem", padding: "0.5rem 0", color: "#090", fontWeight: 700 }}>
+            {awardResult.length} badge(s) awarded to users
+          </span>
+        )}
       </div>
-      <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "1rem" }}>Create badges and micro-certifications that can be awarded to users for completing skills, projects, or achievements.</p>
-      {badges.map((b, i) => (
-        <div key={b.id} style={{ border: "2px solid #000", padding: "1rem", marginBottom: "0.75rem", background: "#fafafa" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", alignItems: "end" }}>
-            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Title</label><input value={b.title} onChange={e => updateBadge(i, "title", e.target.value)} placeholder="e.g. Fast Learner" style={s} /></div>
-            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Icon</label><input value={b.icon} onChange={e => updateBadge(i, "icon", e.target.value)} placeholder="★" style={{ ...s, width: "60px" }} /></div>
-            <button onClick={() => removeBadge(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>
-          </div>
-          <div style={{ marginTop: "0.5rem" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Description</label><textarea value={b.description} onChange={e => updateBadge(i, "description", e.target.value)} placeholder="What this badge represents..." rows={2} style={{ ...s, resize: "vertical" }} /></div>
-          <div style={{ marginTop: "0.5rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Type</label>
-              <select value={b.type} onChange={e => updateBadge(i, "type", e.target.value)} style={s}>
-                <option value="badge">Badge</option>
-                <option value="micro-cert">Micro-Certification</option>
-              </select>
-            </div>
-            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Criteria</label><input value={b.criteria || ""} onChange={e => updateBadge(i, "criteria", e.target.value)} placeholder="e.g. Complete 3 projects" style={s} /></div>
-          </div>
+      <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Skill Badges & Micro-Certifications</span>
+          <button onClick={addBadge} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Badge</button>
         </div>
-      ))}
-      <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ marginTop: "1rem" }}>{saving ? "Saving..." : "Save Badges"}</button>
-    </div>
-  );
-}
-
-/* ── Milestone / Escrow Payments ── */
-function MilestonesSection() {
-  const [enrollId, setEnrollId] = useState("");
-  const [milestones, setMilestones] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const loadMilestones = async () => {
-    if (!enrollId.trim()) return;
-    setLoading(true);
-    try { setMilestones(await fetchMilestones(enrollId.trim())); } catch (e) { notify("Error: " + e.message, "error"); }
-    finally { setLoading(false); }
-  };
-
-  const addMilestone = () => setMilestones(p => [...p, { title: "", amount: 0, description: "", released: false }]);
-
-  const updateMs = (idx, field, value) => setMilestones(p => { const c = [...p]; c[idx] = { ...c[idx], [field]: value }; return c; });
-
-  const removeMs = (idx) => setMilestones(p => p.filter((_, i) => i !== idx));
-
-  const handleSave = async () => { if (!enrollId.trim()) return; setSaving(true); try { await saveMilestones(enrollId.trim(), milestones); await logAdminAction("save-milestones", { enrollmentId: enrollId.trim(), admin: user?.email || "admin" }); notify("Milestones saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
-
-  const handleRelease = async (idx) => { setSaving(true); try { await releaseMilestonePayment(enrollId.trim(), idx, user?.email || "admin"); await loadMilestones(); await logAdminAction("release-milestone", { enrollmentId: enrollId.trim(), milestone: idx, admin: user?.email || "admin" }); notify("Milestone released!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
-
-  const inputS = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-
-  return (
-    <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
-      <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase", display: "block", marginBottom: "1rem" }}>Escrow / Milestone Payments</span>
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", alignItems: "end" }}>
-        <div style={{ flex: 1 }}><label style={{ fontSize: "0.7rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Enrollment ID</label><input value={enrollId} onChange={e => setEnrollId(e.target.value)} placeholder="e.g. DEV-CRAFT-XXXXXX" style={{ ...inputS, width: "100%" }} /></div>
-        <button onClick={loadMilestones} disabled={loading} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", padding: "0.4rem 1rem", fontWeight: 700, fontSize: "0.82rem", height: "fit-content" }}>{loading ? "..." : "Load"}</button>
-        <button onClick={addMilestone} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.4rem 1rem", fontWeight: 700, fontSize: "0.82rem", height: "fit-content" }}>+ Add Milestone</button>
-      </div>
-      {milestones.map((m, i) => (
-        <div key={i} style={{ border: "2px solid #000", padding: "0.75rem", marginBottom: "0.5rem", background: m.released ? "#e6ffe6" : "#fafafa" }}>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-            <input value={m.title} onChange={e => updateMs(i, "title", e.target.value)} placeholder="Milestone title" style={{ ...inputS, flex: 1 }} />
-            <input type="number" value={m.amount} onChange={e => updateMs(i, "amount", Number(e.target.value))} placeholder="Amount" style={{ ...inputS, width: "100px" }} />
-            {m.released ? <span style={{ fontWeight: 700, color: "#090", fontSize: "0.8rem" }}>RELEASED</span> : <button onClick={() => handleRelease(i)} disabled={saving} style={{ border: "1px solid #090", color: "#090", background: "none", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.75rem", fontWeight: 700 }}>Release</button>}
-            {!m.released && <button onClick={() => removeMs(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>}
-          </div>
-          <textarea value={m.description || ""} onChange={e => updateMs(i, "description", e.target.value)} placeholder="Description of this milestone" rows={1} style={{ ...inputS, width: "100%", marginTop: "0.4rem", resize: "vertical" }} />
-          {m.released && m.releasedAt && <div style={{ fontSize: "0.72rem", color: "#666", marginTop: "0.3rem" }}>Released {new Date(m.releasedAt).toLocaleString()}</div>}
-        </div>
-      ))}
-      {milestones.length > 0 && <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ marginTop: "0.5rem" }}>{saving ? "Saving..." : "Save Milestones"}</button>}
-    </div>
-  );
-}
-
-/* ── Subscription Plans ── */
-function SubscriptionsSection() {
-  const [plans, setPlans] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => { fetchSubscriptionPlans().then(setPlans).catch(() => {}).finally(() => setLoading(false)); }, []);
-
-  const addPlan = () => setPlans(p => [...p, { id: "plan_" + Date.now(), name: "", price: 0, interval: "monthly", features: [], description: "", popular: false }]);
-
-  const updatePlan = (idx, field, value) => setPlans(p => { const c = [...p]; c[idx] = { ...c[idx], [field]: value }; return c; });
-
-  const removePlan = (idx) => setPlans(p => p.filter((_, i) => i !== idx));
-
-  const addFeature = (idx) => setPlans(p => { const c = [...p]; c[idx] = { ...c[idx], features: [...(c[idx].features || []), ""] }; return c; });
-
-  const updateFeature = (pIdx, fIdx, value) => setPlans(prev => { const c = [...prev]; const f = [...(c[pIdx].features || [])]; f[fIdx] = value; c[pIdx] = { ...c[pIdx], features: f }; return c; });
-
-  const removeFeature = (pIdx, fIdx) => setPlans(prev => { const c = [...prev]; c[pIdx] = { ...c[pIdx], features: (c[pIdx].features || []).filter((_, i) => i !== fIdx) }; return c; });
-
-  const handleSave = async () => { setSaving(true); try { await saveSubscriptionPlans(plans); await logAdminAction("save-subscription-plans", { admin: user?.email || "admin" }); notify("Plans saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
-
-  const is = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
-
-  if (loading) return <div style={{ color: "#888" }}>Loading...</div>;
-
-  return (
-    <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Freelancer Subscription Plans</span>
-        <button onClick={addPlan} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Plan</button>
-      </div>
-      <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "1rem" }}>Define subscription tiers (Free, Basic, Pro, Enterprise) with pricing and features.</p>
-      {plans.map((p, i) => (
-        <div key={p.id} style={{ border: "2px solid #000", padding: "1rem", marginBottom: "0.75rem", background: "#fafafa" }}>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "end", flexWrap: "wrap", marginBottom: "0.5rem" }}>
-            <div style={{ flex: 1 }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Name</label><input value={p.name} onChange={e => updatePlan(i, "name", e.target.value)} placeholder="e.g. Pro" style={is} /></div>
-            <div style={{ width: "100px" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Price ($)</label><input type="number" value={p.price} onChange={e => updatePlan(i, "price", Number(e.target.value))} style={{ ...is, width: "100%" }} /></div>
-            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Interval</label>
-              <select value={p.interval} onChange={e => updatePlan(i, "interval", e.target.value)} style={is}>
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option>
-                <option value="one-time">One-time</option>
-              </select>
+        <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "1rem" }}>Create badges with AI-powered criteria. Set criteria as a sentence — AI will evaluate users automatically. Optionally provide an HTML template for badge display.</p>
+        {badges.map((b, i) => (
+          <div key={b.id} style={{ border: "2px solid #000", padding: "1rem", marginBottom: "0.75rem", background: "#fafafa" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", alignItems: "end" }}>
+              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Title</label><input value={b.title} onChange={e => updateBadge(i, "title", e.target.value)} placeholder="e.g. Fast Learner" style={s} /></div>
+              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Icon</label><input value={b.icon} onChange={e => updateBadge(i, "icon", e.target.value)} placeholder="★" style={{ ...s, width: "60px" }} /></div>
+              <button onClick={() => removeBadge(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>
             </div>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
-              <input type="checkbox" checked={p.popular || false} onChange={e => updatePlan(i, "popular", e.target.checked)} /> Popular
-            </label>
-            <button onClick={() => removePlan(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>
-          </div>
-          <textarea value={p.description || ""} onChange={e => updatePlan(i, "description", e.target.value)} placeholder="Short description..." rows={1} style={{ ...is, width: "100%", resize: "vertical", marginBottom: "0.5rem" }} />
-          <div><span style={{ fontSize: "0.7rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Features</span>
-            {(p.features || []).map((f, fi) => (
-              <div key={fi} style={{ display: "flex", gap: "0.3rem", marginBottom: "0.25rem" }}>
-                <input value={f} onChange={e => updateFeature(i, fi, e.target.value)} placeholder="e.g. 50 bids/month" style={{ ...is, flex: 1 }} />
-                <button onClick={() => removeFeature(i, fi)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.4rem", fontSize: "0.7rem" }}>X</button>
+            <div style={{ marginTop: "0.5rem" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Description</label><textarea value={b.description} onChange={e => updateBadge(i, "description", e.target.value)} placeholder="What this badge represents..." rows={2} style={{ ...s, resize: "vertical" }} /></div>
+            <div style={{ marginTop: "0.5rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Type</label>
+                <select value={b.type} onChange={e => updateBadge(i, "type", e.target.value)} style={s}>
+                  <option value="badge">Badge</option>
+                  <option value="micro-cert">Micro-Certification</option>
+                </select>
               </div>
-            ))}
-            <button onClick={() => addFeature(i)} style={{ border: "1px solid #000", background: "none", cursor: "pointer", padding: "0.15rem 0.5rem", fontSize: "0.72rem", marginTop: "0.15rem" }}>+ Add Feature</button>
+              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Criteria Type</label>
+                <select value={b.criteriaType || "manual"} onChange={e => updateBadge(i, "criteriaType", e.target.value)} style={s}>
+                  <option value="manual">Manual Award</option>
+                  <option value="auto">Auto (AI-Powered)</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ marginTop: "0.5rem" }}>
+              <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>AI Criteria (natural language sentence)</label>
+              <textarea value={b.criteria || ""} onChange={e => updateBadge(i, "criteria", e.target.value)} placeholder="e.g. User has completed at least 3 projects in any domain and has been enrolled for more than 30 days" rows={2} style={{ ...s, resize: "vertical", fontStyle: b.criteriaType === "auto" ? "normal" : "italic", color: b.criteriaType === "auto" ? "#000" : "#999" }} />
+            </div>
+            <div style={{ marginTop: "0.5rem" }}>
+              <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>HTML Template (optional — shown when displaying badge to user)</label>
+              <textarea value={b.htmlTemplate || ""} onChange={e => updateBadge(i, "htmlTemplate", e.target.value)} placeholder={'<div style="text-align:center"><h2>{{badge.title}}</h2><p>{{badge.description}}</p></div>'} rows={3} style={{ ...s, resize: "vertical", fontFamily: "monospace", fontSize: "0.78rem" }} />
+            </div>
           </div>
-        </div>
-      ))}
-      <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ marginTop: "1rem" }}>{saving ? "Saving..." : "Save Plans"}</button>
+        ))}
+        <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ marginTop: "1rem" }}>{saving ? "Saving..." : "Save Badges"}</button>
+      </div>
     </div>
   );
 }

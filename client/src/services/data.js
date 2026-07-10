@@ -1704,82 +1704,49 @@ export async function revokeBadge(entryId) {
   return dbDelete(`userBadges/${entryId}`);
 }
 
-export async function fetchMicroCerts() {
-  const cached = _lsGet("microCerts");
-  if (cached) return cached;
-  const d = await dbList("microCerts");
-  const result = d || [];
-  _lsSet("microCerts", result);
-  return result;
-}
-
-export async function saveMicroCerts(certs) {
-  _lsRemove("microCerts");
-  const now = new Date().toISOString();
-  const obj = {};
-  certs.forEach(c => { obj[c.id] = { ...c, updatedAt: now }; });
-  if (Object.keys(obj).length) await dbPut("microCerts", obj);
-  return certs;
-}
-
-export async function awardMicroCert(enrollmentId, certId, userId, awardedBy) {
-  const entry = { enrollmentId, certId, userId, awardedAt: new Date().toISOString(), awardedBy };
-  return dbPost("userMicroCerts", entry);
-}
-
-export async function fetchUserMicroCerts(userId) {
-  const all = await dbList("userMicroCerts");
-  return all.filter(c => c.userId === userId);
-}
-
-// ─── Escrow / Milestone Payments ───
-export async function fetchMilestones(enrollmentId) {
-  const d = await dbGet(`milestones/${enrollmentId}`);
-  return d?.milestones || [];
-}
-
-export async function saveMilestones(enrollmentId, milestones) {
-  await dbPut(`milestones/${enrollmentId}`, { milestones, updatedAt: new Date().toISOString() });
-  return milestones;
-}
-
-export async function releaseMilestonePayment(enrollmentId, milestoneIndex, releasedBy) {
-  const d = await dbGet(`milestones/${enrollmentId}`);
-  const ms = d?.milestones || [];
-  if (ms[milestoneIndex]) {
-    ms[milestoneIndex].released = true;
-    ms[milestoneIndex].releasedAt = new Date().toISOString();
-    ms[milestoneIndex].releasedBy = releasedBy;
+export async function evaluateBadgeCriteriaAI(criteria, userData) {
+  try {
+    const res = await apiFetch("/api/ai/evaluate-badge-criteria", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ criteria, userData }),
+    });
+    return { qualifies: res?.qualifies || false, reason: res?.reason || "" };
+  } catch {
+    return { qualifies: false, reason: "AI evaluation failed" };
   }
-  await dbPut(`milestones/${enrollmentId}`, { milestones: ms, updatedAt: new Date().toISOString() });
-  return ms;
 }
 
-// ─── Subscription Plans ───
-export async function fetchSubscriptionPlans() {
-  const cached = _lsGet("subscriptionPlans");
-  if (cached) return cached;
-  const d = await dbList("subscriptionPlans");
-  const result = d || [];
-  _lsSet("subscriptionPlans", result);
-  return result;
+export async function checkAndAwardBadges(adminEmail) {
+  const [badges, allEnrollments] = await Promise.all([
+    fetchBadges().catch(() => []),
+    fetchAllEnrollments().catch(() => []),
+  ]);
+  const autoBadges = badges.filter(b => b.criteriaType === "auto" && b.criteria);
+  const results = [];
+  const userIds = [...new Set((allEnrollments || []).map(e => e.userId).filter(Boolean))];
+  for (const uid of userIds) {
+    const userEnrollments = (allEnrollments || []).filter(e => e.userId === uid);
+    const userBadges = await fetchUserBadges(uid).catch(() => []);
+    const earnedIds = new Set((userBadges || []).map(b => b.badgeId));
+    for (const badge of autoBadges) {
+      if (earnedIds.has(badge.id)) continue;
+      const { qualifies } = await evaluateBadgeCriteriaAI(badge.criteria, {
+        enrollments: userEnrollments,
+        completedCount: userEnrollments.filter(e => e.status === "Completed").length,
+        activeCount: userEnrollments.filter(e => e.status === "Active" || e.status === "In Progress").length,
+      });
+      if (qualifies) {
+        await awardBadge(uid, badge.id, adminEmail);
+        results.push({ userId: uid, badgeId: badge.id });
+      }
+    }
+  }
+  return results;
 }
 
-export async function saveSubscriptionPlans(plans) {
-  _lsRemove("subscriptionPlans");
-  const now = new Date().toISOString();
-  const obj = {};
-  plans.forEach(p => { obj[p.id] = { ...p, updatedAt: now }; });
-  if (Object.keys(obj).length) await dbPut("subscriptionPlans", obj);
-  return plans;
-}
-
-export async function updateUserSubscription(uid, planId, status = "active") {
-  await dbPut(`userSubscriptions/${uid}`, { uid, planId, status, updatedAt: new Date().toISOString() });
-}
-
-export async function fetchUserSubscription(uid) {
-  return dbGet(`userSubscriptions/${uid}`);
+async function fetchAllEnrollments() {
+  return dbList("enrollments").catch(() => []);
 }
 
 // ─── Team / Agency Accounts ───
