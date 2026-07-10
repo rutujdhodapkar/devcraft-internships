@@ -70,6 +70,24 @@ function _cacheClear(docPath) {
   }
 }
 
+// localStorage cache for static data — persists across page reloads
+const LS_TTL = 30 * 60 * 1000; // 30 minutes
+function _lsGet(key) {
+  try {
+    const raw = localStorage.getItem("lsc_" + key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (Date.now() > entry.expiresAt) { localStorage.removeItem("lsc_" + key); return null; }
+    return entry.data;
+  } catch { return null; }
+}
+function _lsSet(key, data, ttl) {
+  try { localStorage.setItem("lsc_" + key, JSON.stringify({ data, expiresAt: Date.now() + (ttl || LS_TTL) })); } catch {}
+}
+function _lsRemove(key) {
+  try { localStorage.removeItem("lsc_" + key); } catch {}
+}
+
 const FALLBACK_STEPS = [
   { id: "step_1", step: 1, title: "Select Domain", description: "Choose your internship domain from available career paths." },
   { id: "step_2", step: 2, title: "Generate Offer", description: "Sign in with Google and complete your profile to receive an instant offer letter." },
@@ -183,6 +201,8 @@ async function apiFetch(path, options = {}) {
 
 // Career Paths
 export async function fetchCareerPaths() {
+  const cached = _lsGet("careerPaths");
+  if (cached) return cached;
   const paths = await dbList("careerPaths");
   const catData = await dbGet("siteConfig/domainCategories");
   const categories = catData?.value || [];
@@ -206,11 +226,14 @@ export async function fetchCareerPaths() {
     }
     return p;
   });
-  if (!mergedPaths.length && !categories.length) return { paths: [], categories: [] };
-  return { paths: mergedPaths, categories };
+  if (!mergedPaths.length && !categories.length) { const e = { paths: [], categories: [] }; _lsSet("careerPaths", e); return e; }
+  const result = { paths: mergedPaths, categories };
+  _lsSet("careerPaths", result);
+  return result;
 }
 
 export async function saveCareerPaths(paths, categories) {
+  _lsRemove("careerPaths");
   const body = { paths: paths || [] };
   if (categories) body.categories = categories;
   await apiFetch("/api/data/career-paths", {
@@ -222,12 +245,17 @@ export async function saveCareerPaths(paths, categories) {
 
 // How It Works
 export async function fetchHowItWorks() {
+  const cached = _lsGet("howItWorks");
+  if (cached) return cached;
   const steps = await dbList("howItWorks");
   const sorted = steps.sort((a, b) => (a.step || 0) - (b.step || 0));
-  return sorted.length ? sorted : FALLBACK_STEPS;
+  const result = sorted.length ? sorted : FALLBACK_STEPS;
+  _lsSet("howItWorks", result);
+  return result;
 }
 
 export async function saveHowItWorks(steps) {
+  _lsRemove("howItWorks");
   const now = new Date().toISOString();
   const obj = {};
   steps.forEach(step => { obj[step.id] = { ...step, updatedAt: now }; });
@@ -237,11 +265,16 @@ export async function saveHowItWorks(steps) {
 
 // FAQs
 export async function fetchFAQs() {
+  const cached = _lsGet("faqs");
+  if (cached) return cached;
   const faqs = await dbList("faqs");
-  return faqs.length ? faqs : FALLBACK_FAQS;
+  const result = faqs.length ? faqs : FALLBACK_FAQS;
+  _lsSet("faqs", result);
+  return result;
 }
 
 export async function saveFAQs(faqs) {
+  _lsRemove("faqs");
   const now = new Date().toISOString();
   const obj = {};
   faqs.forEach(faq => { obj[faq.id] = { ...faq, updatedAt: now }; });
@@ -251,29 +284,39 @@ export async function saveFAQs(faqs) {
 
 // Templates
 export async function fetchTemplates() {
+  const cached = _lsGet("templates");
+  if (cached) return cached;
   const d = await dbGet("config/templates");
   const raw = d?.value || null;
-  if (!raw) return { templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] };
-  if (raw.templates) return { ...raw, templateOrder: raw.templateOrder || Object.keys(raw.templates) };
-  const old = raw;
-  return { templates: { "Offer Letter": old.offer_letter || "", "Certificate": old.certificate || "" }, templateOrder: ["Offer Letter", "Certificate"] };
+  let result;
+  if (!raw) result = { templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] };
+  else if (raw.templates) result = { ...raw, templateOrder: raw.templateOrder || Object.keys(raw.templates) };
+  else {
+    const old = raw;
+    result = { templates: { "Offer Letter": old.offer_letter || "", "Certificate": old.certificate || "" }, templateOrder: ["Offer Letter", "Certificate"] };
+  }
+  _lsSet("templates", result);
+  return result;
 }
 
 export async function saveTemplates(data) {
+  _lsRemove("templates");
   await dbPut("config/templates", { value: data, updatedAt: new Date().toISOString() });
   return data;
 }
 
 // About Text
 export async function fetchAboutText() {
+  const cached = _lsGet("aboutText");
+  if (cached) return cached;
   const d = await dbGet("config/aboutText");
-  return d?.value || "";
+  const result = d?.value || "";
+  _lsSet("aboutText", result);
+  return result;
 }
 
 export async function saveAboutText(text) {
-  await dbPut("config/aboutText", { value: text, updatedAt: new Date().toISOString() });
-  return text;
-}
+  _lsRemove("aboutText");
 
 // Inquiries
 export async function saveInquiry(inquiry) {
@@ -772,24 +815,31 @@ export async function fetchPermanentReferralCode(uid) {
 }
 
 export async function fetchEarnSettings() {
+  const cached = _lsGet("earnSettings");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/earnSettings");
-  return d?.value || null;
+  const result = d?.value || null;
+  _lsSet("earnSettings", result);
+  return result;
 }
 
 export async function saveEarnSettings(settings) {
+  _lsRemove("earnSettings");
   await dbPut("siteConfig/earnSettings", { value: settings, updatedAt: new Date().toISOString() });
   return settings;
 }
 
 export async function fetchEarnDetails() {
+  const cached = _lsGet("earnDetails");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/earnDetails");
-  return d?.value || null;
+  const result = d?.value || null;
+  _lsSet("earnDetails", result);
+  return result;
 }
 
 export async function saveEarnDetails(details) {
-  await dbPut("siteConfig/earnDetails", { value: details, updatedAt: new Date().toISOString() });
-  return details;
-}
+  _lsRemove("earnDetails");
 
 export async function fetchBannedUsers() { return dbList("bannedUsers"); }
 
@@ -847,14 +897,16 @@ export async function toggleSiteNotice(id, active) {
 export async function deleteSiteNotice(id) { await dbDelete(`siteNotices/${id}`); }
 
 export async function fetchHomepageContent() {
+  const cached = _lsGet("homepageContent");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/homepage");
-  return d?.value || null;
+  const result = d?.value || null;
+  _lsSet("homepageContent", result);
+  return result;
 }
 
 export async function saveHomepageContent(content) {
-  await dbPut("siteConfig/homepage", { value: content, updatedAt: new Date().toISOString() });
-  return content;
-}
+  _lsRemove("homepageContent");
 
 // ─── Enhanced Visit Tracking ───────────────────────────────────────────────
 function _parseBrowser(ua) {
@@ -986,24 +1038,31 @@ export async function fetchAiPendingEnrollments() {
 }
 
 export async function fetchUPISettings() {
+  const cached = _lsGet("upiSettings");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/upiSettings");
-  return d?.value || null;
+  const result = d?.value || null;
+  _lsSet("upiSettings", result);
+  return result;
 }
 
 export async function saveUPISettings(settings) {
+  _lsRemove("upiSettings");
   await dbPut("siteConfig/upiSettings", { value: settings, updatedAt: new Date().toISOString() });
   return settings;
 }
 
 export async function fetchPaymentSettings() {
+  const cached = _lsGet("paymentSettings");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/paymentSettings");
-  return d?.value || null;
+  const result = d?.value || null;
+  _lsSet("paymentSettings", result);
+  return result;
 }
 
 export async function savePaymentSettings(settings) {
-  await dbPut("siteConfig/paymentSettings", { value: settings, updatedAt: new Date().toISOString() });
-  return settings;
-}
+  _lsRemove("paymentSettings");
 
 export async function overrideCompleteEnrollment(enrollmentId, adminEmail) {
   await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), overrideCompleted: true, overriddenBy: adminEmail, updatedAt: new Date().toISOString() });
@@ -1166,24 +1225,31 @@ export async function resetRevenue() {
 }
 
 export async function fetchUserTypes() {
+  const cached = _lsGet("userTypes");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/userTypes");
-  return d?.value || [];
+  const result = d?.value || [];
+  _lsSet("userTypes", result);
+  return result;
 }
 
 export async function saveUserTypes(types) {
+  _lsRemove("userTypes");
   await dbPut("siteConfig/userTypes", { value: types, updatedAt: new Date().toISOString() });
   return types;
 }
 
 export async function fetchPayoutConfig() {
+  const cached = _lsGet("payoutConfig");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/payoutConfig");
-  return d?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 };
+  const result = d?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 };
+  _lsSet("payoutConfig", result);
+  return result;
 }
 
 export async function savePayoutConfig(config) {
-  await dbPut("siteConfig/payoutConfig", { value: config, updatedAt: new Date().toISOString() });
-  return config;
-}
+  _lsRemove("payoutConfig");
 
 export async function markReferralPayout(code, payoutAmount, payoutNote) {
   await dbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "done", payoutAmount, payoutNote, payoutAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
@@ -1194,56 +1260,74 @@ export async function clearReferralPayout(code) {
 }
 
 export async function fetchDodoConfig() {
+  const cached = _lsGet("dodoConfig");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/dodoConfig");
-  return d?.value || null;
+  const result = d?.value || null;
+  _lsSet("dodoConfig", result);
+  return result;
 }
 
 export async function saveDodoConfig(config) {
+  _lsRemove("dodoConfig");
   await dbPut("siteConfig/dodoConfig", { value: config, updatedAt: new Date().toISOString() });
   return config;
 }
 
 export async function fetchOrgSettings() {
+  const cached = _lsGet("orgSettings");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/organization");
-  return d?.value || null;
+  const result = d?.value || null;
+  _lsSet("orgSettings", result);
+  return result;
 }
 
 export async function fetchPaymentMethods() {
+  const cached = _lsGet("paymentMethods");
+  if (cached) return cached;
   const d = await dbGet("siteConfig/paymentMethods");
-  return d?.value || { upi: true, dodo: false };
+  const result = d?.value || { upi: true, dodo: false };
+  _lsSet("paymentMethods", result);
+  return result;
 }
 
 export async function savePaymentMethods(config) {
-  await dbPut("siteConfig/paymentMethods", { value: config, updatedAt: new Date().toISOString() });
-  return config;
-}
+  _lsRemove("paymentMethods");
 
-// Audit log
+// Audit log (RTDB)
 export async function fetchAuditLog() {
-  const data = await apiFetch("/api/data/audit-log");
-  return data.data || [];
+  const data = await _rtdbReadList("auditLogs");
+  return (data || []).sort((a, b) => {
+    const ta = a.timestamp || a.createdAt || "";
+    const tb = b.timestamp || b.createdAt || "";
+    return tb.localeCompare(ta);
+  });
 }
 
 export async function logAdminAction(action, details = {}) {
   try {
-    await apiFetch("/api/data/audit-log", {
-      method: "POST",
-      body: JSON.stringify({ action, ...details, timestamp: new Date().toISOString() }),
-    });
+    await _rtdbAppend("auditLogs", { action, ...details, timestamp: new Date().toISOString() });
   } catch (e) { console.warn("logAdminAction:", e.message); }
 }
 
 // Site config (generic key-value)
 export async function fetchSiteConfig(key) {
-  const cached = getCookie(`sc_${key}`);
+  const cached = _lsGet("sc_" + key);
   if (cached !== null) return cached;
+  const cachedCookie = getCookie(`sc_${key}`);
+  if (cachedCookie !== null) return cachedCookie;
   const data = await apiFetch(`/api/data/site-config?key=${encodeURIComponent(key)}`);
   const result = data.data || null;
-  if (result !== null) setCookie(`sc_${key}`, result);
+  if (result !== null) {
+    setCookie(`sc_${key}`, result);
+    _lsSet("sc_" + key, result);
+  }
   return result;
 }
 
 export async function saveSiteConfig(key, value) {
+  _lsRemove("sc_" + key);
   await apiFetch(`/api/data/site-config?key=${encodeURIComponent(key)}`, {
     method: "PUT",
     body: JSON.stringify({ value }),
@@ -1263,11 +1347,16 @@ export async function saveTheme(theme) {
 
 // What Do You Get (dedicated endpoint)
 export async function fetchWhatDoYouGet() {
+  const cached = _lsGet("whatDoYouGet");
+  if (cached) return cached;
   const data = await apiFetch("/api/data/what-do-you-get");
-  return data.data || null;
+  const result = data.data || null;
+  _lsSet("whatDoYouGet", result);
+  return result;
 }
 
 export async function saveWhatDoYouGet(whatDoYouGet) {
+  _lsRemove("whatDoYouGet");
   await apiFetch("/api/data/what-do-you-get", {
     method: "PUT",
     body: JSON.stringify({ whatDoYouGet }),
@@ -1277,11 +1366,16 @@ export async function saveWhatDoYouGet(whatDoYouGet) {
 
 // University Collaboration (dedicated endpoint)
 export async function fetchUniversityCollab() {
+  const cached = _lsGet("universityCollab");
+  if (cached) return cached;
   const d = await apiFetch("/api/data/university-collab");
-  return d.data || null;
+  const result = d.data || null;
+  _lsSet("universityCollab", result);
+  return result;
 }
 
 export async function saveUniversityCollab(content) {
+  _lsRemove("universityCollab");
   await apiFetch("/api/data/university-collab", {
     method: "PUT",
     body: JSON.stringify({ content }),
@@ -1291,11 +1385,16 @@ export async function saveUniversityCollab(content) {
 
 // Logo Loop (dedicated endpoint)
 export async function fetchLogoLoopContent() {
+  const cached = _lsGet("logoLoop");
+  if (cached) return cached;
   const d = await apiFetch("/api/data/logo-loop");
-  return d.data || null;
+  const result = d.data || null;
+  _lsSet("logoLoop", result);
+  return result;
 }
 
 export async function saveLogoLoopContent(content) {
+  _lsRemove("logoLoop");
   await apiFetch("/api/data/logo-loop", {
     method: "PUT",
     body: JSON.stringify({ content }),
@@ -1305,17 +1404,16 @@ export async function saveLogoLoopContent(content) {
 
 // Sliding Strips (dedicated endpoint)
 export async function fetchSlidingStripsContent() {
+  const cached = _lsGet("slidingStrips");
+  if (cached) return cached;
   const d = await apiFetch("/api/data/sliding-strips");
-  return d.data || null;
+  const result = d.data || null;
+  _lsSet("slidingStrips", result);
+  return result;
 }
 
 export async function saveSlidingStripsContent(content) {
-  await apiFetch("/api/data/sliding-strips", {
-    method: "PUT",
-    body: JSON.stringify({ content }),
-  });
-  return content;
-}
+  _lsRemove("slidingStrips");
 
 // Header Settings
 export async function fetchHeaderSettings() {

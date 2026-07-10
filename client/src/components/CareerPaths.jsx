@@ -51,9 +51,6 @@ function ViewAllModal({ paths, categories, onClose, onApply }) {
     return () => { document.body.style.overflow = ''; document.documentElement.style.overflow = ''; };
   }, []);
 
-  const catMap = {};
-  (categories || []).forEach((cat) => { catMap[cat.id] = cat; });
-
   const filtered = filter === 'all' ? paths : paths.filter((p) => (p.category || '__uncategorized__') === filter);
 
   return (
@@ -123,37 +120,9 @@ export default function CareerPaths({ onApplyDomain }) {
     );
   }
 
-  const enabledIds = homepageSettings?.visibleDomains;
-  let filtered = paths;
-  let hiddenPaths = [];
-  if (enabledIds && enabledIds.length > 0) {
-    filtered = paths.filter((p) => enabledIds.includes(p.id));
-    hiddenPaths = paths.filter((p) => !enabledIds.includes(p.id));
-  }
-  const maxVisible = homepageSettings?.maxVisible || filtered.length;
-  const showViewAll = filtered.length > maxVisible || hiddenPaths.length > 0;
-
-  const catMap = {};
-  (categories || []).forEach((cat) => { catMap[cat.id] = cat; });
-
-  const grouped = {};
-  (filtered || []).forEach((p) => {
-    const catId = p.category || '__uncategorized__';
-    if (!grouped[catId]) grouped[catId] = [];
-    grouped[catId].push(p);
-  });
-
-  const sections = Object.entries(grouped).map(([catId, catPaths]) => ({
-    category: catId === '__uncategorized__' ? { id: '', name: '', description: '' } : (catMap[catId] || { id: catId, name: catId, description: '' }),
-    paths: catPaths,
-  }));
-
-  const orderedSections = [];
-  (categories || []).forEach((cat) => {
-    const idx = sections.findIndex((s) => s.category.id === cat.id);
-    if (idx !== -1) { orderedSections.push(sections[idx]); sections.splice(idx, 1); }
-  });
-  orderedSections.push(...sections);
+  const enabledIds = homepageSettings?.visibleDomains || [];
+  const featured = enabledIds.length > 0 ? paths.filter((p) => enabledIds.includes(p.id)) : paths.slice(0, 3);
+  const totalCount = paths.length;
 
   return (
     <section id="domains" className="section-padding" style={{ backgroundColor: '#fff', borderBottom: '2px solid var(--border-primary)', padding: '5rem 0' }}>
@@ -166,40 +135,24 @@ export default function CareerPaths({ onApplyDomain }) {
           </p>
         </div>
 
-        {orderedSections.length === 0 ? (
+        {featured.length === 0 ? (
           <p style={{ textAlign: 'center', fontStyle: 'italic', color: 'var(--text-secondary)' }}>No domains configured yet.</p>
         ) : (
           <>
-            {orderedSections.map((section, sIdx) => {
-              let visiblePaths = section.paths;
-              if (showViewAll && sIdx === 0) {
-                visiblePaths = section.paths.slice(0, maxVisible);
-              }
-              return (
-                <div key={section.category.id || `section_${sIdx}`} style={{ marginBottom: '3rem' }}>
-                  {section.category.name && (
-                    <div style={{ marginBottom: '0.75rem' }}>
-                      <h3 style={{ fontSize: '1.6rem', fontWeight: 900, textTransform: 'uppercase' }}>{section.category.name}</h3>
-                      {section.category.description && <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{section.category.description}</p>}
-                    </div>
-                  )}
-                  <div className="career-paths-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(COLS, visiblePaths.length)}, 1fr)`, gap: '2rem', marginTop: '1.5rem' }}>
-                    {visiblePaths.map((path) => (
-                      <PathCard key={path.id} path={path} onApply={onApplyDomain} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+            <div className="career-paths-grid" style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(COLS, featured.length)}, 1fr)`, gap: '2rem', marginTop: '1.5rem' }}>
+              {featured.map((path) => (
+                <PathCard key={path.id} path={path} onApply={onApplyDomain} />
+              ))}
+            </div>
             <div style={{ textAlign: 'center', marginTop: '2rem' }}>
               <button type="button" className="btn-sharp" onClick={() => setShowAll(true)} style={{ padding: '0.85rem 3rem', fontWeight: 800, fontSize: '1rem' }}>
-                {hiddenPaths.length > 0 ? `Explore More (${filtered.length + hiddenPaths.length} domains)` : filtered.length > maxVisible ? `View All Domains (${filtered.length})` : 'Explore More Domains'}
+                Explore More ({totalCount} domains)
               </button>
             </div>
           </>
         )}
       </div>
-      {showAll && <ViewAllModal paths={[...filtered, ...hiddenPaths]} categories={categories} onClose={() => setShowAll(false)} onApply={onApplyDomain} />}
+      {showAll && <ViewAllModal paths={paths} categories={categories} onClose={() => setShowAll(false)} onApply={onApplyDomain} />}
     </section>
   );
 }

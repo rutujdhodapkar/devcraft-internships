@@ -108,45 +108,43 @@ function generateAndPrint(templateHtml, variables) {
 }
 
 const TABS = [
+  { id: "add-intern", label: "+ Add Intern" },
+  { id: "add referral", label: "+ Add Referral" },
+  { id: "manage admins", label: "Admins" },
+  { id: "archived", label: "Archived" },
+  { id: "audit-log", label: "Audit Log" },
+  { id: "banned-users", label: "Banned Users" },
+  { id: "certificates", label: "Certificates" },
+  { id: "completed", label: "Completed" },
+  { id: "csv-export", label: "CSV Export" },
   { id: "dashboard", label: "Dashboard" },
+  { id: "career paths", label: "Domains" },
+  { id: "earn-settings", label: "Earn Settings" },
+  { id: "edit-interns", label: "Edit Interns" },
+  { id: "faq", label: "FAQ" },
+  { id: "footer", label: "Footer" },
+  { id: "homepage", label: "Homepage" },
+  { id: "how it works", label: "How It Works" },
   { id: "interns", label: "Interns" },
   { id: "works", label: "Internship Works" },
-  { id: "completed", label: "Completed" },
-  { id: "certificates", label: "Certificates" },
-  { id: "verify-completion", label: "Verify Completion" },
-  { id: "archived", label: "Archived" },
-  { id: "career paths", label: "Domains" },
-  { id: "how it works", label: "How It Works" },
-  { id: "faq", label: "FAQ" },
-  { id: "payment-settings", label: "Payment Settings" },
-  { id: "user-types", label: "User Types" },
-  { id: "html templates", label: "Templates" },
-  { id: "referrals", label: "Referrals" },
-  { id: "add referral", label: "+ Add Referral" },
-  { id: "visits", label: "Visits" },
-  { id: "referral users", label: "Referral Users" },
-  { id: "verify-ai", label: "Verify with AI" },
-  { id: "earn-settings", label: "Earn Settings" },
-  { id: "banned-users", label: "Banned Users" },
+  { id: "logged-in-users", label: "Logged In Users" },
   { id: "messages", label: "Messages" },
   { id: "notice-board", label: "Notice Board" },
-  { id: "homepage", label: "Homepage" },
-  { id: "university", label: "University" },
-  { id: "manage admins", label: "Admins" },
-  { id: "audit-log", label: "Audit Log" },
-  { id: "theme", label: "Theme" },
-
-  { id: "terms", label: "Terms" },
-  { id: "privacy", label: "Privacy" },
-  { id: "refund", label: "Refund" },
-  { id: "footer", label: "Footer" },
+  { id: "payment-settings", label: "Payment Settings" },
   { id: "popup", label: "Popup" },
-  { id: "add-intern", label: "+ Add Intern" },
-  { id: "edit-interns", label: "Edit Interns" },
-  { id: "csv-export", label: "CSV Export" },
+  { id: "privacy", label: "Privacy" },
   { id: "referral-leaderboard", label: "Referral Leaderboard" },
-  { id: "logged-in-users", label: "Logged In Users" },
-  { id: "email", label: "Email Automation" },
+  { id: "referral users", label: "Referral Users" },
+  { id: "referrals", label: "Referrals" },
+  { id: "refund", label: "Refund" },
+  { id: "html templates", label: "Templates" },
+  { id: "terms", label: "Terms" },
+  { id: "theme", label: "Theme" },
+  { id: "university", label: "University" },
+  { id: "user-types", label: "User Types" },
+  { id: "verify-completion", label: "Verify Completion" },
+  { id: "verify-ai", label: "Verify with AI" },
+  { id: "visits", label: "Visits" },
 ];
 
 const DEFAULT_HOMEPAGE = {
@@ -501,7 +499,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             if (wdyg) c.whatDoYouGet = wdyg;
             setHomepageContent(c);
             homepageContentRef.current = c;
-            const d = hpSettings || { visibleDomains: [], maxVisible: cpResult.paths?.length || 6 };
+            const d = hpSettings || { visibleDomains: [] };
             setHomepageDomainSettings(d);
             homepageDomainRef.current = d;
             setAllCareerPaths(cpResult.paths || []);
@@ -509,7 +507,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           .catch(() => {
             setHomepageContent(DEFAULT_HOMEPAGE);
             homepageContentRef.current = DEFAULT_HOMEPAGE;
-            const def = { visibleDomains: [], maxVisible: 6 };
+            const def = { visibleDomains: [] };
             setHomepageDomainSettings(def);
             homepageDomainRef.current = def;
           })
@@ -854,6 +852,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setSuccessMsg("");
     try {
       await saveCareerPaths(careerPaths, domainCategories);
+      await logAdminAction("save-domains", { admin: user?.email || "admin" });
       setSuccessMsg("Career paths saved!");
     } catch (err) {
       setError(err.message);
@@ -867,6 +866,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setSuccessMsg("");
     try {
       await saveHowItWorks(howItWorksSteps);
+      await logAdminAction("save-how-it-works", { admin: user?.email || "admin" });
       setSuccessMsg("How it works saved!");
     } catch (err) {
       setError(err.message);
@@ -880,6 +880,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setSuccessMsg("");
     try {
       await saveFAQs(faqsList);
+      await logAdminAction("save-faq", { admin: user?.email || "admin" });
       setSuccessMsg("FAQs saved!");
     } catch (err) {
       setError(err.message);
@@ -893,6 +894,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setSuccessMsg("");
     try {
       await saveTemplates(templates);
+      await logAdminAction("save-templates", { admin: user?.email || "admin" });
       setSuccessMsg("Templates saved!");
     } catch (err) {
       setError(err.message);
@@ -907,6 +909,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setSuccessMsg("");
     try {
       await savePaymentSettings(paymentSettings);
+      await logAdminAction("save-payment-settings", { admin: user?.email || "admin" });
       setSuccessMsg("Payment settings saved!");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
@@ -931,6 +934,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setSuccessMsg("");
     try {
       await savePayoutConfig(payoutConfig);
+      await logAdminAction("save-payout-config", { admin: user?.email || "admin" });
       setSuccessMsg("Payout config saved!");
       setTimeout(() => setSuccessMsg(""), 3000);
     } catch (err) {
@@ -965,6 +969,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setError("");
     try {
       await addAdmin(newAdminEmail);
+      await logAdminAction("add-admin", { target: newAdminEmail, admin: user?.email || "admin" });
       setNewAdminEmail("");
       await loadAdmins();
     } catch (err) {
@@ -980,6 +985,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
       setError("");
       try {
         await removeAdmin(email);
+        await logAdminAction("remove-admin", { target: email, admin: user?.email || "admin" });
         await loadAdmins();
       } catch (err) {
         setError(err.message);
@@ -3806,7 +3812,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   </div>
                 ))}
                 {userTypes.length > 0 && (
-                  <button onClick={async () => { setUserTypesSaving(true); try { await saveUserTypes(userTypes); setSuccessMsg("User types saved!"); setTimeout(() => setSuccessMsg(""), 3000); } catch (err) { setError(err.message); } finally { setUserTypesSaving(false); } }} className="btn-sharp" disabled={userTypesSaving} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
+                  <button onClick={async () => { setUserTypesSaving(true); try { await saveUserTypes(userTypes); await logAdminAction("save-user-types", { admin: user?.email || "admin" }); setSuccessMsg("User types saved!"); setTimeout(() => setSuccessMsg(""), 3000); } catch (err) { setError(err.message); } finally { setUserTypesSaving(false); } }} className="btn-sharp" disabled={userTypesSaving} style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}>
                     {userTypesSaving ? "Saving…" : "Save User Types"}
                   </button>
                 )}
@@ -3915,6 +3921,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         setUpiSettingsSaving(true);
                         try {
                           await saveUPISettings(upiSettings);
+                          await logAdminAction("save-upi-settings", { admin: user?.email || "admin" });
                           notify("UPI settings saved!", "success");
                         } catch (err) {
                           notify("Failed to save: " + err.message, "error");
@@ -4272,6 +4279,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     try {
                       const { saveUniversityCollab } = await import("../services/data");
                       await saveUniversityCollab(universityContent || {});
+                      await logAdminAction("save-university-content", { admin: user?.email || "admin" });
                       setSuccessMsg("University content saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
                     } catch (err) { setError("Failed to save: " + err.message); }
@@ -6184,6 +6192,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         const { saveEarnSettings } =
                           await import("../services/data");
                         await saveEarnSettings(earnSettings);
+                        await logAdminAction("save-earn-settings", { admin: user?.email || "admin" });
                         setSuccessMsg("Earn settings saved!");
                         setTimeout(() => setSuccessMsg(""), 3000);
                       } catch (err) {
@@ -6491,6 +6500,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       banReason.trim(),
                       user?.email || "",
                     );
+                    await logAdminAction("ban-user", { target: banEmail.trim(), type: banType, reason: banReason.trim(), admin: user?.email || "admin" });
                     setBanEmail("");
                     setBanReason("");
                     setBanType("both");
@@ -6665,6 +6675,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             const { unbanUser, fetchBannedUsers } =
                               await import("../services/data");
                             await unbanUser(bu.email);
+                            await logAdminAction("unban-user", { target: bu.email, admin: user?.email || "admin" });
                             setBannedUsers(await fetchBannedUsers());
                             setSuccessMsg("User unbanned.");
                             setTimeout(() => setSuccessMsg(""), 3000);
@@ -7581,36 +7592,34 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   ))}
                 </div>
 
-                {/* Visible Domains */}
+                {/* Featured Domains (pick exactly 3) */}
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Visible Domains on Homepage</span>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Featured Domains on Homepage (max 3)</span>
                   </div>
-                  <div style={{ marginBottom: "0.75rem" }}>
-                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Max visible before "View All"</label>
-                    <input type="number" min={1} value={homepageDomainSettings?.maxVisible ?? 6} onChange={(e) => setHomepageDomainSettings((p) => ({ ...(p || {}), maxVisible: Number(e.target.value) }))} style={{ ...s, width: "80px" }} />
-                  </div>
-                  <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "0.5rem" }}>Select which domains appear on the homepage. Unchecked domains are hidden.</p>
+                  <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "0.5rem" }}>Select up to 3 domains to feature on the homepage. "Explore More" shows all domains.</p>
                   <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", maxHeight: "250px", overflowY: "auto", border: "1px solid #ddd", padding: "0.5rem" }}>
                     {allCareerPaths.map((cp) => {
-                      const checked = !homepageDomainSettings?.visibleDomains || homepageDomainSettings.visibleDomains.length === 0 || homepageDomainSettings.visibleDomains.includes(cp.id);
+                      const selected = homepageDomainSettings?.visibleDomains?.includes(cp.id) || false;
+                      const canSelect = !selected && (homepageDomainSettings?.visibleDomains?.length || 0) >= 3;
                       return (
-                        <label key={cp.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: "pointer" }}>
-                          <input type="checkbox" checked={checked} onChange={(e) => {
-                            const current = homepageDomainSettings?.visibleDomains || allCareerPaths.map((p) => p.id);
-                            let updated;
-                            if (e.target.checked) updated = current.includes(cp.id) ? current : [...current, cp.id];
-                            else updated = current.filter((id) => id !== cp.id);
-                            setHomepageDomainSettings((p) => ({ ...(p || {}), visibleDomains: updated }));
+                        <label key={cp.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", cursor: canSelect && !selected ? "not-allowed" : "pointer", opacity: canSelect && !selected ? 0.5 : 1 }}>
+                          <input type="checkbox" checked={selected} disabled={canSelect && !selected} onChange={(e) => {
+                            let current = homepageDomainSettings?.visibleDomains || [];
+                            if (e.target.checked) {
+                              if (current.length < 3) current = [...current, cp.id];
+                            } else {
+                              current = current.filter((id) => id !== cp.id);
+                            }
+                            setHomepageDomainSettings((p) => ({ ...(p || {}), visibleDomains: current }));
                           }} />
                           <strong>{cp.title}</strong> <span style={{ color: "#888", fontSize: "0.78rem" }}>({cp.duration || "4 Weeks"})</span>
                         </label>
                       );
                     })}
                   </div>
-                  <div style={{ marginTop: "0.5rem" }}>
-                    <button type="button" onClick={() => setHomepageDomainSettings((p) => ({ ...(p || {}), visibleDomains: allCareerPaths.map((cp) => cp.id) }))} style={{ border: "1px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.75rem", fontWeight: 700, marginRight: "0.5rem" }}>Select All</button>
-                    <button type="button" onClick={() => setHomepageDomainSettings((p) => ({ ...(p || {}), visibleDomains: [] }))} style={{ border: "1px solid #a00", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.75rem", fontWeight: 700, color: "#a00" }}>Deselect All</button>
+                  <div style={{ marginTop: "0.5rem", fontSize: "0.75rem", color: homepageDomainSettings?.visibleDomains?.length === 3 ? "#090" : "#888" }}>
+                    {homepageDomainSettings?.visibleDomains?.length || 0}/3 selected
                   </div>
                 </div>
 
@@ -7629,6 +7638,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         slidingStrips ? saveSlidingStripsContent(slidingStrips) : Promise.resolve(),
                       ]);
                       setSuccessMsg("Homepage content saved!");
+                      await logAdminAction("save-homepage", { admin: user?.email || "admin" });
                       setTimeout(() => setSuccessMsg(""), 3000);
                     } catch (err) { setError("Failed to save: " + err.message); }
                     finally { setHomepageSaving(false); }
@@ -7700,6 +7710,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     try {
                       const { saveTermsContent } = await import("../services/data");
                       await saveTermsContent(termsContent);
+                      await logAdminAction("save-terms", { admin: user?.email || "admin" });
                       setSuccessMsg("Terms & Conditions saved!");
                       setTimeout(() => setSuccessMsg(""), 3000);
                     } catch (err) {
@@ -7733,6 +7744,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   try {
                     const { savePrivacyContent } = await import("../services/data");
                     await savePrivacyContent(privacyContent);
+                    await logAdminAction("save-privacy", { admin: user?.email || "admin" });
                     setSuccessMsg("Privacy Policy saved!");
                     setTimeout(() => setSuccessMsg(""), 3000);
                   } catch (err) { setError("Failed to save: " + err.message); }
@@ -7761,6 +7773,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   try {
                     const { saveRefundContent } = await import("../services/data");
                     await saveRefundContent(refundContent);
+                    await logAdminAction("save-refund", { admin: user?.email || "admin" });
                     setSuccessMsg("Refund Policy saved!");
                     setTimeout(() => setSuccessMsg(""), 3000);
                   } catch (err) { setError("Failed to save: " + err.message); }
@@ -7849,6 +7862,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   try {
                     const { saveFooterSettings } = await import("../services/data");
                     await saveFooterSettings(footerSettings);
+                    await logAdminAction("save-footer", { admin: user?.email || "admin" });
                     setSuccessMsg("Footer settings saved!");
                     setTimeout(() => setSuccessMsg(""), 3000);
                   } catch (err) { setError("Failed to save: " + err.message); }
@@ -7923,6 +7937,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   try {
                     const { savePopupSettings } = await import("../services/data");
                     await savePopupSettings(popupSettings);
+                    await logAdminAction("save-popup", { admin: user?.email || "admin" });
                     setSuccessMsg("Popup settings saved!");
                     setTimeout(() => setSuccessMsg(""), 3000);
                   } catch (err) { setError("Failed to save: " + err.message); }
@@ -8080,7 +8095,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "csv-export" && <CSVExportSection />}
         {activeTab === "referral-leaderboard" && <ReferralLeaderboardSection />}
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
-        {activeTab === "email" && <EmailSection />}
         {activeTab === "add-intern" && <AddInternSection />}
         {activeTab === "edit-interns" && <EditInternsSection />}
       </div>
@@ -9165,7 +9179,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         type="button"
                         onClick={async () => {
                           try {
-                            await logAdminAction("mark-complete", { enrollmentId: selectedIntern.id, name: selectedIntern.name });
+                            await logAdminAction("mark-complete", { enrollmentId: selectedIntern.id, name: selectedIntern.name, admin: user?.email || "admin" });
                             if (isRejected) await clearCompletionRejection(selectedIntern.id);
                             await markEnrollmentComplete(selectedIntern.id);
                             const updated = await fetchEnrollmentById(selectedIntern.id);
@@ -9201,7 +9215,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           type="button"
                           onClick={async () => {
                             try {
-                              await logAdminAction("reject-completion", { enrollmentId: selectedIntern.id, name: selectedIntern.name, reason: selectedIntern._rejectReason || "" });
+                              await logAdminAction("reject-completion", { enrollmentId: selectedIntern.id, name: selectedIntern.name, reason: selectedIntern._rejectReason || "", admin: user?.email || "admin" });
                               await rejectEnrollmentCompletion(selectedIntern.id, selectedIntern._rejectReason || "");
                               const updated = await fetchEnrollmentById(selectedIntern.id);
                               if (updated) setSelectedIntern(updated);
@@ -10812,520 +10826,6 @@ function EditInternsSection() {
           </div>
         );
       }()}
-    </div>
-  );
-}
-
-function EmailSection() {
-  const [tab, setTab] = useState("dashboard");
-  const [config, setConfig] = useState(null);
-  const [templates, setTemplates] = useState({});
-  const [templateDetail, setTemplateDetail] = useState(null);
-  const [stats, setStats] = useState(null);
-  const [logs, setLogs] = useState([]);
-  const [subscriptions, setSubscriptions] = useState([]);
-  const [automationLog, setAutomationLog] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [editHtml, setEditHtml] = useState("");
-  const [editSubject, setEditSubject] = useState("");
-  const [testEmail, setTestEmail] = useState("");
-  const [testType, setTestType] = useState("welcome");
-  const [configDirty, setConfigDirty] = useState(false);
-  const [manualType, setManualType] = useState("welcome");
-  const [manualEmailFilter, setManualEmailFilter] = useState("");
-  const [manualResult, setManualResult] = useState("");
-
-  useEffect(() => { if (tab === "dashboard") loadDashboard(); }, [tab]);
-  useEffect(() => { if (tab === "templates") loadTemplates(); }, [tab]);
-  useEffect(() => { if (tab === "logs") loadLogs(); }, [tab]);
-  useEffect(() => { if (tab === "subscriptions") loadSubscriptions(); }, [tab]);
-  useEffect(() => { if (tab === "automation") loadAutomationLog(); }, [tab]);
-
-  async function loadDashboard() {
-    setLoading(true);
-    try {
-      const [cfg, st] = await Promise.all([fetchEmailConfig(), fetchEmailStats()]);
-      setConfig(cfg.data || {});
-      setStats(st.data || {});
-    } catch (e) { setMessage("Error loading: " + e.message); }
-    setLoading(false);
-  }
-
-  async function loadTemplates() {
-    setLoading(true);
-    try {
-      const tpls = await fetchEmailTemplates();
-      setTemplates(tpls.data || {});
-    } catch (e) { setMessage("Error loading templates: " + e.message); }
-    setLoading(false);
-  }
-
-  async function openTemplate(type) {
-    try {
-      const tpl = await fetchEmailTemplate(type);
-      setTemplateDetail(tpl.data);
-      setEditHtml(tpl.data.customHtml || tpl.data.defaultHtml || "");
-      setEditSubject(tpl.data.customSubject || tpl.data.subject || "");
-    } catch (e) { setMessage("Error: " + e.message); }
-  }
-
-  async function saveTemplate() {
-    if (!templateDetail) return;
-    try {
-      await saveEmailTemplate(templateDetail.type, { html: editHtml, subject: editSubject });
-      notify("Template saved", "success");
-      openTemplate(templateDetail.type);
-    } catch (e) { notify("Error: " + e.message, "error"); }
-  }
-
-  async function resetTemplate() {
-    if (!templateDetail) return;
-    if (!confirm("Reset to default template?")) return;
-    try {
-      await resetEmailTemplate(templateDetail.type);
-      notify("Template reset", "success");
-      openTemplate(templateDetail.type);
-    } catch (e) { notify("Error: " + e.message, "error"); }
-  }
-
-  async function loadLogs() {
-    setLoading(true);
-    try {
-      const l = await fetchEmailLogs({ limit: 200 });
-      setLogs(l.data || []);
-    } catch (e) { setMessage("Error: " + e.message); }
-    setLoading(false);
-  }
-
-  async function loadSubscriptions() {
-    setLoading(true);
-    try {
-      const subs = await fetchEmailSubscriptions();
-      setSubscriptions(subs.data || []);
-    } catch (e) { setMessage("Error: " + e.message); }
-    setLoading(false);
-  }
-
-  async function loadAutomationLog() {
-    setLoading(true);
-    try {
-      const al = await fetchEmailAutomationLog();
-      setAutomationLog(al.data || []);
-    } catch (e) { setMessage("Error: " + e.message); }
-    setLoading(false);
-  }
-
-  async function updateConfig(key, value) {
-    const updated = { ...config, [key]: value };
-    setConfig(updated);
-    setConfigDirty(true);
-  }
-
-  async function saveConfig() {
-    try {
-      await saveEmailConfig(config);
-      notify("Config saved", "success");
-      setConfigDirty(false);
-    } catch (e) { notify("Error: " + e.message, "error"); }
-  }
-
-  async function handleRunCron() {
-    if (!confirm("Run email automation now? This will send emails.")) return;
-    setLoading(true);
-    try {
-      const res = await triggerEmailCron();
-      notify(`Done! Sent: ${res.data?.emailResults?.sent || 0}, Skipped: ${res.data?.emailResults?.skipped || 0}`, "success");
-      loadDashboard();
-    } catch (e) { notify("Error: " + e.message, "error"); }
-    setLoading(false);
-  }
-
-  async function handleDryRun() {
-    setLoading(true);
-    try {
-      const res = await triggerEmailCron(true);
-      setMessage(`Dry run: would send ${res.data?.sent || 0} emails to ${res.data?.processed || 0} eligible users`);
-    } catch (e) { setMessage("Error: " + e.message); }
-    setLoading(false);
-  }
-
-  async function handleSendTest() {
-    if (!testEmail) { notify("Enter a test email", "warning"); return; }
-    setLoading(true);
-    try {
-      await sendTestEmail(testEmail, testType);
-      notify(`Test ${testType} email sent to ${testEmail}`, "success");
-    } catch (e) { notify("Error: " + e.message, "error"); }
-    setLoading(false);
-  }
-
-  async function handleManualTrigger() {
-    if (!confirm(`Send "${manualType}" emails now?`)) return;
-    setLoading(true);
-    setManualResult("");
-    try {
-      const q = new URLSearchParams({ type: manualType });
-      if (manualEmailFilter.trim()) q.set("email", manualEmailFilter.trim());
-      const res = await triggerManualEmailType(manualType, manualEmailFilter.trim());
-      setManualResult(`Type: ${manualType}\nSent: ${res.data?.sent || 0}\nSkipped: ${res.data?.skipped || 0}\nErrors: ${res.data?.errors || 0}\n${manualEmailFilter ? "Filtered by: " + manualEmailFilter : ""}`);
-      notify(`Sent ${res.data?.sent || 0} emails`, "success");
-    } catch (e) { setManualResult("Error: " + e.message); notify("Error: " + e.message, "error"); }
-    setLoading(false);
-  }
-
-  async function handleManualDryRun() {
-    setLoading(true);
-    setManualResult("");
-    try {
-      const res = await triggerManualEmailType(manualType, manualEmailFilter.trim(), true);
-      setManualResult(`Type: ${manualType}\nWould send: ${res.data?.sent || 0}\nWould skip: ${res.data?.skipped || 0}\nTotal eligible: ${res.data?.processed || 0}`);
-    } catch (e) { setManualResult("Error: " + e.message); }
-    setLoading(false);
-  }
-
-  async function unsubscribeUser(email) {
-    if (!confirm(`Unsubscribe ${email}?`)) return;
-    try {
-      await updateEmailSubscription(email, { status: "unsubscribed" });
-      notify(`${email} unsubscribed`, "success");
-      loadSubscriptions();
-    } catch (e) { notify("Error: " + e.message, "error"); }
-  }
-
-  const subTabs = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "manual", label: "Manual Trigger" },
-    { id: "config", label: "Config" },
-    { id: "templates", label: "Templates" },
-    { id: "logs", label: "Logs" },
-    { id: "subscriptions", label: "Subscriptions" },
-    { id: "automation", label: "Automation Log" },
-  ];
-
-  const cardStyle = { border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "4px 4px 0 #000" };
-  const bx = cardStyle;
-  const labelStyle = { fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.3rem", display: "block" };
-  const inputStyle = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box", background: "#fff", color: "#000" };
-  const btnStyle = { border: "2px solid #000", padding: "0.4rem 1rem", fontSize: "0.82rem", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" };
-  const sectionStyle = { padding: "0" };
-
-  return (
-    <div>
-      <div style={{ display: "flex", gap: "0", flexWrap: "wrap", marginBottom: "1.5rem", borderBottom: "2px solid #000" }}>
-        {subTabs.map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id); setMessage(""); setManualResult(""); }}
-            style={{ ...btnStyle, border: "2px solid #000", borderBottom: tab === t.id ? "2px solid #fff" : "2px solid #000", background: tab === t.id ? "#fff" : "#000", color: tab === t.id ? "#000" : "#fff", marginBottom: "-2px" }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {message && <div style={{ border: "2px solid #000", padding: "0.6rem 1rem", background: "#fff", marginBottom: "1rem", fontSize: "0.85rem", fontWeight: 700 }}>{message}</div>}
-
-      {/* ── Dashboard ── */}
-      {tab === "dashboard" && (
-        <div style={sectionStyle}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", marginBottom: "1.5rem" }}>
-            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#000" }}>{stats?.totalSent || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Total Sent</div></div>
-            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#f87171" }}>{stats?.totalFailed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Failed</div></div>
-            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#60a5fa" }}>{stats?.sentToday || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Sent Today</div></div>
-            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#34d399" }}>{stats?.totalSubscribed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Subscribed</div></div>
-            <div style={cardStyle}><div style={{ fontSize: "2rem", fontWeight: 700, color: "#fbbf24" }}>{stats?.totalUnsubscribed || 0}</div><div style={{ fontSize: "0.8rem", color: "#888" }}>Unsubscribed</div></div>
-          </div>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-            <button onClick={handleRunCron} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff" }}>
-              {loading ? "Running..." : "▶ Run Automation Now"}
-            </button>
-            <button onClick={handleDryRun} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff" }}>
-              {loading ? "..." : "🔍 Dry Run"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Manual Trigger ── */}
-      {tab === "manual" && (
-        <div style={sectionStyle}>
-          <p style={{ color: "#888", fontSize: "0.85rem", marginBottom: "1rem" }}>Select an email type and optionally filter by user email to send immediately.</p>
-          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end", marginBottom: "1rem" }}>
-            <div style={{ minWidth: "200px" }}>
-              <label style={labelStyle}>Email Type</label>
-              <select value={manualType} onChange={e => setManualType(e.target.value)} style={inputStyle}>
-                {[
-                  { id: "welcome", label: "Welcome" },
-                  { id: "payment_reminder", label: "Payment Reminder" },
-                  { id: "task_reminder", label: "Task Reminder" },
-                  { id: "deadline_urgent", label: "Deadline Urgent" },
-                  { id: "certificate_ready", label: "Certificate Ready" },
-                  { id: "completion", label: "Completion Follow-up" },
-                  { id: "re_engagement", label: "Re-engagement" },
-                  { id: "updates", label: "Updates (Broadcast)" },
-                  { id: "general", label: "General" },
-                ].map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </div>
-            <div style={{ flex: 1, minWidth: "200px" }}>
-              <label style={labelStyle}>Filter by Email (optional)</label>
-              <input value={manualEmailFilter} onChange={e => setManualEmailFilter(e.target.value)} placeholder="Leave blank for all eligible users" style={inputStyle} />
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "0.75rem" }}>
-            <button onClick={handleManualTrigger} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff" }}>
-              {loading ? "Sending..." : "▶ Send Now"}
-            </button>
-            <button onClick={handleManualDryRun} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff" }}>
-              {loading ? "..." : "🔍 Preview Count"}
-            </button>
-          </div>
-          {manualResult && (
-            <div style={{ ...cardStyle, marginTop: "1rem" }}>
-              <div style={{ fontWeight: 700, marginBottom: "0.5rem", textTransform: "uppercase", fontSize: "0.75rem" }}>Result</div>
-              <div style={{ fontSize: "0.85rem", color: "#aaa", whiteSpace: "pre-wrap" }}>{manualResult}</div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Config ── */}
-      {tab === "config" && config && (
-        <div style={sectionStyle}>
-          <div style={cardStyle}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem" }}>
-              <span style={{ fontWeight: 600 }}>Enable Automation</span>
-              <label style={{ position: "relative", display: "inline-block", width: "44px", height: "24px" }}>
-                <input type="checkbox" checked={config.enabled || false} onChange={e => updateConfig("enabled", e.target.checked)}
-                  style={{ opacity: 0, width: 0, height: 0 }} />
-                <span style={{ position: "absolute", cursor: "pointer", inset: 0, background: config.enabled ? "#000" : "#ccc", borderRadius: "12px", transition: "0.3s" }}>
-                  <span style={{ position: "absolute", height: "18px", width: "18px", borderRadius: "50%", background: "#fff", top: "3px", left: config.enabled ? "23px" : "3px", transition: "0.3s" }} />
-                </span>
-              </label>
-            </div>
-          </div>
-          <div style={{ fontSize: "0.85rem", color: "#888", marginBottom: "1rem" }}>Configure each email type below. The engine checks intervals, max sends, and user categories before dispatching.</div>
-          <div style={{ display: "grid", gap: "1rem", marginBottom: "1rem" }}>
-            {[
-              { id: "welcome", label: "Welcome", desc: "Sent once when user enrolls" },
-              { id: "payment_reminder", label: "Payment Reminder", desc: "Repeats every N days for max duration" },
-              { id: "task_reminder", label: "Task Reminder", desc: "Sent when deadline is approaching and tasks remain" },
-              { id: "deadline_urgent", label: "Deadline Urgent", desc: "Daily when deadline < 3 days" },
-              { id: "certificate_ready", label: "Certificate Ready", desc: "1 email when certificate is issued" },
-              { id: "completion", label: "Completion Follow-up", desc: "1 email after graduation" },
-              { id: "re_engagement", label: "Re-engagement", desc: "Sent to inactive users every 7 days (max 3)" },
-              { id: "updates", label: "Updates", desc: "Broadcast to all active users" },
-              { id: "general", label: "General", desc: "On-demand announcements" },
-            ].map(({ id, label, desc }) => {
-              const typeCfg = config[id] || { active: true, intervalDays: 3, maxSends: 10, maxDurationDays: 60 };
-              return (
-                <div key={id} style={cardStyle}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                    <div>
-                      <span style={{ fontWeight: 600, fontSize: "0.95rem", textTransform: "capitalize" }}>{label}</span>
-                      <div style={{ fontSize: "0.75rem", color: "#666", marginTop: "2px" }}>{desc}</div>
-                    </div>
-                    <label style={{ position: "relative", display: "inline-block", width: "40px", height: "22px" }}>
-                      <input type="checkbox" checked={typeCfg.active !== false}
-                        onChange={e => { const upd = { ...config, [id]: { ...typeCfg, active: e.target.checked } }; setConfig(upd); setConfigDirty(true); }}
-                        style={{ opacity: 0, width: 0, height: 0 }} />
-                      <span style={{ position: "absolute", cursor: "pointer", inset: 0, background: typeCfg.active !== false ? "#000" : "#ccc", borderRadius: "11px", transition: "0.3s" }}>
-                        <span style={{ position: "absolute", height: "16px", width: "16px", borderRadius: "50%", background: "#fff", top: "3px", left: typeCfg.active !== false ? "21px" : "3px", transition: "0.3s" }} />
-                      </span>
-                    </label>
-                  </div>
-                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
-                    <div>
-                      <label style={{ fontSize: "0.7rem", color: "#666", display: "block", marginBottom: "2px" }}>Interval (days)</label>
-                      <input type="number" min="0" value={typeCfg.intervalDays ?? 3}
-                        onChange={e => { const upd = { ...config, [id]: { ...typeCfg, intervalDays: parseInt(e.target.value) || 0 } }; setConfig(upd); setConfigDirty(true); }}
-                        style={{ ...inputStyle, width: "70px", textAlign: "center", padding: "0.3rem 0.5rem" }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: "0.7rem", color: "#666", display: "block", marginBottom: "2px" }}>Max Sends</label>
-                      <input type="number" min="0" value={typeCfg.maxSends ?? 10}
-                        onChange={e => { const upd = { ...config, [id]: { ...typeCfg, maxSends: parseInt(e.target.value) || 0 } }; setConfig(upd); setConfigDirty(true); }}
-                        style={{ ...inputStyle, width: "70px", textAlign: "center", padding: "0.3rem 0.5rem" }} />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: "0.7rem", color: "#666", display: "block", marginBottom: "2px" }}>Max Duration (days)</label>
-                      <input type="number" min="0" value={typeCfg.maxDurationDays ?? 60}
-                        onChange={e => { const upd = { ...config, [id]: { ...typeCfg, maxDurationDays: parseInt(e.target.value) || 0 } }; setConfig(upd); setConfigDirty(true); }}
-                        style={{ ...inputStyle, width: "70px", textAlign: "center", padding: "0.3rem 0.5rem" }} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <button onClick={saveConfig} style={{ ...btnStyle, background: configDirty ? "#000" : "#ccc", color: configDirty ? "#fff" : "#888", cursor: configDirty ? "pointer" : "default" }} disabled={!configDirty}>
-            {configDirty ? "Save Config" : "Saved"}
-          </button>
-        </div>
-      )}
-
-      {/* ── Templates ── */}
-      {tab === "templates" && (
-        <div style={sectionStyle}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "0.75rem", marginBottom: "1.5rem" }}>
-            {Object.entries(templates).map(([type, tpl]) => (
-              <div key={type} onClick={() => openTemplate(type)} style={{ ...cardStyle, cursor: "pointer", border: templateDetail?.type === type ? "2px solid #000" : "2px solid #000" }}>
-                <div style={{ fontWeight: 600, fontSize: "0.9rem", marginBottom: "0.25rem", textTransform: "capitalize" }}>{type.replace(/_/g, " ")}</div>
-                <div style={{ fontSize: "0.75rem", color: "#666" }}>{tpl.subject?.slice(0, 40)}...</div>
-                <div style={{ fontSize: "0.7rem", color: "#888", marginTop: "0.25rem" }}>Category: {tpl.defaultCategory}</div>
-              </div>
-            ))}
-          </div>
-
-          {templateDetail && (
-            <div style={cardStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                <h3 style={{ fontSize: "1.1rem", textTransform: "capitalize", color: "#f0f0f0" }}>{templateDetail.type.replace(/_/g, " ")}</h3>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button onClick={resetTemplate} style={{ ...btnStyle, background: "#2a1a1a", color: "#f87171" }}>Reset to Default</button>
-                </div>
-              </div>
-              <div style={{ marginBottom: "0.75rem" }}>
-                <label style={labelStyle}>Subject</label>
-                <input value={editSubject} onChange={e => setEditSubject(e.target.value)} style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: "0.75rem" }}>
-                <label style={labelStyle}>HTML Template</label>
-                <textarea value={editHtml} onChange={e => setEditHtml(e.target.value)} rows={15}
-                  style={{ ...inputStyle, fontFamily: "monospace", fontSize: "0.8rem", resize: "vertical", minHeight: "300px" }} />
-              </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button onClick={saveTemplate} style={{ ...btnStyle, background: "#000", color: "#fff" }}>Save Template</button>
-                <button onClick={() => setTemplateDetail(null)} style={{ ...btnStyle, background: "#000", color: "#fff" }}>Close</button>
-              </div>
-              <details style={{ marginTop: "1rem" }}>
-                <summary style={{ cursor: "pointer", color: "#888", fontSize: "0.85rem" }}>Available Variables</summary>
-                <div style={{ padding: "0.75rem", background: "#0a0a0a", borderRadius: "6px", marginTop: "0.5rem", fontSize: "0.8rem", fontFamily: "monospace", color: "#aaa" }}>
-                  {"{{name}} — User's name\n{{email}} — Email address\n{{domain}} — Internship domain\n{{amount}} — Payment amount\n{{deadline}} — Deadline date\n{{daysUntilDeadline}} — Days left\n{{pendingTasks}} — Pending task count\n{{taskList}} — Task list (for list templates)\n{{completedProjects}} — Completed count\n{{totalProjects}} — Total count\n{{status}} — Lifecycle stage\n{{completedAt}} — Completion date\n{{unsubscribeUrl}} — Unsubscribe link"}
-                </div>
-              </details>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Logs ── */}
-      {tab === "logs" && (
-        <div style={sectionStyle}>
-          <button onClick={loadLogs} style={{ ...btnStyle, background: "#000", color: "#fff", marginBottom: "1rem" }}>🔄 Refresh Logs</button>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-              <thead>
-                <tr style={{ background: "#000", color: "#fff", textAlign: "left" }}>
-                  <th style={{ padding: "0.5rem" }}>Email</th>
-                  <th style={{ padding: "0.5rem" }}>Type</th>
-                  <th style={{ padding: "0.5rem" }}>Status</th>
-                  <th style={{ padding: "0.5rem" }}>Sent At</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log, i) => (
-                  <tr key={log.id || i} style={{ borderBottom: "1px solid #ddd" }}>
-                    <td style={{ padding: "0.5rem", color: "#ccc" }}>{log.email}</td>
-                    <td style={{ padding: "0.5rem", textTransform: "capitalize" }}>{log.type?.replace(/_/g, " ")}</td>
-                    <td style={{ padding: "0.5rem", color: log.status === "sent" ? "#34d399" : "#f87171" }}>{log.status}</td>
-                    <td style={{ padding: "0.5rem", color: "#888" }}>{log.sentAt ? formatDate(new Date(log.sentAt)) : "—"}</td>
-                  </tr>
-                ))}
-                {logs.length === 0 && <tr><td colSpan={4} style={{ padding: "1rem", textAlign: "center", color: "#555" }}>No logs yet</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Subscriptions ── */}
-      {tab === "subscriptions" && (
-        <div style={sectionStyle}>
-          <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem" }}>
-            <button onClick={loadSubscriptions} style={{ ...btnStyle, background: "#000", color: "#fff" }}>🔄 Refresh</button>
-          </div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-              <thead>
-                <tr style={{ background: "#000", color: "#fff", textAlign: "left" }}>
-                  <th style={{ padding: "0.5rem" }}>Email</th>
-                  <th style={{ padding: "0.5rem" }}>Status</th>
-                  <th style={{ padding: "0.5rem" }}>Categories</th>
-                  <th style={{ padding: "0.5rem" }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.map((sub, i) => (
-                  <tr key={sub.id || i} style={{ borderBottom: "1px solid #ddd" }}>
-                    <td style={{ padding: "0.5rem", color: "#ccc" }}>{sub.email}</td>
-                    <td style={{ padding: "0.5rem", color: sub.status === "active" ? "#34d399" : "#f87171" }}>{sub.status}</td>
-                    <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>
-                      {sub.categories ? Object.entries(sub.categories).filter(([, v]) => v).map(([k]) => k).join(", ") : "All"}
-                    </td>
-                    <td style={{ padding: "0.5rem" }}>
-                      {sub.status === "active" && (
-                        <button onClick={() => unsubscribeUser(sub.email)} style={{ ...btnStyle, background: "#2a1a1a", color: "#f87171", fontSize: "0.75rem", padding: "0.3rem 0.6rem" }}>Unsubscribe</button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {subscriptions.length === 0 && <tr><td colSpan={4} style={{ padding: "1rem", textAlign: "center", color: "#555" }}>No subscriptions yet</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Automation Log ── */}
-      {tab === "automation" && (
-        <div style={sectionStyle}>
-          <button onClick={loadAutomationLog} style={{ ...btnStyle, background: "#000", color: "#fff", marginBottom: "1rem" }}>🔄 Refresh</button>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-              <thead>
-                <tr style={{ background: "#000", color: "#fff", textAlign: "left" }}>
-                  <th style={{ padding: "0.5rem" }}>Email</th>
-                  <th style={{ padding: "0.5rem" }}>From</th>
-                  <th style={{ padding: "0.5rem" }}>To</th>
-                  <th style={{ padding: "0.5rem" }}>Reason</th>
-                  <th style={{ padding: "0.5rem" }}>Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {automationLog.map((log, i) => (
-                  <tr key={log.id || i} style={{ borderBottom: "1px solid #ddd" }}>
-                    <td style={{ padding: "0.5rem", color: "#ccc" }}>{log.email}</td>
-                    <td style={{ padding: "0.5rem", textTransform: "capitalize" }}>{log.fromStage || log.from}</td>
-                    <td style={{ padding: "0.5rem", textTransform: "capitalize", color: "#000" }}>{log.toStage || log.to}</td>
-                    <td style={{ padding: "0.5rem", color: "#888" }}>{log.reason || ""}</td>
-                    <td style={{ padding: "0.5rem", color: "#888", fontSize: "0.75rem" }}>{log.triggeredAt ? formatDate(new Date(log.triggeredAt)) : "—"}</td>
-                  </tr>
-                ))}
-                {automationLog.length === 0 && <tr><td colSpan={5} style={{ padding: "1rem", textAlign: "center", color: "#555" }}>No automation events yet</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* ── Send Test Section (always visible) ── */}
-      <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "2px solid #000" }}>
-        <h4 style={{ marginBottom: "0.75rem", fontSize: "0.95rem" }}>Send Test Email</h4>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "end" }}>
-          <div style={{ flex: 1, minWidth: "200px" }}>
-            <label style={labelStyle}>Email</label>
-            <input value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="test@example.com" style={inputStyle} />
-          </div>
-          <div style={{ minWidth: "150px" }}>
-            <label style={labelStyle}>Type</label>
-            <select value={testType} onChange={e => setTestType(e.target.value)} style={inputStyle}>
-              {Object.keys(templates).map(t => <option key={t} value={t}>{t.replace(/_/g, " ")}</option>)}
-            </select>
-          </div>
-          <button onClick={handleSendTest} disabled={loading} style={{ ...btnStyle, background: "#000", color: "#fff", height: "fit-content" }}>
-            {loading ? "Sending..." : "Send Test"}
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
