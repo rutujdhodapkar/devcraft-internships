@@ -6,8 +6,9 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ADMIN_SECRET = process.env.MCP_DOMAINS_ADMIN_SECRET || "";
+const ADMIN_SECRET_FALLBACK = process.env.MCP_DOMAINS_ADMIN_SECRET || "";
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || "";
 const DATA_DIR = join(__dirname, "data");
 const PROPOSALS_FILE = join(DATA_DIR, "proposals.json");
 
@@ -42,11 +43,56 @@ async function getDb() {
   return _db;
 }
 
+function cleanId(email) {
+  if (!email) return email;
+  return email.replace(/\./g, ",");
+}
+
 // ── Auth helpers ──
 
-function isAdmin(adminSecret) {
-  if (!ADMIN_SECRET) return true;
-  return adminSecret === ADMIN_SECRET;
+async function verifyFirebaseToken(idToken) {
+  if (!idToken || !FIREBASE_API_KEY) return null;
+  try {
+    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken }),
+    });
+    const data = await res.json();
+    if (!data.users || !data.users.length) return null;
+    const u = data.users[0];
+    return { uid: u.localId, email: u.email, name: u.displayName, picture: u.photoUrl };
+  } catch { return null; }
+}
+
+async function isFirebaseAdmin(email) {
+  if (!email) return false;
+  if (email.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase()) return true;
+  const db = await getDb();
+  if (!db) return false;
+  try {
+    const snap = await db.collection("admins").doc(cleanId(email.toLowerCase())).get();
+    return snap.exists;
+  } catch { return false; }
+}
+
+async function verifyAdmin(adminToken, adminSecret) {
+  // If Firebase token provided, verify it
+  if (adminToken && FIREBASE_API_KEY) {
+    const user = await verifyFirebaseToken(adminToken);
+    if (!user || !user.email) return false;
+    return isFirebaseAdmin(user.email);
+  }
+
+  // Fallback: admin_secret env var (for local dev without Firebase)
+  if (adminSecret && ADMIN_SECRET_FALLBACK) {
+    return adminSecret === ADMIN_SECRET_FALLBACK;
+  }
+
+  // No auth configured → open mode (dev only)
+  if (!ADMIN_SECRET_FALLBACK && !FIREBASE_API_KEY) return true;
+
+  return false;
 }
 
 async function verifyAgency(email, agencyId) {
@@ -63,7 +109,7 @@ async function verifyAgency(email, agencyId) {
   } catch { return false; }
 }
 
-// ── Available collections & their schemas ──
+// ── Available collections ──
 
 const COLLECTIONS = {
   careerPaths: { description: "Internship domains/career paths", agencyScoped: false },
@@ -119,7 +165,6 @@ async function executeMutate(collection, action, data, id, agencyId) {
 
   const col = db.collection(collection);
 
-  // Verify agency scoping on mutations
   if (agencyId && COLLECTIONS[collection]?.agencyScoped) {
     if (action === "update" || action === "delete") {
       const existing = await col.doc(id).get();
@@ -191,10 +236,7 @@ const toolDefinitions = [
         collection: { type: "string", enum: Object.keys(COLLECTIONS), description: "Target collection" },
         action: { type: "string", enum: ["create", "update", "delete"], description: "Operation type" },
         document_id: { type: "string", description: "Document ID (required for update/delete)" },
-        data: {
-          type: "object", description: "Document fields (required for create/update)",
-          additionalProperties: true,
-        },
+        data: { type: "object", description: "Document fields (required for create/update)", additionalProperties: true },
         reason: { type: "string", description: "Why you need to make this change" },
       },
       required: ["requester_email", "collection", "action"],
@@ -202,25 +244,27 @@ const toolDefinitions = [
   },
   {
     name: "approve_proposal",
-    description: "Approve a pending proposal. The proposed operation will execute immediately.",
+    description: "Approve a pending proposal. The proposed operation executes immediately. Authenticate via Firebase admin_token.",
     inputSchema: {
       type: "object",
       properties: {
         proposal_id: { type: "string", description: "Proposal ID to approve" },
-        admin_secret: { type: "string", description: "Admin secret for authorization" },
+        admin_token: { type: "string", description: "Firebase ID token for admin auth" },
+        admin_secret: { type: "string", description: "Fallback admin secret (for local dev)" },
       },
       required: ["proposal_id"],
     },
   },
   {
     name: "reject_proposal",
-    description: "Reject a pending proposal with a reason.",
+    description: "Reject a pending proposal with a reason. Authenticate via Firebase admin_token.",
     inputSchema: {
       type: "object",
       properties: {
         proposal_id: { type: "string", description: "Proposal ID to reject" },
         reason: { type: "string", description: "Rejection reason" },
-        admin_secret: { type: "string", description: "Admin secret for authorization" },
+        admin_token: { type: "string", description: "Firebase ID token for admin auth" },
+        admin_secret: { type: "string", description: "Fallback admin secret (for local dev)" },
       },
       required: ["proposal_id"],
     },
@@ -238,7 +282,7 @@ const toolDefinitions = [
   },
   {
     name: "admin_query",
-    description: "Directly query any collection without approval. Admin only.",
+    description: "Directly query any collection without approval. Authenticate via Firebase admin_token.",
     inputSchema: {
       type: "object",
       properties: {
@@ -254,14 +298,15 @@ const toolDefinitions = [
             },
           },
         },
-        admin_secret: { type: "string", description: "Admin secret" },
+        admin_token: { type: "string", description: "Firebase ID token for admin auth" },
+        admin_secret: { type: "string", description: "Fallback admin secret (for local dev)" },
       },
       required: ["collection"],
     },
   },
   {
     name: "admin_mutate",
-    description: "Directly create/update/delete data without approval. Admin only.",
+    description: "Directly create/update/delete data without approval. Authenticate via Firebase admin_token.",
     inputSchema: {
       type: "object",
       properties: {
@@ -269,7 +314,8 @@ const toolDefinitions = [
         action: { type: "string", enum: ["create", "update", "delete"], description: "Operation type" },
         document_id: { type: "string", description: "Document ID (required for update/delete)" },
         data: { type: "object", description: "Document fields (for create/update)", additionalProperties: true },
-        admin_secret: { type: "string", description: "Admin secret" },
+        admin_token: { type: "string", description: "Firebase ID token for admin auth" },
+        admin_secret: { type: "string", description: "Fallback admin secret (for local dev)" },
       },
       required: ["collection", "action"],
     },
@@ -277,10 +323,7 @@ const toolDefinitions = [
   {
     name: "list_collections",
     description: "List available data collections and their descriptions.",
-    inputSchema: {
-      type: "object",
-      properties: {},
-    },
+    inputSchema: { type: "object", properties: {} },
   },
 ];
 
@@ -288,13 +331,10 @@ const toolDefinitions = [
 
 async function handleToolCall(name, args) {
   switch (name) {
-    // ── Public: Propose Query ──
     case "propose_query": {
       const { requester_email, agency_id, collection, filters, reason } = args;
-
       if (!requester_email) throw new Error("requester_email is required");
 
-      // Verify agency identity if agency_id provided
       if (agency_id) {
         const valid = await verifyAgency(requester_email, agency_id);
         if (!valid) throw new Error("Not authorized for this agency or agency not approved");
@@ -302,25 +342,17 @@ async function handleToolCall(name, args) {
 
       const proposals = loadProposals();
       const proposal = {
-        id: generateId(),
-        type: "query",
-        requester_email,
-        agency_id: agency_id || null,
-        collection,
-        filters: filters || [],
-        reason: reason || "",
-        status: "pending",
-        submittedAt: new Date().toISOString(),
+        id: generateId(), type: "query", requester_email, agency_id: agency_id || null,
+        collection, filters: filters || [], reason: reason || "",
+        status: "pending", submittedAt: new Date().toISOString(),
       };
       proposals.push(proposal);
       saveProposals(proposals);
       return `Query proposal submitted.\nID: ${proposal.id}\nCollection: ${collection}\nStatus: pending\nWaiting for admin approval.`;
     }
 
-    // ── Public: Propose Mutate ──
     case "propose_mutate": {
       const { requester_email, agency_id, collection, action, document_id, data, reason } = args;
-
       if (!requester_email) throw new Error("requester_email is required");
 
       if (agency_id) {
@@ -328,32 +360,25 @@ async function handleToolCall(name, args) {
         if (!valid) throw new Error("Not authorized for this agency or agency not approved");
       }
 
-      if (collection === "admins" && !isAdmin(args.admin_secret)) {
+      if (collection === "admins" && !(await verifyAdmin(args.admin_token, args.admin_secret))) {
         throw new Error("Only main admin can modify admins");
       }
 
       const proposals = loadProposals();
       const proposal = {
-        id: generateId(),
-        type: "mutate",
-        requester_email,
-        agency_id: agency_id || null,
-        collection,
-        action,
-        document_id: document_id || null,
-        data: data || {},
-        reason: reason || "",
-        status: "pending",
-        submittedAt: new Date().toISOString(),
+        id: generateId(), type: "mutate", requester_email, agency_id: agency_id || null,
+        collection, action, document_id: document_id || null, data: data || {}, reason: reason || "",
+        status: "pending", submittedAt: new Date().toISOString(),
       };
       proposals.push(proposal);
       saveProposals(proposals);
       return `Mutation proposal submitted.\nID: ${proposal.id}\nCollection: ${collection}\nAction: ${action}\nStatus: pending\nWaiting for admin approval.`;
     }
 
-    // ── Admin: Approve Proposal ──
     case "approve_proposal": {
-      if (!isAdmin(args.admin_secret)) throw new Error("Unauthorized: invalid admin_secret");
+      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) {
+        throw new Error("Unauthorized: valid admin_token or admin_secret required");
+      }
       const proposals = loadProposals();
       const idx = proposals.findIndex(p => p.id === args.proposal_id);
       if (idx === -1) throw new Error(`Proposal "${args.proposal_id}" not found`);
@@ -387,9 +412,10 @@ async function handleToolCall(name, args) {
       return `Proposal "${args.proposal_id}" approved.\n${result}`;
     }
 
-    // ── Admin: Reject Proposal ──
     case "reject_proposal": {
-      if (!isAdmin(args.admin_secret)) throw new Error("Unauthorized: invalid admin_secret");
+      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) {
+        throw new Error("Unauthorized: valid admin_token or admin_secret required");
+      }
       const proposals = loadProposals();
       const idx = proposals.findIndex(p => p.id === args.proposal_id);
       if (idx === -1) throw new Error(`Proposal "${args.proposal_id}" not found`);
@@ -402,39 +428,33 @@ async function handleToolCall(name, args) {
       return `Proposal "${args.proposal_id}" rejected.\nReason: ${proposals[idx].rejectionReason}`;
     }
 
-    // ── Public: List Proposals ──
     case "list_proposals": {
       let proposals = loadProposals();
       const { status = "pending", requester_email } = args;
-
-      if (status !== "all") {
-        proposals = proposals.filter(p => p.status === status);
-      }
-      if (requester_email) {
-        proposals = proposals.filter(p => p.requester_email?.toLowerCase() === requester_email.toLowerCase());
-      }
-
+      if (status !== "all") proposals = proposals.filter(p => p.status === status);
+      if (requester_email) proposals = proposals.filter(p => p.requester_email?.toLowerCase() === requester_email.toLowerCase());
       if (proposals.length === 0) return "No proposals found.";
       return `Proposals (${proposals.length}):\n${proposals.map(p =>
         `• ${p.id}: ${p.type} ${p.collection} [${p.status}] by ${p.requester_email}${p.agency_id ? ` (agency: ${p.agency_id})` : ""}${p.status === "rejected" ? ` — ${p.rejectionReason}` : ""}`
       ).join("\n")}`;
     }
 
-    // ── Admin: Direct Query ──
     case "admin_query": {
-      if (!isAdmin(args.admin_secret)) throw new Error("Unauthorized: invalid admin_secret");
+      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) {
+        throw new Error("Unauthorized: valid admin_token or admin_secret required");
+      }
       const docs = await executeQuery(args.collection, args.filters, null);
       return `Query ${args.collection}: ${docs.length} documents.\n${JSON.stringify(docs.slice(0, 100), null, 2)}${docs.length > 100 ? `\n... and ${docs.length - 100} more` : ""}`;
     }
 
-    // ── Admin: Direct Mutate ──
     case "admin_mutate": {
-      if (!isAdmin(args.admin_secret)) throw new Error("Unauthorized: invalid admin_secret");
+      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) {
+        throw new Error("Unauthorized: valid admin_token or admin_secret required");
+      }
       const result = await executeMutate(args.collection, args.action, args.data || {}, args.document_id, null);
       return result;
     }
 
-    // ── Public: List Collections ──
     case "list_collections": {
       return `Available collections:\n${Object.entries(COLLECTIONS).map(([key, val]) =>
         `  • ${key} — ${val.description}${val.agencyScoped ? " (agency-scoped)" : ""}`
