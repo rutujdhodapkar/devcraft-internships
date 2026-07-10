@@ -1,10 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  fetchAgencies,
-  fetchAgencyEnrollments,
-  addAgencyAdminEmail,
-  removeAgencyAdminEmail,
-} from "../services/data";
+import { fetchAgencies, fetchAgencyEnrollments, addAgencyAdminEmail, removeAgencyAdminEmail } from "../services/data";
 import { notify } from "../services/notify";
 
 export default function AgencyDashboard({ user, onClose }) {
@@ -15,6 +10,7 @@ export default function AgencyDashboard({ user, onClose }) {
   const [enrLoading, setEnrLoading] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [saving, setSaving] = useState(false);
+  const [domains, setDomains] = useState([]);
 
   const userEmail = (user?.email || "").toLowerCase().trim();
 
@@ -27,6 +23,19 @@ export default function AgencyDashboard({ user, onClose }) {
       if (mine.length === 1) { setActiveAgency(mine[0]); loadEnrollments(mine[0].id); }
     }).catch(() => {}).finally(() => setLoading(false));
   }, [userEmail]);
+
+  useEffect(() => {
+    if (!activeAgency) return;
+    const apiBase = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
+    fetch(`${apiBase}/api/data/career-paths`)
+      .then(r => r.json())
+      .then(data => {
+        const all = Array.isArray(data) ? data : (data.data || []);
+        if (activeAgency.id) setDomains(all.filter(d => d.agencyId === activeAgency.id || d.agencyId === activeAgency.name));
+        else setDomains([]);
+      })
+      .catch(() => setDomains([]));
+  }, [activeAgency]);
 
   const loadEnrollments = async (id) => {
     setEnrLoading(true);
@@ -109,6 +118,29 @@ export default function AgencyDashboard({ user, onClose }) {
               </div>
             </div>
             {a.description && <p style={{ fontSize: "0.85rem", color: "#666" }}>{a.description}</p>}
+          </div>
+
+          <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
+            <h3 style={{ fontWeight: 800, textTransform: "uppercase", fontSize: "0.9rem", marginBottom: "0.75rem" }}>Domains ({domains.length})</h3>
+            {domains.length === 0 ? (
+              <p style={{ color: "#888", fontStyle: "italic" }}>No domains associated with this agency yet.</p>
+            ) : (
+              <div style={{ display: "grid", gap: "0.4rem", maxHeight: "300px", overflowY: "auto" }}>
+                {domains.map(d => (
+                  <div key={d.id} style={{ border: "1px solid #ddd", padding: "0.5rem 0.7rem", fontSize: "0.82rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 700 }}>{d.title || d.name}</span>
+                      <span style={{ color: "#888", fontSize: "0.75rem" }}>{d.duration}</span>
+                    </div>
+                    {d.description && <p style={{ color: "#666", fontSize: "0.78rem", marginTop: "0.25rem" }}>{d.description}</p>}
+                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
+                      <span style={{ fontSize: "0.72rem", color: "#888" }}>Projects: {d.projects?.length || 0}</span>
+                      {d.paymentAmount && <span style={{ fontSize: "0.72rem", color: "#888" }}>${d.paymentAmount}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>

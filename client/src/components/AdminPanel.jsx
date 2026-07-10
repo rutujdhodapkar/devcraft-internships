@@ -169,6 +169,8 @@ const TAB_GROUPS = [
       { id: "badges", label: "Badges" },
       { id: "access-requests", label: "Access Requests" },
       { id: "mcp-proposals", label: "Proposals" },
+      { id: "audit-log", label: "MCP Logs" },
+      { id: "mcp-api", label: "MCP & API" },
     ],
   },
   {
@@ -186,7 +188,7 @@ const TAB_GROUPS = [
     label: "Admin",
     tabs: [
       { id: "manage admins", label: "Admins" },
-      { id: "audit-log", label: "Audit Log" },
+      { id: "admin-audit", label: "Audit Log" },
       { id: "dashboard", label: "Dashboard" },
       { id: "csv-export", label: "CSV Export" },
       { id: "visits", label: "Visits" },
@@ -8135,7 +8137,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         )}
 
         {activeTab === "dashboard" && <DashboardSection data={data} />}
-        {activeTab === "audit-log" && <AuditLogSection />}
+        {activeTab === "audit-log" && <OldAuditLogSection />}
         {activeTab === "theme" && (
           <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", alignItems: "flex-start" }}>
             <ThemeSection />
@@ -8151,6 +8153,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "badges" && <BadgesSection user={user} />}
         {activeTab === "access-requests" && <AccessRequestsSection user={user} />}
         {activeTab === "mcp-proposals" && <ProposalsSection user={user} />}
+        {activeTab === "audit-log" && <AuditLogSection user={user} />}
+        {activeTab === "mcp-api" && <McpApiSection user={user} />}
         {activeTab === "agencies" && <AgenciesSection user={user} />}
       </div>
 
@@ -10250,8 +10254,8 @@ function DashboardSection({ data }) {
   );
 }
 
-/* ── Audit Log ── */
-function AuditLogSection() {
+/* ── Old Audit Log ── */
+function OldAuditLogSection() {
   const [logs, setLogs] = useState([]);
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
@@ -10912,11 +10916,9 @@ function ProposalsSection({ user }) {
     setLoading(true);
     try {
       const raw = await mcpCall("list_changes", { status: filter === "all" ? "all" : filter });
-      const lines = raw.split("\n").filter(l => l.startsWith("• "));
-      const parsed = lines.map(l => {
-        const m = l.match(/•\s(\S+):\s(\S+)\s(\S+)\s\[(\S+)\]\sby\s(\S+)/);
-        return m ? { id: m[1], type: m[2], collection: m[3], status: m[4], requester_email: m[5] } : null;
-      }).filter(Boolean);
+      let parsed = [];
+      try { parsed = JSON.parse(raw); } catch { parsed = []; }
+      if (!Array.isArray(parsed)) parsed = [];
       setProposals(parsed);
     } catch (e) { notify("Error: " + e.message, "error"); setProposals([]); }
     finally { setLoading(false); }
@@ -10949,15 +10951,15 @@ function ProposalsSection({ user }) {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr style={{ background: "#000", color: "#fff" }}>
-              <th style={cellS}>ID</th><th style={cellS}>Type</th><th style={cellS}>Collection</th><th style={cellS}>Status</th><th style={cellS}>By</th><th style={cellS}>Actions</th>
+              <th style={cellS}>ID</th><th style={cellS}>Type</th><th style={cellS}>Details</th><th style={cellS}>Status</th><th style={cellS}>By</th><th style={cellS}>Actions</th>
             </tr></thead>
             <tbody>
               {proposals.map(p => (
                 <tr key={p.id} style={{ background: p.status === "approved" ? "#f0fdf4" : p.status === "rejected" ? "#fef2f2" : "#fafafa" }}>
-                  <td style={{ ...cellS, fontFamily: "monospace", fontSize: "0.7rem" }}>{p.id}</td>
-                  <td style={cellS}>{p.type}</td>
-                  <td style={cellS}>{p.collection}</td>
-                  <td style={cellS}>{p.status}</td>
+                  <td style={{ ...cellS, fontFamily: "monospace", fontSize: "0.7rem" }}>{p.id?.slice(-12)}</td>
+                  <td style={cellS}>{p.type?.replace("_"," ")}</td>
+                  <td style={{ ...cellS, fontSize: "0.75rem" }}>{p.data?.title || p.data?.domain_id || p.data?.name || p.type}</td>
+                  <td style={cellS}>{p.status}{p.executionResult && <span style={{color:"#34A853",fontSize:"0.7rem",display:"block"}}>live</span>}{p.rejectionReason && <span style={{color:"#EA4335",fontSize:"0.7rem",display:"block"}}>{p.rejectionReason}</span>}</td>
                   <td style={cellS}>{p.requester_email}</td>
                   <td style={cellS}>
                     {p.status === "pending" && (
@@ -10988,6 +10990,8 @@ function AccessRequestsSection({ user }) {
   const [authorized, setAuthorized] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [configModal, setConfigModal] = useState(null);
+  const [configForm, setConfigForm] = useState({ allowed_tools: "get_domains,get_tasks", webhook_url: "" });
 
   async function mcpCall(tool, args) {
     const token = user?.getIdToken ? await user.getIdToken() : null;
@@ -11021,12 +11025,18 @@ function AccessRequestsSection({ user }) {
 
   useEffect(() => { loadData(); }, []);
 
+  function openConfig(req) {
+    setConfigForm({ allowed_tools: req.allowed_tools || "get_domains,get_tasks", webhook_url: req.webhook_url || "" });
+    setConfigModal(req);
+  }
+
   async function handleAuthorize(req) {
     setActionLoading(req.id);
     try {
-      await mcpCall("approve_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id });
+      await mcpCall("approve_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id, allowed_tools: configForm.allowed_tools, webhook_url: configForm.webhook_url });
       notify(`Authorized ${req.email}`, "success");
       await logAdminAction("authorize-mcp-user", { email: req.email, admin: user?.email });
+      setConfigModal(null);
       loadData();
     } catch (e) { notify("Error: " + e.message, "error"); }
     finally { setActionLoading(null); }
@@ -11061,7 +11071,7 @@ function AccessRequestsSection({ user }) {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr style={{ background: "#000", color: "#fff" }}>
-              <th style={cellS}>Name</th><th style={cellS}>Email</th><th style={cellS}>Reason</th><th style={cellS}>Agency</th><th style={cellS}>Date</th><th style={cellS}>Action</th>
+              <th style={cellS}>Name</th><th style={cellS}>Email</th><th style={cellS}>Reason</th><th style={cellS}>Agency</th><th style={cellS}>Webhook</th><th style={cellS}>Date</th><th style={cellS}>Action</th>
             </tr></thead>
             <tbody>
               {pending.map(r => (
@@ -11070,10 +11080,11 @@ function AccessRequestsSection({ user }) {
                   <td style={cellS}>{r.email}</td>
                   <td style={cellS}>{r.reason || "-"}</td>
                   <td style={cellS}>{r.agency_id || "-"}</td>
+                  <td style={{...cellS, fontSize:"0.7rem", maxWidth:"120px", overflow:"hidden", textOverflow:"ellipsis"}}>{r.webhook_url || "-"}</td>
                   <td style={cellS}>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "-"}</td>
                   <td style={cellS}>
-                    <button onClick={() => handleAuthorize(r)} disabled={actionLoading === r.id} style={{ border: "1px solid #34A853", color: "#34A853", background: "none", cursor: actionLoading === r.id ? "wait" : "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 700 }}>
-                      {actionLoading === r.id ? "..." : "Authorize"}
+                    <button onClick={() => openConfig(r)} style={{ border: "1px solid #34A853", color: "#34A853", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 700 }}>
+                      Configure & Authorize
                     </button>
                   </td>
                 </tr>
@@ -11090,7 +11101,7 @@ function AccessRequestsSection({ user }) {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.75rem" }}>
             <thead><tr style={{ background: "#000", color: "#fff" }}>
-              <th style={cellS}>Name</th><th style={cellS}>Email</th><th style={cellS}>Agency</th><th style={cellS}>Authorized At</th><th style={cellS}>Action</th>
+              <th style={cellS}>Name</th><th style={cellS}>Email</th><th style={cellS}>Agency</th><th style={cellS}>Tools</th><th style={cellS}>Webhook</th><th style={cellS}>Authorized At</th><th style={cellS}>Action</th>
             </tr></thead>
             <tbody>
               {authorized.map(a => (
@@ -11098,6 +11109,8 @@ function AccessRequestsSection({ user }) {
                   <td style={cellS}>{a.name}</td>
                   <td style={cellS}>{a.email}</td>
                   <td style={cellS}>{a.agency_id || "-"}</td>
+                  <td style={{...cellS, fontSize:"0.7rem"}}>{a.allowed_tools || "all"}</td>
+                  <td style={{...cellS, fontSize:"0.7rem", maxWidth:"120px", overflow:"hidden", textOverflow:"ellipsis"}}>{a.webhook_url || "-"}</td>
                   <td style={cellS}>{a.authorizedAt ? new Date(a.authorizedAt).toLocaleDateString() : "-"}</td>
                   <td style={cellS}>
                     <button onClick={() => handleRevoke(a.email)} disabled={actionLoading === a.email} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: actionLoading === a.email ? "wait" : "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 700 }}>
@@ -11110,6 +11123,24 @@ function AccessRequestsSection({ user }) {
           </table>
         )}
       </div>
+
+      {configModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={() => setConfigModal(null)}>
+          <div style={{ background: "#fff", border: "2px solid #000", padding: "1.5rem", boxShadow: "4px 4px 0 #000", maxWidth: "450px", width: "90%" }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Configure Access for {configModal.email}</h3>
+            <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Allowed Tools (comma-separated)</label>
+            <input value={configForm.allowed_tools} onChange={e => setConfigForm(p => ({ ...p, allowed_tools: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="get_domains,get_tasks,add_domain" />
+            <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Webhook URL (for notifications)</label>
+            <input value={configForm.webhook_url} onChange={e => setConfigForm(p => ({ ...p, webhook_url: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="https://example.com/webhook" />
+            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+              <button onClick={() => setConfigModal(null)} className="btn-sharp" style={{ padding: "0.4rem 1rem", fontSize: "0.82rem" }}>Cancel</button>
+              <button onClick={() => handleAuthorize(configModal)} disabled={actionLoading === configModal.id} className="btn-sharp" style={{ padding: "0.4rem 1rem", fontSize: "0.82rem", background: "#34A853", color: "#fff", border: "2px solid #34A853" }}>
+                {actionLoading === configModal.id ? "Authorizing..." : "Authorize & Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -11332,6 +11363,93 @@ function AgenciesSection({ user }) {
             )}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── MCP Audit Log ── */
+function AuditLogSection({ user }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  async function mcpCall(tool, args) {
+    const token = user?.getIdToken ? await user.getIdToken() : null;
+    const res = await fetch("/api/mcp-domains", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: Date.now(),
+        method: "tools/call",
+        params: { name: tool, arguments: { ...args, ...(token ? { admin_token: token } : { admin_secret: "devcraft_admin_mcp_2025" }) } },
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.result?.content?.[0]?.text || "[]";
+  }
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const raw = await mcpCall("audit_log", {});
+      let parsed = [];
+      try { parsed = JSON.parse(raw); } catch { parsed = []; }
+      if (!Array.isArray(parsed)) parsed = [];
+      setLogs(parsed);
+    } catch (e) { notify("Error: " + e.message, "error"); setLogs([]); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  if (loading) return <div style={{ color: "#888", padding: "1rem" }}>Loading audit logs...</div>;
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+        <button onClick={loadData} className="btn-sharp" style={{ padding: "0.3rem 0.8rem", fontSize: "0.78rem" }}>Refresh</button>
+        <span style={{ fontSize: "0.78rem", color: "#888", alignSelf: "center" }}>{logs.length} entries</span>
+      </div>
+      <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
+        {logs.length === 0 ? (
+          <p style={{ color: "#888", fontStyle: "italic" }}>No logs yet.</p>
+        ) : (
+          <div style={{ maxHeight: "400px", overflowY: "auto", fontSize: "0.75rem", fontFamily: "monospace" }}>
+            {logs.slice().reverse().map((l, i) => (
+              <div key={i} style={{ padding: "0.35rem 0", borderBottom: "1px solid #eee", display: "flex", gap: "0.5rem" }}>
+                <span style={{ color: "#888", whiteSpace: "nowrap" }}>{new Date(l.time).toLocaleString()}</span>
+                <span style={{ fontWeight: 700, color: l.action.includes("get_") ? "#2563eb" : l.action.includes("add_") ? "#f59e0b" : "#34A853" }}>{l.action}</span>
+                <span style={{ color: "#666" }}>by {l.by}</span>
+                <span style={{ color: "#999" }}>{l.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── MCP & API Management ── */
+function McpApiSection({ user }) {
+  return (
+    <div>
+      <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000", marginBottom: "1.25rem" }}>
+        <span style={{ fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem", display: "block" }}>MCP & API Endpoints</span>
+        <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>
+          Manage active MCP tools and API keys. Tools defined in <code>mcp-domains/server.js</code>.
+        </p>
+        <div style={{ background: "#f5f5f5", padding: "1rem", borderRadius: "4px", fontFamily: "monospace", fontSize: "0.8rem", whiteSpace: "pre-wrap" }}>
+          {`MCP Endpoint:  /api/mcp-domains
+OAuth:          /api/oauth
+Auth Page:      /api/oauth/auth
+Token Endpoint: /api/oauth/token
+Discovery:      /.well-known/oauth-authorization-server
+
+Configure in ChatGPT:
+  URL: https://devcraft.fennark.xyz/api/mcp-domains`}
+        </div>
       </div>
     </div>
   );

@@ -25,6 +25,9 @@ export default function Navbar({
   hasReferralCode,
   onShowIdCard,
   onEarnClick,
+  onMcpApiClick,
+  onUniOrgClick,
+  isHomePage,
   headerSettings = DEFAULT_HEADER_SETTINGS,
 }) {
   const anim = headerSettings?.animation ?? DEFAULT_HEADER_SETTINGS.animation;
@@ -344,6 +347,8 @@ export default function Navbar({
                 )}
                 <button onClick={() => window.location.href = '/earn'} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Earn</button>
                 <button onClick={() => setShowAboutModal(true)} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>About</button>
+                {isHomePage && onMcpApiClick && <button onClick={onMcpApiClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>MCP/API</button>}
+                {isHomePage && onUniOrgClick && <button onClick={onUniOrgClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>Uni/Org</button>}
                 <button onClick={() => setShowVerifyModal(true)} className="btn-sharp-outline nav-verify-btn" style={{ fontWeight: 700, padding: "0.4rem 1rem", fontSize: "0.85rem" }}>Verify Internship</button>
                 {!authLoading && (
                   <>
@@ -356,7 +361,7 @@ export default function Navbar({
                         )}
                         <span className="nav-user-name" style={{ fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 600, margin: "0 0.25rem" }}>{user.displayName?.split(" ")[0] || "Student"}</span>
                         {isAdmin && <button type="button" className="btn-sharp nav-admin-btn" onClick={onAdminClick} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Admin Panel</button>}
-                        {isAgency && <button type="button" className="btn-sharp" onClick={onAgencyClick} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700, background: "#1a237e", color: "#fff", border: "2px solid #1a237e" }}>Agency</button>}
+                        {isAgency && <button type="button" className="btn-sharp" onClick={onAgencyClick} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700, background: "#000", color: "#fff", border: "2px solid #000" }}>Agency</button>}
                         <button type="button" onClick={handleOpenProfileEdit} className="btn-sharp-outline" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Profile</button>
                         <button type="button" onClick={onShowIdCard} className="btn-sharp-outline nav-id-btn" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>ID Card</button>
                         <button type="button" className="nav-link nav-button-link nav-logout-btn" onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}>Logout</button>
@@ -441,30 +446,11 @@ export default function Navbar({
                 >
                   Earn
                 </button>
-                <button
-                  onClick={() => setShowAboutModal(true)}
-                  className="nav-link nav-btn-link"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  About
-                </button>
+                <button onClick={() => setShowAboutModal(true)} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>About</button>
+                {isHomePage && onMcpApiClick && <button onClick={onMcpApiClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>MCP/API</button>}
+                {isHomePage && onUniOrgClick && <button onClick={onUniOrgClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>Uni/Org</button>}
 
-                <button
-                  onClick={() => setShowVerifyModal(true)}
-                  className="btn-sharp-outline nav-verify-btn"
-                  style={{
-                    fontWeight: 700,
-                    padding: "0.4rem 1rem",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  Verify Internship
-                </button>
+                <button onClick={() => setShowVerifyModal(true)} className="btn-sharp-outline nav-verify-btn" style={{ fontWeight: 700, padding: "0.4rem 1rem", fontSize: "0.85rem" }}>Verify Internship</button>
 
                 {/* Auth area */}
                 {!authLoading && (
@@ -667,6 +653,8 @@ export default function Navbar({
                 onClick={() => { setShowAboutModal(true); setShowMobileMenu(false); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
               >About</button>
+              {isHomePage && onMcpApiClick && <button onClick={() => { onMcpApiClick(); setShowMobileMenu(false); }} className="btn-sharp" style={{ fontWeight: 700, fontSize:"0.85rem", textAlign:"left", padding:"0.4rem 0.8rem", margin:"0.25rem 0.5rem", background:"#000", color:"#fff", border:"2px solid #000", borderRadius:"6px" }}>MCP/API</button>}
+              {isHomePage && onUniOrgClick && <button onClick={() => { onUniOrgClick(); setShowMobileMenu(false); }} className="btn-sharp" style={{ fontWeight: 700, fontSize:"0.85rem", textAlign:"left", padding:"0.4rem 0.8rem", margin:"0.25rem 0.5rem", background:"#000", color:"#fff", border:"2px solid #000", borderRadius:"6px" }}>Uni/Org</button>}
               <button
                 onClick={() => { setShowVerifyModal(true); setShowMobileMenu(false); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}

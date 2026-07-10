@@ -26,6 +26,8 @@ import CustomCursor from "./components/CustomCursor";
 import ErrorPage from "./components/ErrorPage";
 import MessageBox from "./components/MessageBox";
 import ConfirmModal from "./components/ConfirmModal";
+import McpDashboard from "./components/McpDashboard";
+import UniversityOrgPage from "./components/UniversityOrgPage";
 import { notify } from "./services/notify";
 import { confirmAction } from "./services/confirm";
 import {
@@ -140,6 +142,8 @@ export default function App() {
     if (path === "/privacy") return "privacy";
     if (path === "/refund") return "refund";
     if (path === "/earn") return "earn";
+    if (path === "/mcp") return "mcp";
+    if (path === "/university") return "university";
     if (path === "/") return "site";
     return "error";
   })();
@@ -441,7 +445,7 @@ export default function App() {
   // Sync URL with current view for deep-linking
   useEffect(() => {
     if (currentView === "certificate" || currentView === "verify") return;
-    const map = { tandp: "/tandp", privacy: "/privacy", refund: "/refund", earn: "/earn" };
+    const map = { tandp: "/tandp", privacy: "/privacy", refund: "/refund", earn: "/earn", mcp: "/mcp", university: "/university" };
     const targetPath = map[currentView] || "/";
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, "", targetPath);
@@ -459,7 +463,9 @@ export default function App() {
       else if (path === "/privacy") setCurrentView("privacy");
       else if (path === "/refund") setCurrentView("refund");
       else if (path === "/earn") setCurrentView("earn");
-      else if (["tandp", "privacy", "refund", "certificate", "earn", "verify"].includes(currentView)) setCurrentView("site");
+      else if (path === "/mcp") setCurrentView("mcp");
+      else if (path === "/university") setCurrentView("university");
+      else if (["tandp", "privacy", "refund", "certificate", "earn", "mcp", "university", "verify"].includes(currentView)) setCurrentView("site");
     };
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
@@ -751,6 +757,9 @@ export default function App() {
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => setShowEarnModal(true)}
+              onMcpApiClick={() => setCurrentView("mcp")}
+              onUniOrgClick={() => setCurrentView("university")}
+              isHomePage={false}
               headerSettings={headerSettings}
             />
             <StudentDashboard
@@ -793,6 +802,9 @@ export default function App() {
               hasReferralCode={hasReferralCode}
               onShowIdCard={handleShowIdCard}
               onEarnClick={() => setShowEarnModal(true)}
+              onMcpApiClick={() => setCurrentView("mcp")}
+              onUniOrgClick={() => setCurrentView("university")}
+              isHomePage={false}
               headerSettings={headerSettings}
             />
             <StudentDashboard
@@ -823,6 +835,10 @@ export default function App() {
             onBackClick={() => setCurrentView("site")}
           />
         );
+      case "mcp":
+        return <McpDashboard onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} />;
+      case "university":
+        return <UniversityOrgPage onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} />;
       case "tandp":
         return (
           <PolicyPage
@@ -880,6 +896,9 @@ export default function App() {
                 const el = document.getElementById("earn");
                 if (el) el.scrollIntoView({ behavior: "smooth" });
               }}
+              onMcpApiClick={() => setCurrentView("mcp")}
+              onUniOrgClick={() => setCurrentView("university")}
+              isHomePage={true}
               headerSettings={headerSettings}
             />
             <Hero

@@ -28,10 +28,11 @@ export default async function mcpHandler(req, res) {
   }
 
   if (req.method === "GET") {
+    const currentTools = (await getHandler()).getToolDefinitions?.() || _tools;
     return res.json({
       server: "mcp-domains", version: "2.0.0",
-      info: "request_access -> admin authorize -> propose_query/mutate -> admin approve -> LIVE on web",
-      tools: _tools.map(t => ({ name: t.name, desc: t.description?.split(".")[0] })),
+      info: "request_access -> email propose -> admin approve/reject -> live on web",
+      tools: currentTools.map(t => ({ name: t.name, desc: t.description?.split(".")[0] })),
     });
   }
 
