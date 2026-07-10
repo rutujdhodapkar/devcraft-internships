@@ -408,6 +408,7 @@ async function handleToolCall(name, args) {
     }
 
     case "list_authorized_users": {
+      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const users = loadAuthUsers();
       return JSON.stringify(users);
     }
@@ -492,6 +493,9 @@ async function handleToolCall(name, args) {
     }
 
     case "list_proposals": {
+      const isAdmin = await verifyAdmin(args.admin_token, args.admin_secret);
+      if (!isAdmin && !args.requester_email) throw new Error("Unauthorized: provide requester_email or admin auth");
+      if (!isAdmin && !isAuthorized(args.requester_email)) throw new Error("Not authorized");
       let proposals = loadProposals();
       const { status = "pending", requester_email } = args;
       if (status !== "all") proposals = proposals.filter(p => p.status === status);
@@ -517,6 +521,7 @@ async function handleToolCall(name, args) {
     }
 
     case "list_collections": {
+      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       return `Available collections:\n${Object.entries(COLLECTIONS).map(([k, v]) => `  • ${k} — ${v.desc}${v.scoped ? " (agency-scoped)" : ""}`).join("\n")}`;
     }
 
