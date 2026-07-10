@@ -550,7 +550,9 @@ async function main() {
   await server.connect(transport);
 }
 
-main();
+// Only start stdio transport when run directly (not when imported by Vercel function)
+const isDirectRun = process.argv[1] && (process.argv[1].includes("server.js") || process.argv[1].includes("mcp-domains"));
+if (isDirectRun) main();
 
 export function getToolDefinitions() { return toolDefinitions; }
 export { getDb, COLLECTIONS, handleToolCall };
