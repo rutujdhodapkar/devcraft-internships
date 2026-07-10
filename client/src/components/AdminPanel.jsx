@@ -168,6 +168,7 @@ const TAB_GROUPS = [
       { id: "agencies", label: "Agencies" },
       { id: "badges", label: "Badges" },
       { id: "access-requests", label: "Access Requests" },
+      { id: "mcp-proposals", label: "Proposals" },
     ],
   },
   {
@@ -8149,6 +8150,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "edit-interns" && <EditInternsSection />}
         {activeTab === "badges" && <BadgesSection user={user} />}
         {activeTab === "access-requests" && <AccessRequestsSection user={user} />}
+        {activeTab === "mcp-proposals" && <ProposalsSection user={user} />}
         {activeTab === "agencies" && <AgenciesSection user={user} />}
       </div>
 
@@ -10879,6 +10881,103 @@ function EditInternsSection() {
           </div>
         );
       }()}
+    </div>
+  );
+}
+
+/* ── MCP Proposals ── */
+function ProposalsSection({ user }) {
+  const [proposals, setProposals] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [filter, setFilter] = useState("pending");
+
+  async function mcpCall(tool, args) {
+    const token = user?.getIdToken ? await user.getIdToken() : null;
+    const res = await fetch("/api/mcp-domains", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: Date.now(),
+        method: "tools/call",
+        params: { name: tool, arguments: { ...args, ...(token ? { admin_token: token } : { admin_secret: "devcraft_admin_mcp_2025" }) } },
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.result?.content?.[0]?.text || "";
+  }
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const raw = await mcpCall("list_proposals", { status: filter === "all" ? "all" : filter });
+      const lines = raw.split("\n").filter(l => l.startsWith("• "));
+      const parsed = lines.map(l => {
+        const m = l.match(/•\s(\S+):\s(\S+)\s(\S+)\s\[(\S+)\]\sby\s(\S+)/);
+        return m ? { id: m[1], type: m[2], collection: m[3], status: m[4], requester_email: m[5] } : null;
+      }).filter(Boolean);
+      setProposals(parsed);
+    } catch (e) { notify("Error: " + e.message, "error"); setProposals([]); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadData(); }, [filter]);
+
+  async function handleApprove(id) { setActionLoading(id); try { await mcpCall("approve_proposal", { proposal_id: id }); notify("Approved!", "success"); loadData(); } catch (e) { notify("Error: " + e.message, "error"); } finally { setActionLoading(null); } }
+
+  async function handleReject(id) { const reason = prompt("Rejection reason:"); if (!reason) return; setActionLoading(id); try { await mcpCall("reject_proposal", { proposal_id: id, reason }); notify("Rejected", "success"); loadData(); } catch (e) { notify("Error: " + e.message, "error"); } finally { setActionLoading(null); } }
+
+  const s = { border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000", marginBottom: "1.25rem" };
+  const cellS = { border: "1px solid #ccc", padding: "0.4rem 0.6rem", fontSize: "0.82rem", textAlign: "left" };
+
+  if (loading) return <div style={{ color: "#888", padding: "1rem" }}>Loading proposals...</div>;
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+        {["pending","approved","rejected","all"].map(f => (
+          <button key={f} onClick={() => setFilter(f)} className="btn-sharp" style={{ padding: "0.3rem 0.8rem", fontSize: "0.78rem", background: filter === f ? "#000" : "#eee", color: filter === f ? "#fff" : "#000" }}>{f}</button>
+        ))}
+        <button onClick={loadData} className="btn-sharp" style={{ padding: "0.3rem 0.8rem", fontSize: "0.78rem" }}>Refresh</button>
+      </div>
+
+      <div style={s}>
+        <span style={{ fontWeight: 800, textTransform: "uppercase", marginBottom: "0.75rem", display: "block" }}>{filter === "all" ? "All" : filter.charAt(0).toUpperCase() + filter.slice(1)} Proposals</span>
+        {proposals.length === 0 ? (
+          <p style={{ color: "#888", fontStyle: "italic" }}>No {filter} proposals.</p>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr style={{ background: "#000", color: "#fff" }}>
+              <th style={cellS}>ID</th><th style={cellS}>Type</th><th style={cellS}>Collection</th><th style={cellS}>Status</th><th style={cellS}>By</th><th style={cellS}>Actions</th>
+            </tr></thead>
+            <tbody>
+              {proposals.map(p => (
+                <tr key={p.id} style={{ background: p.status === "approved" ? "#f0fdf4" : p.status === "rejected" ? "#fef2f2" : "#fafafa" }}>
+                  <td style={{ ...cellS, fontFamily: "monospace", fontSize: "0.7rem" }}>{p.id}</td>
+                  <td style={cellS}>{p.type}</td>
+                  <td style={cellS}>{p.collection}</td>
+                  <td style={cellS}>{p.status}</td>
+                  <td style={cellS}>{p.requester_email}</td>
+                  <td style={cellS}>
+                    {p.status === "pending" && (
+                      <>
+                        <button onClick={() => handleApprove(p.id)} disabled={actionLoading === p.id} style={{ border: "1px solid #34A853", color: "#34A853", background: "none", cursor: actionLoading === p.id ? "wait" : "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 700, marginRight: "0.3rem" }}>
+                          {actionLoading === p.id ? "..." : "Approve"}
+                        </button>
+                        <button onClick={() => handleReject(p.id)} disabled={actionLoading === p.id} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: actionLoading === p.id ? "wait" : "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 700 }}>
+                          {actionLoading === p.id ? "..." : "Reject"}
+                        </button>
+                      </>
+                    )}
+                    {p.status !== "pending" && <span style={{ fontSize: "0.75rem", color: "#888" }}>—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
