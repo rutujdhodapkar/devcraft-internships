@@ -34,7 +34,7 @@ export const CONFIG = {
     promoDelayAfterExpiryDays: parseInt(ENV.PROMO_DELAY_AFTER_EXPIRY_DAYS || '3', 10),
   },
 
-  domain: ENV.DOMAIN || 'https://www.fennark.xyz',
+  domain: ENV.DOMAIN || 'https://devcraft.fennark.xyz',
 };
 
 export const STATUS = {

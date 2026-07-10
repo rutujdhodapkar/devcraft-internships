@@ -1,0 +1,11 @@
+[
+  {
+    "id": "1783686841274_tta9",
+    "email": "test@test.com",
+    "name": "Test User",
+    "reason": "testing",
+    "agency_id": null,
+    "status": "pending",
+    "submittedAt": "2026-07-10T12:34:01.274Z"
+  }
+]

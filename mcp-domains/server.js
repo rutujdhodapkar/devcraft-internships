@@ -187,6 +187,8 @@ const toolDefinitions = [
       type: "object",
       properties: {
         email: { type: "string", description: "Email of user to authorize" },
+        name: { type: "string", description: "User's display name" },
+        agency_id: { type: "string", description: "Agency ID if applicable" },
         request_id: { type: "string", description: "Specific access request ID to approve (optional)" },
         admin_token: { type: "string", description: "Firebase ID token" },
         admin_secret: { type: "string", description: "Fallback admin secret" },
@@ -372,8 +374,9 @@ async function handleToolCall(name, args) {
     case "authorize_user": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const email = args.email.toLowerCase();
+      const name = args.name || "";
+      const agency_id = args.agency_id || null;
 
-      // If request_id provided, mark that request as approved
       if (args.request_id) {
         const requests = loadAccessRequests();
         const idx = requests.findIndex(r => r.id === args.request_id);
@@ -381,10 +384,10 @@ async function handleToolCall(name, args) {
       }
 
       const users = loadAuthUsers();
-      if (users.some(u => u.email.toLowerCase() === email)) return `User ${email} is already authorized.`;
-      users.push({ email: email.toLowerCase(), authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
+      if (users.some(u => u.email.toLowerCase() === email)) return JSON.stringify({ ok: true, message: `User ${email} is already authorized.` });
+      users.push({ email: email.toLowerCase(), name, agency_id, authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
       saveAuthUsers(users);
-      return `User ${email} is now authorized to propose data operations.`;
+      return JSON.stringify({ ok: true, message: `User ${email} is now authorized to propose data operations.` });
     }
 
     case "revoke_user": {
@@ -401,16 +404,12 @@ async function handleToolCall(name, args) {
     case "list_pending_access": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const requests = loadAccessRequests().filter(r => r.status === "pending");
-      if (requests.length === 0) return "No pending access requests.";
-      return `Pending access requests (${requests.length}):\n${requests.map(r =>
-        `• ${r.id}: ${r.email}${r.name ? ` (${r.name})` : ""}${r.agency_id ? ` [agency: ${r.agency_id}]` : ""} — "${r.reason}"`
-      ).join("\n")}`;
+      return JSON.stringify(requests);
     }
 
     case "list_authorized_users": {
       const users = loadAuthUsers();
-      if (users.length === 0) return "No authorized users yet. Use request_access to get started.";
-      return `Authorized users (${users.length}):\n${users.map(u => `• ${u.email} (since ${u.authorizedAt})`).join("\n")}`;
+      return JSON.stringify(users);
     }
 
     // ── Proposal Operations (authorized users only) ──

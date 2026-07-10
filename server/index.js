@@ -848,7 +848,7 @@ app.post('/api/email/send-test', async (req, res) => {
       totalProjects: '3',
       status: 'active',
       completedAt: '2026-07-01',
-      unsubscribeUrl: `https://www.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(email)}`,
+      unsubscribeUrl: `https://devcraft.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(email)}`,
     });
     if (!rendered) return res.status(400).json({ success: false, message: `Unknown email type: ${type}` });
     const result = await sendEmail({ to: email, subject: rendered.subject, html: rendered.html, type });
@@ -1071,7 +1071,7 @@ app.get('/api/email/unsubscribe', async (req, res) => {
       return res.send(prefPage('Unsubscribed',
         `<div class="msg">You have been unsubscribed from all emails.</div>
         <p>You will not receive any further messages from DEV/CRAFT. If you change your mind, you can re-subscribe from your dashboard.</p>
-        <hr><a class="btn" href="https://www.fennark.xyz">Return to Website</a>`));
+        <hr><a class="btn" href="https://devcraft.fennark.xyz">Return to Website</a>`));
     }
 
     const isGloballyUnsubscribed = sub?.status === 'unsubscribed';
@@ -1081,7 +1081,7 @@ app.get('/api/email/unsubscribe', async (req, res) => {
       return res.send(prefPage('Preferences Saved',
         `<div class="msg">Your email preferences have been updated.</div>
         <p>You will only receive the email types you have selected above. You can update these preferences at any time.</p>
-        <hr><a class="btn" href="https://www.fennark.xyz">Return to Website</a>`));
+        <hr><a class="btn" href="https://devcraft.fennark.xyz">Return to Website</a>`));
     }
 
     const catParam = req.query.cat || '';

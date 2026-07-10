@@ -55,7 +55,7 @@ const BUILTIN_TEMPLATES = {
         <li><strong>Domain:</strong> ${v.internshipDomain || '—'}</li>
         <li><strong>Application ID:</strong> ${v.applicationId || '—'}</li>
       </ul>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">View Dashboard</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">View Dashboard</a></div>
     `, 'Welcome to DEV/CRAFT', 'Your application has been received'),
   },
   task_assigned: {
@@ -66,7 +66,7 @@ const BUILTIN_TEMPLATES = {
       <div class="divider"></div>
       <p><strong>Task:</strong> ${v.taskName || 'New task'}</p>
       <p><strong>Deadline:</strong> ${v.taskDeadline || '—'}</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">View Task</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">View Task</a></div>
     `, 'New Task Assigned', 'Review and complete your task'),
   },
   task_completed: {
@@ -75,7 +75,7 @@ const BUILTIN_TEMPLATES = {
       <h2>Task Submitted, ${v.fullName || 'Intern'}</h2>
       <p>Your task <strong>${v.taskName || ''}</strong> has been submitted and is pending review.</p>
       <p>The review team will verify your submission and update you once it is reviewed.</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">Track Progress</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">Track Progress</a></div>
     `, 'Task Submitted', 'Waiting for review'),
   },
   task_verified: {
@@ -84,7 +84,7 @@ const BUILTIN_TEMPLATES = {
       <h2>Task Verified, ${v.fullName || 'Intern'}</h2>
       <p>Your task <strong>${v.taskName || ''}</strong> has been verified successfully.</p>
       <p>You have completed ${v.completedTasks || 0} of ${v.totalTasks || 0} tasks for <strong>${v.internshipTitle || 'your internship'}</strong>.</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">Continue</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">Continue</a></div>
     `, 'Task Verified', 'Keep up the good work'),
   },
   payment_pending: {
@@ -95,7 +95,7 @@ const BUILTIN_TEMPLATES = {
       <div class="divider"></div>
       <p><strong>Amount:</strong> Rs ${v.amount || '200'}</p>
       <p><strong>Due:</strong> ${v.paymentDueDate || '—'}</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">Complete Payment</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">Complete Payment</a></div>
     `, 'Payment Reminder', 'Complete your payment to proceed'),
   },
   payment_success: {
@@ -104,7 +104,7 @@ const BUILTIN_TEMPLATES = {
       <h2>Payment Received, ${v.fullName || 'Student'}</h2>
       <p>Your payment of <strong>Rs ${v.amount || '200'}</strong> for <strong>${v.internshipTitle || 'your internship'}</strong> has been received.</p>
       <p>Your certificate will be generated and shared with you shortly.</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">View Dashboard</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">View Dashboard</a></div>
     `, 'Payment Received', 'Proceeding with certification'),
   },
   payment_failed: {
@@ -113,7 +113,7 @@ const BUILTIN_TEMPLATES = {
       <h2>Payment Failed, ${v.fullName || 'Student'}</h2>
       <p>Your payment of <strong>Rs ${v.amount || '200'}</strong> for <strong>${v.internshipTitle || 'your internship'}</strong> could not be processed.</p>
       <p>Please check your payment details and try again.</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">Retry Payment</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">Retry Payment</a></div>
     `, 'Payment Failed', 'Please try again'),
   },
   certificate_ready: {
@@ -125,7 +125,7 @@ const BUILTIN_TEMPLATES = {
         <p style="font-size:15px;font-weight:700;color:#000;margin:0">${v.internshipTitle || 'Internship'} — Completed</p>
         <p style="font-size:12px;color:#888;margin-top:4px">${v.completionDate || ''}</p>
       </div>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">Download Certificate</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">Download Certificate</a></div>
     `, 'Certificate Ready', 'Download your certificate'),
   },
   internship_completed: {
@@ -137,7 +137,7 @@ const BUILTIN_TEMPLATES = {
         <li><strong>Next Step:</strong> Add your certificate to LinkedIn</li>
         <li><strong>Explore More:</strong> Check out other domains and internships</li>
       </ul>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}">Explore More</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}">Explore More</a></div>
     `, 'Internship Completed', 'Your next journey awaits'),
   },
   internship_expired: {
@@ -146,7 +146,7 @@ const BUILTIN_TEMPLATES = {
       <h2>Internship Period Ended, ${v.fullName || 'Student'}</h2>
       <p>The internship period for <strong>${v.internshipTitle || 'your internship'}</strong> has ended.</p>
       <p>If you completed all tasks and made the payment, your certificate is still available. If not, you may re-apply for a new internship.</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">View Options</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">View Options</a></div>
     `, 'Internship Period Ended', 'Check your options'),
   },
   promo: {
@@ -157,7 +157,7 @@ const BUILTIN_TEMPLATES = {
       <ul>
         ${(v.domains || ['Web Development', 'AI', 'Python', 'Data Science']).map(d => `<li><strong>${d}</strong></li>`).join('')}
       </ul>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/domains">Browse Domains</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/domains">Browse Domains</a></div>
       <p style="font-size:12px;color:#888;margin-top:12px">You are receiving this as a past intern of DEV/CRAFT.</p>
     `, 'New Opportunities', 'Explore new domains at DEV/CRAFT'),
   },
@@ -166,7 +166,7 @@ const BUILTIN_TEMPLATES = {
     build: (v) => wrap(`
       <h2>Reminder, ${v.fullName || 'Student'}</h2>
       <p>${v.message || 'This is a reminder regarding your DEV/CRAFT internship.'}</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">View Details</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">View Details</a></div>
     `, 'Reminder', 'Action may be needed'),
   },
   announcement: {
@@ -182,7 +182,7 @@ const BUILTIN_TEMPLATES = {
     build: (v) => wrap(`
       <h2>System Update, ${v.fullName || 'Student'}</h2>
       <p>${v.message || 'Your DEV/CRAFT account has been updated.'}</p>
-      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://www.fennark.xyz'}/dashboard">View Changes</a></div>
+      <div style="text-align:center"><a class="btn" href="${v.domain || 'https://devcraft.fennark.xyz'}/dashboard">View Changes</a></div>
     `, 'System Update', 'Your account has been updated'),
   },
 };
@@ -203,8 +203,8 @@ export async function renderTemplate(templateName, payload) {
 
   const vars = {
     ...payload,
-    UNSUBSCRIBE_URL: `${payload.domain || 'https://www.fennark.xyz'}/api/email/unsubscribe?email=${encodeURIComponent(payload.email || '')}`,
-    UNSUBSCRIBE_LINK: `${payload.domain || 'https://www.fennark.xyz'}/api/email/unsubscribe?email=${encodeURIComponent(payload.email || '')}`,
+    UNSUBSCRIBE_URL: `${payload.domain || 'https://devcraft.fennark.xyz'}/api/email/unsubscribe?email=${encodeURIComponent(payload.email || '')}`,
+    UNSUBSCRIBE_LINK: `${payload.domain || 'https://devcraft.fennark.xyz'}/api/email/unsubscribe?email=${encodeURIComponent(payload.email || '')}`,
   };
 
   let subject = tpl.subject;

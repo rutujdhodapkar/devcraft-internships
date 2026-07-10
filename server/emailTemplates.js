@@ -38,7 +38,7 @@ const BASE_WRAPPER = `<!DOCTYPE html>
   <div class="body">{{CONTENT}}</div>
   <div class="footer">
     <p>DEV/CRAFT Internship Platform</p>
-    <p style="margin-top:6px"><a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a> &middot; <a href="https://www.fennark.xyz">Visit Website</a></p>
+    <p style="margin-top:6px"><a href="{{UNSUBSCRIBE_URL}}">Unsubscribe</a> &middot; <a href="https://devcraft.fennark.xyz">Visit Website</a></p>
     <p style="margin-top:6px;color:#bbb;font-size:11px">You received this email because you are registered on DEV/CRAFT.</p>
   </div>
 </div>
@@ -66,7 +66,7 @@ export const TEMPLATES = {
         <li><strong>3. Complete Projects</strong> — Work through practical projects at your own pace</li>
         <li><strong>4. Receive Certificate</strong> — Get a verified completion certificate after review</li>
       </ul>
-      <div style="text-align:center"><a class="btn" href="https://www.fennark.xyz">Browse Domains</a></div>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.fennark.xyz">Browse Domains</a></div>
     `, 'Welcome to DEV/CRAFT', 'Your internship journey starts here'),
     sendOnce: true
   },
@@ -84,7 +84,7 @@ export const TEMPLATES = {
         <tr><td class="label">Enrolled Since</td><td style="text-align:right;color:#333">${vars.enrolledSince || '—'}</td></tr>
       </table>
       <p>Complete your payment to unlock project submissions and work toward your certificate.</p>
-      <div style="text-align:center"><a class="btn" href="https://www.fennark.xyz/dashboard">Complete Payment</a></div>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.fennark.xyz/dashboard">Complete Payment</a></div>
     `, 'Payment Reminder', 'Complete your enrollment'),
     sendOnce: false,
     intervalDays: 3,
@@ -102,7 +102,7 @@ export const TEMPLATES = {
       <ul>
         ${(vars.taskList || []).map(t => `<li><strong>${t.title || 'Project'}</strong> — ${t.status || 'Pending'}</li>`).join('')}
       </ul>
-      <div style="text-align:center"><a class="btn" href="https://www.fennark.xyz/dashboard">View Tasks</a></div>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.fennark.xyz/dashboard">View Tasks</a></div>
     `, 'Task Reminder', `${vars.pendingTasks || 0} project(s) remaining for ${vars.domain || 'your domain'}`),
     sendOnce: false,
     intervalDays: 2,
@@ -119,7 +119,7 @@ export const TEMPLATES = {
       <ul>
         ${(vars.taskList || []).map(t => `<li><strong>${t.title || 'Project'}</strong> — ${t.status || 'Pending'}</li>`).join('')}
       </ul>
-      <div style="text-align:center"><a class="btn" href="https://www.fennark.xyz/dashboard">Submit Work</a></div>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.fennark.xyz/dashboard">Submit Work</a></div>
       <p style="font-size:12px;color:#999;margin-top:12px">Need more time? Contact support to request an extension.</p>
     `, 'Urgent Deadline Notice', 'Act now to complete your projects'),
     sendOnce: false,
@@ -137,7 +137,7 @@ export const TEMPLATES = {
         <p style="font-size:15px;font-weight:700;color:#000;margin:0 0 4px">${vars.domain || 'Internship'} — Completed</p>
         <p style="font-size:12px;color:#888;margin:0">${vars.completedAt || ''}</p>
       </div>
-      <div style="text-align:center"><a class="btn" href="https://www.fennark.xyz/dashboard">Download Certificate</a></div>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.fennark.xyz/dashboard">Download Certificate</a></div>
       <p style="font-size:13px;color:#888;margin-top:14px">You can also share your achievement on LinkedIn.</p>
     `, 'Certificate Ready', 'Your certificate is available for download'),
     sendOnce: true
@@ -154,7 +154,7 @@ export const TEMPLATES = {
         <li><strong>Refer Others</strong> — Share your referral code with friends</li>
         <li><strong>Explore Advanced Domains</strong> — Continue learning with new career paths</li>
       </ul>
-      <div style="text-align:center"><a class="btn" href="https://www.fennark.xyz">Explore More</a></div>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.fennark.xyz">Explore More</a></div>
     `, 'Program Completed', 'Your next journey awaits'),
     sendOnce: true
   },
@@ -171,7 +171,7 @@ export const TEMPLATES = {
         <li><strong>Projects Completed:</strong> ${vars.completedProjects || 0} of ${vars.totalProjects || 0}</li>
         <li><strong>Status:</strong> ${vars.status || 'Active'}</li>
       </ul>
-      <div style="text-align:center"><a class="btn" href="https://www.fennark.xyz/dashboard">Resume Learning</a></div>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.fennark.xyz/dashboard">Resume Learning</a></div>
     `, 'Resume Your Internship', 'Continue where you left off'),
     sendOnce: false,
     intervalDays: 7,
@@ -187,7 +187,7 @@ export const TEMPLATES = {
       <ul>
         ${(vars.updates || ['New domains have been added', 'Platform features have been improved', 'New tools are available on your dashboard']).map(u => `<li>${u}</li>`).join('')}
       </ul>
-      <div style="text-align:center"><a class="btn" href="https://www.fennark.xyz">View Updates</a></div>
+      <div style="text-align:center"><a class="btn" href="https://devcraft.fennark.xyz">View Updates</a></div>
     `, 'Latest Updates', 'Check out what is new at DEV/CRAFT'),
     sendOnce: false,
     intervalDays: 7,
@@ -218,7 +218,7 @@ export function getTemplate(type) {
       const allVars = {
         name: vars.name || 'Student',
         domain: vars.domain || '',
-        UNSUBSCRIBE_URL: vars.unsubscribeUrl || 'https://www.fennark.xyz/unsubscribe',
+        UNSUBSCRIBE_URL: vars.unsubscribeUrl || 'https://devcraft.fennark.xyz/unsubscribe',
         ...vars,
       };
       let html = tpl.build(allVars);

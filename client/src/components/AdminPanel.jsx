@@ -167,6 +167,7 @@ const TAB_GROUPS = [
     tabs: [
       { id: "agencies", label: "Agencies" },
       { id: "badges", label: "Badges" },
+      { id: "access-requests", label: "Access Requests" },
     ],
   },
   {
@@ -4080,7 +4081,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           setDodoSetupLoading(true);
                           setDodoSetupResult("");
                           try {
-                            const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://www.fennark.xyz").replace(/\/api\/?$/, "");
+                            const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
                             const res = await fetch(`${API_BASE}/api/dodo/setup`, { method: "POST" });
                             const data = await res.json();
                             if (data.success) {
@@ -8146,7 +8147,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
         {activeTab === "add-intern" && <AddInternSection />}
         {activeTab === "edit-interns" && <EditInternsSection />}
-        {activeTab === "badges" && <BadgesSection />}
+        {activeTab === "badges" && <BadgesSection user={user} />}
+        {activeTab === "access-requests" && <AccessRequestsSection user={user} />}
         {activeTab === "agencies" && <AgenciesSection user={user} />}
       </div>
 
@@ -10881,9 +10883,141 @@ function EditInternsSection() {
   );
 }
 
+/* ── MCP Access Requests ── */
+function AccessRequestsSection({ user }) {
+  const [pending, setPending] = useState([]);
+  const [authorized, setAuthorized] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+
+  async function mcpCall(tool, args) {
+    const token = user?.getIdToken ? await user.getIdToken() : null;
+    const res = await fetch("/api/mcp-domains", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: Date.now(),
+        method: "tools/call",
+        params: { name: tool, arguments: { ...args, ...(token ? { admin_token: token } : {}) } },
+      }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+    const text = data.result?.content?.[0]?.text || "[]";
+    try { return JSON.parse(text); } catch { return []; }
+  }
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [p, a] = await Promise.all([
+        mcpCall("list_pending_access", {}).catch(() => []),
+        mcpCall("list_authorized_users", {}).catch(() => []),
+      ]);
+      setPending(Array.isArray(p) ? p : []);
+      setAuthorized(Array.isArray(a) ? a : []);
+    } catch (e) { notify("Error: " + e.message, "error"); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { loadData(); }, []);
+
+  async function handleAuthorize(req) {
+    setActionLoading(req.id);
+    try {
+      await mcpCall("authorize_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id });
+      notify(`Authorized ${req.email}`, "success");
+      await logAdminAction("authorize-mcp-user", { email: req.email, admin: user?.email });
+      loadData();
+    } catch (e) { notify("Error: " + e.message, "error"); }
+    finally { setActionLoading(null); }
+  }
+
+  async function handleRevoke(email) {
+    if (!await confirmAction(`Revoke access for ${email}?`)) return;
+    setActionLoading(email);
+    try {
+      await mcpCall("revoke_user", { email });
+      notify(`Revoked ${email}`, "success");
+      await logAdminAction("revoke-mcp-user", { email, admin: user?.email });
+      loadData();
+    } catch (e) { notify("Error: " + e.message, "error"); }
+    finally { setActionLoading(null); }
+  }
+
+  const s = { border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000", marginBottom: "1.25rem" };
+  const cellS = { border: "1px solid #ccc", padding: "0.4rem 0.6rem", fontSize: "0.82rem", textAlign: "left" };
+
+  if (loading) return <div style={{ color: "#888", padding: "1rem" }}>Loading access requests...</div>;
+
+  return (
+    <div>
+      <div style={s}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+          <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Pending Access Requests</span>
+          <button onClick={loadData} className="btn-sharp" style={{ padding: "0.3rem 0.8rem", fontSize: "0.78rem" }}>Refresh</button>
+        </div>
+        {pending.length === 0 ? (
+          <p style={{ color: "#888", fontStyle: "italic" }}>No pending requests.</p>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr style={{ background: "#000", color: "#fff" }}>
+              <th style={cellS}>Name</th><th style={cellS}>Email</th><th style={cellS}>Reason</th><th style={cellS}>Agency</th><th style={cellS}>Date</th><th style={cellS}>Action</th>
+            </tr></thead>
+            <tbody>
+              {pending.map(r => (
+                <tr key={r.id} style={{ background: "#fafafa" }}>
+                  <td style={cellS}>{r.name}</td>
+                  <td style={cellS}>{r.email}</td>
+                  <td style={cellS}>{r.reason || "-"}</td>
+                  <td style={cellS}>{r.agency_id || "-"}</td>
+                  <td style={cellS}>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "-"}</td>
+                  <td style={cellS}>
+                    <button onClick={() => handleAuthorize(r)} disabled={actionLoading === r.id} style={{ border: "1px solid #34A853", color: "#34A853", background: "none", cursor: actionLoading === r.id ? "wait" : "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 700 }}>
+                      {actionLoading === r.id ? "..." : "Authorize"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div style={s}>
+        <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Authorized Users</span>
+        {authorized.length === 0 ? (
+          <p style={{ color: "#888", fontStyle: "italic", marginTop: "0.75rem" }}>No authorized users yet.</p>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "0.75rem" }}>
+            <thead><tr style={{ background: "#000", color: "#fff" }}>
+              <th style={cellS}>Name</th><th style={cellS}>Email</th><th style={cellS}>Agency</th><th style={cellS}>Authorized At</th><th style={cellS}>Action</th>
+            </tr></thead>
+            <tbody>
+              {authorized.map(a => (
+                <tr key={a.email} style={{ background: "#fafafa" }}>
+                  <td style={cellS}>{a.name}</td>
+                  <td style={cellS}>{a.email}</td>
+                  <td style={cellS}>{a.agency_id || "-"}</td>
+                  <td style={cellS}>{a.authorizedAt ? new Date(a.authorizedAt).toLocaleDateString() : "-"}</td>
+                  <td style={cellS}>
+                    <button onClick={() => handleRevoke(a.email)} disabled={actionLoading === a.email} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: actionLoading === a.email ? "wait" : "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem", fontWeight: 700 }}>
+                      {actionLoading === a.email ? "..." : "Revoke"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Badges & Micro-Certifications ── */
 /* ── Skill Badges & Micro-Certifications (enhanced) ── */
-function BadgesSection() {
+function BadgesSection({ user }) {
   const [badges, setBadges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

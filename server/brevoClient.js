@@ -22,7 +22,7 @@ function stripHtml(html) {
 }
 
 function getPreferenceUrl(email) {
-  return `https://www.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(email)}`;
+  return `https://devcraft.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(email)}`;
 }
 
 function getMailtoUnsubscribe(email) {

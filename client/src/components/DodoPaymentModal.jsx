@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { fetchEnrollmentById, fetchDodoConfig } from "../services/data";
 
-const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://www.fennark.xyz").replace(/\/api\/?$/, "");
+const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
 
 export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onClose, userEmail, userName }) {
   const [status, setStatus] = useState("creating");

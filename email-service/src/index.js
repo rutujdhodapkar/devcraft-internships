@@ -73,7 +73,7 @@ export async function handler(req, res) {
         <div style="text-align:center;border:2px solid #000;padding:32px;box-shadow:6px 6px 0 #000;max-width:400px">
           <h1 style="font-size:20px;text-transform:uppercase;margin-bottom:8px">Approved</h1>
           <p style="color:#444">${result.success ? 'Campaign approved and queued for sending.' : 'Error: ' + (result.error || 'Unknown')}</p>
-          <a href="https://www.fennark.xyz" style="display:inline-block;margin-top:16px;padding:8px 20px;background:#000;color:#fff;text-decoration:none;font-weight:700">Return to Website</a>
+          <a href="https://devcraft.fennark.xyz" style="display:inline-block;margin-top:16px;padding:8px 20px;background:#000;color:#fff;text-decoration:none;font-weight:700">Return to Website</a>
         </div></body></html>`
       );
     }
@@ -87,7 +87,7 @@ export async function handler(req, res) {
         <div style="text-align:center;border:2px solid #000;padding:32px;box-shadow:6px 6px 0 #000;max-width:400px">
           <h1 style="font-size:20px;text-transform:uppercase;margin-bottom:8px">Rejected</h1>
           <p style="color:#444">Campaign has been rejected and will not be sent.</p>
-          <a href="https://www.fennark.xyz" style="display:inline-block;margin-top:16px;padding:8px 20px;background:#000;color:#fff;text-decoration:none;font-weight:700">Return to Website</a>
+          <a href="https://devcraft.fennark.xyz" style="display:inline-block;margin-top:16px;padding:8px 20px;background:#000;color:#fff;text-decoration:none;font-weight:700">Return to Website</a>
         </div></body></html>`
       );
     }
