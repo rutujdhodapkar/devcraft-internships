@@ -1758,8 +1758,8 @@ async function fetchAllEnrollments() {
 }
 
 // ─── Team / Agency Accounts ───
-export async function fetchAgencies() {
-  const cached = _lsGet("agencies");
+export async function fetchAgencies({ fresh = false } = {}) {
+  const cached = !fresh && _lsGet("agencies");
   if (cached) return cached;
   const d = await dbList("agencies");
   const result = d || [];
@@ -1847,7 +1847,9 @@ export async function removeAgencyAdminEmail(agencyId, email) {
 
 // Partner workspaces use the existing approval flow and are separated by type.
 export async function fetchPartnerAccounts(type) {
-  const accounts = await fetchAgencies();
+  // Requests must never be hidden behind a browser cache: the approval queue
+  // is operational data and needs to reflect every submitted application.
+  const accounts = await fetchAgencies({ fresh: true });
   return accounts.filter((account) => account.partnerType === type);
 }
 

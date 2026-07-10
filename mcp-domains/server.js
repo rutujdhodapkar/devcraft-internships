@@ -101,7 +101,11 @@ async function authorizedMcpUser(args, tool) {
   if (args.email && args.email.toLowerCase() !== identity.email.toLowerCase()) throw new Error("Requested email does not match the signed-in user.");
   const record = loadAuthUsers().find((item) => item.email.toLowerCase() === identity.email.toLowerCase());
   if (!record) throw new Error("This email has not been approved for MCP access.");
+  // Empty permissions mean no access, never unrestricted access.  Hooks are
+  // stored independently so selecting GitHub/Slack cannot accidentally grant
+  // or deny MCP operations.
   const allowed = (record.allowed_tools || "").split(",").map((item) => item.trim()).filter(Boolean);
+  if (!allowed.length) throw new Error("No MCP permissions have been granted for this account.");
   if (allowed.length && !allowed.includes(tool)) throw new Error(`Your role is not allowed to use ${tool}.`);
   return { ...identity, ...record };
 }
@@ -186,7 +190,8 @@ const toolDefinitions = [
     inputSchema: { type: "object", properties: {
       email: { type: "string" }, name: { type: "string" }, reason: { type: "string" }, agency_id: { type: "string" },
       webhook_url: { type: "string", description: "URL to receive notifications" },
-      allowed_tools: { type: "string", description: "Comma-separated tools this user can use" },
+      allowed_tools: { type: "string", description: "Comma-separated MCP tools requested" },
+      requested_hooks: { type: "string", description: "Comma-separated API/hooks requested" },
     }, required: ["email"] },
   },
   {
@@ -194,7 +199,9 @@ const toolDefinitions = [
     description: "Approve a user's access request.",
     inputSchema: { type: "object", properties: {
       email: { type: "string" }, name: { type: "string" }, agency_id: { type: "string" }, request_id: { type: "string" },
-      allowed_tools: { type: "string", description: "Comma-separated tools this user can access" },
+      allowed_tools: { type: "string", description: "Comma-separated MCP tools this user can access" },
+      allowed_hooks: { type: "string", description: "Comma-separated API/hooks approved by admin" },
+      permissions: { type: "object", description: "Read/write/execute/admin permission flags" },
       webhook_url: { type: "string", description: "Webhook URL for notifications" },
     }, required: ["email"] },
   },
@@ -297,12 +304,12 @@ async function handleToolCall(name, args) {
 
   switch (name) {
     case "request_access": {
-      const { email, name: n, reason, agency_id, webhook_url, allowed_tools } = args;
+      const { email, name: n, reason, agency_id, webhook_url, allowed_tools, requested_hooks } = args;
       if (!email) throw new Error("Email required");
       if (isAuthorized(email)) return "You already have access.";
       const reqs = loadAccessRequests();
       if (reqs.find(r => r.email.toLowerCase() === email.toLowerCase() && r.status === "pending")) return "Request already pending.";
-      reqs.push({ id: generateId(), email: email.toLowerCase(), name: n||"", reason: reason||"", agency_id: agency_id||null, webhook_url: webhook_url||"", allowed_tools: allowed_tools||"", status: "pending", submittedAt: new Date().toISOString() });
+      reqs.push({ id: generateId(), email: email.toLowerCase(), name: n||"", reason: reason||"", agency_id: agency_id||null, webhook_url: webhook_url||"", allowed_tools: allowed_tools||"", requested_hooks: requested_hooks||"", status: "pending", submittedAt: new Date().toISOString() });
       saveAccessRequests(reqs);
       logAction("request_access", email, `Requested access${agency_id ? ` (agency: ${agency_id})` : ""}`);
       return "Request submitted. Admin will review. You will be notified when approved.";
@@ -313,7 +320,7 @@ async function handleToolCall(name, args) {
       if (args.request_id) { const r = loadAccessRequests(); const i = r.findIndex(x => x.id === args.request_id); if (i>-1) { r[i].status="approved"; r[i].approvedAt=new Date().toISOString(); r[i].allowed_tools = args.allowed_tools || r[i].allowed_tools || ""; r[i].webhook_url = args.webhook_url || r[i].webhook_url || ""; saveAccessRequests(r); } }
       const u = loadAuthUsers();
       if (u.some(x => x.email.toLowerCase() === e)) return JSON.stringify({ok:true, message:"Already has access"});
-      u.push({ email: e, name: args.name||"", agency_id: args.agency_id||null, allowed_tools: args.allowed_tools||"", webhook_url: args.webhook_url||"", authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
+      u.push({ email: e, name: args.name||"", agency_id: args.agency_id||null, allowed_tools: args.allowed_tools||"", allowed_hooks: args.allowed_hooks || "", permissions: args.permissions || { read: true, write: false, execute: false, admin: false }, webhook_url: args.webhook_url||"", authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
       saveAuthUsers(u);
       logAction("approve_user", "admin", `Approved ${e}${args.allowed_tools ? ` tools: ${args.allowed_tools}` : ""}`);
       return JSON.stringify({ok:true, message:`${e} now has access`});

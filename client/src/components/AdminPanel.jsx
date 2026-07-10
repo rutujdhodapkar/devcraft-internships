@@ -10996,7 +10996,7 @@ function AccessRequestsSection({ user }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [configModal, setConfigModal] = useState(null);
-  const [configForm, setConfigForm] = useState({ allowed_tools: "get_domains,get_tasks", webhook_url: "" });
+  const [configForm, setConfigForm] = useState({ allowed_tools: "get_domains,get_tasks", allowed_hooks: "", permissions: { read: true, write: false, execute: false, admin: false }, webhook_url: "" });
 
   async function mcpCall(tool, args) {
     const token = user?.getIdToken ? await user.getIdToken() : null;
@@ -11031,14 +11031,14 @@ function AccessRequestsSection({ user }) {
   useEffect(() => { loadData(); }, []);
 
   function openConfig(req) {
-    setConfigForm({ allowed_tools: req.allowed_tools || "get_domains,get_tasks", webhook_url: req.webhook_url || "" });
+    setConfigForm({ allowed_tools: req.allowed_tools || "get_domains,get_tasks", allowed_hooks: req.requested_hooks || "", permissions: { read: true, write: false, execute: false, admin: false }, webhook_url: req.webhook_url || "" });
     setConfigModal(req);
   }
 
   async function handleAuthorize(req) {
     setActionLoading(req.id);
     try {
-      await mcpCall("approve_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id, allowed_tools: configForm.allowed_tools, webhook_url: configForm.webhook_url });
+      await mcpCall("approve_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id, allowed_tools: configForm.allowed_tools, allowed_hooks: configForm.allowed_hooks, permissions: configForm.permissions, webhook_url: configForm.webhook_url });
       notify(`Authorized ${req.email}`, "success");
       await logAdminAction("authorize-mcp-user", { email: req.email, admin: user?.email });
       setConfigModal(null);
@@ -11135,6 +11135,9 @@ function AccessRequestsSection({ user }) {
             <h3 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Configure Access for {configModal.email}</h3>
             <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Allowed Tools (comma-separated)</label>
             <input value={configForm.allowed_tools} onChange={e => setConfigForm(p => ({ ...p, allowed_tools: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="get_domains,get_tasks,add_domain" />
+            <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Approved Hooks / APIs</label>
+            <input value={configForm.allowed_hooks} onChange={e => setConfigForm(p => ({ ...p, allowed_hooks: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="GitHub,Slack" />
+            <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginBottom: "0.75rem", fontSize: "0.8rem", fontWeight: 700 }}>{["read", "write", "execute", "admin"].map(permission => <label key={permission}><input type="checkbox" checked={!!configForm.permissions[permission]} onChange={e => setConfigForm(p => ({ ...p, permissions: { ...p.permissions, [permission]: e.target.checked } }))} /> {permission}</label>)}</div>
             <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Webhook URL (for notifications)</label>
             <input value={configForm.webhook_url} onChange={e => setConfigForm(p => ({ ...p, webhook_url: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="https://example.com/webhook" />
             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
@@ -11264,7 +11267,7 @@ function AgenciesSection({ user }) {
     } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); }
   };
 
-  const handleApprove = async (id, approved) => { setSaving(true); try { const partner = agencies.find((item) => item.id === id); await approveAgency(id, approved); if (approved && partner?.partnerType === "mcp" && partner.ownerEmail) { const token = user?.getIdToken ? await user.getIdToken() : null; await fetch("/api/mcp-domains", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name: "approve_user", arguments: { email: partner.ownerEmail, name: partner.contactName || partner.name, agency_id: id, allowed_tools: partner.requestedHooks || "get_domains,get_tasks", ...(token ? { admin_token: token } : {}) } } }) }); } const updated = await fetchAgencies(); setAgencies(updated); await logAdminAction(approved ? "approve-agency" : "disapprove-agency", { agencyId: id, admin: user?.email || "admin" }); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+  const handleApprove = async (id, approved) => { setSaving(true); try { const partner = agencies.find((item) => item.id === id); await approveAgency(id, approved); if (approved && partner?.partnerType === "mcp" && partner.ownerEmail) { const token = user?.getIdToken ? await user.getIdToken() : null; await fetch("/api/mcp-domains", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name: "approve_user", arguments: { email: partner.ownerEmail, name: partner.contactName || partner.name, agency_id: id, allowed_tools: "get_domains,get_tasks", allowed_hooks: partner.requestedHooks || "", permissions: partner.requestedPermissions || { read: true, write: false, execute: false, admin: false }, ...(token ? { admin_token: token } : {}) } } }) }); } const updated = await fetchAgencies({ fresh: true }); setAgencies(updated); await logAdminAction(approved ? "approve-agency" : "disapprove-agency", { agencyId: id, admin: user?.email || "admin" }); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
 
   const handleDelete = async (id, name) => { if (!await confirmAction(`Delete agency "${name}"?`)) return; setSaving(true); try { await deleteAgency(id); setAgencies(p => p.filter(a => a.id !== id)); await logAdminAction("delete-agency", { agency: name, admin: user?.email || "admin" }); notify("Deleted!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
 

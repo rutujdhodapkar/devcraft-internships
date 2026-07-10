@@ -57,7 +57,13 @@ export default function PartnerPortal({ type, title, subtitle, onClose, user }) 
   const apply = async (event) => {
     event.preventDefault();
     if (!email || !application.name.trim()) return;
-    await saveAgency({ ...application, contactEmail: email, requestedHooks: selectedHooks.join(","), requestedPermissions: { read: true, write: false, execute: false, admin: false }, partnerType: type, emails: [email], ownerEmail: email, memberRoles: { [email]: "owner" }, subscriptionPlan: "Starter", subscriptionStatus: "trial", approved: false });
+    if (type === "mcp" && selectedHooks.length === 0) { notify("Select at least one hook or API.", "error"); return; }
+    const saved = await saveAgency({ ...application, contactEmail: email, requestedHooks: selectedHooks.join(","), requestedPermissions: { read: true, write: false, execute: false, admin: false }, partnerType: type, emails: [email], ownerEmail: email, memberRoles: { [email]: "owner" }, subscriptionPlan: "Starter", subscriptionStatus: "trial", approved: false });
+    // Keep the MCP approval queue in sync with partner applications. The
+    // agency record remains the source of truth for the organization request.
+    if (type === "mcp") {
+      await fetch("/api/mcp-domains", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name: "request_access", arguments: { email, name: application.contactName, reason: application.reason, agency_id: saved?.id || null, requested_hooks: selectedHooks.join(",") } } }) });
+    }
     notify("Application submitted for admin approval.", "success");
     load();
   };
