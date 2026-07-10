@@ -172,10 +172,9 @@ export default function StudentDashboard({
       );
       setReferralMatchedMap(matchResults);
 
-      // Auto-select if only 1 enrollment
-      if (activeEnrollments.length === 1) {
-        setSelectedEnrollment(activeEnrollments[0]);
-      }
+      // Keep the selected internship when possible; otherwise show the first
+      // one immediately so tasks are never hidden below a long domain list.
+      setSelectedEnrollment((current) => activeEnrollments.find((item) => item.id === current?.id) || activeEnrollments[0] || null);
     } catch (err) {
       setError("Failed to load your internship data.");
       console.error(err);
@@ -308,6 +307,11 @@ export default function StudentDashboard({
       (_, idx) => submissions[idx]?.verified,
     ).length;
     return Math.round((verifiedCount / projects.length) * 100);
+  };
+
+  const getEnrollmentIcon = (enrollment) => {
+    const path = careerPaths.find((item) => item.id === enrollment.domainId || item.title === enrollment.domain);
+    return path?.icon || (enrollment.domain || enrollment.domainId || "I").trim().slice(0, 1).toUpperCase();
   };
 
   const handleSubmitProject = async (enrollment, projectIdx) => {
@@ -804,23 +808,15 @@ export default function StudentDashboard({
               })()
             ) : (
               <div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "1.5rem" }}>
-                  {tasksEnrollments.map((e) => (
-                    <div key={e.id} style={{ border: "2px solid #000", padding: "1rem 1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
-                      <div>
-                        <div style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase" }}>{e.domain || e.domainId || "Internship"}</div>
-                        <div style={{ fontSize: "0.8rem", fontWeight: 700, color: e.status === "Completed" || e.paymentStatus === "paid" ? "#34A853" : "#EA4335" }}>Status: {e.status}</div>
-                      </div>
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button type="button" className="btn-sharp" onClick={() => { hideEnrollmentFromUser(user.uid, e.id); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ padding: "0.5rem 0.75rem", fontSize: "0.78rem", fontWeight: 600, background: "#fff", color: "#888", cursor: "pointer", borderRadius: 0, border: "2px solid #ccc" }}>
-                          Hide
-                        </button>
-                        <button type="button" className="btn-sharp" onClick={() => setSelectedEnrollment(e)} style={{ padding: "0.5rem 1rem", fontSize: "0.82rem", fontWeight: 700, background: "#fff", color: "#000", cursor: "pointer", borderRadius: 0 }}>
-                          Open Dashboard
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                <div style={{ border: "2px solid #000", background: "#fff", padding: "0.75rem", marginBottom: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.65rem" }}>Your internships — select to view tasks</div>
+                  <div style={{ display: "flex", gap: "0.65rem", overflowX: "auto", paddingBottom: "0.15rem" }}>
+                    {tasksEnrollments.map((e) => {
+                      const selected = selectedEnrollment?.id === e.id;
+                      return <button key={e.id} type="button" onClick={() => setSelectedEnrollment(e)} aria-label={`Open ${e.domain || e.domainId} tasks`} title={e.domain || e.domainId || "Internship"} style={{ width: "54px", height: "54px", flex: "0 0 54px", border: "2px solid #000", background: selected ? "#000" : "#fff", color: selected ? "#fff" : "#000", fontSize: "1.25rem", fontWeight: 900, cursor: "pointer", display: "grid", placeItems: "center" }}>{getEnrollmentIcon(e)}</button>;
+                    })}
+                  </div>
+                  {selectedEnrollment && <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", fontSize: "0.82rem", flexWrap: "wrap" }}><strong>{selectedEnrollment.domain || selectedEnrollment.domainId}</strong><button type="button" onClick={() => { hideEnrollmentFromUser(user.uid, selectedEnrollment.id); setSelectedEnrollment(null); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ border: "2px solid #000", background: "#fff", color: "#000", cursor: "pointer", padding: "0.3rem 0.6rem", fontWeight: 700 }}>Hide</button></div>}
                 </div>
                 {selectedEnrollment && (() => {
                   const enrollment = selectedEnrollment;

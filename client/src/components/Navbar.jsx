@@ -346,9 +346,9 @@ export default function Navbar({
                   <button onClick={onDashboardClick} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Dashboard</button>
                 )}
                 {user && (
-                  <button onClick={() => window.location.href = '/earn'} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Refer & Earn</button>
+                  <button onClick={onEarnClick} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Refer & Earn</button>
                 )}
-                <button onClick={() => window.location.href = '/earn'} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Earn</button>
+                <button onClick={onEarnClick} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Earn</button>
                 <button onClick={() => setShowAboutModal(true)} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>About</button>
                 {headerSettings.showMcpApi !== false && isHomePage && onMcpApiClick && <button onClick={onMcpApiClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>MCP/API</button>}
                 {headerSettings.showUniOrg !== false && isHomePage && onUniOrgClick && <button onClick={onUniOrgClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>Uni/Org</button>}
@@ -438,7 +438,7 @@ export default function Navbar({
                   </button>
                 )}
                 <button
-                  onClick={() => window.location.href = '/earn'}
+                  onClick={onEarnClick}
                   className="nav-link nav-btn-link"
                   style={{
                     background: "none",
@@ -644,12 +644,12 @@ export default function Navbar({
               )}
               {user && (
                 <button
-                  onClick={() => { window.location.href = '/earn'; setShowMobileMenu(false); }}
+                  onClick={() => { onEarnClick?.(); setShowMobileMenu(false); }}
                   style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
                 >Refer & Earn</button>
               )}
               <button
-                onClick={() => { window.location.href = '/earn'; setShowMobileMenu(false); }}
+                onClick={() => { onEarnClick?.(); setShowMobileMenu(false); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
               >Earn</button>
               <button
