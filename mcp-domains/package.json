@@ -1,0 +1,14 @@
+{
+  "name": "mcp-domains",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node http-server.js",
+    "stdio": "node server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.11.0",
+    "zod": "^3.24.0"
+  }
+}

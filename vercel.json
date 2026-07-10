@@ -3,6 +3,8 @@
   "outputDirectory": "client/dist",
   "installCommand": "npm install && cd client && npm install",
   "rewrites": [
+    { "source": "/api/mcp-domains", "destination": "/api/mcp-domains" },
+    { "source": "/api/mcp-domains/:path*", "destination": "/api/mcp-domains" },
     { "source": "/api/:path*", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

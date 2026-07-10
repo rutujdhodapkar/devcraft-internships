@@ -11,6 +11,11 @@
         "FROM_NAME": "{env:FROM_NAME}"
       }
     },
+    "domains": {
+      "type": "local",
+      "command": ["node", "mcp-domains/server.js"],
+      "enabled": true
+    },
     "social-automation": {
       "type": "local",
       "command": ["node", "mcp-social/server.js"],
