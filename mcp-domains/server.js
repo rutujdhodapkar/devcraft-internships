@@ -27,14 +27,30 @@ function writeJSON(path, data) {
   writeFileSync(path, JSON.stringify(data, null, 2));
 }
 
-function loadProposals() { return readJSON(PROPOSALS_FILE) || []; }
-function saveProposals(p) { writeJSON(PROPOSALS_FILE, p); }
-
-function loadAuthUsers() { return readJSON(AUTH_USERS_FILE) || []; }
-function saveAuthUsers(u) { writeJSON(AUTH_USERS_FILE, u); }
-
-function loadAccessRequests() { return readJSON(ACCESS_REQUESTS_FILE) || []; }
-function saveAccessRequests(r) { writeJSON(ACCESS_REQUESTS_FILE, r); }
+// Vercel's filesystem (including /tmp) is ephemeral.  These records live in
+// Cosmos whenever it is configured; JSON is only a local-development fallback.
+async function loadPersistent(collection, fallback) {
+  const db = await getDb();
+  if (!db) return readJSON(fallback) || [];
+  const snapshot = await db.collection(collection).get();
+  return snapshot.docs.map((doc) => doc.data());
+}
+async function savePersistent(collection, rows, fallback) {
+  const db = await getDb();
+  if (!db) { writeJSON(fallback, rows); return; }
+  const refs = await db.collection(collection).listDocuments();
+  const nextIds = new Set(rows.map((row) => row.id || row.email.toLowerCase()));
+  await Promise.all([
+    ...rows.map((row) => db.collection(collection).doc(row.id || row.email.toLowerCase()).set(row)),
+    ...refs.filter((ref) => !nextIds.has(ref.id)).map((ref) => ref.delete()),
+  ]);
+}
+async function loadProposals() { return loadPersistent("mcpProposals", PROPOSALS_FILE); }
+async function saveProposals(p) { return savePersistent("mcpProposals", p, PROPOSALS_FILE); }
+async function loadAuthUsers() { return loadPersistent("mcpAuthorizedUsers", AUTH_USERS_FILE); }
+async function saveAuthUsers(u) { return savePersistent("mcpAuthorizedUsers", u, AUTH_USERS_FILE); }
+async function loadAccessRequests() { return loadPersistent("mcpAccessRequests", ACCESS_REQUESTS_FILE); }
+async function saveAccessRequests(r) { return savePersistent("mcpAccessRequests", r, ACCESS_REQUESTS_FILE); }
 
 let _db = null;
 async function getDb() {
@@ -89,17 +105,17 @@ async function verifyAdmin(adminToken, adminSecret) {
   return false;
 }
 
-function isAuthorized(email) {
+async function isAuthorized(email) {
   if (!email) return false;
-  const users = loadAuthUsers();
+  const users = await loadAuthUsers();
   return users.some(u => u.email.toLowerCase() === email.toLowerCase());
 }
 
-async function authorizedMcpUser(args, tool) {
+async function authorizedMcpUser(args, tool, requiredPermission = "read") {
   const identity = await verifyFirebaseToken(args.user_token);
   if (!identity?.email) throw new Error("Sign in with an approved email to use MCP.");
   if (args.email && args.email.toLowerCase() !== identity.email.toLowerCase()) throw new Error("Requested email does not match the signed-in user.");
-  const record = loadAuthUsers().find((item) => item.email.toLowerCase() === identity.email.toLowerCase());
+  const record = (await loadAuthUsers()).find((item) => item.email.toLowerCase() === identity.email.toLowerCase());
   if (!record) throw new Error("This email has not been approved for MCP access.");
   // Empty permissions mean no access, never unrestricted access.  Hooks are
   // stored independently so selecting GitHub/Slack cannot accidentally grant
@@ -107,6 +123,7 @@ async function authorizedMcpUser(args, tool) {
   const allowed = (record.allowed_tools || "").split(",").map((item) => item.trim()).filter(Boolean);
   if (!allowed.length) throw new Error("No MCP permissions have been granted for this account.");
   if (allowed.length && !allowed.includes(tool)) throw new Error(`Your role is not allowed to use ${tool}.`);
+  if (!record.permissions?.[requiredPermission] && !record.permissions?.admin) throw new Error(`Your role does not have ${requiredPermission} permission.`);
   return { ...identity, ...record };
 }
 
@@ -306,41 +323,41 @@ async function handleToolCall(name, args) {
     case "request_access": {
       const { email, name: n, reason, agency_id, webhook_url, allowed_tools, requested_hooks } = args;
       if (!email) throw new Error("Email required");
-      if (isAuthorized(email)) return "You already have access.";
-      const reqs = loadAccessRequests();
+      if (await isAuthorized(email)) return "You already have access.";
+      const reqs = await loadAccessRequests();
       if (reqs.find(r => r.email.toLowerCase() === email.toLowerCase() && r.status === "pending")) return "Request already pending.";
       reqs.push({ id: generateId(), email: email.toLowerCase(), name: n||"", reason: reason||"", agency_id: agency_id||null, webhook_url: webhook_url||"", allowed_tools: allowed_tools||"", requested_hooks: requested_hooks||"", status: "pending", submittedAt: new Date().toISOString() });
-      saveAccessRequests(reqs);
+      await saveAccessRequests(reqs);
       logAction("request_access", email, `Requested access${agency_id ? ` (agency: ${agency_id})` : ""}`);
       return "Request submitted. Admin will review. You will be notified when approved.";
     }
     case "approve_user": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const e = args.email.toLowerCase();
-      if (args.request_id) { const r = loadAccessRequests(); const i = r.findIndex(x => x.id === args.request_id); if (i>-1) { r[i].status="approved"; r[i].approvedAt=new Date().toISOString(); r[i].allowed_tools = args.allowed_tools || r[i].allowed_tools || ""; r[i].webhook_url = args.webhook_url || r[i].webhook_url || ""; saveAccessRequests(r); } }
-      const u = loadAuthUsers();
+      if (args.request_id) { const r = await loadAccessRequests(); const i = r.findIndex(x => x.id === args.request_id); if (i>-1) { r[i].status="approved"; r[i].approvedAt=new Date().toISOString(); r[i].allowed_tools = args.allowed_tools || r[i].allowed_tools || ""; r[i].webhook_url = args.webhook_url || r[i].webhook_url || ""; await saveAccessRequests(r); } }
+      const u = await loadAuthUsers();
       if (u.some(x => x.email.toLowerCase() === e)) return JSON.stringify({ok:true, message:"Already has access"});
       u.push({ email: e, name: args.name||"", agency_id: args.agency_id||null, allowed_tools: args.allowed_tools||"", allowed_hooks: args.allowed_hooks || "", permissions: args.permissions || { read: true, write: false, execute: false, admin: false }, webhook_url: args.webhook_url||"", authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
-      saveAuthUsers(u);
+      await saveAuthUsers(u);
       logAction("approve_user", "admin", `Approved ${e}${args.allowed_tools ? ` tools: ${args.allowed_tools}` : ""}`);
       return JSON.stringify({ok:true, message:`${e} now has access`});
     }
     case "remove_user": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      let u = loadAuthUsers(); const b = u.length;
+      let u = await loadAuthUsers(); const b = u.length;
       u = u.filter(x => x.email.toLowerCase() !== args.email.toLowerCase());
       if (u.length === b) return "Not found";
-      saveAuthUsers(u);
+      await saveAuthUsers(u);
       logAction("remove_user", "admin", `Removed ${args.email}`);
       return "Removed";
     }
     case "pending_users": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      return JSON.stringify(loadAccessRequests().filter(r => r.status === "pending"));
+      return JSON.stringify((await loadAccessRequests()).filter(r => r.status === "pending"));
     }
     case "active_users": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      return JSON.stringify(loadAuthUsers());
+      return JSON.stringify(await loadAuthUsers());
     }
     case "get_domains": {
       const isAdmin = await verifyAdmin(args.admin_token, args.admin_secret);
@@ -359,33 +376,33 @@ async function handleToolCall(name, args) {
       return JSON.stringify(domain.projects || [], null, 2);
     }
     case "add_domain": {
-      const member = await authorizedMcpUser(args, "add_domain");
+      const member = await authorizedMcpUser(args, "add_domain", "write");
       const email = member.email;
-      const proposals = loadProposals();
+      const proposals = await loadProposals();
       const proposal = { id: `prop_${generateId()}`, type: "add_domain", requester_email: email, data: { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], icon: args.icon||"⭐" }, status: "pending", submittedAt: new Date().toISOString() };
-      proposals.push(proposal); saveProposals(proposals);
+      proposals.push(proposal); await saveProposals(proposals);
       logAction("add_domain", email, `Suggested new domain: ${args.title}`);
       return `Domain "${args.title}" submitted for review (ID: ${proposal.id}). Admin will review and make it live.`;
     }
     case "add_task": {
-      const member = await authorizedMcpUser(args, "add_task");
+      const member = await authorizedMcpUser(args, "add_task", "write");
       const email = member.email;
-      const proposals = loadProposals();
+      const proposals = await loadProposals();
       const proposal = { id: `prop_${generateId()}`, type: "add_task", requester_email: email, data: { domain_id: args.domain_id, title: args.title, description: args.description||"", type: args.type||"project", links: args.links||[] }, status: "pending", submittedAt: new Date().toISOString() };
-      proposals.push(proposal); saveProposals(proposals);
+      proposals.push(proposal); await saveProposals(proposals);
       logAction("add_task", email, `Suggested new task: ${args.title} for ${args.domain_id}`);
       return `Task "${args.title}" submitted for review (ID: ${proposal.id}). Admin will review and make it live.`;
     }
     case "list_changes": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      let proposals = loadProposals();
+      let proposals = await loadProposals();
       const s = args.status || "pending";
       if (s !== "all") proposals = proposals.filter(p => p.status === s);
       return JSON.stringify(proposals, null, 2);
     }
     case "approve_change": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const proposals = loadProposals();
+      const proposals = await loadProposals();
       const idx = proposals.findIndex(p => p.id === args.change_id);
       if (idx === -1) throw new Error(`Change "${args.change_id}" not found`);
       if (proposals[idx].status !== "pending") throw new Error(`Already ${proposals[idx].status}`);
@@ -397,18 +414,18 @@ async function handleToolCall(name, args) {
         try { const docs = await executeQuery("careerPaths", [], null); const domain = docs.find(d => d.id === prop.data.domain_id); if (!domain) throw new Error("Domain not found"); const projects = domain.projects || []; projects.push({ title: prop.data.title, description: prop.data.description, type: prop.data.type, links: prop.data.links }); result = await executeMutate("careerPaths", "update", { projects }, prop.data.domain_id, null); } catch (err) { result = `Error: ${err.message}`; }
       }
       prop.status = "approved"; prop.approvedAt = new Date().toISOString(); prop.executionResult = result;
-      proposals[idx] = prop; saveProposals(proposals);
+      proposals[idx] = prop; await saveProposals(proposals);
       logAction("approve_change", "admin", `Approved ${prop.type}: ${prop.data?.title || args.change_id}`);
       return `Approved. ${result}`;
     }
     case "reject_change": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const proposals = loadProposals();
+      const proposals = await loadProposals();
       const idx = proposals.findIndex(p => p.id === args.change_id);
       if (idx === -1) throw new Error(`Change "${args.change_id}" not found`);
       if (proposals[idx].status !== "pending") throw new Error(`Already ${proposals[idx].status}`);
       proposals[idx].status = "rejected"; proposals[idx].rejectionReason = args.reason || "No reason";
-      saveProposals(proposals);
+      await saveProposals(proposals);
       logAction("reject_change", "admin", `Rejected ${args.change_id}: ${args.reason||"No reason"}`);
       return `Rejected. Reason: ${proposals[idx].rejectionReason}`;
     }
