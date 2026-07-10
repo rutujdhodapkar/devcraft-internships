@@ -39,6 +39,9 @@ async function _rtdbDelete(path) {
 
 // Simple in-memory cache with TTL to reduce redundant Firestore reads
 const _cache = new Map();
+const _inflightReads = new Map();
+const STATIC_CACHE_TTL = 10 * 60 * 1000;
+const STATIC_COLLECTIONS = new Set(["careerPaths", "howItWorks", "faqs", "homepage", "logoLoop", "slidingStrips", "universityCollab"]);
 const CACHE_TTL = 15 * 1000; // 15 seconds — short enough to avoid stale admin data, long enough to prevent double fetches
 
 function _cacheKey(action, path, query) {
@@ -54,6 +57,11 @@ function _cacheGet(key) {
 
 function _cacheSet(key, data, ttl) {
   _cache.set(key, { data, expiresAt: Date.now() + (ttl || CACHE_TTL) });
+}
+
+function _cacheTtl(path) {
+  const collection = path.split("/")[0];
+  return STATIC_COLLECTIONS.has(collection) || path.startsWith("siteConfig/") ? STATIC_CACHE_TTL : CACHE_TTL;
 }
 
 function _cacheClear(docPath) {
@@ -110,6 +118,8 @@ async function dbProxy(action, path, data, query) {
   if (action === "get" || action === "list" || action === "query") {
     const cached = _cacheGet(key);
     if (cached) return cached;
+    const pending = _inflightReads.get(key);
+    if (pending) return pending;
     if (siteConfigRead) {
       const cookieData = getCookie(ck);
       if (cookieData !== null) return cookieData;
@@ -120,24 +130,21 @@ async function dbProxy(action, path, data, query) {
     const token = await getFirebaseIdToken().catch(() => null);
     if (token) body.idToken = token;
   }
-  const res = await fetch(`${API_BASE}/api/firebase-proxy`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json();
-  if (!res.ok || json.success === false) throw new Error(json.message || `Proxy ${action} ${path} failed`);
-  const result = json.data;
-  if (action === "get" || action === "list" || action === "query") {
-    if (result !== null) {
-      _cacheSet(key, result);
-      if (siteConfigRead) { try { const s = JSON.stringify(result); if (s.length < 3500) setCookie(ck, result); } catch {} }
-    }
-  } else {
-    _cacheClear(path);
-    removeCookie(ck);
-  }
-  return result;
+  const request = (async () => {
+    const res = await fetch(`${API_BASE}/api/firebase-proxy`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const json = await res.json();
+    if (!res.ok || json.success === false) throw new Error(json.message || `Proxy ${action} ${path} failed`);
+    const result = json.data;
+    if (action === "get" || action === "list" || action === "query") {
+      if (result !== null) {
+        _cacheSet(key, result, _cacheTtl(path));
+        if (siteConfigRead) { try { const s = JSON.stringify(result); if (s.length < 3500) setCookie(ck, result); } catch {} }
+      }
+    } else { _cacheClear(path); removeCookie(ck); }
+    return result;
+  })();
+  if (action === "get" || action === "list" || action === "query") _inflightReads.set(key, request);
+  try { return await request; } finally { _inflightReads.delete(key); }
 }
 
 async function dbGet(path) {
@@ -1340,6 +1347,7 @@ export async function fetchSiteConfig(key) {
 
 export async function saveSiteConfig(key, value) {
   _lsRemove("sc_" + key);
+  _cacheClear(`siteConfig/${key}`);
   await apiFetch(`/api/data/site-config?key=${encodeURIComponent(key)}`, {
     method: "PUT",
     body: JSON.stringify({ value }),

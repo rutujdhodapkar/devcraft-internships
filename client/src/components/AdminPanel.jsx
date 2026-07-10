@@ -10353,7 +10353,7 @@ function ThemeSection() {
 
 /* ── Header Settings ── */
 function HeaderSettingsSection() {
-  const [settings, setSettings] = useState({ animation: "slide-down", effect: "solid" });
+  const [settings, setSettings] = useState({ animation: "slide-down", effect: "solid", showMcpApi: true, showUniOrg: true, showVerify: true });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -10410,6 +10410,11 @@ function HeaderSettingsSection() {
             <option value="glass-chromatic">Chromatic Aberration Glass</option>
           </select>
         </div>
+        <fieldset style={{ border: "2px solid #000", padding: "0.75rem", margin: 0 }}>
+          <legend style={{ fontSize: "0.72rem", fontWeight: 800, textTransform: "uppercase" }}>Header actions</legend>
+          <p style={{ margin: "0 0 0.65rem", fontSize: "0.78rem", color: "#666" }}>Only enabled actions appear in the public header. MCP/API and Uni/Org remain home-page only.</p>
+          {[ ["showMcpApi", "Show MCP/API"], ["showUniOrg", "Show Uni/Org"], ["showVerify", "Show Verify Internship"] ].map(([key, label]) => <label key={key} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.45rem", fontSize: "0.85rem", fontWeight: 700 }}><input type="checkbox" checked={settings[key] !== false} onChange={(e) => setSettings({ ...settings, [key]: e.target.checked })} />{label}</label>)}
+        </fieldset>
       </div>
       <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ width: "100%", marginTop: "1.25rem" }}>
         {saving ? "Saving..." : "Save Header Settings"}
