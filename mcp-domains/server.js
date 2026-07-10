@@ -6,7 +6,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ADMIN_SECRET_FALLBACK = process.env.MCP_DOMAINS_ADMIN_SECRET || "devcraft_admin_mcp_2025";
+const ADMIN_SECRET_FALLBACK = process.env.MCP_DOMAINS_ADMIN_SECRET || "";
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || "";
 const DATA_DIR = process.env.VERCEL ? join("/tmp", "mcp-domains-data") : join(__dirname, "data");
