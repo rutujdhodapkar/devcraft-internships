@@ -167,150 +167,93 @@ async function executeMutate(collection, action, data, id, agencyId) {
 const toolDefinitions = [
   {
     name: "request_access",
-    description: "Request to use the system. Provide your email and reason.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        email: { type: "string", description: "Your email address" },
-        name: { type: "string", description: "Your name" },
-        reason: { type: "string", description: "Why you need access" },
-        agency_id: { type: "string", description: "Agency ID if applicable" },
-      },
-      required: ["email"],
-    },
+    description: "Request access to use the system. Provide your email.",
+    inputSchema: { type: "object", properties: {
+      email: { type: "string" }, name: { type: "string" }, reason: { type: "string" }, agency_id: { type: "string" },
+    }, required: ["email"] },
   },
   {
     name: "approve_user",
-    description: "Grant access to a user who requested it.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        email: { type: "string", description: "User's email" },
-        name: { type: "string", description: "User's name" },
-        agency_id: { type: "string", description: "Agency ID if applicable" },
-        request_id: { type: "string", description: "Request ID to approve (optional)" },
-      },
-      required: ["email"],
-    },
+    description: "Approve a user's access request. Admin only.",
+    inputSchema: { type: "object", properties: {
+      email: { type: "string" }, name: { type: "string" }, agency_id: { type: "string" }, request_id: { type: "string" },
+    }, required: ["email"] },
   },
   {
     name: "remove_user",
-    description: "Revoke a user's access.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        email: { type: "string", description: "User's email" },
-      },
-      required: ["email"],
-    },
+    description: "Revoke a user's access. Admin only.",
+    inputSchema: { type: "object", properties: { email: { type: "string" } }, required: ["email"] },
   },
   {
     name: "pending_users",
-    description: "List users waiting for access approval.",
+    description: "List users waiting for approval. Admin only.",
     inputSchema: { type: "object", properties: {} },
   },
   {
     name: "active_users",
-    description: "List users who already have access.",
+    description: "List users who have access. Admin only.",
     inputSchema: { type: "object", properties: {} },
   },
-
   {
-    name: "read_data",
-    description: "Request to view data from a collection.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        email: { type: "string", description: "Your email" },
-        collection: { type: "string", enum: Object.keys(COLLECTIONS), description: "Collection name" },
-        filters: { type: "array", items: { type: "object", properties: { field: { type: "string" }, op: { type: "string", enum: ["==", ">", "<", ">=", "<=", "!="], default: "==" }, value: { type: "string" } } } },
-        reason: { type: "string", description: "Why you need this" },
-      },
-      required: ["email", "collection"],
-    },
+    name: "get_domains",
+    description: "List all internship domains (career paths). Anyone with access can use.",
+    inputSchema: { type: "object", properties: { email: { type: "string", description: "Your authorized email" } }, required: ["email"] },
   },
   {
-    name: "write_data",
-    description: "Request to create, update, or delete data.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        email: { type: "string", description: "Your email" },
-        collection: { type: "string", enum: Object.keys(COLLECTIONS) },
-        action: { type: "string", enum: ["create", "update", "delete"] },
-        document_id: { type: "string" },
-        data: { type: "object", additionalProperties: true },
-        reason: { type: "string" },
-      },
-      required: ["email", "collection", "action"],
-    },
-  },
-
-  {
-    name: "approve_change",
-    description: "Approve a pending change request to make it live.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        change_id: { type: "string", description: "ID of the change to approve" },
-      },
-      required: ["change_id"],
-    },
+    name: "get_tasks",
+    description: "List projects/tasks for a specific domain. Anyone with access can use.",
+    inputSchema: { type: "object", properties: {
+      email: { type: "string", description: "Your authorized email" },
+      domain_id: { type: "string", description: "Domain ID (e.g. path_java)" },
+    }, required: ["email", "domain_id"] },
   },
   {
-    name: "reject_change",
-    description: "Reject a pending change request.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        change_id: { type: "string", description: "ID of the change to reject" },
-        reason: { type: "string" },
-      },
-      required: ["change_id"],
-    },
+    name: "add_domain",
+    description: "Add a new internship domain. Creates it live immediately. Requires access.",
+    inputSchema: { type: "object", properties: {
+      email: { type: "string", description: "Your authorized email" },
+      id: { type: "string", description: "Unique ID (e.g. path_ai_ml)" },
+      title: { type: "string", description: "Domain name" },
+      duration: { type: "string", description: "e.g. 8 Weeks" },
+      paymentAmount: { type: "number", description: "Price in USD" },
+      paymentAmountReferral: { type: "number", description: "Referral price" },
+      description: { type: "string" },
+      features: { type: "array", items: { type: "string" }, description: "List of features" },
+      icon: { type: "string", description: "Emoji icon" },
+    }, required: ["email", "id", "title"] },
   },
   {
-    name: "list_changes",
-    description: "List change requests by status.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        status: { type: "string", enum: ["pending", "approved", "rejected", "all"], default: "pending" },
-        email: { type: "string" },
-      },
-    },
+    name: "add_task",
+    description: "Add a project/task to an existing domain. Creates it live immediately. Requires access.",
+    inputSchema: { type: "object", properties: {
+      email: { type: "string", description: "Your authorized email" },
+      domain_id: { type: "string", description: "Domain ID (e.g. path_java)" },
+      title: { type: "string", description: "Project title" },
+      description: { type: "string" },
+      type: { type: "string", enum: ["project", "quiz"], default: "project" },
+      links: { type: "array", items: { type: "string" }, description: "Resource links" },
+    }, required: ["email", "domain_id", "title"] },
   },
-
   {
     name: "lookup",
-    description: "Directly view data from any collection.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        collection: { type: "string", enum: Object.keys(COLLECTIONS) },
-        filters: { type: "array", items: { type: "object", properties: { field: { type: "string" }, op: { type: "string", enum: ["==", ">", "<", ">=", "<=", "!="], default: "==" }, value: { type: "string" } } } },
-      },
-      required: ["collection"],
-    },
+    description: "Query any collection directly. Admin only.",
+    inputSchema: { type: "object", properties: {
+      collection: { type: "string", enum: Object.keys(COLLECTIONS) },
+      filters: { type: "array", items: { type: "object", properties: { field: { type: "string" }, op: { type: "string", enum: ["==", ">", "<", ">=", "<=", "!="], default: "==" }, value: { type: "string" } } } },
+    }, required: ["collection"] },
   },
   {
     name: "edit_data",
-    description: "Directly create, update, or delete data.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        collection: { type: "string", enum: Object.keys(COLLECTIONS) },
-        action: { type: "string", enum: ["create", "update", "delete"] },
-        document_id: { type: "string" },
-        data: { type: "object", additionalProperties: true },
-      },
-      required: ["collection", "action"],
-    },
+    description: "Create, update, or delete any data directly. Admin only.",
+    inputSchema: { type: "object", properties: {
+      collection: { type: "string", enum: Object.keys(COLLECTIONS) },
+      action: { type: "string", enum: ["create", "update", "delete"] },
+      document_id: { type: "string" }, data: { type: "object", additionalProperties: true },
+    }, required: ["collection", "action"] },
   },
-
   {
     name: "collections",
-    description: "List available collections.",
+    description: "List available collections. Admin only.",
     inputSchema: { type: "object", properties: {} },
   },
 ];
@@ -318,139 +261,101 @@ const toolDefinitions = [
 // ── Tool handler ──
 
 async function handleToolCall(name, args) {
-  // Map old names to new for backwards compat
   const NAME_MAP = {
     authorize_user: "approve_user", revoke_user: "remove_user",
     list_pending_access: "pending_users", list_authorized_users: "active_users",
-    propose_query: "read_data", propose_mutate: "write_data",
+    propose_query: "get_domains", propose_mutate: "add_domain",
     approve_proposal: "approve_change", reject_proposal: "reject_change",
     list_proposals: "list_changes", admin_query: "lookup", admin_mutate: "edit_data",
-    list_collections: "collections",
+    list_collections: "collections", read_data: "get_domains", write_data: "add_domain",
   };
   name = NAME_MAP[name] || name;
 
   switch (name) {
     case "request_access": {
-      const { email, name: userName, reason, agency_id } = args;
-      if (!email) throw new Error("Email is required");
-      if (isAuthorized(email)) return `You already have access. Use read_data or write_data.`;
-      const requests = loadAccessRequests();
-      const existing = requests.find(r => r.email.toLowerCase() === email.toLowerCase() && r.status === "pending");
-      if (existing) return `Request already pending (ID: ${existing.id}). Wait for approval.`;
-      const req = { id: generateId(), email: email.toLowerCase(), name: userName || "", reason: reason || "", agency_id: agency_id || null, status: "pending", submittedAt: new Date().toISOString() };
-      requests.push(req); saveAccessRequests(requests);
-      return `Request submitted. ID: ${req.id} - Waiting for approval.`;
+      const { email, name: n, reason, agency_id } = args;
+      if (!email) throw new Error("Email required");
+      if (isAuthorized(email)) return "You already have access.";
+      const reqs = loadAccessRequests();
+      if (reqs.find(r => r.email.toLowerCase() === email.toLowerCase() && r.status === "pending")) return "Request already pending.";
+      reqs.push({ id: generateId(), email: email.toLowerCase(), name: n||"", reason: reason||"", agency_id: agency_id||null, status: "pending", submittedAt: new Date().toISOString() });
+      saveAccessRequests(reqs);
+      return "Request submitted. Admin will review.";
     }
-
     case "approve_user": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const email = args.email.toLowerCase();
-      const name = args.name || "";
-      const agency_id = args.agency_id || null;
-      if (args.request_id) { const requests = loadAccessRequests(); const idx = requests.findIndex(r => r.id === args.request_id); if (idx !== -1) { requests[idx].status = "approved"; requests[idx].approvedAt = new Date().toISOString(); saveAccessRequests(requests); } }
-      const users = loadAuthUsers();
-      if (users.some(u => u.email.toLowerCase() === email)) return JSON.stringify({ ok: true, message: `${email} already has access.` });
-      users.push({ email: email.toLowerCase(), name, agency_id, authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
-      saveAuthUsers(users);
-      return JSON.stringify({ ok: true, message: `${email} now has access.` });
+      const e = args.email.toLowerCase();
+      if (args.request_id) { const r = loadAccessRequests(); const i = r.findIndex(x => x.id === args.request_id); if (i>-1) { r[i].status="approved"; r[i].approvedAt=new Date().toISOString(); saveAccessRequests(r); } }
+      const u = loadAuthUsers();
+      if (u.some(x => x.email.toLowerCase() === e)) return JSON.stringify({ok:true, message:"Already has access"});
+      u.push({ email: e, name: args.name||"", agency_id: args.agency_id||null, authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
+      saveAuthUsers(u);
+      return JSON.stringify({ok:true, message:`${e} now has access`});
     }
-
     case "remove_user": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const email = args.email.toLowerCase();
-      let users = loadAuthUsers();
-      const before = users.length;
-      users = users.filter(u => u.email.toLowerCase() !== email);
-      if (users.length === before) return `${email} had no access.`;
-      saveAuthUsers(users);
-      return `Access removed for ${email}.`;
+      let u = loadAuthUsers(); const b = u.length;
+      u = u.filter(x => x.email.toLowerCase() !== args.email.toLowerCase());
+      if (u.length === b) return "Not found";
+      saveAuthUsers(u); return "Removed";
     }
-
     case "pending_users": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       return JSON.stringify(loadAccessRequests().filter(r => r.status === "pending"));
     }
-
     case "active_users": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       return JSON.stringify(loadAuthUsers());
     }
-
-    case "read_data": {
-      const { email: re, collection, filters, reason } = args;
-      if (!re) throw new Error("email is required");
-      if (!isAuthorized(re)) throw new Error("No access. Use request_access first.");
-      const proposals = loadProposals();
-      const proposal = { id: `prop_${generateId()}`, type: "query", requester_email: re, agency_id: null, collection, filters: filters || [], reason: reason || "", status: "pending", submittedAt: new Date().toISOString() };
-      proposals.push(proposal); saveProposals(proposals);
-      return `Read request submitted. ID: ${proposal.id} - Waiting for approval.`;
+    case "get_domains": {
+      const email = args.email || args.requester_email;
+      if (!email) throw new Error("Email required");
+      if (!isAuthorized(email)) throw new Error("Not authorized. Use request_access first.");
+      const docs = await executeQuery("careerPaths", [], null);
+      return JSON.stringify(docs.map(d => ({ id: d.id, title: d.title, duration: d.duration, description: d.description, features: d.features, icon: d.icon, projects: (d.projects||[]).length })), null, 2);
     }
-
-    case "write_data": {
-      const { email: we, collection, action, document_id, data, reason } = args;
-      if (!we) throw new Error("email is required");
-      if (!isAuthorized(we)) throw new Error("No access. Use request_access first.");
-      if (collection === "admins" && !(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Only admin can modify admins");
-      const proposals = loadProposals();
-      const proposal = { id: `prop_${generateId()}`, type: "mutate", requester_email: we, agency_id: null, collection, action, document_id: document_id || null, data: data || {}, reason: reason || "", status: "pending", submittedAt: new Date().toISOString() };
-      proposals.push(proposal); saveProposals(proposals);
-      return `Change request submitted. ID: ${proposal.id} - Waiting for approval.`;
+    case "get_tasks": {
+      const email = args.email;
+      if (!email) throw new Error("Email required");
+      if (!isAuthorized(email)) throw new Error("Not authorized.");
+      const docs = await executeQuery("careerPaths", [], null);
+      const domain = docs.find(d => d.id === args.domain_id);
+      if (!domain) throw new Error("Domain not found");
+      return JSON.stringify(domain.projects || [], null, 2);
     }
-
-    case "approve_change": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const proposals = loadProposals();
-      const idx = proposals.findIndex(p => p.id === args.change_id);
-      if (idx === -1) throw new Error(`Change "${args.change_id}" not found`);
-      if (proposals[idx].status !== "pending") throw new Error(`Already ${proposals[idx].status}`);
-      const prop = proposals[idx];
-      let result;
-      if (prop.type === "query") { try { const docs = await executeQuery(prop.collection, prop.filters, prop.agency_id); result = `Found ${docs.length} documents.`; } catch (err) { result = `Error: ${err.message}`; } }
-      else { try { result = await executeMutate(prop.collection, prop.action, prop.data, prop.document_id, prop.agency_id); } catch (err) { result = `Error: ${err.message}`; } }
-      prop.status = "approved"; prop.approvedAt = new Date().toISOString(); prop.approvedBy = "admin"; prop.executionResult = result;
-      proposals[idx] = prop; saveProposals(proposals);
-      return `Approved. ${result}`;
+    case "add_domain": {
+      const email = args.email;
+      if (!email) throw new Error("Email required");
+      if (!isAuthorized(email)) throw new Error("Not authorized.");
+      const userInfo = loadAuthUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (userInfo?.agency_id) {
+        return await executeMutate("careerPaths", "create", { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], icon: args.icon||"⭐", projects: [], agencyId: userInfo.agency_id }, null, null);
+      }
+      return await executeMutate("careerPaths", "create", { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], icon: args.icon||"⭐", projects: [] }, null, null);
     }
-
-    case "reject_change": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const proposals = loadProposals();
-      const idx = proposals.findIndex(p => p.id === args.change_id);
-      if (idx === -1) throw new Error(`Change "${args.change_id}" not found`);
-      if (proposals[idx].status !== "pending") throw new Error(`Already ${proposals[idx].status}`);
-      proposals[idx].status = "rejected"; proposals[idx].rejectedAt = new Date().toISOString(); proposals[idx].rejectionReason = args.reason || "No reason";
-      saveProposals(proposals);
-      return `Rejected. Reason: ${proposals[idx].rejectionReason}`;
+    case "add_task": {
+      const email = args.email;
+      if (!email) throw new Error("Email required");
+      if (!isAuthorized(email)) throw new Error("Not authorized.");
+      const docs = await executeQuery("careerPaths", [], null);
+      const domain = docs.find(d => d.id === args.domain_id);
+      if (!domain) throw new Error("Domain not found");
+      const projects = domain.projects || [];
+      projects.push({ title: args.title, description: args.description||"", type: args.type||"project", links: args.links||[] });
+      return await executeMutate("careerPaths", "update", { projects }, args.domain_id, null);
     }
-
-    case "list_changes": {
-      const isAdmin = await verifyAdmin(args.admin_token, args.admin_secret);
-      if (!isAdmin && !args.email) throw new Error("Unauthorized: provide email or admin auth");
-      if (!isAdmin && !isAuthorized(args.email)) throw new Error("Not authorized");
-      let proposals = loadProposals();
-      const { status = "pending", email } = args;
-      if (status !== "all") proposals = proposals.filter(p => p.status === status);
-      if (email) proposals = proposals.filter(p => p.requester_email?.toLowerCase() === email.toLowerCase());
-      if (proposals.length === 0) return "No changes found.";
-      return proposals.map(p => `${p.id}: ${p.type} ${p.collection} [${p.status}] by ${p.requester_email}`).join("\n");
-    }
-
     case "lookup": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const docs = await executeQuery(args.collection, args.filters, null);
-      return JSON.stringify(docs.slice(0, 100), null, 2);
+      return JSON.stringify(await executeQuery(args.collection, args.filters||[], null), null, 2);
     }
-
     case "edit_data": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      return await executeMutate(args.collection, args.action, args.data || {}, args.document_id, null);
+      return await executeMutate(args.collection, args.action, args.data||{}, args.document_id, null);
     }
-
     case "collections": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       return Object.keys(COLLECTIONS).join(", ");
     }
-
     default: throw new Error(`Unknown tool: ${name}`);
   }
 }
