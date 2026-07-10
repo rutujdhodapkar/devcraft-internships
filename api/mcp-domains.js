@@ -46,6 +46,17 @@ export default async function mcpHandler(req, res) {
 
   const { jsonrpc, id, method, params } = body;
 
+  // Extract Bearer token from Authorization header (used by ChatGPT OAuth)
+  const authHeader = req.headers["authorization"] || "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+
+  // Inject token into tool arguments so verifyAdmin can find it
+  if (method === "tools/call" && params && params.arguments) {
+    if (bearerToken && !params.arguments.admin_secret && !params.arguments.admin_token) {
+      params.arguments.admin_secret = bearerToken;
+    }
+  }
+
   try {
     if (method === "tools/list") {
       return res.json({ jsonrpc, id, result: { tools: _tools } });

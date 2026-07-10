@@ -190,8 +190,6 @@ const toolDefinitions = [
         name: { type: "string", description: "User's display name" },
         agency_id: { type: "string", description: "Agency ID if applicable" },
         request_id: { type: "string", description: "Specific access request ID to approve (optional)" },
-        admin_token: { type: "string", description: "Firebase ID token" },
-        admin_secret: { type: "string", description: "Fallback admin secret" },
       },
       required: ["email"],
     },
@@ -203,8 +201,6 @@ const toolDefinitions = [
       type: "object",
       properties: {
         email: { type: "string", description: "Email of user to revoke" },
-        admin_token: { type: "string", description: "Firebase ID token" },
-        admin_secret: { type: "string", description: "Fallback admin secret" },
       },
       required: ["email"],
     },
@@ -212,13 +208,7 @@ const toolDefinitions = [
   {
     name: "list_pending_access",
     description: "List all pending access requests. Admin only.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        admin_token: { type: "string", description: "Firebase ID token" },
-        admin_secret: { type: "string", description: "Fallback admin secret" },
-      },
-    },
+    inputSchema: { type: "object", properties: {} },
   },
   {
     name: "list_authorized_users",
@@ -268,8 +258,6 @@ const toolDefinitions = [
       type: "object",
       properties: {
         proposal_id: { type: "string" },
-        admin_token: { type: "string" },
-        admin_secret: { type: "string" },
       },
       required: ["proposal_id"],
     },
@@ -282,8 +270,6 @@ const toolDefinitions = [
       properties: {
         proposal_id: { type: "string" },
         reason: { type: "string" },
-        admin_token: { type: "string" },
-        admin_secret: { type: "string" },
       },
       required: ["proposal_id"],
     },
@@ -309,8 +295,6 @@ const toolDefinitions = [
       properties: {
         collection: { type: "string", enum: Object.keys(COLLECTIONS) },
         filters: { type: "array", items: { type: "object", properties: { field: { type: "string" }, op: { type: "string", enum: ["==", ">", "<", ">=", "<=", "!="], default: "==" }, value: { type: "string" } } } },
-        admin_token: { type: "string" },
-        admin_secret: { type: "string" },
       },
       required: ["collection"],
     },
@@ -325,8 +309,6 @@ const toolDefinitions = [
         action: { type: "string", enum: ["create", "update", "delete"] },
         document_id: { type: "string" },
         data: { type: "object", additionalProperties: true },
-        admin_token: { type: "string" },
-        admin_secret: { type: "string" },
       },
       required: ["collection", "action"],
     },
