@@ -1,4 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
+
+function fmt(d) {
+  if (!d) return null;
+  const dt = typeof d === "object" && d?.seconds ? new Date(d.seconds * 1000) : new Date(d);
+  if (isNaN(dt.getTime())) return null;
+  const dd = String(dt.getDate()).padStart(2, "0");
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const yyyy = dt.getFullYear();
+  return `${dd}-${mm}-${yyyy}`;
+}
 
 export default function VerifyModal({ enrollment, onClose }) {
   const statusColor = enrollment?.status === "Completed" ? "#2e7d32" : enrollment?.status === "Active" ? "#1565c0" : "#ff8f00";
@@ -16,8 +26,8 @@ export default function VerifyModal({ enrollment, onClose }) {
             <tr><td style={{ fontWeight: 700, color: "#555", padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>Status</td><td style={{ padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>{enrollment?.status || "N/A"}</td></tr>
             <tr><td style={{ fontWeight: 700, color: "#555", padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>Intern ID</td><td style={{ padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>{enrollment?.internId || enrollment?.id || ""}</td></tr>
             <tr><td style={{ fontWeight: 700, color: "#555", padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>Certificate</td><td style={{ padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left", color: certAvailable ? "#2e7d32" : "#888" }}>{certAvailable ? "Available" : "Locked"}</td></tr>
-            <tr><td style={{ fontWeight: 700, color: "#555", padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>Started</td><td style={{ padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>{enrollment?.createdAt ? new Date(enrollment.createdAt).toLocaleDateString() : "N/A"}</td></tr>
-            <tr><td style={{ fontWeight: 700, color: "#555", padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>Completed</td><td style={{ padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>{enrollment?.completedAt ? new Date(enrollment.completedAt).toLocaleDateString() : "In progress"}</td></tr>
+            <tr><td style={{ fontWeight: 700, color: "#555", padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>Started</td><td style={{ padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>{fmt(enrollment?.startDate || enrollment?.createdAt) || "N/A"}</td></tr>
+            <tr><td style={{ fontWeight: 700, color: "#555", padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>Completed</td><td style={{ padding: "6px 16px", borderBottom: "1px solid #ddd", textAlign: "left" }}>{fmt(enrollment?.completedAt) || "In progress"}</td></tr>
           </tbody>
         </table>
 
