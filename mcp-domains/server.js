@@ -9,9 +9,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ADMIN_SECRET_FALLBACK = process.env.MCP_DOMAINS_ADMIN_SECRET || "";
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || "";
-const DATA_DIR = join(__dirname, "data");
-
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+const DATA_DIR = process.env.VERCEL ? join("/tmp", "mcp-domains-data") : join(__dirname, "data");
+try { if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true }); } catch {}
 
 const PROPOSALS_FILE = join(DATA_DIR, "proposals.json");
 const AUTH_USERS_FILE = join(DATA_DIR, "authorized-users.json");
