@@ -88,6 +88,17 @@ import {
   fetchAiPendingEnrollments,
   adminUpdateEnrollment,
   adminDownloadDoc,
+  fetchBadges,
+  saveBadges,
+  fetchMilestones,
+  saveMilestones,
+  releaseMilestonePayment,
+  fetchSubscriptionPlans,
+  saveSubscriptionPlans,
+  fetchAgencies,
+  saveAgency,
+  approveAgency,
+  deleteAgency,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -111,8 +122,10 @@ const TABS = [
   { id: "add-intern", label: "+ Add Intern" },
   { id: "add referral", label: "+ Add Referral" },
   { id: "manage admins", label: "Admins" },
+  { id: "agencies", label: "Agencies" },
   { id: "archived", label: "Archived" },
   { id: "audit-log", label: "Audit Log" },
+  { id: "badges", label: "Badges" },
   { id: "banned-users", label: "Banned Users" },
   { id: "certificates", label: "Certificates" },
   { id: "completed", label: "Completed" },
@@ -129,6 +142,7 @@ const TABS = [
   { id: "works", label: "Internship Works" },
   { id: "logged-in-users", label: "Logged In Users" },
   { id: "messages", label: "Messages" },
+  { id: "milestones", label: "Milestones" },
   { id: "notice-board", label: "Notice Board" },
   { id: "payment-settings", label: "Payment Settings" },
   { id: "popup", label: "Popup" },
@@ -139,6 +153,7 @@ const TABS = [
   { id: "refund", label: "Refund" },
   { id: "html templates", label: "Templates" },
   { id: "terms", label: "Terms" },
+  { id: "subscriptions", label: "Subscriptions" },
   { id: "theme", label: "Theme" },
   { id: "university", label: "University" },
   { id: "user-types", label: "User Types" },
@@ -8097,6 +8112,10 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
         {activeTab === "add-intern" && <AddInternSection />}
         {activeTab === "edit-interns" && <EditInternsSection />}
+        {activeTab === "badges" && <BadgesSection />}
+        {activeTab === "milestones" && <MilestonesSection />}
+        {activeTab === "subscriptions" && <SubscriptionsSection />}
+        {activeTab === "agencies" && <AgenciesSection />}
       </div>
 
       {/* ── INTERN SUBMISSION DETAIL MODAL ── */}
@@ -10826,6 +10845,247 @@ function EditInternsSection() {
           </div>
         );
       }()}
+    </div>
+  );
+}
+
+/* ── Badges & Micro-Certifications ── */
+function BadgesSection() {
+  const [badges, setBadges] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { fetchBadges().then(setBadges).catch(() => {}).finally(() => setLoading(false)); }, []);
+
+  const addBadge = () => setBadges(p => [...p, { id: "b_" + Date.now(), title: "", description: "", icon: "★", type: "badge", criteria: "" }]);
+
+  const updateBadge = (idx, field, value) => setBadges(p => { const c = [...p]; c[idx] = { ...c[idx], [field]: value }; return c; });
+
+  const removeBadge = (idx) => setBadges(p => p.filter((_, i) => i !== idx));
+
+  const handleSave = async () => { setSaving(true); try { await saveBadges(badges); await logAdminAction("save-badges", { admin: user?.email || "admin" }); notify("Badges saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+
+  const s = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
+
+  if (loading) return <div style={{ color: "#888" }}>Loading...</div>;
+
+  return (
+    <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Skill Badges & Micro-Certifications</span>
+        <button onClick={addBadge} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Badge</button>
+      </div>
+      <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "1rem" }}>Create badges and micro-certifications that can be awarded to users for completing skills, projects, or achievements.</p>
+      {badges.map((b, i) => (
+        <div key={b.id} style={{ border: "2px solid #000", padding: "1rem", marginBottom: "0.75rem", background: "#fafafa" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", alignItems: "end" }}>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Title</label><input value={b.title} onChange={e => updateBadge(i, "title", e.target.value)} placeholder="e.g. Fast Learner" style={s} /></div>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Icon</label><input value={b.icon} onChange={e => updateBadge(i, "icon", e.target.value)} placeholder="★" style={{ ...s, width: "60px" }} /></div>
+            <button onClick={() => removeBadge(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>
+          </div>
+          <div style={{ marginTop: "0.5rem" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Description</label><textarea value={b.description} onChange={e => updateBadge(i, "description", e.target.value)} placeholder="What this badge represents..." rows={2} style={{ ...s, resize: "vertical" }} /></div>
+          <div style={{ marginTop: "0.5rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Type</label>
+              <select value={b.type} onChange={e => updateBadge(i, "type", e.target.value)} style={s}>
+                <option value="badge">Badge</option>
+                <option value="micro-cert">Micro-Certification</option>
+              </select>
+            </div>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Criteria</label><input value={b.criteria || ""} onChange={e => updateBadge(i, "criteria", e.target.value)} placeholder="e.g. Complete 3 projects" style={s} /></div>
+          </div>
+        </div>
+      ))}
+      <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ marginTop: "1rem" }}>{saving ? "Saving..." : "Save Badges"}</button>
+    </div>
+  );
+}
+
+/* ── Milestone / Escrow Payments ── */
+function MilestonesSection() {
+  const [enrollId, setEnrollId] = useState("");
+  const [milestones, setMilestones] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const loadMilestones = async () => {
+    if (!enrollId.trim()) return;
+    setLoading(true);
+    try { setMilestones(await fetchMilestones(enrollId.trim())); } catch (e) { notify("Error: " + e.message, "error"); }
+    finally { setLoading(false); }
+  };
+
+  const addMilestone = () => setMilestones(p => [...p, { title: "", amount: 0, description: "", released: false }]);
+
+  const updateMs = (idx, field, value) => setMilestones(p => { const c = [...p]; c[idx] = { ...c[idx], [field]: value }; return c; });
+
+  const removeMs = (idx) => setMilestones(p => p.filter((_, i) => i !== idx));
+
+  const handleSave = async () => { if (!enrollId.trim()) return; setSaving(true); try { await saveMilestones(enrollId.trim(), milestones); await logAdminAction("save-milestones", { enrollmentId: enrollId.trim(), admin: user?.email || "admin" }); notify("Milestones saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+
+  const handleRelease = async (idx) => { setSaving(true); try { await releaseMilestonePayment(enrollId.trim(), idx, user?.email || "admin"); await loadMilestones(); await logAdminAction("release-milestone", { enrollmentId: enrollId.trim(), milestone: idx, admin: user?.email || "admin" }); notify("Milestone released!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+
+  const inputS = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+
+  return (
+    <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
+      <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase", display: "block", marginBottom: "1rem" }}>Escrow / Milestone Payments</span>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem", alignItems: "end" }}>
+        <div style={{ flex: 1 }}><label style={{ fontSize: "0.7rem", fontWeight: 700, display: "block", marginBottom: "0.2rem" }}>Enrollment ID</label><input value={enrollId} onChange={e => setEnrollId(e.target.value)} placeholder="e.g. DEV-CRAFT-XXXXXX" style={{ ...inputS, width: "100%" }} /></div>
+        <button onClick={loadMilestones} disabled={loading} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", padding: "0.4rem 1rem", fontWeight: 700, fontSize: "0.82rem", height: "fit-content" }}>{loading ? "..." : "Load"}</button>
+        <button onClick={addMilestone} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.4rem 1rem", fontWeight: 700, fontSize: "0.82rem", height: "fit-content" }}>+ Add Milestone</button>
+      </div>
+      {milestones.map((m, i) => (
+        <div key={i} style={{ border: "2px solid #000", padding: "0.75rem", marginBottom: "0.5rem", background: m.released ? "#e6ffe6" : "#fafafa" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            <input value={m.title} onChange={e => updateMs(i, "title", e.target.value)} placeholder="Milestone title" style={{ ...inputS, flex: 1 }} />
+            <input type="number" value={m.amount} onChange={e => updateMs(i, "amount", Number(e.target.value))} placeholder="Amount" style={{ ...inputS, width: "100px" }} />
+            {m.released ? <span style={{ fontWeight: 700, color: "#090", fontSize: "0.8rem" }}>RELEASED</span> : <button onClick={() => handleRelease(i)} disabled={saving} style={{ border: "1px solid #090", color: "#090", background: "none", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.75rem", fontWeight: 700 }}>Release</button>}
+            {!m.released && <button onClick={() => removeMs(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>}
+          </div>
+          <textarea value={m.description || ""} onChange={e => updateMs(i, "description", e.target.value)} placeholder="Description of this milestone" rows={1} style={{ ...inputS, width: "100%", marginTop: "0.4rem", resize: "vertical" }} />
+          {m.released && m.releasedAt && <div style={{ fontSize: "0.72rem", color: "#666", marginTop: "0.3rem" }}>Released {new Date(m.releasedAt).toLocaleString()}</div>}
+        </div>
+      ))}
+      {milestones.length > 0 && <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ marginTop: "0.5rem" }}>{saving ? "Saving..." : "Save Milestones"}</button>}
+    </div>
+  );
+}
+
+/* ── Subscription Plans ── */
+function SubscriptionsSection() {
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { fetchSubscriptionPlans().then(setPlans).catch(() => {}).finally(() => setLoading(false)); }, []);
+
+  const addPlan = () => setPlans(p => [...p, { id: "plan_" + Date.now(), name: "", price: 0, interval: "monthly", features: [], description: "", popular: false }]);
+
+  const updatePlan = (idx, field, value) => setPlans(p => { const c = [...p]; c[idx] = { ...c[idx], [field]: value }; return c; });
+
+  const removePlan = (idx) => setPlans(p => p.filter((_, i) => i !== idx));
+
+  const addFeature = (idx) => setPlans(p => { const c = [...p]; c[idx] = { ...c[idx], features: [...(c[idx].features || []), ""] }; return c; });
+
+  const updateFeature = (pIdx, fIdx, value) => setPlans(prev => { const c = [...prev]; const f = [...(c[pIdx].features || [])]; f[fIdx] = value; c[pIdx] = { ...c[pIdx], features: f }; return c; });
+
+  const removeFeature = (pIdx, fIdx) => setPlans(prev => { const c = [...prev]; c[pIdx] = { ...c[pIdx], features: (c[pIdx].features || []).filter((_, i) => i !== fIdx) }; return c; });
+
+  const handleSave = async () => { setSaving(true); try { await saveSubscriptionPlans(plans); await logAdminAction("save-subscription-plans", { admin: user?.email || "admin" }); notify("Plans saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+
+  const is = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", boxSizing: "border-box" };
+
+  if (loading) return <div style={{ color: "#888" }}>Loading...</div>;
+
+  return (
+    <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Freelancer Subscription Plans</span>
+        <button onClick={addPlan} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Plan</button>
+      </div>
+      <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "1rem" }}>Define subscription tiers (Free, Basic, Pro, Enterprise) with pricing and features.</p>
+      {plans.map((p, i) => (
+        <div key={p.id} style={{ border: "2px solid #000", padding: "1rem", marginBottom: "0.75rem", background: "#fafafa" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "end", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+            <div style={{ flex: 1 }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Name</label><input value={p.name} onChange={e => updatePlan(i, "name", e.target.value)} placeholder="e.g. Pro" style={is} /></div>
+            <div style={{ width: "100px" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Price ($)</label><input type="number" value={p.price} onChange={e => updatePlan(i, "price", Number(e.target.value))} style={{ ...is, width: "100%" }} /></div>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Interval</label>
+              <select value={p.interval} onChange={e => updatePlan(i, "interval", e.target.value)} style={is}>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+                <option value="one-time">One-time</option>
+              </select>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+              <input type="checkbox" checked={p.popular || false} onChange={e => updatePlan(i, "popular", e.target.checked)} /> Popular
+            </label>
+            <button onClick={() => removePlan(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>
+          </div>
+          <textarea value={p.description || ""} onChange={e => updatePlan(i, "description", e.target.value)} placeholder="Short description..." rows={1} style={{ ...is, width: "100%", resize: "vertical", marginBottom: "0.5rem" }} />
+          <div><span style={{ fontSize: "0.7rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>Features</span>
+            {(p.features || []).map((f, fi) => (
+              <div key={fi} style={{ display: "flex", gap: "0.3rem", marginBottom: "0.25rem" }}>
+                <input value={f} onChange={e => updateFeature(i, fi, e.target.value)} placeholder="e.g. 50 bids/month" style={{ ...is, flex: 1 }} />
+                <button onClick={() => removeFeature(i, fi)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.1rem 0.4rem", fontSize: "0.7rem" }}>X</button>
+              </div>
+            ))}
+            <button onClick={() => addFeature(i)} style={{ border: "1px solid #000", background: "none", cursor: "pointer", padding: "0.15rem 0.5rem", fontSize: "0.72rem", marginTop: "0.15rem" }}>+ Add Feature</button>
+          </div>
+        </div>
+      ))}
+      <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ marginTop: "1rem" }}>{saving ? "Saving..." : "Save Plans"}</button>
+    </div>
+  );
+}
+
+/* ── Team / Agency Accounts ── */
+function AgenciesSection() {
+  const [agencies, setAgencies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editAgency, setEditAgency] = useState(null);
+
+  useEffect(() => { fetchAgencies().then(setAgencies).catch(() => {}).finally(() => setLoading(false)); }, []);
+
+  const addAgency = () => setEditAgency({ id: "", name: "", email: "", logo: "", website: "", description: "", approved: false, templates: [] });
+
+  const startEdit = (a) => setEditAgency({ ...a });
+
+  const handleSave = async () => { if (!editAgency) return; setSaving(true); try { await saveAgency(editAgency); await logAdminAction("save-agency", { agency: editAgency.name, admin: user?.email || "admin" }); const updated = await fetchAgencies(); setAgencies(updated); setEditAgency(null); notify("Agency saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+
+  const handleApprove = async (id, approved) => { setSaving(true); try { await approveAgency(id, approved); const updated = await fetchAgencies(); setAgencies(updated); await logAdminAction(approved ? "approve-agency" : "disapprove-agency", { agencyId: id, admin: user?.email || "admin" }); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+
+  const handleDelete = async (id, name) => { if (!await confirmAction(`Delete agency "${name}"?`)) return; setSaving(true); try { await deleteAgency(id); setAgencies(p => p.filter(a => a.id !== id)); await logAdminAction("delete-agency", { agency: name, admin: user?.email || "admin" }); notify("Deleted!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+
+  const is = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", boxSizing: "border-box", width: "100%" };
+
+  if (loading) return <div style={{ color: "#888" }}>Loading...</div>;
+
+  return (
+    <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+        <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Team / Agency Accounts</span>
+        <button onClick={addAgency} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Agency</button>
+      </div>
+      <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "1rem" }}>Manage company/agency accounts. Approved agencies can post branded templates and listings.</p>
+
+      {editAgency && (
+        <div style={{ border: "2px solid #000", padding: "1rem", marginBottom: "1rem", background: "#f0f0f0" }}>
+          <div style={{ fontWeight: 700, marginBottom: "0.75rem", textTransform: "uppercase", fontSize: "0.85rem" }}>{editAgency.id ? "Edit Agency" : "New Agency"}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Company Name</label><input value={editAgency.name} onChange={e => setEditAgency(p => ({ ...p, name: e.target.value }))} style={is} /></div>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Email</label><input value={editAgency.email} onChange={e => setEditAgency(p => ({ ...p, email: e.target.value }))} style={is} /></div>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Logo URL</label><input value={editAgency.logo || ""} onChange={e => setEditAgency(p => ({ ...p, logo: e.target.value }))} style={is} /></div>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Website</label><input value={editAgency.website || ""} onChange={e => setEditAgency(p => ({ ...p, website: e.target.value }))} style={is} /></div>
+          </div>
+          <div style={{ marginBottom: "0.5rem" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Description</label><textarea value={editAgency.description || ""} onChange={e => setEditAgency(p => ({ ...p, description: e.target.value }))} rows={2} style={{ ...is, resize: "vertical" }} /></div>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ padding: "0.4rem 1.5rem" }}>{saving ? "Saving..." : "Save"}</button>
+            <button onClick={() => setEditAgency(null)} className="btn-sharp-outline" style={{ padding: "0.4rem 1.5rem" }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gap: "0.75rem" }}>
+        {agencies.length === 0 && <p style={{ color: "#888", fontStyle: "italic" }}>No agencies yet.</p>}
+        {agencies.map(a => (
+          <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "2px solid #000", padding: "0.75rem 1rem", background: "#fafafa" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              {a.logo && <img src={a.logo} alt="" style={{ width: "36px", height: "36px", objectFit: "contain", border: "1px solid #ddd" }} />}
+              <div>
+                <strong>{a.name}</strong>
+                <div style={{ fontSize: "0.78rem", color: "#666" }}>{a.email}{a.website ? ` | ${a.website}` : ""}</div>
+                <span style={{ fontSize: "0.7rem", color: a.approved ? "#090" : "#c90", fontWeight: 700 }}>{a.approved ? "Approved" : "Pending"}</span>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+              <button onClick={() => handleApprove(a.id, !a.approved)} disabled={saving} style={{ border: `1px solid ${a.approved ? "#c90" : "#090"}`, color: a.approved ? "#c90" : "#090", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem", fontWeight: 700 }}>{a.approved ? "Revoke" : "Approve"}</button>
+              <button onClick={() => startEdit(a)} disabled={saving} style={{ border: "1px solid #000", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem" }}>Edit</button>
+              <button onClick={() => handleDelete(a.id, a.name)} disabled={saving} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem" }}>Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

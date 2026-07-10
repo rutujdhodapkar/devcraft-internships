@@ -317,6 +317,8 @@ export async function fetchAboutText() {
 
 export async function saveAboutText(text) {
   _lsRemove("aboutText");
+  return saveSiteConfig("aboutText", text);
+}
 
 // Inquiries
 export async function saveInquiry(inquiry) {
@@ -840,6 +842,8 @@ export async function fetchEarnDetails() {
 
 export async function saveEarnDetails(details) {
   _lsRemove("earnDetails");
+  return saveSiteConfig("earnDetails", details);
+}
 
 export async function fetchBannedUsers() { return dbList("bannedUsers"); }
 
@@ -907,6 +911,8 @@ export async function fetchHomepageContent() {
 
 export async function saveHomepageContent(content) {
   _lsRemove("homepageContent");
+  return saveSiteConfig("homepageContent", content);
+}
 
 // ─── Enhanced Visit Tracking ───────────────────────────────────────────────
 function _parseBrowser(ua) {
@@ -1063,6 +1069,8 @@ export async function fetchPaymentSettings() {
 
 export async function savePaymentSettings(settings) {
   _lsRemove("paymentSettings");
+  return saveSiteConfig("paymentSettings", settings);
+}
 
 export async function overrideCompleteEnrollment(enrollmentId, adminEmail) {
   await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), overrideCompleted: true, overriddenBy: adminEmail, updatedAt: new Date().toISOString() });
@@ -1250,6 +1258,8 @@ export async function fetchPayoutConfig() {
 
 export async function savePayoutConfig(config) {
   _lsRemove("payoutConfig");
+  return saveSiteConfig("payoutConfig", config);
+}
 
 export async function markReferralPayout(code, payoutAmount, payoutNote) {
   await dbPatch(`referrals/${code.toUpperCase().trim()}`, { payoutStatus: "done", payoutAmount, payoutNote, payoutAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
@@ -1294,6 +1304,8 @@ export async function fetchPaymentMethods() {
 
 export async function savePaymentMethods(config) {
   _lsRemove("paymentMethods");
+  return saveSiteConfig("paymentMethods", config);
+}
 
 // Audit log (RTDB)
 export async function fetchAuditLog() {
@@ -1414,6 +1426,8 @@ export async function fetchSlidingStripsContent() {
 
 export async function saveSlidingStripsContent(content) {
   _lsRemove("slidingStrips");
+  return dbPut("config/slidingStrips", { content, updatedAt: new Date().toISOString() });
+}
 
 // Header Settings
 export async function fetchHeaderSettings() {
@@ -1655,4 +1669,166 @@ export async function triggerManualEmailType(type, email = "", dryRun = false) {
   if (email) params.email = email;
   const q = new URLSearchParams(params).toString();
   return apiFetch(`/api/email/trigger?${q}`, { method: "POST" });
+}
+
+// ─── Skill Badges & Micro-Certifications ───
+export async function fetchBadges() {
+  const cached = _lsGet("badges");
+  if (cached) return cached;
+  const d = await dbList("badges");
+  const result = d || [];
+  _lsSet("badges", result);
+  return result;
+}
+
+export async function saveBadges(badges) {
+  _lsRemove("badges");
+  const now = new Date().toISOString();
+  const obj = {};
+  badges.forEach(b => { obj[b.id] = { ...b, updatedAt: now }; });
+  if (Object.keys(obj).length) await dbPut("badges", obj);
+  return badges;
+}
+
+export async function awardBadge(userId, badgeId, awardedBy) {
+  const entry = { userId, badgeId, awardedAt: new Date().toISOString(), awardedBy };
+  return dbPost("userBadges", entry);
+}
+
+export async function fetchUserBadges(userId) {
+  const all = await dbList("userBadges");
+  return all.filter(b => b.userId === userId);
+}
+
+export async function revokeBadge(entryId) {
+  return dbDelete(`userBadges/${entryId}`);
+}
+
+export async function fetchMicroCerts() {
+  const cached = _lsGet("microCerts");
+  if (cached) return cached;
+  const d = await dbList("microCerts");
+  const result = d || [];
+  _lsSet("microCerts", result);
+  return result;
+}
+
+export async function saveMicroCerts(certs) {
+  _lsRemove("microCerts");
+  const now = new Date().toISOString();
+  const obj = {};
+  certs.forEach(c => { obj[c.id] = { ...c, updatedAt: now }; });
+  if (Object.keys(obj).length) await dbPut("microCerts", obj);
+  return certs;
+}
+
+export async function awardMicroCert(enrollmentId, certId, userId, awardedBy) {
+  const entry = { enrollmentId, certId, userId, awardedAt: new Date().toISOString(), awardedBy };
+  return dbPost("userMicroCerts", entry);
+}
+
+export async function fetchUserMicroCerts(userId) {
+  const all = await dbList("userMicroCerts");
+  return all.filter(c => c.userId === userId);
+}
+
+// ─── Escrow / Milestone Payments ───
+export async function fetchMilestones(enrollmentId) {
+  const d = await dbGet(`milestones/${enrollmentId}`);
+  return d?.milestones || [];
+}
+
+export async function saveMilestones(enrollmentId, milestones) {
+  await dbPut(`milestones/${enrollmentId}`, { milestones, updatedAt: new Date().toISOString() });
+  return milestones;
+}
+
+export async function releaseMilestonePayment(enrollmentId, milestoneIndex, releasedBy) {
+  const d = await dbGet(`milestones/${enrollmentId}`);
+  const ms = d?.milestones || [];
+  if (ms[milestoneIndex]) {
+    ms[milestoneIndex].released = true;
+    ms[milestoneIndex].releasedAt = new Date().toISOString();
+    ms[milestoneIndex].releasedBy = releasedBy;
+  }
+  await dbPut(`milestones/${enrollmentId}`, { milestones: ms, updatedAt: new Date().toISOString() });
+  return ms;
+}
+
+// ─── Subscription Plans ───
+export async function fetchSubscriptionPlans() {
+  const cached = _lsGet("subscriptionPlans");
+  if (cached) return cached;
+  const d = await dbList("subscriptionPlans");
+  const result = d || [];
+  _lsSet("subscriptionPlans", result);
+  return result;
+}
+
+export async function saveSubscriptionPlans(plans) {
+  _lsRemove("subscriptionPlans");
+  const now = new Date().toISOString();
+  const obj = {};
+  plans.forEach(p => { obj[p.id] = { ...p, updatedAt: now }; });
+  if (Object.keys(obj).length) await dbPut("subscriptionPlans", obj);
+  return plans;
+}
+
+export async function updateUserSubscription(uid, planId, status = "active") {
+  await dbPut(`userSubscriptions/${uid}`, { uid, planId, status, updatedAt: new Date().toISOString() });
+}
+
+export async function fetchUserSubscription(uid) {
+  return dbGet(`userSubscriptions/${uid}`);
+}
+
+// ─── Team / Agency Accounts ───
+export async function fetchAgencies() {
+  const cached = _lsGet("agencies");
+  if (cached) return cached;
+  const d = await dbList("agencies");
+  const result = d || [];
+  _lsSet("agencies", result);
+  return result;
+}
+
+export async function saveAgency(agency) {
+  _lsRemove("agencies");
+  const now = new Date().toISOString();
+  const { id, ...rest } = agency;
+  if (id) {
+    await dbPut(`agencies/${id}`, { ...rest, updatedAt: now });
+  } else {
+    const newRef = await dbPost("agencies", { ...rest, createdAt: now, updatedAt: now, approved: false });
+    return { id: newRef?.id, ...rest };
+  }
+  return agency;
+}
+
+export async function approveAgency(agencyId, approved) {
+  await dbPatch(`agencies/${agencyId}`, { approved, updatedAt: new Date().toISOString() });
+}
+
+export async function deleteAgency(agencyId) {
+  _lsRemove("agencies");
+  return dbDelete(`agencies/${agencyId}`);
+}
+
+export async function fetchAgencyTemplates(agencyId) {
+  const all = await dbList("agencyTemplates");
+  return all.filter(t => t.agencyId === agencyId);
+}
+
+export async function saveAgencyTemplate(template) {
+  const now = new Date().toISOString();
+  if (template.id) {
+    await dbPatch(`agencyTemplates/${template.id}`, { ...template, updatedAt: now });
+    return template;
+  }
+  const newRef = await dbPost("agencyTemplates", { ...template, createdAt: now, updatedAt: now });
+  return { id: newRef?.id, ...template };
+}
+
+export async function deleteAgencyTemplate(templateId) {
+  return dbDelete(`agencyTemplates/${templateId}`);
 }
