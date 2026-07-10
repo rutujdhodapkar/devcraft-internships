@@ -165,131 +165,125 @@ async function executeMutate(collection, action, data, id, agencyId) {
 // ── Tool definitions ──
 
 const toolDefinitions = [
-  // ── Access management (public: request / admin: manage) ──
   {
     name: "request_access",
-    description: "Request authorization to propose data operations. Admin will review and approve/deny.",
+    description: "Request to use the system. Provide your email and reason.",
     inputSchema: {
       type: "object",
       properties: {
         email: { type: "string", description: "Your email address" },
         name: { type: "string", description: "Your name" },
-        reason: { type: "string", description: "Why you need access to propose data changes" },
-        agency_id: { type: "string", description: "If you represent an agency, provide its ID" },
-      },
-      required: ["email"],
-    },
-  },
-  {
-    name: "authorize_user",
-    description: "Approve a user's access request or directly authorize them. Admin only.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        email: { type: "string", description: "Email of user to authorize" },
-        name: { type: "string", description: "User's display name" },
+        reason: { type: "string", description: "Why you need access" },
         agency_id: { type: "string", description: "Agency ID if applicable" },
-        request_id: { type: "string", description: "Specific access request ID to approve (optional)" },
       },
       required: ["email"],
     },
   },
   {
-    name: "revoke_user",
-    description: "Revoke a user's authorization. Admin only.",
+    name: "approve_user",
+    description: "Grant access to a user who requested it.",
     inputSchema: {
       type: "object",
       properties: {
-        email: { type: "string", description: "Email of user to revoke" },
+        email: { type: "string", description: "User's email" },
+        name: { type: "string", description: "User's name" },
+        agency_id: { type: "string", description: "Agency ID if applicable" },
+        request_id: { type: "string", description: "Request ID to approve (optional)" },
       },
       required: ["email"],
     },
   },
   {
-    name: "list_pending_access",
-    description: "List all pending access requests. Admin only.",
+    name: "remove_user",
+    description: "Revoke a user's access.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        email: { type: "string", description: "User's email" },
+      },
+      required: ["email"],
+    },
+  },
+  {
+    name: "pending_users",
+    description: "List users waiting for access approval.",
     inputSchema: { type: "object", properties: {} },
   },
   {
-    name: "list_authorized_users",
-    description: "List all authorized users who can propose data operations.",
+    name: "active_users",
+    description: "List users who already have access.",
     inputSchema: { type: "object", properties: {} },
   },
 
-  // ── Data operations (authorized users only) ──
   {
-    name: "propose_query",
-    description: "Propose reading data. Only authorized users can call this. Admin must approve to execute.",
+    name: "read_data",
+    description: "Request to view data from a collection.",
     inputSchema: {
       type: "object",
       properties: {
-        requester_email: { type: "string", description: "Your authorized email" },
-        agency_id: { type: "string", description: "Agency ID (if agency user)" },
-        collection: { type: "string", enum: Object.keys(COLLECTIONS), description: "Collection to query" },
+        email: { type: "string", description: "Your email" },
+        collection: { type: "string", enum: Object.keys(COLLECTIONS), description: "Collection name" },
         filters: { type: "array", items: { type: "object", properties: { field: { type: "string" }, op: { type: "string", enum: ["==", ">", "<", ">=", "<=", "!="], default: "==" }, value: { type: "string" } } } },
-        reason: { type: "string", description: "Why you need this data" },
+        reason: { type: "string", description: "Why you need this" },
       },
-      required: ["requester_email", "collection"],
+      required: ["email", "collection"],
     },
   },
   {
-    name: "propose_mutate",
-    description: "Propose creating, updating, or deleting data. Only authorized users can call this. Admin must approve to execute.",
+    name: "write_data",
+    description: "Request to create, update, or delete data.",
     inputSchema: {
       type: "object",
       properties: {
-        requester_email: { type: "string", description: "Your authorized email" },
-        agency_id: { type: "string", description: "Agency ID (if agency user)" },
+        email: { type: "string", description: "Your email" },
         collection: { type: "string", enum: Object.keys(COLLECTIONS) },
         action: { type: "string", enum: ["create", "update", "delete"] },
         document_id: { type: "string" },
         data: { type: "object", additionalProperties: true },
         reason: { type: "string" },
       },
-      required: ["requester_email", "collection", "action"],
+      required: ["email", "collection", "action"],
     },
   },
 
-  // ── Admin approval ──
   {
-    name: "approve_proposal",
-    description: "Approve a pending proposal — executes it and makes data live on web. Admin only.",
+    name: "approve_change",
+    description: "Approve a pending change request to make it live.",
     inputSchema: {
       type: "object",
       properties: {
-        proposal_id: { type: "string" },
+        change_id: { type: "string", description: "ID of the change to approve" },
       },
-      required: ["proposal_id"],
+      required: ["change_id"],
     },
   },
   {
-    name: "reject_proposal",
-    description: "Reject a pending proposal with a reason. Admin only.",
+    name: "reject_change",
+    description: "Reject a pending change request.",
     inputSchema: {
       type: "object",
       properties: {
-        proposal_id: { type: "string" },
+        change_id: { type: "string", description: "ID of the change to reject" },
         reason: { type: "string" },
       },
-      required: ["proposal_id"],
+      required: ["change_id"],
     },
   },
   {
-    name: "list_proposals",
-    description: "List proposals filtered by status.",
+    name: "list_changes",
+    description: "List change requests by status.",
     inputSchema: {
       type: "object",
       properties: {
         status: { type: "string", enum: ["pending", "approved", "rejected", "all"], default: "pending" },
-        requester_email: { type: "string" },
+        email: { type: "string" },
       },
     },
   },
 
-  // ── Admin bypass (direct operations, no proposal needed) ──
   {
-    name: "admin_query",
-    description: "Directly query any collection without proposal/approval. Admin only.",
+    name: "lookup",
+    description: "Directly view data from any collection.",
     inputSchema: {
       type: "object",
       properties: {
@@ -300,8 +294,8 @@ const toolDefinitions = [
     },
   },
   {
-    name: "admin_mutate",
-    description: "Directly create/update/delete data without proposal/approval. Admin only.",
+    name: "edit_data",
+    description: "Directly create, update, or delete data.",
     inputSchema: {
       type: "object",
       properties: {
@@ -314,10 +308,9 @@ const toolDefinitions = [
     },
   },
 
-  // ── Info ──
   {
-    name: "list_collections",
-    description: "List available data collections.",
+    name: "collections",
+    description: "List available collections.",
     inputSchema: { type: "object", properties: {} },
   },
 ];
@@ -325,186 +318,137 @@ const toolDefinitions = [
 // ── Tool handler ──
 
 async function handleToolCall(name, args) {
-  switch (name) {
-    // ── Access Management ──
+  // Map old names to new for backwards compat
+  const NAME_MAP = {
+    authorize_user: "approve_user", revoke_user: "remove_user",
+    list_pending_access: "pending_users", list_authorized_users: "active_users",
+    propose_query: "read_data", propose_mutate: "write_data",
+    approve_proposal: "approve_change", reject_proposal: "reject_change",
+    list_proposals: "list_changes", admin_query: "lookup", admin_mutate: "edit_data",
+    list_collections: "collections",
+  };
+  name = NAME_MAP[name] || name;
 
+  switch (name) {
     case "request_access": {
       const { email, name: userName, reason, agency_id } = args;
       if (!email) throw new Error("Email is required");
-
-      // Check if already authorized
-      if (isAuthorized(email)) return `You're already authorized. Start using propose_query / propose_mutate.`;
-
+      if (isAuthorized(email)) return `You already have access. Use read_data or write_data.`;
       const requests = loadAccessRequests();
       const existing = requests.find(r => r.email.toLowerCase() === email.toLowerCase() && r.status === "pending");
-      if (existing) return `Access request already pending (ID: ${existing.id}). Wait for admin approval.`;
-
-      const req = {
-        id: generateId(),
-        email: email.toLowerCase(),
-        name: userName || "",
-        reason: reason || "",
-        agency_id: agency_id || null,
-        status: "pending",
-        submittedAt: new Date().toISOString(),
-      };
-      requests.push(req);
-      saveAccessRequests(requests);
-      return `Access request submitted.\nID: ${req.id}\nEmail: ${email}\nStatus: pending\nWaiting for admin to authorize you.`;
+      if (existing) return `Request already pending (ID: ${existing.id}). Wait for approval.`;
+      const req = { id: generateId(), email: email.toLowerCase(), name: userName || "", reason: reason || "", agency_id: agency_id || null, status: "pending", submittedAt: new Date().toISOString() };
+      requests.push(req); saveAccessRequests(requests);
+      return `Request submitted. ID: ${req.id} - Waiting for approval.`;
     }
 
-    case "authorize_user": {
+    case "approve_user": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const email = args.email.toLowerCase();
       const name = args.name || "";
       const agency_id = args.agency_id || null;
-
-      if (args.request_id) {
-        const requests = loadAccessRequests();
-        const idx = requests.findIndex(r => r.id === args.request_id);
-        if (idx !== -1) { requests[idx].status = "approved"; requests[idx].approvedAt = new Date().toISOString(); saveAccessRequests(requests); }
-      }
-
+      if (args.request_id) { const requests = loadAccessRequests(); const idx = requests.findIndex(r => r.id === args.request_id); if (idx !== -1) { requests[idx].status = "approved"; requests[idx].approvedAt = new Date().toISOString(); saveAccessRequests(requests); } }
       const users = loadAuthUsers();
-      if (users.some(u => u.email.toLowerCase() === email)) return JSON.stringify({ ok: true, message: `User ${email} is already authorized.` });
+      if (users.some(u => u.email.toLowerCase() === email)) return JSON.stringify({ ok: true, message: `${email} already has access.` });
       users.push({ email: email.toLowerCase(), name, agency_id, authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
       saveAuthUsers(users);
-      return JSON.stringify({ ok: true, message: `User ${email} is now authorized to propose data operations.` });
+      return JSON.stringify({ ok: true, message: `${email} now has access.` });
     }
 
-    case "revoke_user": {
+    case "remove_user": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const email = args.email.toLowerCase();
       let users = loadAuthUsers();
       const before = users.length;
       users = users.filter(u => u.email.toLowerCase() !== email);
-      if (users.length === before) return `User ${email} was not authorized.`;
+      if (users.length === before) return `${email} had no access.`;
       saveAuthUsers(users);
-      return `Authorization revoked for ${email}.`;
+      return `Access removed for ${email}.`;
     }
 
-    case "list_pending_access": {
+    case "pending_users": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const requests = loadAccessRequests().filter(r => r.status === "pending");
-      return JSON.stringify(requests);
+      return JSON.stringify(loadAccessRequests().filter(r => r.status === "pending"));
     }
 
-    case "list_authorized_users": {
+    case "active_users": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const users = loadAuthUsers();
-      return JSON.stringify(users);
+      return JSON.stringify(loadAuthUsers());
     }
 
-    // ── Proposal Operations (authorized users only) ──
-
-    case "propose_query": {
-      const { requester_email, agency_id, collection, filters, reason } = args;
-      if (!requester_email) throw new Error("requester_email is required");
-      if (!isAuthorized(requester_email)) throw new Error("Not authorized. Use request_access first, then wait for admin approval.");
-
+    case "read_data": {
+      const { email: re, collection, filters, reason } = args;
+      if (!re) throw new Error("email is required");
+      if (!isAuthorized(re)) throw new Error("No access. Use request_access first.");
       const proposals = loadProposals();
-      const proposal = {
-        id: `prop_${generateId()}`, type: "query", requester_email, agency_id: agency_id || null,
-        collection, filters: filters || [], reason: reason || "",
-        status: "pending", submittedAt: new Date().toISOString(),
-      };
-      proposals.push(proposal);
-      saveProposals(proposals);
-      return `Query proposal submitted.\nID: ${proposal.id}\nCollection: ${collection}\nStatus: pending\nWaiting for admin to approve and make live.`;
+      const proposal = { id: `prop_${generateId()}`, type: "query", requester_email: re, agency_id: null, collection, filters: filters || [], reason: reason || "", status: "pending", submittedAt: new Date().toISOString() };
+      proposals.push(proposal); saveProposals(proposals);
+      return `Read request submitted. ID: ${proposal.id} - Waiting for approval.`;
     }
 
-    case "propose_mutate": {
-      const { requester_email, agency_id, collection, action, document_id, data, reason } = args;
-      if (!requester_email) throw new Error("requester_email is required");
-      if (!isAuthorized(requester_email)) throw new Error("Not authorized. Use request_access first, then wait for admin approval.");
-
-      if (collection === "admins" && !(await verifyAdmin(args.admin_token, args.admin_secret))) {
-        throw new Error("Only main admin can modify admins");
-      }
-
+    case "write_data": {
+      const { email: we, collection, action, document_id, data, reason } = args;
+      if (!we) throw new Error("email is required");
+      if (!isAuthorized(we)) throw new Error("No access. Use request_access first.");
+      if (collection === "admins" && !(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Only admin can modify admins");
       const proposals = loadProposals();
-      const proposal = {
-        id: `prop_${generateId()}`, type: "mutate", requester_email, agency_id: agency_id || null,
-        collection, action, document_id: document_id || null, data: data || {}, reason: reason || "",
-        status: "pending", submittedAt: new Date().toISOString(),
-      };
-      proposals.push(proposal);
-      saveProposals(proposals);
-      return `Mutation proposal submitted.\nID: ${proposal.id}\nCollection: ${collection}\nAction: ${action}\nStatus: pending\nWaiting for admin to approve and make live.`;
+      const proposal = { id: `prop_${generateId()}`, type: "mutate", requester_email: we, agency_id: null, collection, action, document_id: document_id || null, data: data || {}, reason: reason || "", status: "pending", submittedAt: new Date().toISOString() };
+      proposals.push(proposal); saveProposals(proposals);
+      return `Change request submitted. ID: ${proposal.id} - Waiting for approval.`;
     }
 
-    // ── Admin: Approve/Reject Proposals (makes data LIVE) ──
-
-    case "approve_proposal": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized: admin_token or admin_secret required");
+    case "approve_change": {
+      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const proposals = loadProposals();
-      const idx = proposals.findIndex(p => p.id === args.proposal_id);
-      if (idx === -1) throw new Error(`Proposal "${args.proposal_id}" not found`);
-      if (proposals[idx].status !== "pending") throw new Error(`Proposal already ${proposals[idx].status}`);
-
+      const idx = proposals.findIndex(p => p.id === args.change_id);
+      if (idx === -1) throw new Error(`Change "${args.change_id}" not found`);
+      if (proposals[idx].status !== "pending") throw new Error(`Already ${proposals[idx].status}`);
       const prop = proposals[idx];
       let result;
-      if (prop.type === "query") {
-        try { const docs = await executeQuery(prop.collection, prop.filters, prop.agency_id); result = `Query executed: ${prop.collection} returned ${docs.length} documents.\n${JSON.stringify(docs.slice(0, 50), null, 2)}${docs.length > 50 ? `\n... and ${docs.length - 50} more` : ""}`; }
-        catch (err) { result = `Query failed: ${err.message}`; }
-      } else {
-        try { result = await executeMutate(prop.collection, prop.action, prop.data, prop.document_id, prop.agency_id); }
-        catch (err) { result = `Mutation failed: ${err.message}`; }
-      }
-
-      prop.status = "approved";
-      prop.approvedAt = new Date().toISOString();
-      prop.approvedBy = "admin";
-      prop.executionResult = result;
-      proposals[idx] = prop;
-      saveProposals(proposals);
-      return `✅ Proposal "${args.proposal_id}" approved and made LIVE.\n${result}`;
+      if (prop.type === "query") { try { const docs = await executeQuery(prop.collection, prop.filters, prop.agency_id); result = `Found ${docs.length} documents.`; } catch (err) { result = `Error: ${err.message}`; } }
+      else { try { result = await executeMutate(prop.collection, prop.action, prop.data, prop.document_id, prop.agency_id); } catch (err) { result = `Error: ${err.message}`; } }
+      prop.status = "approved"; prop.approvedAt = new Date().toISOString(); prop.approvedBy = "admin"; prop.executionResult = result;
+      proposals[idx] = prop; saveProposals(proposals);
+      return `Approved. ${result}`;
     }
 
-    case "reject_proposal": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized: admin_token or admin_secret required");
+    case "reject_change": {
+      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const proposals = loadProposals();
-      const idx = proposals.findIndex(p => p.id === args.proposal_id);
-      if (idx === -1) throw new Error(`Proposal "${args.proposal_id}" not found`);
-      if (proposals[idx].status !== "pending") throw new Error(`Proposal already ${proposals[idx].status}`);
-      proposals[idx].status = "rejected";
-      proposals[idx].rejectedAt = new Date().toISOString();
-      proposals[idx].rejectionReason = args.reason || "No reason provided";
+      const idx = proposals.findIndex(p => p.id === args.change_id);
+      if (idx === -1) throw new Error(`Change "${args.change_id}" not found`);
+      if (proposals[idx].status !== "pending") throw new Error(`Already ${proposals[idx].status}`);
+      proposals[idx].status = "rejected"; proposals[idx].rejectedAt = new Date().toISOString(); proposals[idx].rejectionReason = args.reason || "No reason";
       saveProposals(proposals);
-      return `❌ Proposal "${args.proposal_id}" rejected.\nReason: ${proposals[idx].rejectionReason}`;
+      return `Rejected. Reason: ${proposals[idx].rejectionReason}`;
     }
 
-    case "list_proposals": {
+    case "list_changes": {
       const isAdmin = await verifyAdmin(args.admin_token, args.admin_secret);
-      if (!isAdmin && !args.requester_email) throw new Error("Unauthorized: provide requester_email or admin auth");
-      if (!isAdmin && !isAuthorized(args.requester_email)) throw new Error("Not authorized");
+      if (!isAdmin && !args.email) throw new Error("Unauthorized: provide email or admin auth");
+      if (!isAdmin && !isAuthorized(args.email)) throw new Error("Not authorized");
       let proposals = loadProposals();
-      const { status = "pending", requester_email } = args;
+      const { status = "pending", email } = args;
       if (status !== "all") proposals = proposals.filter(p => p.status === status);
-      if (requester_email) proposals = proposals.filter(p => p.requester_email?.toLowerCase() === requester_email.toLowerCase());
-      if (proposals.length === 0) return "No proposals found.";
-      return `Proposals (${proposals.length}):\n${proposals.map(p =>
-        `• ${p.id}: ${p.type} ${p.collection} [${p.status}] by ${p.requester_email}${p.agency_id ? ` (agency: ${p.agency_id})` : ""}${p.status === "rejected" ? ` — ${p.rejectionReason}` : ""}`
-      ).join("\n")}`;
+      if (email) proposals = proposals.filter(p => p.requester_email?.toLowerCase() === email.toLowerCase());
+      if (proposals.length === 0) return "No changes found.";
+      return proposals.map(p => `${p.id}: ${p.type} ${p.collection} [${p.status}] by ${p.requester_email}`).join("\n");
     }
 
-    // ── Admin Direct (bypass) ──
-
-    case "admin_query": {
+    case "lookup": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
       const docs = await executeQuery(args.collection, args.filters, null);
-      return `Admin query ${args.collection}: ${docs.length} documents.\n${JSON.stringify(docs.slice(0, 100), null, 2)}${docs.length > 100 ? `\n... and ${docs.length - 100} more` : ""}`;
+      return JSON.stringify(docs.slice(0, 100), null, 2);
     }
 
-    case "admin_mutate": {
+    case "edit_data": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      const result = await executeMutate(args.collection, args.action, args.data || {}, args.document_id, null);
-      return result;
+      return await executeMutate(args.collection, args.action, args.data || {}, args.document_id, null);
     }
 
-    case "list_collections": {
+    case "collections": {
       if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
-      return `Available collections:\n${Object.entries(COLLECTIONS).map(([k, v]) => `  • ${k} — ${v.desc}${v.scoped ? " (agency-scoped)" : ""}`).join("\n")}`;
+      return Object.keys(COLLECTIONS).join(", ");
     }
 
     default: throw new Error(`Unknown tool: ${name}`);

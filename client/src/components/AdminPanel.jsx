@@ -10911,7 +10911,7 @@ function ProposalsSection({ user }) {
   async function loadData() {
     setLoading(true);
     try {
-      const raw = await mcpCall("list_proposals", { status: filter === "all" ? "all" : filter });
+      const raw = await mcpCall("list_changes", { status: filter === "all" ? "all" : filter });
       const lines = raw.split("\n").filter(l => l.startsWith("• "));
       const parsed = lines.map(l => {
         const m = l.match(/•\s(\S+):\s(\S+)\s(\S+)\s\[(\S+)\]\sby\s(\S+)/);
@@ -10924,9 +10924,9 @@ function ProposalsSection({ user }) {
 
   useEffect(() => { loadData(); }, [filter]);
 
-  async function handleApprove(id) { setActionLoading(id); try { await mcpCall("approve_proposal", { proposal_id: id }); notify("Approved!", "success"); loadData(); } catch (e) { notify("Error: " + e.message, "error"); } finally { setActionLoading(null); } }
+  async function handleApprove(id) { setActionLoading(id); try { await mcpCall("approve_change", { change_id: id }); notify("Approved!", "success"); loadData(); } catch (e) { notify("Error: " + e.message, "error"); } finally { setActionLoading(null); } }
 
-  async function handleReject(id) { const reason = prompt("Rejection reason:"); if (!reason) return; setActionLoading(id); try { await mcpCall("reject_proposal", { proposal_id: id, reason }); notify("Rejected", "success"); loadData(); } catch (e) { notify("Error: " + e.message, "error"); } finally { setActionLoading(null); } }
+  async function handleReject(id) { const reason = prompt("Rejection reason:"); if (!reason) return; setActionLoading(id); try { await mcpCall("reject_change", { change_id: id, reason }); notify("Rejected", "success"); loadData(); } catch (e) { notify("Error: " + e.message, "error"); } finally { setActionLoading(null); } }
 
   const s = { border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000", marginBottom: "1.25rem" };
   const cellS = { border: "1px solid #ccc", padding: "0.4rem 0.6rem", fontSize: "0.82rem", textAlign: "left" };
@@ -11010,8 +11010,8 @@ function AccessRequestsSection({ user }) {
     setLoading(true);
     try {
       const [p, a] = await Promise.all([
-        mcpCall("list_pending_access", {}).catch(() => []),
-        mcpCall("list_authorized_users", {}).catch(() => []),
+        mcpCall("pending_users", {}).catch(() => []),
+        mcpCall("active_users", {}).catch(() => []),
       ]);
       setPending(Array.isArray(p) ? p : []);
       setAuthorized(Array.isArray(a) ? a : []);
@@ -11024,7 +11024,7 @@ function AccessRequestsSection({ user }) {
   async function handleAuthorize(req) {
     setActionLoading(req.id);
     try {
-      await mcpCall("authorize_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id });
+      await mcpCall("approve_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id });
       notify(`Authorized ${req.email}`, "success");
       await logAdminAction("authorize-mcp-user", { email: req.email, admin: user?.email });
       loadData();
@@ -11036,7 +11036,7 @@ function AccessRequestsSection({ user }) {
     if (!await confirmAction(`Revoke access for ${email}?`)) return;
     setActionLoading(email);
     try {
-      await mcpCall("revoke_user", { email });
+      await mcpCall("remove_user", { email });
       notify(`Revoked ${email}`, "success");
       await logAdminAction("revoke-mcp-user", { email, admin: user?.email });
       loadData();
