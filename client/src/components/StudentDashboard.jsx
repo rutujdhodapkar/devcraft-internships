@@ -311,7 +311,7 @@ export default function StudentDashboard({
 
   const getEnrollmentIcon = (enrollment) => {
     const path = careerPaths.find((item) => item.id === enrollment.domainId || item.title === enrollment.domain);
-    return path?.icon || (enrollment.domain || enrollment.domainId || "I").trim().slice(0, 1).toUpperCase();
+    return path?.icon || "●";
   };
 
   const handleSubmitProject = async (enrollment, projectIdx) => {
@@ -822,7 +822,7 @@ export default function StudentDashboard({
                       return <button key={e.id} type="button" onClick={() => setSelectedEnrollment(e)} aria-label={`Open ${e.domain || e.domainId} tasks`} title={e.domain || e.domainId || "Internship"} style={{ width: "54px", height: "54px", flex: "0 0 54px", border: "2px solid #000", background: selected ? "#000" : "#fff", color: selected ? "#fff" : "#000", fontSize: "1.25rem", fontWeight: 900, cursor: "pointer", display: "grid", placeItems: "center" }}>{getEnrollmentIcon(e)}</button>;
                     })}
                   </div>
-                  {selectedEnrollment && <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.75rem", fontSize: "0.82rem", flexWrap: "wrap" }}><strong>{selectedEnrollment.domain || selectedEnrollment.domainId}</strong><button type="button" onClick={() => { hideEnrollmentFromUser(user.uid, selectedEnrollment.id); setSelectedEnrollment(null); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ border: "2px solid #000", background: "#fff", color: "#000", cursor: "pointer", padding: "0.3rem 0.6rem", fontWeight: 700 }}>Hide</button></div>}
+                  {selectedEnrollment && <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.5rem" }}><button type="button" aria-label="Hide selected internship" title="Hide selected internship" onClick={() => { hideEnrollmentFromUser(user.uid, selectedEnrollment.id); setSelectedEnrollment(null); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ width: "34px", height: "34px", border: "2px solid #000", background: "#fff", color: "#000", cursor: "pointer", fontWeight: 900 }}>×</button></div>}
                 </div>
                 {selectedEnrollment && (() => {
                   const enrollment = selectedEnrollment;
