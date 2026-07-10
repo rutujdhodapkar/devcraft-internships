@@ -11264,7 +11264,7 @@ function AgenciesSection({ user }) {
     } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); }
   };
 
-  const handleApprove = async (id, approved) => { setSaving(true); try { await approveAgency(id, approved); const updated = await fetchAgencies(); setAgencies(updated); await logAdminAction(approved ? "approve-agency" : "disapprove-agency", { agencyId: id, admin: user?.email || "admin" }); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+  const handleApprove = async (id, approved) => { setSaving(true); try { const partner = agencies.find((item) => item.id === id); await approveAgency(id, approved); if (approved && partner?.partnerType === "mcp" && partner.ownerEmail) { const token = user?.getIdToken ? await user.getIdToken() : null; await fetch("/api/mcp-domains", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name: "approve_user", arguments: { email: partner.ownerEmail, name: partner.contactName || partner.name, agency_id: id, allowed_tools: "get_domains,get_tasks,add_domain,add_task", ...(token ? { admin_token: token } : {}) } } }) }); } const updated = await fetchAgencies(); setAgencies(updated); await logAdminAction(approved ? "approve-agency" : "disapprove-agency", { agencyId: id, admin: user?.email || "admin" }); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
 
   const handleDelete = async (id, name) => { if (!await confirmAction(`Delete agency "${name}"?`)) return; setSaving(true); try { await deleteAgency(id); setAgencies(p => p.filter(a => a.id !== id)); await logAdminAction("delete-agency", { agency: name, admin: user?.email || "admin" }); notify("Deleted!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
 
@@ -11305,6 +11305,8 @@ function AgenciesSection({ user }) {
             <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Company Name</label><input value={editAgency.name} onChange={e => setEditAgency(p => ({ ...p, name: e.target.value }))} style={is} /></div>
             <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Logo URL</label><input value={editAgency.logo || ""} onChange={e => setEditAgency(p => ({ ...p, logo: e.target.value }))} style={is} /></div>
             <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Website</label><input value={editAgency.website || ""} onChange={e => setEditAgency(p => ({ ...p, website: e.target.value }))} style={is} /></div>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Contact Name</label><input value={editAgency.contactName || ""} onChange={e => setEditAgency(p => ({ ...p, contactName: e.target.value }))} style={is} /></div>
+            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Contact Phone</label><input value={editAgency.contactPhone || ""} onChange={e => setEditAgency(p => ({ ...p, contactPhone: e.target.value }))} style={is} /></div>
           </div>
           <div style={{ marginBottom: "0.5rem" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Description</label><textarea value={editAgency.description || ""} onChange={e => setEditAgency(p => ({ ...p, description: e.target.value }))} rows={2} style={{ ...is, resize: "vertical" }} /></div>
           <div style={{ marginBottom: "0.5rem" }}>
@@ -11334,6 +11336,7 @@ function AgenciesSection({ user }) {
                 <div>
                   <strong>{a.name}</strong>{a.partnerType && <span style={{ marginLeft: "0.5rem", fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>{a.partnerType}</span>}
                   <div style={{ fontSize: "0.78rem", color: "#666" }}>{(a.emails || [a.email]).filter(Boolean).join(", ")}</div>
+                  {(a.contactName || a.contactPhone || a.website) && <div style={{ fontSize: "0.72rem", color: "#666" }}>{[a.contactName, a.contactPhone, a.website].filter(Boolean).join(" · ")}</div>}
                   <span style={{ fontSize: "0.7rem", color: a.approved ? "#090" : "#c90", fontWeight: 700 }}>{a.approved ? "Approved" : "Pending"}</span>
                 </div>
               </div>

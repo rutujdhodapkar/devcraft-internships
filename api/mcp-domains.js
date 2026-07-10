@@ -51,10 +51,11 @@ export default async function mcpHandler(req, res) {
   const authHeader = req.headers["authorization"] || "";
   const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
-  // Inject token into tool arguments so verifyAdmin can find it
+  // A bearer token represents the current MCP user. Admin actions still use
+  // explicit admin credentials and are verified separately.
   if (method === "tools/call" && params && params.arguments) {
-    if (bearerToken && !params.arguments.admin_secret && !params.arguments.admin_token) {
-      params.arguments.admin_secret = bearerToken;
+    if (bearerToken && !params.arguments.user_token && !params.arguments.admin_secret && !params.arguments.admin_token) {
+      params.arguments.user_token = bearerToken;
     }
   }
 

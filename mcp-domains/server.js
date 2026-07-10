@@ -95,6 +95,17 @@ function isAuthorized(email) {
   return users.some(u => u.email.toLowerCase() === email.toLowerCase());
 }
 
+async function authorizedMcpUser(args, tool) {
+  const identity = await verifyFirebaseToken(args.user_token);
+  if (!identity?.email) throw new Error("Sign in with an approved email to use MCP.");
+  if (args.email && args.email.toLowerCase() !== identity.email.toLowerCase()) throw new Error("Requested email does not match the signed-in user.");
+  const record = loadAuthUsers().find((item) => item.email.toLowerCase() === identity.email.toLowerCase());
+  if (!record) throw new Error("This email has not been approved for MCP access.");
+  const allowed = (record.allowed_tools || "").split(",").map((item) => item.trim()).filter(Boolean);
+  if (allowed.length && !allowed.includes(tool)) throw new Error(`Your role is not allowed to use ${tool}.`);
+  return { ...identity, ...record };
+}
+
 function generateId() { return `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`; }
 
 // ── Collections ──
@@ -325,27 +336,24 @@ async function handleToolCall(name, args) {
       return JSON.stringify(loadAuthUsers());
     }
     case "get_domains": {
-      const email = args.email || "";
       const isAdmin = await verifyAdmin(args.admin_token, args.admin_secret);
-      if (!isAdmin && !isAuthorized(email)) throw new Error("Not authorized. Use request_access first, or provide admin auth.");
+      const member = isAdmin ? null : await authorizedMcpUser(args, "get_domains");
       const docs = await executeQuery("careerPaths", [], null);
-      logAction("get_domains", isAdmin ? "admin" : email, `Read ${docs.length} domains`);
+      logAction("get_domains", isAdmin ? "admin" : member.email, `Read ${docs.length} domains`);
       return JSON.stringify(docs.map(d => ({ id: d.id, title: d.title, duration: d.duration, paymentAmount: d.paymentAmount, description: d.description, features: d.features, icon: d.icon, projects: (d.projects||[]).length })), null, 2);
     }
     case "get_tasks": {
-      const email = args.email || "";
       const isAdmin = await verifyAdmin(args.admin_token, args.admin_secret);
-      if (!isAdmin && !isAuthorized(email)) throw new Error("Not authorized.");
+      const member = isAdmin ? null : await authorizedMcpUser(args, "get_tasks");
       const docs = await executeQuery("careerPaths", [], null);
       const domain = docs.find(d => d.id === args.domain_id);
       if (!domain) throw new Error("Domain not found");
-      logAction("get_tasks", isAdmin ? "admin" : email, `Read tasks for ${args.domain_id}`);
+      logAction("get_tasks", isAdmin ? "admin" : member.email, `Read tasks for ${args.domain_id}`);
       return JSON.stringify(domain.projects || [], null, 2);
     }
     case "add_domain": {
-      const email = args.email;
-      if (!email) throw new Error("Email required");
-      if (!isAuthorized(email)) throw new Error("Not authorized.");
+      const member = await authorizedMcpUser(args, "add_domain");
+      const email = member.email;
       const proposals = loadProposals();
       const proposal = { id: `prop_${generateId()}`, type: "add_domain", requester_email: email, data: { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], icon: args.icon||"⭐" }, status: "pending", submittedAt: new Date().toISOString() };
       proposals.push(proposal); saveProposals(proposals);
@@ -353,9 +361,8 @@ async function handleToolCall(name, args) {
       return `Domain "${args.title}" submitted for review (ID: ${proposal.id}). Admin will review and make it live.`;
     }
     case "add_task": {
-      const email = args.email;
-      if (!email) throw new Error("Email required");
-      if (!isAuthorized(email)) throw new Error("Not authorized.");
+      const member = await authorizedMcpUser(args, "add_task");
+      const email = member.email;
       const proposals = loadProposals();
       const proposal = { id: `prop_${generateId()}`, type: "add_task", requester_email: email, data: { domain_id: args.domain_id, title: args.title, description: args.description||"", type: args.type||"project", links: args.links||[] }, status: "pending", submittedAt: new Date().toISOString() };
       proposals.push(proposal); saveProposals(proposals);
