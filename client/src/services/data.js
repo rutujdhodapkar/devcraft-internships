@@ -1763,11 +1763,13 @@ export async function saveAgency(agency) {
   _lsRemove("agencies");
   const now = new Date().toISOString();
   const { id, ...rest } = agency;
+  const data = { ...rest, updatedAt: now };
+  if (!data.emails) data.emails = data.email ? [data.email] : [];
   if (id) {
-    await dbPut(`agencies/${id}`, { ...rest, updatedAt: now });
+    await dbPut(`agencies/${id}`, data);
   } else {
-    const newRef = await dbPost("agencies", { ...rest, createdAt: now, updatedAt: now, approved: false });
-    return { id: newRef?.id, ...rest };
+    const newRef = await dbPost("agencies", { ...data, createdAt: now, approved: false });
+    return { id: newRef?.id, ...data };
   }
   return agency;
 }
@@ -1798,4 +1800,37 @@ export async function saveAgencyTemplate(template) {
 
 export async function deleteAgencyTemplate(templateId) {
   return dbDelete(`agencyTemplates/${templateId}`);
+}
+
+export async function checkAgencyStatus(email) {
+  const clean = (email || "").toLowerCase().trim();
+  if (!clean) return { isAgency: false, agencies: [] };
+  const all = await fetchAgencies().catch(() => []);
+  const matched = all.filter(a => (a.emails || []).some(e => e.toLowerCase().trim() === clean) && a.approved);
+  return { isAgency: matched.length > 0, agencies: matched };
+}
+
+export async function fetchAgencyEnrollments(agencyId) {
+  const all = await dbList("enrollments").catch(() => []);
+  return all.filter(e => e.agencyId === agencyId);
+}
+
+export async function assignEnrollmentAgency(enrollmentId, agencyId) {
+  await dbPatch(`enrollments/${enrollmentId}`, { agencyId, updatedAt: new Date().toISOString() });
+}
+
+export async function addAgencyAdminEmail(agencyId, email) {
+  const agency = await dbGet(`agencies/${agencyId}`);
+  const emails = agency?.emails || [];
+  if (emails.includes(email)) return;
+  emails.push(email);
+  await dbPatch(`agencies/${agencyId}`, { emails, updatedAt: new Date().toISOString() });
+  _lsRemove("agencies");
+}
+
+export async function removeAgencyAdminEmail(agencyId, email) {
+  const agency = await dbGet(`agencies/${agencyId}`);
+  const emails = (agency?.emails || []).filter(e => e !== email);
+  await dbPatch(`agencies/${agencyId}`, { emails, updatedAt: new Date().toISOString() });
+  _lsRemove("agencies");
 }

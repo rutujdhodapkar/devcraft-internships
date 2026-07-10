@@ -8,6 +8,7 @@ import AuthPage from "./components/AuthPage";
 import StudentDashboard from "./components/StudentDashboard";
 import Footer from "./components/Footer";
 import AdminPanel from "./components/AdminPanel";
+import AgencyDashboard from "./components/AgencyDashboard";
 import EarnSection from "./components/EarnSection";
 import ReferralDashboard from "./components/ReferralDashboard";
 import IDCardModal from "./components/IDCardModal";
@@ -30,6 +31,7 @@ import { confirmAction } from "./services/confirm";
 import {
   processReferralFromUrl,
   checkAdminStatus,
+  checkAgencyStatus,
   fetchUserProfile,
   saveUserProfile,
   enrollStudent,
@@ -133,6 +135,7 @@ export default function App() {
     if (path.startsWith("/certificate/")) return "certificate";
     if (path.startsWith("/verify/")) return "verify";
     if (path === "/admin") return "admin";
+    if (path === "/agency") return "agency";
     if (path === "/tandp") return "tandp";
     if (path === "/privacy") return "privacy";
     if (path === "/refund") return "refund";
@@ -140,7 +143,7 @@ export default function App() {
     if (path === "/") return "site";
     return "error";
   })();
-  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'tandp', 'privacy', 'refund', 'certificate', 'verify', 'error'
+  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'agency', 'tandp', 'privacy', 'refund', 'certificate', 'verify', 'error'
   const [referralCode, setReferralCode] = useState("");
 
   // Routing Redirection Target
@@ -150,6 +153,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAgency, setIsAgency] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [hasReferralCode, setHasReferralCode] = useState(false);
 
@@ -294,6 +298,12 @@ export default function App() {
           }
         }
         setIsAdmin(isUserAdmin);
+
+        // Check agency status
+        try {
+          const agencyRes = await checkAgencyStatus(currentUser.email);
+          setIsAgency(agencyRes.isAgency);
+        } catch (e) { setIsAgency(false); }
 
         // Check if user is banned
         try {
@@ -694,6 +704,7 @@ export default function App() {
     setUser(null);
     setUserProfile(null);
     setIsAdmin(false);
+    setIsAgency(false);
     setHasReferralCode(false);
     setCurrentView("site");
   };
@@ -708,6 +719,8 @@ export default function App() {
             onLogout={handleLogout}
           />
         );
+      case "agency":
+        return <AgencyDashboard user={user} onClose={() => setCurrentView("site")} />;
       case "auth":
         return (
           <AuthPage
@@ -724,6 +737,8 @@ export default function App() {
               user={user}
               userProfile={userProfile}
               isAdmin={isAdmin}
+              isAgency={isAgency}
+              onAgencyClick={() => setCurrentView("agency")}
               onLogout={handleLogout}
               authLoading={authLoading}
               onLoginClick={handleLoginClick}
@@ -764,6 +779,8 @@ export default function App() {
               user={user}
               userProfile={userProfile}
               isAdmin={isAdmin}
+              isAgency={isAgency}
+              onAgencyClick={() => setCurrentView("agency")}
               onLogout={handleLogout}
               authLoading={authLoading}
               onLoginClick={handleLoginClick}
@@ -842,6 +859,8 @@ export default function App() {
               user={user}
               userProfile={userProfile}
               isAdmin={isAdmin}
+              isAgency={isAgency}
+              onAgencyClick={() => setCurrentView("agency")}
               onLogout={handleLogout}
               authLoading={authLoading}
               onLoginClick={handleLoginClick}

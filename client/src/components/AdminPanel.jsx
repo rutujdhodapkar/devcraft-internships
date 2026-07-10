@@ -95,6 +95,8 @@ import {
   saveAgency,
   approveAgency,
   deleteAgency,
+  fetchAgencyEnrollments,
+  assignEnrollmentAgency,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -8145,7 +8147,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "add-intern" && <AddInternSection />}
         {activeTab === "edit-interns" && <EditInternsSection />}
         {activeTab === "badges" && <BadgesSection />}
-        {activeTab === "agencies" && <AgenciesSection />}
+        {activeTab === "agencies" && <AgenciesSection user={user} />}
       </div>
 
       {/* ── INTERN SUBMISSION DETAIL MODAL ── */}
@@ -10961,23 +10963,60 @@ function BadgesSection() {
 }
 
 /* ── Team / Agency Accounts ── */
-function AgenciesSection() {
+function AgenciesSection({ user }) {
   const [agencies, setAgencies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editAgency, setEditAgency] = useState(null);
+  const [expanded, setExpanded] = useState(null);
+  const [enrollments, setEnrollments] = useState([]);
+  const [enrLoading, setEnrLoading] = useState(false);
+  const [assignId, setAssignId] = useState("");
+  const [assignDomain, setAssignDomain] = useState("");
 
   useEffect(() => { fetchAgencies().then(setAgencies).catch(() => {}).finally(() => setLoading(false)); }, []);
 
-  const addAgency = () => setEditAgency({ id: "", name: "", email: "", logo: "", website: "", description: "", approved: false, templates: [] });
+  const addAgency = () => setEditAgency({ id: "", name: "", email: "", emails: [], logo: "", website: "", description: "", approved: false, templates: [] });
 
-  const startEdit = (a) => setEditAgency({ ...a });
+  const startEdit = (a) => setEditAgency({ ...a, emails: [...(a.emails || (a.email ? [a.email] : []))] });
 
-  const handleSave = async () => { if (!editAgency) return; setSaving(true); try { await saveAgency(editAgency); await logAdminAction("save-agency", { agency: editAgency.name, admin: user?.email || "admin" }); const updated = await fetchAgencies(); setAgencies(updated); setEditAgency(null); notify("Agency saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+  const addEmail = () => { if (!editAgency) return; setEditAgency(p => ({ ...p, emails: [...(p.emails || []), ""] })); };
+
+  const updateEmail = (idx, val) => { if (!editAgency) return; setEditAgency(p => { const e = [...(p.emails || [])]; e[idx] = val; return { ...p, emails: e }; }); };
+
+  const removeEmail = (idx) => { if (!editAgency) return; setEditAgency(p => ({ ...p, emails: (p.emails || []).filter((_, i) => i !== idx) })); };
+
+  const handleSave = async () => {
+    if (!editAgency) return; setSaving(true); try {
+      const data = { ...editAgency, emails: (editAgency.emails || []).filter(Boolean) };
+      await saveAgency(data);
+      await logAdminAction("save-agency", { agency: data.name, admin: user?.email || "admin" });
+      const updated = await fetchAgencies(); setAgencies(updated); setEditAgency(null); notify("Agency saved!", "success");
+    } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); }
+  };
 
   const handleApprove = async (id, approved) => { setSaving(true); try { await approveAgency(id, approved); const updated = await fetchAgencies(); setAgencies(updated); await logAdminAction(approved ? "approve-agency" : "disapprove-agency", { agencyId: id, admin: user?.email || "admin" }); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
 
   const handleDelete = async (id, name) => { if (!await confirmAction(`Delete agency "${name}"?`)) return; setSaving(true); try { await deleteAgency(id); setAgencies(p => p.filter(a => a.id !== id)); await logAdminAction("delete-agency", { agency: name, admin: user?.email || "admin" }); notify("Deleted!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
+
+  const loadEnrollments = async (a) => {
+    setExpanded(expanded?.id === a.id ? null : a);
+    if (expanded?.id === a.id) return;
+    setEnrLoading(true);
+    try { setEnrollments(await fetchAgencyEnrollments(a.id)); } catch (e) { setEnrollments([]); }
+    finally { setEnrLoading(false); }
+  };
+
+  const handleAssign = async () => {
+    if (!assignId.trim() || !expanded) return;
+    setSaving(true); try {
+      await assignEnrollmentAgency(assignId.trim(), expanded.id);
+      if (assignDomain.trim()) await dbPatch(`enrollments/${assignId.trim()}`, { domain: assignDomain.trim(), updatedAt: new Date().toISOString() });
+      setEnrollments(await fetchAgencyEnrollments(expanded.id));
+      setAssignId(""); setAssignDomain(""); notify("Assigned!", "success");
+      await logAdminAction("assign-enrollment-agency", { enrollmentId: assignId.trim(), agencyId: expanded.id, admin: user?.email || "admin" });
+    } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); }
+  };
 
   const is = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", boxSizing: "border-box", width: "100%" };
 
@@ -10989,18 +11028,26 @@ function AgenciesSection() {
         <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Team / Agency Accounts</span>
         <button onClick={addAgency} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Agency</button>
       </div>
-      <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "1rem" }}>Manage company/agency accounts. Approved agencies can post branded templates and listings.</p>
 
       {editAgency && (
         <div style={{ border: "2px solid #000", padding: "1rem", marginBottom: "1rem", background: "#f0f0f0" }}>
           <div style={{ fontWeight: 700, marginBottom: "0.75rem", textTransform: "uppercase", fontSize: "0.85rem" }}>{editAgency.id ? "Edit Agency" : "New Agency"}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
             <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Company Name</label><input value={editAgency.name} onChange={e => setEditAgency(p => ({ ...p, name: e.target.value }))} style={is} /></div>
-            <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Email</label><input value={editAgency.email} onChange={e => setEditAgency(p => ({ ...p, email: e.target.value }))} style={is} /></div>
             <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Logo URL</label><input value={editAgency.logo || ""} onChange={e => setEditAgency(p => ({ ...p, logo: e.target.value }))} style={is} /></div>
             <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Website</label><input value={editAgency.website || ""} onChange={e => setEditAgency(p => ({ ...p, website: e.target.value }))} style={is} /></div>
           </div>
           <div style={{ marginBottom: "0.5rem" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem" }}>Description</label><textarea value={editAgency.description || ""} onChange={e => setEditAgency(p => ({ ...p, description: e.target.value }))} rows={2} style={{ ...is, resize: "vertical" }} /></div>
+          <div style={{ marginBottom: "0.5rem" }}>
+            <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Admin Emails</label>
+            {(editAgency.emails || []).map((em, ei) => (
+              <div key={ei} style={{ display: "flex", gap: "0.3rem", marginBottom: "0.25rem" }}>
+                <input value={em} onChange={e => updateEmail(ei, e.target.value)} placeholder="admin@example.com" style={{ ...is }} />
+                <button onClick={() => removeEmail(ei)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.5rem", fontSize: "0.7rem" }}>X</button>
+              </div>
+            ))}
+            <button onClick={addEmail} style={{ border: "1px solid #000", background: "none", cursor: "pointer", padding: "0.15rem 0.5rem", fontSize: "0.72rem", marginTop: "0.15rem" }}>+ Add Email</button>
+          </div>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ padding: "0.4rem 1.5rem" }}>{saving ? "Saving..." : "Save"}</button>
             <button onClick={() => setEditAgency(null)} className="btn-sharp-outline" style={{ padding: "0.4rem 1.5rem" }}>Cancel</button>
@@ -11011,20 +11058,45 @@ function AgenciesSection() {
       <div style={{ display: "grid", gap: "0.75rem" }}>
         {agencies.length === 0 && <p style={{ color: "#888", fontStyle: "italic" }}>No agencies yet.</p>}
         {agencies.map(a => (
-          <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "2px solid #000", padding: "0.75rem 1rem", background: "#fafafa" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-              {a.logo && <img src={a.logo} alt="" style={{ width: "36px", height: "36px", objectFit: "contain", border: "1px solid #ddd" }} />}
-              <div>
-                <strong>{a.name}</strong>
-                <div style={{ fontSize: "0.78rem", color: "#666" }}>{a.email}{a.website ? ` | ${a.website}` : ""}</div>
-                <span style={{ fontSize: "0.7rem", color: a.approved ? "#090" : "#c90", fontWeight: 700 }}>{a.approved ? "Approved" : "Pending"}</span>
+          <div key={a.id}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "2px solid #000", padding: "0.75rem 1rem", background: "#fafafa" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1 }}>
+                {a.logo && <img src={a.logo} alt="" style={{ width: "36px", height: "36px", objectFit: "contain", border: "1px solid #ddd" }} />}
+                <div>
+                  <strong>{a.name}</strong>
+                  <div style={{ fontSize: "0.78rem", color: "#666" }}>{(a.emails || [a.email]).filter(Boolean).join(", ")}</div>
+                  <span style={{ fontSize: "0.7rem", color: a.approved ? "#090" : "#c90", fontWeight: 700 }}>{a.approved ? "Approved" : "Pending"}</span>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem", alignItems: "center", flexShrink: 0 }}>
+                <button onClick={() => loadEnrollments(a)} disabled={saving} style={{ border: "1px solid #000", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem" }}>{expanded?.id === a.id ? "Collapse" : "View Data"}</button>
+                <button onClick={() => handleApprove(a.id, !a.approved)} disabled={saving} style={{ border: `1px solid ${a.approved ? "#c90" : "#090"}`, color: a.approved ? "#c90" : "#090", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem", fontWeight: 700 }}>{a.approved ? "Revoke" : "Approve"}</button>
+                <button onClick={() => startEdit(a)} disabled={saving} style={{ border: "1px solid #000", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem" }}>Edit</button>
+                <button onClick={() => handleDelete(a.id, a.name)} disabled={saving} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem" }}>Delete</button>
               </div>
             </div>
-            <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
-              <button onClick={() => handleApprove(a.id, !a.approved)} disabled={saving} style={{ border: `1px solid ${a.approved ? "#c90" : "#090"}`, color: a.approved ? "#c90" : "#090", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem", fontWeight: 700 }}>{a.approved ? "Revoke" : "Approve"}</button>
-              <button onClick={() => startEdit(a)} disabled={saving} style={{ border: "1px solid #000", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem" }}>Edit</button>
-              <button onClick={() => handleDelete(a.id, a.name)} disabled={saving} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.25rem 0.6rem", fontSize: "0.72rem" }}>Delete</button>
-            </div>
+            {expanded?.id === a.id && (
+              <div style={{ border: "2px solid #000", borderTop: "none", padding: "1rem", background: "#fff" }}>
+                <div style={{ fontWeight: 800, fontSize: "0.85rem", textTransform: "uppercase", marginBottom: "0.75rem" }}>Enrollments / Applied Users</div>
+                <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", alignItems: "end", flexWrap: "wrap" }}>
+                  <div><label style={{ fontSize: "0.6rem", fontWeight: 700, display: "block" }}>Enrollment ID</label><input value={assignId} onChange={e => setAssignId(e.target.value)} placeholder="e.g. DEV-CRAFT-XXX" style={{ ...is, width: "160px" }} /></div>
+                  <div><label style={{ fontSize: "0.6rem", fontWeight: 700, display: "block" }}>Domain</label><input value={assignDomain} onChange={e => setAssignDomain(e.target.value)} placeholder="Optional domain" style={{ ...is, width: "140px" }} /></div>
+                  <button onClick={handleAssign} disabled={saving} className="btn-sharp" style={{ padding: "0.35rem 0.8rem", fontSize: "0.78rem" }}>{saving ? "..." : "Assign to Agency"}</button>
+                </div>
+                {enrLoading ? <p style={{ color: "#888" }}>Loading...</p> : enrollments.length === 0 ? <p style={{ color: "#888", fontStyle: "italic" }}>No enrollments assigned to this agency.</p> : (
+                  <div style={{ display: "grid", gap: "0.4rem", maxHeight: "300px", overflowY: "auto" }}>
+                    {enrollments.map(e => (
+                      <div key={e.id} style={{ display: "flex", gap: "0.5rem", alignItems: "center", border: "1px solid #ddd", padding: "0.4rem 0.6rem", fontSize: "0.78rem" }}>
+                        <span style={{ fontWeight: 700, minWidth: "120px" }}>{e.name || "—"}</span>
+                        <span style={{ color: "#888" }}>{e.domain || e.domainId || "—"}</span>
+                        <span style={{ color: "#888" }}>{e.email || ""}</span>
+                        <span style={{ marginLeft: "auto", fontWeight: 700, color: e.status === "Completed" ? "#090" : e.status === "Active" ? "#FBBC05" : "#888" }}>{e.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -14,6 +14,8 @@ export default function Navbar({
   user,
   userProfile,
   isAdmin,
+  isAgency,
+  onAgencyClick,
   onLogout,
   authLoading,
   onLoginClick,
@@ -354,6 +356,7 @@ export default function Navbar({
                         )}
                         <span className="nav-user-name" style={{ fontSize: "0.9rem", color: "var(--text-primary)", fontWeight: 600, margin: "0 0.25rem" }}>{user.displayName?.split(" ")[0] || "Student"}</span>
                         {isAdmin && <button type="button" className="btn-sharp nav-admin-btn" onClick={onAdminClick} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Admin Panel</button>}
+                        {isAgency && <button type="button" className="btn-sharp" onClick={onAgencyClick} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700, background: "#1a237e", color: "#fff", border: "2px solid #1a237e" }}>Agency</button>}
                         <button type="button" onClick={handleOpenProfileEdit} className="btn-sharp-outline" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Profile</button>
                         <button type="button" onClick={onShowIdCard} className="btn-sharp-outline nav-id-btn" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>ID Card</button>
                         <button type="button" className="nav-link nav-button-link nav-logout-btn" onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}>Logout</button>
