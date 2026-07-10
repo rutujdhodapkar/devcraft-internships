@@ -8,20 +8,20 @@ export default function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   const url = new URL(req.url, BASE);
+  const path = url.pathname;
 
-  // OAuth discovery
-  if (req.method === "GET" || url.pathname.endsWith("oauth-authorization-server")) {
-    return res.json({
-      issuer: BASE,
-      authorization_endpoint: `${BASE}/api/oauth/auth`,
-      token_endpoint: `${BASE}/api/oauth/token`,
-      token_endpoint_auth_methods_supported: ["none"],
-      response_types_supported: ["token"],
-      scopes_supported: ["admin", "user"],
-    });
+  // Auth page (GET) - must be checked before the generic GET handler
+  if (path.endsWith("/auth")) {
+    res.setHeader("Content-Type", "text/html");
+    const qs = new URLSearchParams(req.url.includes("?") ? req.url.split("?")[1] : "");
+    const redirectUri = qs.get("redirect_uri") || BASE;
+    const state = qs.get("state") || "";
+    const cb = `${redirectUri}${redirectUri.includes("?") ? "&" : "?"}code=mcp_auth_ok${state ? "&state=" + state : ""}`;
+    return res.status(200).send(`<!DOCTYPE html><html><body><script>location.href=${JSON.stringify(cb)}</script><p>Authorizing... Redirecting back to ChatGPT.</p></body></html>`);
   }
 
-  if (url.pathname.endsWith("/token")) {
+  // Token endpoint
+  if (path.endsWith("/token")) {
     return res.json({
       access_token: "devcraft_admin_mcp_2025",
       token_type: "Bearer",
@@ -30,14 +30,13 @@ export default function handler(req, res) {
     });
   }
 
-  if (url.pathname.endsWith("/auth")) {
-    res.setHeader("Content-Type", "text/html");
-    const qs = new URLSearchParams(req.url.includes("?") ? req.url.split("?")[1] : "");
-    const redirectUri = qs.get("redirect_uri") || BASE;
-    const state = qs.get("state") || "";
-    const cb = `${redirectUri}${redirectUri.includes("?") ? "&" : "?"}code=mcp_auth_ok${state ? "&state=" + state : ""}`;
-    return res.status(200).send(`<!DOCTYPE html><html><body><script>location.href=${JSON.stringify(cb)}</script><p>Authorizing...</p></body></html>`);
-  }
-
-  res.status(404).json({ error: "not_found" });
+  // OAuth discovery (default GET for this endpoint)
+  return res.json({
+    issuer: BASE,
+    authorization_endpoint: `${BASE}/api/oauth/auth`,
+    token_endpoint: `${BASE}/api/oauth/token`,
+    token_endpoint_auth_methods_supported: ["none"],
+    response_types_supported: ["token"],
+    scopes_supported: ["admin", "user"],
+  });
 }
