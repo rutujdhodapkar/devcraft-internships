@@ -97,6 +97,8 @@ import {
   deleteAgency,
   fetchAgencyEnrollments,
   assignEnrollmentAgency,
+  fetchSiteConfig,
+  saveSiteConfig,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -11453,6 +11455,13 @@ function AuditLogSection({ user }) {
 
 /* ── MCP & API Management ── */
 function McpApiSection({ user }) {
+  const [kind, setKind] = useState("mcp");
+  const blank = { title: "", description: "", status: "Available by approval", features: "", useCases: "", resources: "", requirements: "", approvalRequirements: "", pricing: "", terms: "", faq: "", contact: "", actions: [] };
+  const [details, setDetails] = useState(blank);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { fetchSiteConfig(`partnerDetails_${kind}`).then((data) => setDetails({ ...blank, ...(data || {}) })).catch(() => setDetails(blank)); }, [kind]);
+  const update = (key, value) => setDetails((current) => ({ ...current, [key]: value }));
+  const save = async () => { setSaving(true); try { await saveSiteConfig(`partnerDetails_${kind}`, details); await logAdminAction("save-partner-details", { kind, admin: user?.email || "admin" }); notify("Detail page saved.", "success"); } catch (error) { notify(error.message, "error"); } finally { setSaving(false); } };
   return (
     <div>
       <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000", marginBottom: "1.25rem" }}>
@@ -11470,6 +11479,14 @@ Discovery:      /.well-known/oauth-authorization-server
 Configure in ChatGPT:
   URL: https://devcraft.fennark.xyz/api/mcp-domains`}
         </div>
+      </div>
+      <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
+        <h3 style={{ marginTop: 0, textTransform: "uppercase", fontSize: "1rem" }}>Public details & actions</h3>
+        <p style={{ fontSize: "0.82rem" }}>This controls the dedicated MCP/API and University/Organization public page. Every field is editable without a deploy.</p>
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.8rem" }}><button className="btn-sharp" onClick={() => setKind("mcp")} style={{ background: kind === "mcp" ? "#000" : "#fff", color: kind === "mcp" ? "#fff" : "#000" }}>MCP/API</button><button className="btn-sharp" onClick={() => setKind("university")} style={{ background: kind === "university" ? "#000" : "#fff", color: kind === "university" ? "#fff" : "#000" }}>University / Organization</button></div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "0.6rem" }}>{[["title", "Title"], ["status", "Status"], ["contact", "Contact"], ["pricing", "Pricing"], ["description", "Full description"], ["features", "Features"], ["useCases", "Use cases"], ["resources", "Documentation / resources"], ["requirements", "Requirements"], ["approvalRequirements", "Approval requirements"], ["terms", "Terms / guidelines"], ["faq", "FAQ"]].map(([key, label]) => <label key={key} style={{ fontSize: "0.75rem", fontWeight: 700 }}>{label}{["title", "status", "contact", "pricing"].includes(key) ? <input value={details[key] || ""} onChange={e => update(key, e.target.value)} style={{ width: "100%", boxSizing: "border-box", border: "1px solid #000", padding: "0.45rem", marginTop: "0.2rem" }} /> : <textarea rows={3} value={details[key] || ""} onChange={e => update(key, e.target.value)} style={{ width: "100%", boxSizing: "border-box", border: "1px solid #000", padding: "0.45rem", marginTop: "0.2rem" }} />}</label>)}</div>
+        <div style={{ marginTop: "1rem" }}><strong style={{ fontSize: "0.8rem" }}>Action buttons</strong>{details.actions.map((action, index) => <div key={index} style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto auto", gap: "0.4rem", marginTop: "0.4rem" }}><input placeholder="Label" value={action.label || ""} onChange={e => update("actions", details.actions.map((item, i) => i === index ? { ...item, label: e.target.value } : item))} /><input placeholder="URL (optional)" value={action.url || ""} onChange={e => update("actions", details.actions.map((item, i) => i === index ? { ...item, url: e.target.value } : item))} /><label style={{ fontSize: "0.75rem" }}><input type="checkbox" checked={action.enabled !== false} onChange={e => update("actions", details.actions.map((item, i) => i === index ? { ...item, enabled: e.target.checked } : item))} /> Enabled</label><button onClick={() => update("actions", details.actions.filter((_, i) => i !== index))}>Remove</button></div>)}<button onClick={() => update("actions", [...details.actions, { label: "Apply", url: "", enabled: true }])} style={{ marginTop: "0.5rem" }}>+ Add action</button></div>
+        <button onClick={save} disabled={saving} className="btn-sharp" style={{ marginTop: "1rem" }}>{saving ? "Saving…" : "Save detail page"}</button>
       </div>
     </div>
   );
