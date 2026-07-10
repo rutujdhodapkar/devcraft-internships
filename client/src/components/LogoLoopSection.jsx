@@ -126,22 +126,10 @@ export default function LogoLoopSection() {
         </div>
       )}
 
-      {/* Logo Loop */}
-      <div style={{ overflow: "hidden", width: "100%" }}>
-        <LogoLoop
-          logos={logos}
-          speed={Number(cfg.speed) || 90}
-          direction="left"
-          logoHeight={Number(cfg.logoHeight) || 40}
-          gap={Number(cfg.gap) || 64}
-          hoverSpeed={0}
-          fadeOut
-          fadeOutColor="#ffffff"
-          scaleOnHover
-          ariaLabel={cfg.heading || "Partner logos"}
-          style={{ padding: "0.5rem 0" }}
-        />
-      </div>
+      {/* A long list is more readable as names than as an endless wall of logos. */}
+      {logos.length > 3 ? <div style={{ maxWidth: "1000px", margin: "0 auto", padding: "0 1rem", display: "flex", justifyContent: "center", gap: "0.7rem", flexWrap: "wrap" }}>{logos.map((item, index) => <a key={`${item.title || item.alt || "partner"}-${index}`} href={item.href || "#"} style={{ border: "2px solid #000", color: "#000", padding: "0.55rem 0.8rem", fontWeight: 800, textDecoration: "none", fontSize: "0.82rem" }}>{item.title || item.alt || `Partner ${index + 1}`}</a>)}</div> : <div style={{ overflow: "hidden", width: "100%" }}>
+        <LogoLoop logos={logos} speed={Number(cfg.speed) || 90} direction="left" logoHeight={Number(cfg.logoHeight) || 40} gap={Number(cfg.gap) || 64} hoverSpeed={0} fadeOut fadeOutColor="#ffffff" scaleOnHover ariaLabel={cfg.heading || "Partner logos"} style={{ padding: "0.5rem 0" }} />
+      </div>}
     </section>
   );
 }

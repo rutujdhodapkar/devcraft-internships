@@ -31,7 +31,7 @@ export default function UniversityCollab() {
           </p>
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
             {buttonRedirectUrl && (
-              <a href={buttonRedirectUrl} target="_blank" rel="noopener noreferrer" className="btn-sharp" style={{ display: 'inline-block', padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 700, textDecoration: 'none' }}>
+              <a href={buttonRedirectUrl} className="btn-sharp" style={{ display: 'inline-block', padding: '1rem 2.5rem', fontSize: '1rem', fontWeight: 700, textDecoration: 'none' }}>
                 {buttonText || 'Partner With Us'}
               </a>
             )}

@@ -715,6 +715,15 @@ export default function App() {
     setCurrentView("site");
   };
 
+  const renderPartnerHeader = () => <Navbar
+    onAdminClick={() => setCurrentView("admin")} user={user} userProfile={userProfile} isAdmin={isAdmin} isAgency={isAgency}
+    onAgencyClick={() => setCurrentView("agency")} onLogout={handleLogout} authLoading={authLoading} onLoginClick={handleLoginClick}
+    onHomeClick={() => setCurrentView("site")} onDashboardClick={() => setCurrentView("dashboard")}
+    onReferralDashboardClick={() => setCurrentView("dashboard")} hasReferralCode={hasReferralCode} onShowIdCard={handleShowIdCard}
+    onEarnClick={() => setShowEarnModal(true)} onMcpApiClick={() => setCurrentView("mcp")} onUniOrgClick={() => setCurrentView("university")}
+    isHomePage={false} headerSettings={headerSettings}
+  />;
+
   const renderCurrentView = () => {
     switch (currentView) {
       case "admin":
@@ -836,9 +845,9 @@ export default function App() {
           />
         );
       case "mcp":
-        return <McpDashboard onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} />;
+        return <><div style={{ minHeight: "100vh", background: "#fafafa" }}>{renderPartnerHeader()}<McpDashboard onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} /></div><Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} /></>;
       case "university":
-        return <UniversityOrgPage onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} />;
+        return <><div style={{ minHeight: "100vh", background: "#fafafa" }}>{renderPartnerHeader()}<UniversityOrgPage onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} /></div><Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} /></>;
       case "tandp":
         return (
           <PolicyPage
