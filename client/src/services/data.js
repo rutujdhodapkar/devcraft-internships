@@ -1834,3 +1834,28 @@ export async function removeAgencyAdminEmail(agencyId, email) {
   await dbPatch(`agencies/${agencyId}`, { emails, updatedAt: new Date().toISOString() });
   _lsRemove("agencies");
 }
+
+// Partner workspaces use the existing approval flow and are separated by type.
+export async function fetchPartnerAccounts(type) {
+  const accounts = await fetchAgencies();
+  return accounts.filter((account) => account.partnerType === type);
+}
+
+export async function fetchPartnerCourses(partnerId) {
+  const courses = await dbList("partnerCourses");
+  return (courses || []).filter((course) => course.partnerId === partnerId);
+}
+
+export async function savePartnerCourse(course) {
+  const now = new Date().toISOString();
+  if (course.id) {
+    await dbPatch(`partnerCourses/${course.id}`, { ...course, updatedAt: now });
+    return course;
+  }
+  const created = await dbPost("partnerCourses", { ...course, createdAt: now, updatedAt: now });
+  return { ...course, id: created?.id };
+}
+
+export async function deletePartnerCourse(courseId) {
+  return dbDelete(`partnerCourses/${courseId}`);
+}

@@ -254,7 +254,7 @@ export default function Navbar({
                 style={{ pointerEvents: "auto" }}
                 {...activeGlassProps}
               >
-                <button
+                {!isHomePage && <button
                   className="hamburger-btn"
                   onClick={() => setShowMobileMenu(!showMobileMenu)}
                   style={{
@@ -273,7 +273,7 @@ export default function Navbar({
                   }}
                 >
                   {showMobileMenu ? "✕" : "☰"}
-                </button>
+                </button>}
               </GlassSurface>
             ) : (
               <div
@@ -290,7 +290,7 @@ export default function Navbar({
                   pointerEvents: "auto",
                 }}
               >
-                <button
+                {!isHomePage && <button
                   className="hamburger-btn"
                   onClick={() => setShowMobileMenu(!showMobileMenu)}
                   style={{
@@ -309,7 +309,7 @@ export default function Navbar({
                   }}
                 >
                   {showMobileMenu ? "✕" : "☰"}
-                </button>
+                </button>}
               </div>
             )}
           </div>
@@ -334,11 +334,11 @@ export default function Navbar({
                   whiteSpace: "nowrap",
                 }}
               >
-                <button
+                {!isHomePage && <button
                   onClick={onHomeClick}
                   className="nav-link nav-btn-link"
                   style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}
-                >Home</button>
+                >Home</button>}
                 {user && (
                   <button onClick={onDashboardClick} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Dashboard</button>
                 )}
@@ -407,7 +407,7 @@ export default function Navbar({
                   whiteSpace: "nowrap",
                 }}
               >
-                <button
+                {!isHomePage && <button
                   onClick={onHomeClick}
                   className="nav-link nav-btn-link"
                   style={{
@@ -418,7 +418,7 @@ export default function Navbar({
                   }}
                 >
                   Home
-                </button>
+                </button>}
 
                 {user && (
                   <button
@@ -628,10 +628,10 @@ export default function Navbar({
               gap: "0.25rem",
             }}
             >
-              <button
+              {!isHomePage && <button
                 onClick={() => { onHomeClick(); setShowMobileMenu(false); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}
-              >Home</button>
+              >Home</button>}
 
               {user && (
                 <button

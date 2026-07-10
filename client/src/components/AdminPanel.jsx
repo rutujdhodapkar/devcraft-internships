@@ -165,7 +165,7 @@ const TAB_GROUPS = [
     label: "B2B",
     highlight: true,
     tabs: [
-      { id: "agencies", label: "Agencies" },
+      { id: "agencies", label: "Partners" },
       { id: "badges", label: "Badges" },
       { id: "access-requests", label: "Access Requests" },
       { id: "mcp-proposals", label: "Proposals" },
@@ -11226,7 +11226,7 @@ function BadgesSection({ user }) {
   );
 }
 
-/* ── Team / Agency Accounts ── */
+/* ── Partner Accounts: agencies, universities, and MCP workspaces ── */
 function AgenciesSection({ user }) {
   const [agencies, setAgencies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11289,7 +11289,7 @@ function AgenciesSection({ user }) {
   return (
     <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-        <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Team / Agency Accounts</span>
+        <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Partner Applications & Workspaces</span>
         <button onClick={addAgency} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Agency</button>
       </div>
 
@@ -11327,7 +11327,7 @@ function AgenciesSection({ user }) {
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1 }}>
                 {a.logo && <img src={a.logo} alt="" style={{ width: "36px", height: "36px", objectFit: "contain", border: "1px solid #ddd" }} />}
                 <div>
-                  <strong>{a.name}</strong>
+                  <strong>{a.name}</strong>{a.partnerType && <span style={{ marginLeft: "0.5rem", fontSize: "0.68rem", fontWeight: 800, textTransform: "uppercase" }}>{a.partnerType}</span>}
                   <div style={{ fontSize: "0.78rem", color: "#666" }}>{(a.emails || [a.email]).filter(Boolean).join(", ")}</div>
                   <span style={{ fontSize: "0.7rem", color: a.approved ? "#090" : "#c90", fontWeight: 700 }}>{a.approved ? "Approved" : "Pending"}</span>
                 </div>
