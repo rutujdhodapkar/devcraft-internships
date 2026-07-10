@@ -118,48 +118,84 @@ function generateAndPrint(templateHtml, variables) {
   setTimeout(() => win.print(), 500);
 }
 
-const TABS = [
-  { id: "add-intern", label: "+ Add Intern" },
-  { id: "add referral", label: "+ Add Referral" },
-  { id: "manage admins", label: "Admins" },
-  { id: "agencies", label: "Agencies" },
-  { id: "archived", label: "Archived" },
-  { id: "audit-log", label: "Audit Log" },
-  { id: "badges", label: "Badges" },
-  { id: "banned-users", label: "Banned Users" },
-  { id: "certificates", label: "Certificates" },
-  { id: "completed", label: "Completed" },
-  { id: "csv-export", label: "CSV Export" },
-  { id: "dashboard", label: "Dashboard" },
-  { id: "career paths", label: "Domains" },
-  { id: "earn-settings", label: "Earn Settings" },
-  { id: "edit-interns", label: "Edit Interns" },
-  { id: "faq", label: "FAQ" },
-  { id: "footer", label: "Footer" },
-  { id: "homepage", label: "Homepage" },
-  { id: "how it works", label: "How It Works" },
-  { id: "interns", label: "Interns" },
-  { id: "works", label: "Internship Works" },
-  { id: "logged-in-users", label: "Logged In Users" },
-  { id: "messages", label: "Messages" },
-  { id: "milestones", label: "Milestones" },
-  { id: "notice-board", label: "Notice Board" },
-  { id: "payment-settings", label: "Payment Settings" },
-  { id: "popup", label: "Popup" },
-  { id: "privacy", label: "Privacy" },
-  { id: "referral-leaderboard", label: "Referral Leaderboard" },
-  { id: "referral users", label: "Referral Users" },
-  { id: "referrals", label: "Referrals" },
-  { id: "refund", label: "Refund" },
-  { id: "html templates", label: "Templates" },
-  { id: "terms", label: "Terms" },
-  { id: "subscriptions", label: "Subscriptions" },
-  { id: "theme", label: "Theme" },
-  { id: "university", label: "University" },
-  { id: "user-types", label: "User Types" },
-  { id: "verify-completion", label: "Verify Completion" },
-  { id: "verify-ai", label: "Verify with AI" },
-  { id: "visits", label: "Visits" },
+const TAB_GROUPS = [
+  {
+    label: "Content",
+    tabs: [
+      { id: "homepage", label: "Homepage" },
+      { id: "career paths", label: "Domains" },
+      { id: "how it works", label: "How It Works" },
+      { id: "faq", label: "FAQ" },
+      { id: "footer", label: "Footer" },
+      { id: "popup", label: "Popup" },
+      { id: "notice-board", label: "Notice Board" },
+      { id: "works", label: "Internship Works" },
+    ],
+  },
+  {
+    label: "Legal / Docs",
+    tabs: [
+      { id: "terms", label: "Terms" },
+      { id: "privacy", label: "Privacy" },
+      { id: "refund", label: "Refund" },
+      { id: "certificates", label: "Certificates" },
+      { id: "html templates", label: "Templates" },
+    ],
+  },
+  {
+    label: "Interns",
+    tabs: [
+      { id: "interns", label: "Interns" },
+      { id: "edit-interns", label: "Edit Interns" },
+      { id: "completed", label: "Completed" },
+      { id: "archived", label: "Archived" },
+      { id: "banned-users", label: "Banned Users" },
+      { id: "logged-in-users", label: "Logged In" },
+      { id: "add-intern", label: "+ Add Intern" },
+    ],
+  },
+  {
+    label: "Referrals",
+    tabs: [
+      { id: "referrals", label: "Referrals" },
+      { id: "referral users", label: "Users" },
+      { id: "referral-leaderboard", label: "Leaderboard" },
+      { id: "add referral", label: "+ Add Referral" },
+    ],
+  },
+  {
+    label: "B2B",
+    highlight: true,
+    tabs: [
+      { id: "agencies", label: "Agencies" },
+      { id: "badges", label: "Badges" },
+      { id: "milestones", label: "Milestones" },
+      { id: "subscriptions", label: "Subscriptions" },
+    ],
+  },
+  {
+    label: "Settings",
+    tabs: [
+      { id: "payment-settings", label: "Payment" },
+      { id: "earn-settings", label: "Earn Settings" },
+      { id: "user-types", label: "User Types" },
+      { id: "theme", label: "Theme" },
+      { id: "university", label: "University" },
+      { id: "messages", label: "Messages" },
+    ],
+  },
+  {
+    label: "Admin",
+    tabs: [
+      { id: "manage admins", label: "Admins" },
+      { id: "audit-log", label: "Audit Log" },
+      { id: "dashboard", label: "Dashboard" },
+      { id: "csv-export", label: "CSV Export" },
+      { id: "visits", label: "Visits" },
+      { id: "verify-ai", label: "Verify AI" },
+      { id: "verify-completion", label: "Verify Complete" },
+    ],
+  },
 ];
 
 const DEFAULT_HOMEPAGE = {
@@ -1331,36 +1367,38 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             paddingBottom: "0.75rem",
           }}
         >
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                setActiveTab(tab.id);
-                if (
-                  [
-                    "career paths",
-                    "how it works",
-                    "faq",
-                    "html templates",
-                  ].includes(tab.id)
-                ) {
-                  loadDynamicContent(tab.id);
-                }
-              }}
-              style={{
-                padding: "0.4rem 0.9rem",
-                fontSize: "0.8rem",
-                fontWeight: 700,
-                border: "2px solid #000",
-                background: activeTab === tab.id ? "#000" : "#fff",
-                color: activeTab === tab.id ? "#fff" : "#000",
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
-              {tab.label}
-            </button>
+          {TAB_GROUPS.map((group) => (
+            <div key={group.label} style={{ display: "flex", flexDirection: "column", gap: "0.25rem", border: group.highlight ? "2px solid #000" : "none", padding: group.highlight ? "0.4rem" : "0", background: group.highlight ? "#fffde7" : "transparent", width: "100%" }}>
+              <span style={{ fontSize: "0.6rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", color: group.highlight ? "#000" : "#888", padding: group.highlight ? "0.1rem 0.25rem" : "0.25rem 0.25rem 0.1rem 0.25rem" }}>
+                {group.highlight ? "▸ " : ""}{group.label}
+              </span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem" }}>
+                {group.tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      if (["career paths", "how it works", "faq", "html templates"].includes(tab.id)) {
+                        loadDynamicContent(tab.id);
+                      }
+                    }}
+                    style={{
+                      padding: "0.35rem 0.75rem",
+                      fontSize: "0.78rem",
+                      fontWeight: 700,
+                      border: "2px solid #000",
+                      background: activeTab === tab.id ? "#000" : "#fff",
+                      color: activeTab === tab.id ? "#fff" : "#000",
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
 
