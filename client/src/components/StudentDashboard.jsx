@@ -691,6 +691,12 @@ export default function StudentDashboard({
           </div>
         ) : activeTab === "overview" ? (
           <div>
+            <div style={{ border: "2px solid #000", padding: "1rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
+              <h3 style={{ margin: "0 0 0.6rem", fontSize: "0.9rem", textTransform: "uppercase" }}>Your activation checklist</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.5rem", fontSize: "0.82rem" }}>
+                <span>{userProfile?.phone ? "✓" : "○"} Complete your profile</span><span>{enrollments.length ? "✓" : "○"} Join an internship</span><span>{enrollments.some((item) => Object.keys(item.submissions || {}).length) ? "✓" : "○"} Submit your first task</span><button onClick={() => setActiveTab("tasks")} style={{ border: "2px solid #000", background: "#000", color: "#fff", padding: "0.35rem 0.6rem", cursor: "pointer", fontWeight: 800 }}>Continue tasks</button>
+              </div>
+            </div>
             <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
               <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>Welcome!</h3>
               <p style={{ color: "#555", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "1rem" }}>

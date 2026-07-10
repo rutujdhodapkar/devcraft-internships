@@ -1832,14 +1832,16 @@ export async function addAgencyAdminEmail(agencyId, email) {
   const emails = agency?.emails || [];
   if (emails.includes(email)) return;
   emails.push(email);
-  await dbPatch(`agencies/${agencyId}`, { emails, updatedAt: new Date().toISOString() });
+  await dbPatch(`agencies/${agencyId}`, { emails, memberRoles: { ...(agency?.memberRoles || {}), [email]: "admin" }, updatedAt: new Date().toISOString() });
   _lsRemove("agencies");
 }
 
 export async function removeAgencyAdminEmail(agencyId, email) {
   const agency = await dbGet(`agencies/${agencyId}`);
   const emails = (agency?.emails || []).filter(e => e !== email);
-  await dbPatch(`agencies/${agencyId}`, { emails, updatedAt: new Date().toISOString() });
+  const memberRoles = { ...(agency?.memberRoles || {}) };
+  delete memberRoles[email];
+  await dbPatch(`agencies/${agencyId}`, { emails, memberRoles, updatedAt: new Date().toISOString() });
   _lsRemove("agencies");
 }
 
@@ -1866,4 +1868,13 @@ export async function savePartnerCourse(course) {
 
 export async function deletePartnerCourse(courseId) {
   return dbDelete(`partnerCourses/${courseId}`);
+}
+
+export async function fetchPartnerAudit(partnerId) {
+  const events = await dbList("partnerAudit");
+  return (events || []).filter((event) => event.partnerId === partnerId).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+}
+
+export async function logPartnerAudit(partnerId, actor, action, detail = "") {
+  return dbPost("partnerAudit", { partnerId, actor, action, detail, createdAt: new Date().toISOString() });
 }
