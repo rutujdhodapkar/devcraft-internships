@@ -519,6 +519,11 @@ export default function StudentDashboard({
           )}
         </div>
 
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginBottom: "1.25rem" }}>
+          <button className="btn-sharp" onClick={async () => { try { const t = user?.getIdToken ? await user.getIdToken() : null; if (!t) { notify("Sign in first.", "error"); return; } await navigator.clipboard.writeText(t); notify("MCP token copied to clipboard", "success"); } catch (e) { notify("Copy failed: " + e.message, "error"); } }} style={{ padding: "0.6rem 1.1rem", fontSize: "0.85rem", fontWeight: 800 }}>Copy my MCP token</button>
+          <span style={{ fontSize: "0.78rem", color: "#666" }}>Use this token to authenticate MCP/API requests.</span>
+        </div>
+
         <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start", flexDirection: "column" }}>
           {/* Left Sidebar Tabs */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem", minWidth: 0, width: "100%" }}>
