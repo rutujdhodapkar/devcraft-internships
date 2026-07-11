@@ -30,6 +30,7 @@ export default function Navbar({
   onEarnClick,
   onMcpApiClick,
   onUniOrgClick,
+  onCoursesClick,
   isHomePage,
   headerSettings = DEFAULT_HEADER_SETTINGS,
 }) {
@@ -352,6 +353,7 @@ export default function Navbar({
                 <button onClick={() => setShowAboutModal(true)} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>About</button>
                 {headerSettings.showMcpApi !== false && isHomePage && onMcpApiClick && <button onClick={onMcpApiClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>MCP/API</button>}
                 {headerSettings.showUniOrg !== false && isHomePage && onUniOrgClick && <button onClick={onUniOrgClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>Uni/Org</button>}
+                {onCoursesClick && <button onClick={onCoursesClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#1976d2", color: "#fff", border: "2px solid #1976d2" }}>Courses</button>}
                 {headerSettings.showVerify !== false && <button onClick={() => setShowVerifyModal(true)} className="btn-sharp-outline nav-verify-btn" style={{ fontWeight: 700, padding: "0.4rem 1rem", fontSize: "0.85rem" }}>Verify Internship</button>}
                 {!authLoading && (
                   <>
@@ -452,6 +454,8 @@ export default function Navbar({
                 <button onClick={() => setShowAboutModal(true)} className="nav-link nav-btn-link" style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>About</button>
                 {headerSettings.showMcpApi !== false && isHomePage && onMcpApiClick && <button onClick={onMcpApiClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>MCP/API</button>}
                 {headerSettings.showUniOrg !== false && isHomePage && onUniOrgClick && <button onClick={onUniOrgClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#000", color: "#fff", border: "2px solid #000" }}>Uni/Org</button>}
+
+                {onCoursesClick && <button onClick={onCoursesClick} className="btn-sharp" style={{ fontWeight: 700, padding: "0.3rem 0.8rem", fontSize: "0.8rem", background: "#1976d2", color: "#fff", border: "2px solid #1976d2" }}>Courses</button>}
 
                 {headerSettings.showVerify !== false && <button onClick={() => setShowVerifyModal(true)} className="btn-sharp-outline nav-verify-btn" style={{ fontWeight: 700, padding: "0.4rem 1rem", fontSize: "0.85rem" }}>Verify Internship</button>}
 
@@ -658,6 +662,7 @@ export default function Navbar({
               >About</button>
               {headerSettings.showMcpApi !== false && isHomePage && onMcpApiClick && <button onClick={() => { onMcpApiClick(); setShowMobileMenu(false); }} className="btn-sharp" style={{ fontWeight: 700, fontSize:"0.85rem", textAlign:"left", padding:"0.4rem 0.8rem", margin:"0.25rem 0.5rem", background:"#000", color:"#fff", border:"2px solid #000", borderRadius:"6px" }}>MCP/API</button>}
               {headerSettings.showUniOrg !== false && isHomePage && onUniOrgClick && <button onClick={() => { onUniOrgClick(); setShowMobileMenu(false); }} className="btn-sharp" style={{ fontWeight: 700, fontSize:"0.85rem", textAlign:"left", padding:"0.4rem 0.8rem", margin:"0.25rem 0.5rem", background:"#000", color:"#fff", border:"2px solid #000", borderRadius:"6px" }}>Uni/Org</button>}
+              {onCoursesClick && <button onClick={() => { onCoursesClick(); setShowMobileMenu(false); }} className="btn-sharp" style={{ fontWeight: 700, fontSize:"0.85rem", textAlign:"left", padding:"0.4rem 0.8rem", margin:"0.25rem 0.5rem", background:"#1976d2", color:"#fff", border:"2px solid #1976d2", borderRadius:"6px" }}>Courses</button>}
               <button
                 onClick={() => { setShowVerifyModal(true); setShowMobileMenu(false); }}
                 style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "1rem", textAlign: "left", padding: "0.6rem 0.75rem", borderBottom: "1px solid rgba(0,0,0,0.06)", color: "var(--text-primary)", borderRadius: "8px" }}

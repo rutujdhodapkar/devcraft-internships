@@ -1360,6 +1360,47 @@ export async function saveSiteConfig(key, value) {
   return value;
 }
 
+// ── Courses ──────────────────────────────────────────────────────────────
+export async function fetchCourses() {
+  const data = await apiFetch("/api/data/courses");
+  return data.data || [];
+}
+
+export async function saveCourses(list) {
+  return apiFetch("/api/data/courses", { method: "PUT", body: JSON.stringify({ list }) });
+}
+
+export async function fetchCourseContent(courseId) {
+  const data = await apiFetch(`/api/data/courses/${encodeURIComponent(courseId)}/content`);
+  return data.data || null;
+}
+
+export async function saveCourseContent(courseId, content) {
+  return apiFetch(`/api/data/courses/${encodeURIComponent(courseId)}/content`, {
+    method: "PUT", body: JSON.stringify(content),
+  });
+}
+
+export async function courseEnroll(courseId, profile) {
+  const data = await apiFetch("/api/data/course-enroll", {
+    method: "POST", body: JSON.stringify({ courseId, ...profile }),
+  });
+  return data.data;
+}
+
+export async function markLessonComplete(enrollmentId, moduleIdx, lessonIdx) {
+  return apiFetch(`/api/data/course-enroll/${encodeURIComponent(enrollmentId)}/lesson`, {
+    method: "PUT", body: JSON.stringify({ moduleIdx, lessonIdx }),
+  });
+}
+
+export async function submitCourseQuiz(enrollmentId, moduleIdx, answers) {
+  const data = await apiFetch(`/api/data/course-enroll/${encodeURIComponent(enrollmentId)}/quiz`, {
+    method: "POST", body: JSON.stringify({ moduleIdx, answers }),
+  });
+  return data.data;
+}
+
 // Theme
 export async function fetchTheme() {
   return fetchSiteConfig("theme");

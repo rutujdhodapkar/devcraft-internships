@@ -28,6 +28,8 @@ import MessageBox from "./components/MessageBox";
 import ConfirmModal from "./components/ConfirmModal";
 import McpDashboard from "./components/McpDashboard";
 import UniversityOrgPage from "./components/UniversityOrgPage";
+import CourseCatalog from "./components/CourseCatalog";
+import LearningView from "./components/LearningView";
 import { notify } from "./services/notify";
 import { confirmAction } from "./services/confirm";
 import {
@@ -146,10 +148,12 @@ export default function App() {
     if (path === "/earn") return "earn";
     if (path === "/mcp") return "mcp";
     if (path === "/university") return "university";
+    if (path === "/courses") return "courses";
+    if (path.startsWith("/learn/")) return "learn";
     if (path === "/") return "site";
     return "error";
   })();
-  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'agency', 'tandp', 'privacy', 'refund', 'certificate', 'verify', 'error'
+  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'agency', 'tandp', 'privacy', 'refund', 'certificate', 'verify', 'error', 'courses', 'learn'
   const [referralCode, setReferralCode] = useState("");
 
   // Routing Redirection Target
@@ -198,6 +202,8 @@ export default function App() {
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [headerSettings, setHeaderSettings] = useState({ animation: "slide-down", effect: "solid" });
   const [showPopup, setShowPopup] = useState(false);
+  // Course learning state
+  const [currentCourseEnrollment, setCurrentCourseEnrollment] = useState(null);
   const [popupSettings, setPopupSettings] = useState(null);
 
   // Refs to avoid re-registering the auth listener on view changes
@@ -724,6 +730,7 @@ export default function App() {
     onHomeClick={() => setCurrentView("site")} onDashboardClick={() => setCurrentView("dashboard")}
     onReferralDashboardClick={() => setCurrentView("dashboard")} hasReferralCode={hasReferralCode} onShowIdCard={handleShowIdCard}
     onEarnClick={() => setShowEarnModal(true)} onMcpApiClick={() => setCurrentView("mcp")} onUniOrgClick={() => setCurrentView("university")}
+    onCoursesClick={() => setCurrentView("courses")}
     isHomePage={false} headerSettings={headerSettings}
   />;
 
@@ -816,6 +823,7 @@ export default function App() {
               onEarnClick={() => setShowEarnModal(true)}
               onMcpApiClick={() => setCurrentView("mcp")}
               onUniOrgClick={() => setCurrentView("university")}
+              onCoursesClick={() => setCurrentView("courses")}
               isHomePage={false}
               headerSettings={headerSettings}
             />
@@ -851,6 +859,10 @@ export default function App() {
         return <><div style={{ minHeight: "100vh", background: "#fafafa" }}>{renderPartnerHeader()}<McpDashboard onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} /></div><Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} /></>;
       case "university":
         return <><div style={{ minHeight: "100vh", background: "#fafafa" }}>{renderPartnerHeader()}<UniversityOrgPage onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} /></div><Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} /></>;
+      case "courses":
+        return <>{renderPartnerHeader()}<CourseCatalog user={user} userProfile={userProfile} onEnroll={(enr) => { setCurrentCourseEnrollment(enr); setCurrentView("learn"); }} /></>;
+      case "learn":
+        return <>{renderPartnerHeader()}<LearningView enrollment={currentCourseEnrollment} userId={user?.uid} onBack={() => setCurrentView("courses")} /></>;
       case "tandp":
         return (
           <PolicyPage
@@ -910,6 +922,7 @@ export default function App() {
               }}
               onMcpApiClick={() => setCurrentView("mcp")}
               onUniOrgClick={() => setCurrentView("university")}
+              onCoursesClick={() => setCurrentView("courses")}
               isHomePage={true}
               headerSettings={headerSettings}
             />

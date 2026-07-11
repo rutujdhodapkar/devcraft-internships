@@ -445,6 +445,40 @@ async function handleData(req, res, routeParts) {
     await setDoc(db, "siteConfig", "paymentSettings", { value: ps, updatedAt: now() });
     return send(res, 200, { success: true, data: { paths, categories: req.body.categories || [] } });
   }
+  // ── Courses (Firestore) ─────────────────────────────────────────────────
+  if (resource === "courses") {
+    if (!id) {
+      // GET /api/data/courses → list all courses
+      if (req.method === "GET") {
+        const all = await firestoreGetDoc("courses", "_all");
+        return send(res, 200, { success: true, data: all?.list || [] });
+      }
+      // PUT /api/data/courses → admin save all courses
+      return adminWrite(db, req, res, async () => {
+        await firestoreSetDoc("courses", "_all", { list: req.body.list || [], updatedAt: now() });
+        return send(res, 200, { success: true, data: req.body.list });
+      });
+    }
+    // GET /api/data/courses/:courseId/content
+    if (sub === "content") {
+      if (req.method === "GET") {
+        const c = await firestoreGetDoc("courseContent", id);
+        return send(res, 200, { success: true, data: c || null });
+      }
+      if (req.method === "PUT") {
+        return adminWrite(db, req, res, async () => {
+          await firestoreSetDoc("courseContent", id, req.body);
+          return send(res, 200, { success: true, data: req.body });
+        });
+      }
+    }
+    // GET /api/data/courses/:courseId → single course
+    if (req.method === "GET") {
+      const all = await firestoreGetDoc("courses", "_all");
+      const course = (all?.list || []).find(c => c.id === id);
+      return send(res, 200, { success: true, data: course || null });
+    }
+  }
   if (resource === "how-it-works") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "howItWorks")).sort((a, b) => (a.step || 0) - (b.step || 0)) });
     return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: await replaceKeyedCollection(db, "howItWorks", req.body.steps || [], "step") }));
@@ -466,6 +500,7 @@ async function handleData(req, res, routeParts) {
     return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "paymentSettings", req.body));
   }
   if (resource === "users") return handleUsers(db, req, res, id, sub, extra);
+  if (resource === "course-enroll") return handleCourseEnroll(db, req, res, id, sub);
   if (resource === "enrollments") return handleEnrollments(db, req, res, id, sub, extra, extra2);
   if (resource === "admin-data") {
     const [requests, referrals, visits] = await Promise.all([listCollection(db, "enrollments"), listCollection(db, "referrals"), listCollection(db, "referralVisits")]);
@@ -705,6 +740,106 @@ async function handleUsers(db, req, res, uid, sub, extra) {
   if (sub === "referral-dashboard") return send(res, 200, { success: true, data: await buildReferralDashboard(db, uid) });
   if (uid === "by-email" && extra === "referral-stat") return send(res, 200, { success: true, data: await buildEmailReferralStat(db, decodeURIComponent(sub)) });
   return send(res, 404, { success: false, message: "Unknown user route." });
+}
+
+async function handleCourseEnroll(db, req, res, id, sub) {
+  if (!id && req.method === "POST") {
+    // Enroll in a course
+    const { courseId, uid, email, name, photoURL, phone, college, city, country } = req.body || {};
+    if (!courseId || !uid) return send(res, 400, { success: false, message: "Missing courseId or uid." });
+    // Fetch course from Firestore to get price
+    const all = await firestoreGetDoc("courses", "_all");
+    const course = (all?.list || []).find(c => c.id === courseId);
+    if (!course) return send(res, 404, { success: false, message: "Course not found." });
+    const internId = `CRS-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, '0')}`;
+    const enrollment = {
+      id: internId, internId,
+      type: "course", courseId,
+      uid: uid || "", email: email || "",
+      name: name || "Student", photoURL: photoURL || "",
+      phone: phone || "", college: college || "",
+      city: city || "", country: country || "",
+      status: "Active",
+      paymentStatus: course.price > 0 ? "pending" : "none",
+      paymentAmount: course.price || 0,
+      paymentStage: "none", paymentIntentId: "",
+      progress: { completedModules: [], completedLessons: [], quizScores: {}, certificateEarned: false },
+      allowedCertificate: course.price > 0 ? "no" : "pending",
+      completedAt: null, overrideCompleted: false,
+      createdAt: now(), updatedAt: now(),
+    };
+    await setDoc(db, "enrollments", internId, enrollment, false);
+    return send(res, 201, { success: true, data: enrollment });
+  }
+  if (id && sub === "lesson" && req.method === "PUT") {
+    // Mark lesson complete: { moduleIdx, lessonIdx }
+    const { moduleIdx, lessonIdx } = req.body || {};
+    if (moduleIdx === undefined || lessonIdx === undefined) return send(res, 400, { success: false, message: "Missing moduleIdx or lessonIdx." });
+    const snap = await db.collection("enrollments").doc(id).get();
+    if (!snap.exists) return send(res, 404, { success: false, message: "Enrollment not found." });
+    const enr = snap.data();
+    const completedLessons = enr.progress?.completedLessons || [];
+    const key = `${moduleIdx}-${lessonIdx}`;
+    if (!completedLessons.includes(key)) completedLessons.push(key);
+    const modules = enr.progress?.completedModules || [];
+    await db.collection("enrollments").doc(id).update({
+      "progress.completedLessons": completedLessons,
+      "progress.completedModules": modules,
+      updatedAt: now(),
+    });
+    return send(res, 200, { success: true, data: { completedLessons, completedModules: modules } });
+  }
+  if (id && sub === "quiz" && req.method === "POST") {
+    // Submit quiz: { moduleIdx, answers: [{ questionIdx, answer }] }
+    const { moduleIdx, answers } = req.body || {};
+    if (moduleIdx === undefined || !answers) return send(res, 400, { success: false, message: "Missing moduleIdx or answers." });
+    const content = await firestoreGetDoc("courseContent", id.replace(/^CRS-/,""));
+    // Actually, enrollment id is CRS-xxx, courseContent key is courseId
+    const snap = await db.collection("enrollments").doc(id).get();
+    if (!snap.exists) return send(res, 404, { success: false, message: "Enrollment not found." });
+    const enr = snap.data();
+    const courseId = enr.courseId;
+    const c = await firestoreGetDoc("courseContent", courseId);
+    if (!c) return send(res, 404, { success: false, message: "Course content not found." });
+    const module = c.modules?.[moduleIdx];
+    if (!module?.quiz) return send(res, 400, { success: false, message: "No quiz for this module." });
+    const questions = module.quiz.questions || [];
+    let correctCount = 0;
+    const results = questions.map((q, qi) => {
+      const submitted = answers.find(a => a.questionIdx === qi)?.answer;
+      const correct = submitted === q.correctIndex?.toString() || submitted === q.correctAnswer;
+      if (correct) correctCount++;
+      return { questionIdx: qi, correct, submitted };
+    });
+    const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
+    const passed = score >= (module.quiz.passingScore || 70);
+    const quizScores = { ...(enr.progress?.quizScores || {}), [moduleIdx]: { score, passed, results, submittedAt: now() } };
+    const completedModules = enr.progress?.completedModules || [];
+    if (passed && !completedModules.includes(moduleIdx)) completedModules.push(moduleIdx);
+    // Check if all modules passed → complete course
+    const allModules = c.modules || [];
+    const allQuizModules = allModules.filter(m => m.quiz).map((_, i) => i);
+    const allPassed = allQuizModules.every(mi => (quizScores[mi] || {}).passed);
+    const updateData = {
+      "progress.quizScores": quizScores,
+      "progress.completedModules": completedModules,
+      updatedAt: now(),
+    };
+    if (allPassed) {
+      updateData.status = "Completed";
+      if (enr.paymentStatus === "none" || enr.paymentStatus === "none") {
+        updateData.allowedCertificate = "yes";
+      }
+      if (enr.paymentAmount === 0) {
+        updateData.allowedCertificate = "yes";
+      }
+      updateData.completedAt = now();
+      updateData["progress.certificateEarned"] = true;
+    }
+    await db.collection("enrollments").doc(id).update(updateData);
+    return send(res, 200, { success: true, data: { score, passed, results, quizScores, courseCompleted: allPassed } });
+  }
+  return send(res, 404, { success: false, message: "Unknown course enrollment route." });
 }
 
 async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
