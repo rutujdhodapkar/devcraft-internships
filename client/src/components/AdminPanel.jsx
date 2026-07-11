@@ -11543,10 +11543,17 @@ function AuditLogSection({ user }) {
 /* ── Homepage Layout Configuration ── */
 function HomepageLayoutSection() {
   const [config, setConfig] = useState({ showInternships: true, showCourses: true, internshipCount: 3, courseCount: 3 });
+  const [allCourseCategories, setAllCourseCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
-    fetchSiteConfig("homepageLayout").then(d => { if (d) setConfig(d); }).catch(() => {}).finally(() => setLoading(false));
+    Promise.all([
+      fetchSiteConfig("homepageLayout"),
+      fetchSiteConfig("courseCategories"),
+    ]).then(([layout, cats]) => {
+      if (layout) setConfig(layout);
+      if (cats?.value) setAllCourseCategories(cats.value);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
   const save = async () => {
     setSaving(true);
@@ -11582,6 +11589,22 @@ function HomepageLayoutSection() {
             <div style={{ marginLeft: "1.5rem", marginTop: "0.5rem" }}>
               <label style={ls}>Number of courses to show</label>
               <input style={{ ...inp, width: 100 }} type="number" min={1} max={20} value={config.courseCount || 3} onChange={e => setConfig(p => ({ ...p, courseCount: Number(e.target.value) }))} />
+              {allCourseCategories.length > 0 && (
+                <div style={{ marginTop: "1rem" }}>
+                  <label style={{ ...ls, marginBottom: "0.5rem" }}>Visible Course Categories</label>
+                  <p style={{ fontSize: "0.75rem", color: "#888", marginBottom: "0.5rem" }}>Only courses in selected categories appear on homepage. Unchecked categories go to "Explore More".</p>
+                  {allCourseCategories.map(cat => (
+                    <label key={cat.id} style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, marginBottom: "0.3rem" }}>
+                      <input type="checkbox" checked={(config.visibleCourseCategories || []).includes(cat.name)} onChange={e => {
+                        const current = config.visibleCourseCategories || [];
+                        const next = e.target.checked ? [...current, cat.name] : current.filter(n => n !== cat.name);
+                        setConfig(p => ({ ...p, visibleCourseCategories: next }));
+                      }} />
+                      {cat.name}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -11599,8 +11622,11 @@ function CourseSection({ user }) {
   const [saving, setSaving] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [editingContent, setEditingContent] = useState(null);
-  const [form, setForm] = useState({ id: "", title: "", description: "", price: 0, duration: "", icon: "📚", level: "Beginner", category: "Technology", features: [], skills: [], learningObjectives: [] });
+  const [form, setForm] = useState({ id: "", title: "", description: "", price: 0, duration: "", icon: "📚", level: "Beginner", category: "", features: [], skills: [], learningObjectives: [] });
   const [contentForm, setContentForm] = useState({ modules: [] });
+  const [courseCategories, setCourseCategories] = useState([]);
+  const [catsSaving, setCatsSaving] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
 
   useEffect(() => { load(); }, []);
 
@@ -11614,13 +11640,26 @@ function CourseSection({ user }) {
         try { const cc = await fetchCourseContent(c.id); if (cc) cMap[c.id] = cc; } catch {}
       }
       setContent(cMap);
+      const cats = await fetchSiteConfig("courseCategories");
+      if (cats?.value) setCourseCategories(cats.value);
     } catch (e) { notify("Failed to load courses: " + e.message, "error"); }
     setLoading(false);
   };
 
+  const saveCourseCategories = async (cats) => {
+    setCatsSaving(true);
+    try {
+      const effective = cats || courseCategories;
+      await saveSiteConfig("courseCategories", { value: effective });
+      setCourseCategories(effective);
+      notify("Course categories saved!", "success");
+    } catch (e) { notify(e.message, "error"); }
+    setCatsSaving(false);
+  };
+
   const resetForm = () => {
     setEditingCourse(null);
-    setForm({ id: "", title: "", description: "", price: 0, duration: "", icon: "📚", level: "Beginner", category: "Technology", features: [], skills: [], learningObjectives: [] });
+    setForm({ id: "", title: "", description: "", price: 0, duration: "", icon: "📚", level: "Beginner", category: "", features: [], skills: [], learningObjectives: [] });
   };
 
   const editCourse = (c) => {
@@ -11749,7 +11788,10 @@ function CourseSection({ user }) {
             <div><label style={labelStyle}>Level</label><select style={inputStyle} value={form.level} onChange={e => setForm(p => ({ ...p, level: e.target.value }))}>
               <option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>All Levels</option>
             </select></div>
-            <div><label style={labelStyle}>Category</label><input style={inputStyle} value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} placeholder="Technology" /></div>
+            <div><label style={labelStyle}>Category</label><select style={inputStyle} value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
+              <option value="">Select category…</option>
+              {courseCategories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
+            </select></div>
             <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Features (comma separated)</label><input style={inputStyle} value={form.features.join(", ")} onChange={e => setForm(p => ({ ...p, features: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="4 Modules, 12 Lessons, Certificate" /></div>
             <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Skills (comma separated)</label><input style={inputStyle} value={form.skills.join(", ")} onChange={e => setForm(p => ({ ...p, skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="HTML, CSS, JavaScript" /></div>
           </div>
@@ -11844,6 +11886,24 @@ function CourseSection({ user }) {
             <button style={btn("#1976d2")} onClick={() => editCourse(c)}>Edit</button>
           </div>
         ))}
+      </div>
+
+      {/* ── Course Categories Management ── */}
+      <div style={{ border: "2px solid #000", padding: "1.5rem", marginTop: "2rem", background: "#fafafa" }}>
+        <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem", fontWeight: 800, textTransform: "uppercase" }}>Course Categories</h3>
+        <p style={{ fontSize: "0.8rem", color: "#666", marginBottom: "1rem" }}>Define categories used to group courses on the homepage. Then configure which are visible in Homepage Layout.</p>
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+          <input style={{ ...inputStyle, width: 200, marginBottom: 0 }} value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="New category name" />
+          <button style={btn("#1976d2")} onClick={() => { if (!newCatName.trim()) return; const updated = [...courseCategories, { id: "cat_" + Date.now(), name: newCatName.trim() }]; setCourseCategories(updated); setNewCatName(""); }}>+ Add</button>
+        </div>
+        {courseCategories.length === 0 && <p style={{ fontSize: "0.85rem", color: "#888" }}>No categories defined. Add categories like "Technology", "Business", "Design", etc.</p>}
+        {courseCategories.map((cat, idx) => (
+          <div key={cat.id} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", padding: "0.5rem", border: "1px solid #ddd", background: "#fff" }}>
+            <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={cat.name} onChange={e => { const u = [...courseCategories]; u[idx] = { ...u[idx], name: e.target.value }; setCourseCategories(u); }} placeholder="Category name" />
+            <button style={btn("#f44336")} onClick={() => { const u = courseCategories.filter((_, i) => i !== idx); setCourseCategories(u); }}>Remove</button>
+          </div>
+        ))}
+        <button style={btn("#000")} onClick={() => saveCourseCategories()} disabled={catsSaving}>{catsSaving ? "Saving..." : "Save Categories"}</button>
       </div>
     </div>
   );

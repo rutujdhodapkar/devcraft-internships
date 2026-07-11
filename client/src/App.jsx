@@ -202,9 +202,8 @@ export default function App() {
   const [homeCourses, setHomeCourses] = useState([]);
   const [homeLayout, setHomeLayout] = useState(null);
   const [courseCategory, setCourseCategory] = useState("All");
-  const [homeCourses, setHomeCourses] = useState([]);
-  const [homeLayout, setHomeLayout] = useState(null);
-  const [courseCategory, setCourseCategory] = useState("All");
+  const [showCourseAllModal, setShowCourseAllModal] = useState(false);
+  const [exploreFilter, setExploreFilter] = useState("All");
 
   // Refs to avoid re-registering the auth listener on view changes
   const pendingEnrollmentRef = useRef(pendingEnrollmentDomain);
@@ -258,14 +257,6 @@ export default function App() {
     fetchHeaderSettings()
       .then((s) => { if (s) setHeaderSettings(s); })
       .catch(() => {});
-  }, []);
-
-  // Fetch courses and homepage layout on mount
-  useEffect(() => {
-    import("../services/data").then(({ fetchCourses, fetchSiteConfig }) => {
-      fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {});
-      fetchCourses().then(setHomeCourses).catch(() => {});
-    });
   }, []);
 
   // Listen to Google Auth state (runs once on mount; uses refs for latest state values)
@@ -970,8 +961,11 @@ export default function App() {
             <CareerPaths onApplyDomain={handleApplyDomain} maxItems={homeLayout?.internshipCount || null} />
             {homeLayout?.showCourses !== false && homeCourses.length > 0 && (() => {
               const count = homeLayout?.courseCount || 3;
-              const categories = [...new Set(homeCourses.map(c => c.category).filter(Boolean))];
-              const catFilter = courseCategory === "All" ? homeCourses : homeCourses.filter(c => c.category === courseCategory);
+              const visibleCats = homeLayout?.visibleCourseCategories;
+              const homepageCourses = visibleCats?.length ? homeCourses.filter(c => visibleCats.includes(c.category)) : homeCourses;
+              const exploreCourses = visibleCats?.length ? homeCourses.filter(c => !visibleCats.includes(c.category)) : [];
+              const categories = visibleCats?.length ? visibleCats : [...new Set(homeCourses.map(c => c.category).filter(Boolean))];
+              const catFilter = courseCategory === "All" ? homepageCourses : homepageCourses.filter(c => c.category === courseCategory);
               const shown = catFilter.slice(0, count);
               return (
                 <div style={{ maxWidth: 1200, margin: "0 auto", padding: "3rem 1rem", fontFamily: "system-ui, sans-serif" }}>
@@ -1008,9 +1002,55 @@ export default function App() {
                       );
                     })}
                   </div>
+                  {exploreCourses.length > 0 && (
+                    <div style={{ textAlign: "center", marginTop: "2rem" }}>
+                      <button onClick={() => setShowCourseAllModal(true)} style={{ background: "#000", color: "#fff", border: "none", padding: "0.75rem 2rem", fontWeight: 700, cursor: "pointer", fontSize: "0.9rem", textTransform: "uppercase" }}>Explore More Courses</button>
+                    </div>
+                  )}
                 </div>
               );
             })()}
+            {showCourseAllModal && (
+              <div onClick={() => setShowCourseAllModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", justifyContent: "center", alignItems: "flex-start", zIndex: 2000, overflowY: "auto", padding: "2rem 1rem" }}>
+                <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", border: "3px solid #000", boxShadow: "8px 8px 0 #000", width: "100%", maxWidth: "1000px", position: "relative", marginTop: "2rem" }}>
+                  <div style={{ height: "6px", background: "#000" }} />
+                  <button onClick={() => setShowCourseAllModal(false)} style={{ position: "absolute", top: "0.75rem", right: "0.75rem", zIndex: 10, background: "#000", border: "none", color: "#fff", width: "36px", height: "36px", cursor: "pointer", fontSize: "1.4rem", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "inherit" }}>×</button>
+                  <div style={{ padding: "2rem" }}>
+                    <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.3rem", marginBottom: "1rem" }}>All Courses</h3>
+                    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1.5rem", paddingBottom: "1rem", borderBottom: "2px solid #eee" }}>
+                      <button onClick={() => setExploreFilter("All")} style={{ padding: "0.4rem 1rem", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer", border: exploreFilter === "All" ? "2px solid #000" : "2px solid #ddd", background: exploreFilter === "All" ? "#000" : "#fff", color: exploreFilter === "All" ? "#fff" : "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>All</button>
+                      {[...new Set(homeCourses.map(c => c.category).filter(Boolean))].map(cat => (
+                        <button key={cat} onClick={() => setExploreFilter(cat)} style={{ padding: "0.4rem 1rem", fontWeight: 700, fontSize: "0.82rem", cursor: "pointer", border: exploreFilter === cat ? "2px solid #000" : "2px solid #ddd", background: exploreFilter === cat ? "#000" : "#fff", color: exploreFilter === cat ? "#fff" : "#000", textTransform: "uppercase", letterSpacing: "0.5px" }}>{cat}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1.5rem" }}>
+                      {(exploreFilter === "All" ? homeCourses : homeCourses.filter(c => c.category === exploreFilter)).map(c => {
+                        const free = c.price === 0 || !c.price;
+                        return (
+                          <div key={c.id} style={{ border: "2px solid #000", padding: "1.5rem", background: free ? "#fafafa" : "#fffde7", display: "flex", flexDirection: "column" }}>
+                            <span style={{ display: "inline-block", background: free ? "#4caf50" : "#f9a825", color: "#fff", fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.6rem", textTransform: "uppercase", marginBottom: "0.75rem", alignSelf: "flex-start" }}>{free ? "Free" : "₹199"}</span>
+                            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{c.icon || "📚"}</div>
+                            <h3 style={{ fontSize: "1.1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{c.title}</h3>
+                            <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 0.75rem", flex: 1 }}>{c.description}</p>
+                            <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "#777", marginBottom: "0.75rem" }}>
+                              <span>⏱ {c.duration || "Self-paced"}</span>
+                              <span>📊 {c.level || "All Levels"}</span>
+                            </div>
+                            <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.8 }}>
+                              {(c.features || []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
+                            </ul>
+                            <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ fontSize: "1.25rem", fontWeight: 900 }}>{free ? "Free" : "₹199"}</span>
+                              <button onClick={() => handleCourseEnroll(c)} style={{ background: "#000", color: "#fff", border: "none", padding: "0.6rem 1.25rem", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", textTransform: "uppercase" }}>Enroll</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <HowItWorks />
             <WhatDoYouGet />
             <FAQ />
