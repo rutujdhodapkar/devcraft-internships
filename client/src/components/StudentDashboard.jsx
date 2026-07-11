@@ -361,7 +361,7 @@ export default function StudentDashboard({
 
   const getEnrollmentIcon = (enrollment) => {
     const path = careerPaths.find((item) => item.id === enrollment.domainId || item.title === enrollment.domain);
-    return path?.icon || "●";
+    return path?.icon || "";
   };
 
   const handleSubmitProject = async (enrollment, projectIdx) => {
@@ -574,7 +574,7 @@ export default function StudentDashboard({
             {[
               { id: "overview", label: "Overview", icon: "\u25C8" },
               { id: "tasks", label: "My Tasks", icon: "\u2630" },
-              { id: "courses", label: "My Courses", icon: "\uD83D\uDCDA" },
+              { id: "courses", label: "My Courses", icon: "" },
               { id: "completed", label: "Completed", icon: "\u2713" },
               { id: "referral", label: "Refer & Earn", icon: "\u2197" },
               { id: "badges", label: "Badges", icon: "\u2606" },
@@ -1545,7 +1545,7 @@ function BadgesTab({ user, fetchBadges, fetchUserBadges }) {
                     <div dangerouslySetInnerHTML={renderHtmlTemplate(b.htmlTemplate, b)} />
                   ) : (
                     <>
-                      <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{b.icon || "★"}</div>
+                      <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{b.icon || ""}</div>
                       <div style={{ fontWeight: 800, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.25rem" }}>{b.title}</div>
                       <div style={{ fontSize: "0.7rem", color: "#888", marginBottom: "0.5rem" }}>{b.type === "micro-cert" ? "Micro-Certification" : "Badge"}</div>
                       <div style={{
@@ -1576,7 +1576,7 @@ function BadgesTab({ user, fetchBadges, fetchUserBadges }) {
               <div dangerouslySetInnerHTML={renderHtmlTemplate(previewBadge.htmlTemplate, previewBadge)} />
             ) : (
               <>
-                <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>{previewBadge.icon || "★"}</div>
+                <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>{previewBadge.icon || ""}</div>
                 <h2 style={{ fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>{previewBadge.title}</h2>
                 <p style={{ color: "#666", marginBottom: "0.5rem" }}>{previewBadge.description}</p>
               </>
@@ -2525,7 +2525,7 @@ function ProjectBox({
                 gap: "0.65rem",
               }}
             >
-              <span style={{ fontSize: "1.2rem" }}>🔒</span>
+              <span style={{ fontSize: "1.2rem" }}></span>
               <div>
                 <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "#7a6000", textTransform: "uppercase", letterSpacing: "0.5px" }}>Submitted — Under Review by Team</div>
                 <div style={{ fontSize: "0.78rem", color: "#9a7a00", marginTop: "0.15rem" }}>Your submission is locked. You cannot edit or resubmit until our team reviews it.</div>

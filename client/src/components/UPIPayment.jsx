@@ -141,7 +141,7 @@ export default function UPIPaymentModal({ enrollmentId, amount, onSuccess, onClo
           </>
         ) : (
           <div style={{ textAlign: "center", padding: "2rem 0" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✅</div>
+            <div style={{ marginBottom: "1rem" }}></div>
             <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.2rem", marginBottom: "0.75rem" }}>
               Transaction ID Submitted
             </h3>

@@ -102,7 +102,7 @@ export default function LearningView({ enrollment, userId, onBack }) {
         <h1 style={s.title}>{content?.title || enrollment.courseId} {courseCompleted && <span style={s.badge(true)}>Completed</span>}</h1>
       </div>
       {courseCompleted && <div style={s.resultBox(true)}>
-        <h2 style={{ margin: 0 }}>🎉 Course Completed!</h2>
+        <h2 style={{ margin: 0 }}>Course Completed!</h2>
         <p>You have completed all modules.</p>
         {certAllowed && <a style={s.certLink} href={`/certificate/${enrollment.id}/Certificate`} target="_blank">View Certificate</a>}
         {enrollment.paymentAmount > 0 && enrollment.paymentStatus !== "paid" && <p style={{ marginTop: "1rem", fontSize: "0.85rem" }}>Complete payment to receive your certificate.</p>}
@@ -111,11 +111,11 @@ export default function LearningView({ enrollment, userId, onBack }) {
         <div style={s.sidebar}>
           {(content?.modules || []).map((m, mi) => (
             <div key={mi}>
-              <div style={s.modTitle}>Module {mi + 1}{isModuleDone(mi) ? " ✅" : ""}</div>
+              <div style={s.modTitle}>Module {mi + 1}{isModuleDone(mi) ? " (done)" : ""}</div>
               {m.lessons?.map((l, li) => (
                 <button key={li} style={s.lesson(activeModule === mi && activeLesson === li, isLessonDone(mi, li))}
                   onClick={() => { setActiveModule(mi); setActiveLesson(li); setQuizMode(false); setQuizResult(null); }}>
-                  {isLessonDone(mi, li) && <span style={s.doneMark}>✓</span>} {l.title}
+                  {isLessonDone(mi, li) && <span style={s.doneMark}></span>} {l.title}
                 </button>
               ))}
               {m.quiz && <button style={{
@@ -123,7 +123,7 @@ export default function LearningView({ enrollment, userId, onBack }) {
                 background: isModuleDone(mi) ? "#e8f5e9" : "#fff8e1",
                 fontWeight: 700, marginTop: "0.25rem",
               }} onClick={() => { setActiveModule(mi); setQuizMode(true); setQuizResult(null); }}>
-                {isModuleDone(mi) ? "✓ " : "📝 "} Quiz
+                {isModuleDone(mi) ? "Completed " : ""} Quiz
               </button>}
             </div>
           ))}
@@ -133,7 +133,7 @@ export default function LearningView({ enrollment, userId, onBack }) {
             <div style={s.contentBox}>
               {!quizResult ? (
                 <>
-                  <h2 style={{ margin: "0 0 1rem" }}>📝 {mod?.quiz?.title || "Quiz"}</h2>
+                  <h2 style={{ margin: "0 0 1rem" }}>{mod?.quiz?.title || "Quiz"}</h2>
                   <p style={{ fontSize: "0.85rem", color: "#666" }}>Passing score: {mod?.quiz?.passingScore || 70}%</p>
                   {(mod?.quiz?.questions || []).map((q, qi) => (
                     <div key={qi} style={s.quizQ}>
@@ -153,7 +153,7 @@ export default function LearningView({ enrollment, userId, onBack }) {
                 </>
               ) : (
                 <div style={s.resultBox(quizResult.passed)}>
-                  <h2 style={{ margin: 0, fontSize: "2rem" }}>{quizResult.passed ? "🎉 Passed!" : "😔 Not Passed"}</h2>
+                  <h2 style={{ margin: 0, fontSize: "2rem" }}>{quizResult.passed ? "Passed!" : "Not Passed"}</h2>
                   <p style={{ fontSize: "1.25rem", margin: "0.5rem 0" }}>Score: {quizResult.score}%</p>
                   <p>Correct: {(quizResult.results || []).filter(r => r.correct).length} / {(quizResult.results || []).length}</p>
                   {!quizResult.passed && <button style={s.btn} onClick={() => { setQuizMode(false); setQuizResult(null); }}>Review Lessons</button>}
@@ -170,12 +170,12 @@ export default function LearningView({ enrollment, userId, onBack }) {
                   <div style={{ lineHeight: 1.8, fontSize: "0.95rem" }} dangerouslySetInnerHTML={{ __html: lesson.content }} />
                   <button style={isLessonDone(activeModule, activeLesson) ? { ...s.btn, background: "#4caf50" } : s.btn}
                     onClick={handleMarkComplete}>
-                    {isLessonDone(activeModule, activeLesson) ? "✓ Completed" : "Mark as Complete"}
+                    {isLessonDone(activeModule, activeLesson) ? "Completed" : "Mark as Complete"}
                   </button>
                   {mod?.quiz && isModuleDone(activeModule) ? (
-                    <p style={{ marginTop: "1rem", fontWeight: 700, color: "#4caf50" }}>✅ Module quiz passed!</p>
+                    <p style={{ marginTop: "1rem", fontWeight: 700, color: "#4caf50" }}>Module quiz passed!</p>
                   ) : mod?.quiz ? (
-                    <button style={s.btn} onClick={startQuiz}>📝 Take Module Quiz</button>
+                    <button style={s.btn} onClick={startQuiz}>Take Module Quiz</button>
                   ) : null}
                 </>
               ) : (

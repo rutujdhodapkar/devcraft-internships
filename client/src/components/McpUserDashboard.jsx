@@ -167,8 +167,8 @@ export default function McpUserDashboard({ user, onClose }) {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_domains", arguments: { user_token: t } } }),
       });
       const data = await res.json();
-      if (data.error) { setStatus("❌ " + data.error.message); setApproved(false); }
-      else { setStatus("✅ Approved — reads go live, writes become proposals."); setApproved(true); }
+      if (data.error) { setStatus("Error: " + data.error.message); setApproved(false); }
+      else { setStatus("Approved — reads go live, writes become proposals."); setApproved(true); }
     } catch (e) { setStatus("Error: " + e.message); }
   }, [token, loadToken]);
 
@@ -208,9 +208,9 @@ export default function McpUserDashboard({ user, onClose }) {
       });
       const data = await res.json();
       setResult(JSON.stringify(data, null, 2));
-      if (data.error) setStatus("❌ " + data.error.message);
-      else if (["get_domains", "get_tasks", "lookup", "collections", "list_changes"].includes(tool)) setStatus("✅ Read succeeded.");
-      else setStatus("📝 Submitted as a proposal. Admin must approve.");
+      if (data.error) setStatus("Error: " + data.error.message);
+      else if (["get_domains", "get_tasks", "lookup", "collections", "list_changes"].includes(tool)) setStatus("Read succeeded.");
+      else setStatus("Submitted as a proposal. Admin must approve.");
     } catch (e) { setResult("Error: " + e.message); }
     setBusy(false);
   };

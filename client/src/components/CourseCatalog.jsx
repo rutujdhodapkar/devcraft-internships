@@ -59,10 +59,10 @@ export default function CourseCatalog({ user, userProfile, onEnroll }) {
               <p style={styles.desc}>{c.description}</p>
               <div style={styles.meta}>
                 <span>⏱ {c.duration || "Self-paced"}</span>
-                <span>📊 {c.level || "All Levels"}</span>
+                <span>{c.level || "All Levels"}</span>
               </div>
               <ul style={styles.features}>
-                {(Array.isArray(c.features) ? c.features : []).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
+                {(Array.isArray(c.features) ? c.features : []).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>{f}</li>)}
               </ul>
               <div style={{ marginTop: "auto" }}>
                 <div style={styles.price}>{free ? "Free" : "₹199"}</div>

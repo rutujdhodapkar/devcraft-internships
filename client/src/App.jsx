@@ -989,7 +989,7 @@ export default function App() {
                           <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 0.75rem", flex: 1 }}>{c.description}</p>
                           <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "#777", marginBottom: "0.75rem" }}>
                             <span>⏱ {c.duration || "Self-paced"}</span>
-                            <span>📊 {c.level || "All Levels"}</span>
+                            <span>{c.level || "All Levels"}</span>
                           </div>
                           <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.8 }}>
                             {(Array.isArray(c.features) ? c.features : []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
@@ -1034,7 +1034,7 @@ export default function App() {
                             <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 0.75rem", flex: 1 }}>{c.description}</p>
                             <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "#777", marginBottom: "0.75rem" }}>
                               <span>⏱ {c.duration || "Self-paced"}</span>
-                              <span>📊 {c.level || "All Levels"}</span>
+                              <span>{c.level || "All Levels"}</span>
                             </div>
                             <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.8 }}>
                               {(Array.isArray(c.features) ? c.features : []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}

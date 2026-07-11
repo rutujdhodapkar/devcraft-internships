@@ -46,7 +46,7 @@ function generateCardTexture({ name, internId, college, city, appliedDate, photo
     ctx.fillStyle = '#ccc';
     ctx.font = '60px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('📷', canvas.width / 2, photoY + photoSize / 2 + 20);
+    ctx.fillText('NO PHOTO', canvas.width / 2, photoY + photoSize / 2 + 20);
   }
 
   // Info fields

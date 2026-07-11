@@ -100,10 +100,6 @@ import {
   assignEnrollmentAgency,
   fetchSiteConfig,
   saveSiteConfig,
-  fetchCourses,
-  saveCourses,
-  fetchCourseContent,
-  saveCourseContent,
 } from "../services/data";
 import { openCertificatePdf } from "../utils/certificatePdf";
 
@@ -179,7 +175,7 @@ const TAB_GROUPS = [
       { id: "mcp-proposals", label: "Proposals" },
       { id: "audit-log", label: "MCP Logs" },
       { id: "mcp-api", label: "MCP & API" },
-      { id: "courses", label: "Courses" },
+
     ],
   },
   {
@@ -2898,6 +2894,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     {
                       id: "DEV-CRAFT-" + Date.now().toString(36).toUpperCase(),
                       title: "New Domain",
+                      type: "internship",
                       duration: "4 Weeks",
                       description: "Brief description.",
                       features: ["Feature 1"],
@@ -3053,6 +3050,54 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         </select>
                       </div>
                     </div>
+                    <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                          Type
+                        </label>
+                        <select value={path.type || "internship"} onChange={(e) => { const u = [...careerPaths]; u[idx].type = e.target.value; setCareerPaths(u); }} style={s}>
+                          <option value="internship">Internship</option>
+                          <option value="course">Course</option>
+                        </select>
+                      </div>
+                      {path.type === "course" && (
+                        <>
+                          <div>
+                            <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                              Level
+                            </label>
+                            <select value={path.level || "Beginner"} onChange={(e) => { const u = [...careerPaths]; u[idx].level = e.target.value; setCareerPaths(u); }} style={s}>
+                              <option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>All Levels</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                              Price (0 = free)
+                            </label>
+                            <input type="number" min="0" value={path.price ?? ""} onChange={(e) => { const u = [...careerPaths]; u[idx].price = e.target.value ? +e.target.value : 0; setCareerPaths(u); }}
+                              placeholder="0" style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100px" }} />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {path.type === "course" && (
+                      <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+                        <div style={{ flex: 1, minWidth: "200px" }}>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                            Skills (comma separated)
+                          </label>
+                          <input value={(Array.isArray(path.skills) ? path.skills : []).join(", ")} onChange={(e) => { const u = [...careerPaths]; u[idx].skills = e.target.value.split(",").map(s => s.trim()).filter(Boolean); setCareerPaths(u); }}
+                            placeholder="HTML, CSS, JavaScript" style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: "200px" }}>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                            Learning Objectives (comma separated)
+                          </label>
+                          <input value={(Array.isArray(path.learningObjectives) ? path.learningObjectives : []).join(", ")} onChange={(e) => { const u = [...careerPaths]; u[idx].learningObjectives = e.target.value.split(",").map(s => s.trim()).filter(Boolean); setCareerPaths(u); }}
+                            placeholder="Build responsive sites, Use React hooks" style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" }} />
+                        </div>
+                      </div>
+                    )}
                     <div style={{ marginBottom: "0.75rem" }}>
                       <label
                         style={{
@@ -6891,7 +6936,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <option value="info">ℹ Info</option>
                   <option value="warning">⚠ Warning</option>
                   <option value="success">✓ Success</option>
-                  <option value="notice">📌 Notice (box in dashboard, non-dismissible)</option>
+                  <option value="notice">Notice (box in dashboard, non-dismissible)</option>
                 </select>
                 <label
                   style={{
@@ -7295,7 +7340,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                     <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Feature Highlights</span>
-                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, features: [...(Array.isArray(p.features) ? p.features : []), { icon: "✓", label: "New Feature" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Feature</button>
+                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, features: [...(Array.isArray(p.features) ? p.features : []), { icon: "", label: "New Feature" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Feature</button>
                   </div>
                   {(Array.isArray(homepageContent.features) ? homepageContent.features : []).map((feat, idx) => (
                     <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
@@ -7309,7 +7354,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 {/* Logo Loop Section */}
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>🔄 Logo Loop Section</span>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Logo Loop Section</span>
                     <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.8rem", fontWeight: 700, cursor: "pointer" }}>
                       <input
                         type="checkbox"
@@ -8166,7 +8211,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "mcp-proposals" && <ProposalsSection user={user} />}
         {activeTab === "audit-log" && <AuditLogSection user={user} />}
         {activeTab === "mcp-api" && <McpApiSection user={user} />}
-        {activeTab === "courses" && <CourseSection user={user} />}
         {activeTab === "agencies" && <AgenciesSection user={user} />}
       </div>
 
@@ -11252,7 +11296,7 @@ function BadgesSection({ user }) {
 
   useEffect(() => { fetchBadges().then(setBadges).catch(() => {}).finally(() => setLoading(false)); }, []);
 
-  const addBadge = () => setBadges(p => [...p, { id: "b_" + Date.now(), title: "", description: "", icon: "★", type: "badge", criteriaType: "manual", criteria: "", htmlTemplate: "" }]);
+  const addBadge = () => setBadges(p => [...p, { id: "b_" + Date.now(), title: "", description: "", icon: "", type: "badge", criteriaType: "manual", criteria: "", htmlTemplate: "" }]);
 
   const updateBadge = (idx, field, value) => setBadges(p => { const c = [...p]; c[idx] = { ...c[idx], [field]: value }; return c; });
 
@@ -11288,7 +11332,7 @@ function BadgesSection({ user }) {
           <div key={b.id} style={{ border: "2px solid #000", padding: "1rem", marginBottom: "0.75rem", background: "#fafafa" }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", alignItems: "end" }}>
               <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Title</label><input value={b.title} onChange={e => updateBadge(i, "title", e.target.value)} placeholder="e.g. Fast Learner" style={s} /></div>
-              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Icon</label><input value={b.icon} onChange={e => updateBadge(i, "icon", e.target.value)} placeholder="★" style={{ ...s, width: "60px" }} /></div>
+              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Icon</label><input value={b.icon} onChange={e => updateBadge(i, "icon", e.target.value)} placeholder="" style={{ ...s, width: "60px" }} /></div>
               <button onClick={() => removeBadge(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>
             </div>
             <div style={{ marginTop: "0.5rem" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Description</label><textarea value={b.description} onChange={e => updateBadge(i, "description", e.target.value)} placeholder="What this badge represents..." rows={2} style={{ ...s, resize: "vertical" }} /></div>
@@ -11615,299 +11659,7 @@ function HomepageLayoutSection() {
 }
 
 /* ── Course Management ── */
-function CourseSection({ user }) {
-  const [courses, setCourses] = useState([]);
-  const [content, setContent] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [editingCourse, setEditingCourse] = useState(null);
-  const [editingContent, setEditingContent] = useState(null);
-  const [form, setForm] = useState({ id: "", title: "", description: "", price: 0, duration: "", icon: "", level: "Beginner", category: "", features: [], skills: [], learningObjectives: [] });
-  const [contentForm, setContentForm] = useState({ modules: [] });
-  const [courseCategories, setCourseCategories] = useState([]);
-  const [catsSaving, setCatsSaving] = useState(false);
-  const [newCatName, setNewCatName] = useState("");
-
-  useEffect(() => { load(); }, []);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const list = await fetchCourses();
-      setCourses(list);
-      const cMap = {};
-      for (const c of list) {
-        try { const cc = await fetchCourseContent(c.id); if (cc) cMap[c.id] = cc; } catch {}
-      }
-      setContent(cMap);
-      const cats = await fetchSiteConfig("courseCategories");
-      if (cats?.value) setCourseCategories(cats.value);
-    } catch (e) { notify("Failed to load courses: " + e.message, "error"); }
-    setLoading(false);
-  };
-
-  const saveCourseCategories = async (cats) => {
-    setCatsSaving(true);
-    try {
-      const effective = cats || courseCategories;
-      await saveSiteConfig("courseCategories", { value: effective });
-      setCourseCategories(effective);
-      notify("Course categories saved!", "success");
-    } catch (e) { notify(e.message, "error"); }
-    setCatsSaving(false);
-  };
-
-  const resetForm = () => {
-    setEditingCourse(null);
-    setForm({ id: "", title: "", description: "", price: 0, duration: "", icon: "", level: "Beginner", category: "", features: [], skills: [], learningObjectives: [] });
-  };
-
-  const editCourse = (c) => {
-    setEditingCourse(c.id);
-    setForm({ id: c.id, title: c.title, description: c.description, price: c.price || 0, duration: c.duration || "", icon: c.icon || "", level: c.level || "Beginner", category: c.category || "", features: Array.isArray(c.features) ? c.features : [], skills: Array.isArray(c.skills) ? c.skills : [], learningObjectives: Array.isArray(c.learningObjectives) ? c.learningObjectives : [] });
-    setContentForm(content[c.id] || { modules: [] });
-    setEditingContent(c.id);
-  };
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const idx = courses.findIndex(c => c.id === form.id);
-      let list;
-      if (editingCourse) {
-        list = courses.map(c => c.id === editingCourse ? { ...c, ...form } : c);
-      } else {
-        if (!form.id || !form.title) { notify("ID and Title required.", "warning"); setSaving(false); return; }
-        list = [...courses, { ...form, createdAt: new Date().toISOString() }];
-      }
-      await saveCourses(list);
-      await load();
-      if (!editingCourse) resetForm();
-      notify("Course saved!", "success");
-    } catch (e) { notify(e.message, "error"); }
-    setSaving(false);
-  };
-
-  const deleteCourse = async (id) => {
-    if (!window.confirm(`Delete course "${id}"?`)) return;
-    setSaving(true);
-    try {
-      await saveCourses(courses.filter(c => c.id !== id));
-      await load();
-      notify("Course deleted.", "success");
-    } catch (e) { notify(e.message, "error"); }
-    setSaving(false);
-  };
-
-  const addModule = () => {
-    setContentForm(prev => ({ ...prev, modules: [...(prev.modules || []), { title: "", lessons: [], quiz: null }] }));
-  };
-
-  const updateModule = (mi, field, value) => {
-    const mods = [...(contentForm.modules || [])];
-    mods[mi] = { ...mods[mi], [field]: value };
-    setContentForm(prev => ({ ...prev, modules: mods }));
-  };
-
-  const addLesson = (mi) => {
-    const mods = [...(contentForm.modules || [])];
-    mods[mi] = { ...mods[mi], lessons: [...(mods[mi].lessons || []), { title: "", type: "text", content: "", duration: "" }] };
-    setContentForm(prev => ({ ...prev, modules: mods }));
-  };
-
-  const updateLesson = (mi, li, field, value) => {
-    const mods = [...(contentForm.modules || [])];
-    const lessons = [...(mods[mi].lessons || [])];
-    lessons[li] = { ...lessons[li], [field]: value };
-    mods[mi] = { ...mods[mi], lessons };
-    setContentForm(prev => ({ ...prev, modules: mods }));
-  };
-
-  const addQuiz = (mi) => {
-    const mods = [...(contentForm.modules || [])];
-    mods[mi] = { ...mods[mi], quiz: { title: "Quiz", passingScore: 70, questions: [{ question: "", options: ["", "", "", ""], correctIndex: 0 }] } };
-    setContentForm(prev => ({ ...prev, modules: mods }));
-  };
-
-  const updateQuizQuestion = (mi, qi, field, value) => {
-    const mods = [...(contentForm.modules || [])];
-    const quiz = { ...mods[mi].quiz };
-    const questions = [...(quiz.questions || [])];
-    questions[qi] = { ...questions[qi], [field]: value };
-    quiz.questions = questions;
-    mods[mi] = { ...mods[mi], quiz };
-    setContentForm(prev => ({ ...prev, modules: mods }));
-  };
-
-  const updateQuizOption = (mi, qi, oi, value) => {
-    const mods = [...(contentForm.modules || [])];
-    const quiz = { ...mods[mi].quiz };
-    const questions = [...(quiz.questions || [])];
-    const opts = [...(questions[qi].options || [])];
-    opts[oi] = value;
-    questions[qi] = { ...questions[qi], options: opts };
-    quiz.questions = questions;
-    mods[mi] = { ...mods[mi], quiz };
-    setContentForm(prev => ({ ...prev, modules: mods }));
-  };
-
-  const saveContent = async () => {
-    if (!editingContent) return;
-    setSaving(true);
-    try {
-      await saveCourseContent(editingContent, contentForm);
-      notify("Course content saved!", "success");
-    } catch (e) { notify(e.message, "error"); }
-    setSaving(false);
-  };
-
-  const ibase = { maxWidth: 1200, margin: "0 auto", fontFamily: "system-ui, sans-serif" };
-  const inputStyle = { width: "100%", padding: "0.5rem", border: "1px solid #ccc", fontSize: "0.85rem", boxSizing: "border-box", marginBottom: "0.5rem" };
-  const labelStyle = { fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" };
-  const btn = (bg) => ({ background: bg || "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", marginRight: "0.5rem", marginBottom: "0.5rem" });
-
-  return (
-    <div style={ibase}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <h2 style={{ fontSize: "1.5rem", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>Courses</h2>
-        <button style={btn("#1976d2")} onClick={resetForm}>+ New Course</button>
-      </div>
-
-      {loading && <p style={{ color: "#888" }}>Loading courses...</p>}
-
-      {!loading && (editingCourse || form.id) && (
-        <div style={{ border: "2px solid #000", padding: "1.5rem", marginBottom: "2rem", background: "#fafafa" }}>
-          <h3 style={{ margin: "0 0 1rem", fontSize: "1rem", fontWeight: 800, textTransform: "uppercase" }}>{editingCourse ? "Edit Course" : "New Course"}</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
-            <div><label style={labelStyle}>Course ID</label><input style={inputStyle} value={form.id} onChange={e => setForm(p => ({ ...p, id: e.target.value }))} placeholder="web-dev-101" /></div>
-            <div><label style={labelStyle}>Title</label><input style={inputStyle} value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} placeholder="Web Development 101" /></div>
-            <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Description</label><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Course description..." /></div>
-            <div><label style={labelStyle}>Price (0 = free)</label><input style={inputStyle} type="number" value={form.price} onChange={e => setForm(p => ({ ...p, price: Number(e.target.value) }))} /></div>
-            <div><label style={labelStyle}>Duration</label><input style={inputStyle} value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))} placeholder="4 Weeks" /></div>
-            <div><label style={labelStyle}>Icon</label><input style={inputStyle} value={form.icon} onChange={e => setForm(p => ({ ...p, icon: e.target.value }))} placeholder="Icon" /></div>
-            <div><label style={labelStyle}>Level</label><select style={inputStyle} value={form.level} onChange={e => setForm(p => ({ ...p, level: e.target.value }))}>
-              <option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>All Levels</option>
-            </select></div>
-            <div><label style={labelStyle}>Category</label><select style={inputStyle} value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
-              <option value="">Select category…</option>
-              {courseCategories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
-            </select></div>
-            <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Features (comma separated)</label><input style={inputStyle} value={Array.isArray(form.features) ? form.features.join(", ") : form.features || ""} onChange={e => setForm(p => ({ ...p, features: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="4 Modules, 12 Lessons, Certificate" /></div>
-            <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Skills (comma separated)</label><input style={inputStyle} value={(Array.isArray(form.skills) ? form.skills : []).join(", ")} onChange={e => setForm(p => ({ ...p, skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="HTML, CSS, JavaScript" /></div>
-          </div>
-          <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-            <button style={btn("#000")} onClick={save} disabled={saving}>{saving ? "Saving..." : "Save Course"}</button>
-            {editingCourse && <button style={btn("#f44336")} onClick={() => deleteCourse(editingCourse)} disabled={saving}>Delete</button>}
-            <button style={btn("#888")} onClick={resetForm}>Cancel</button>
-          </div>
-        </div>
-      )}
-
-      {editingContent && contentForm && (
-        <div style={{ border: "2px solid #1976d2", padding: "1.5rem", marginBottom: "2rem", background: "#e3f2fd" }}>
-          <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem", fontWeight: 800, textTransform: "uppercase" }}>Content: {editingContent}</h3>
-          <p style={{ fontSize: "0.8rem", color: "#666", margin: "0 0 1rem" }}>Add modules with lessons and quizzes. The admin HTML supports window.callApi(path, data) for custom web functions.</p>
-          <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-            <button style={btn("#1976d2")} onClick={addModule}>+ Add Module</button>
-            <button style={btn("#000")} onClick={saveContent} disabled={saving}>{saving ? "Saving..." : "Save All Content"}</button>
-          </div>
-          {(contentForm.modules || []).map((mod, mi) => (
-            <div key={mi} style={{ border: "1px solid #1976d2", padding: "1rem", marginBottom: "1rem", background: "#fff" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
-                <strong style={{ fontSize: "0.9rem" }}>Module {mi + 1}</strong>
-                <button style={btn("#f44336")} onClick={() => setContentForm(prev => ({ ...prev, modules: prev.modules.filter((_, i) => i !== mi) }))}>Remove</button>
-              </div>
-              <input style={inputStyle} value={mod.title} onChange={e => updateModule(mi, "title", e.target.value)} placeholder="Module title" />
-              <div style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0" }}>
-                <button style={btn("#4caf50")} onClick={() => addLesson(mi)}>+ Lesson</button>
-                <button style={btn("#ff9800")} onClick={() => mod.quiz ? setContentForm(prev => { const m = [...prev.modules]; m[mi] = { ...m[mi], quiz: null }; return { ...prev, modules: m }; }) : addQuiz(mi)}>{mod.quiz ? "Remove Quiz" : "+ Quiz"}</button>
-              </div>
-              {(mod.lessons || []).map((lesson, li) => (
-                <div key={li} style={{ border: "1px solid #ccc", padding: "0.75rem", marginBottom: "0.5rem", background: "#f9f9f9" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
-                    <strong style={{ fontSize: "0.8rem" }}>Lesson {li + 1}</strong>
-                    <button style={{ ...btn("#f44336"), fontSize: "0.7rem", padding: "0.2rem 0.5rem" }} onClick={() => { const m = [...contentForm.modules]; m[mi].lessons = m[mi].lessons.filter((_, i) => i !== li); setContentForm(prev => ({ ...prev, modules: m })); }}>×</button>
-                  </div>
-                  <input style={inputStyle} value={lesson.title} onChange={e => updateLesson(mi, li, "title", e.target.value)} placeholder="Lesson title" />
-                  <textarea style={{ ...inputStyle, minHeight: 80 }} value={lesson.content} onChange={e => updateLesson(mi, li, "content", e.target.value)} placeholder="Lesson content (HTML allowed)" />
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <input style={{ ...inputStyle, width: "40%" }} value={lesson.duration} onChange={e => updateLesson(mi, li, "duration", e.target.value)} placeholder="10 min" />
-                    <select style={{ ...inputStyle, width: "40%" }} value={lesson.type} onChange={e => updateLesson(mi, li, "type", e.target.value)}>
-                      <option value="text">Text</option><option value="video">Video</option><option value="reading">Reading</option>
-                    </select>
-                  </div>
-                </div>
-              ))}
-              {mod.quiz && (
-                <div style={{ border: "2px solid #ff9800", padding: "0.75rem", marginTop: "0.5rem", background: "#fff8e1" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <strong>Quiz</strong>
-                    <button style={btn("#4caf50")} onClick={() => { const q = [...(contentForm.modules[mi].quiz?.questions || []), { question: "", options: ["", "", "", ""], correctIndex: 0 }]; const m = [...contentForm.modules]; m[mi].quiz = { ...m[mi].quiz, questions: q }; setContentForm(prev => ({ ...prev, modules: m })); }}>+ Question</button>
-                  </div>
-                  <div style={{ display: "flex", gap: "1rem", margin: "0.5rem 0" }}>
-                    <input style={inputStyle} value={mod.quiz.title || "Quiz"} onChange={e => updateModule(mi, "quiz", { ...mod.quiz, title: e.target.value })} placeholder="Quiz title" />
-                    <input style={{ ...inputStyle, width: "80px" }} type="number" value={mod.quiz.passingScore || 70} onChange={e => updateModule(mi, "quiz", { ...mod.quiz, passingScore: Number(e.target.value) })} placeholder="70" />
-                    <span style={{ fontSize: "0.8rem", alignSelf: "center" }}>% passing</span>
-                  </div>
-                  {(mod.quiz.questions || []).map((q, qi) => (
-                    <div key={qi} style={{ border: "1px solid #ff9800", padding: "0.5rem", marginBottom: "0.5rem", background: "#fff" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <strong style={{ fontSize: "0.8rem" }}>Q{qi + 1}</strong>
-                        <button style={{ ...btn("#f44336"), fontSize: "0.7rem", padding: "0.2rem 0.5rem" }} onClick={() => { const m = [...contentForm.modules]; m[mi].quiz.questions = m[mi].quiz.questions.filter((_, i) => i !== qi); setContentForm(prev => ({ ...prev, modules: m })); }}>×</button>
-                      </div>
-                      <input style={inputStyle} value={q.question} onChange={e => updateQuizQuestion(mi, qi, "question", e.target.value)} placeholder="Question text" />
-                      {(q.options || []).map((opt, oi) => (
-                        <div key={oi} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          <span style={{ fontSize: "0.75rem", fontWeight: 700, minWidth: "1.5rem" }}>{String.fromCharCode(65 + oi)}.</span>
-                          <input style={{ ...inputStyle, marginBottom: "0.25rem" }} value={opt} onChange={e => updateQuizOption(mi, qi, oi, e.target.value)} placeholder={`Option ${String.fromCharCode(65 + oi)}`} />
-                          <input type="radio" name={`correct-${mi}-${qi}`} checked={q.correctIndex === oi} onChange={() => updateQuizQuestion(mi, qi, "correctIndex", oi)} />
-                          <span style={{ fontSize: "0.7rem" }}>✓</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        {!loading && courses.map(c => (
-          <div key={c.id} style={{ border: "1px solid #000", padding: "1rem", background: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <strong>{c.icon} {c.title}</strong>
-              <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.25rem" }}>
-                {c.id} · {c.price > 0 ? `₹${c.price}` : "Free"} · {c.duration || "Self-paced"} · {c.level || "All Levels"}
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#888" }}>{(content[c.id]?.modules || []).length} modules · {(content[c.id]?.modules || []).reduce((s, m) => s + (m.lessons || []).length, 0)} lessons</div>
-            </div>
-            <button style={btn("#1976d2")} onClick={() => editCourse(c)}>Edit</button>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Course Categories Management ── */}
-      <div style={{ border: "2px solid #000", padding: "1.5rem", marginTop: "2rem", background: "#fafafa" }}>
-        <h3 style={{ margin: "0 0 0.5rem", fontSize: "1rem", fontWeight: 800, textTransform: "uppercase" }}>Course Categories</h3>
-        <p style={{ fontSize: "0.8rem", color: "#666", marginBottom: "1rem" }}>Define categories used to group courses on the homepage. Then configure which are visible in Homepage Layout.</p>
-        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-          <input style={{ ...inputStyle, width: 200, marginBottom: 0 }} value={newCatName} onChange={e => setNewCatName(e.target.value)} placeholder="New category name" />
-          <button style={btn("#1976d2")} onClick={() => { if (!newCatName.trim()) return; const updated = [...courseCategories, { id: "cat_" + Date.now(), name: newCatName.trim() }]; setCourseCategories(updated); setNewCatName(""); }}>+ Add</button>
-        </div>
-        {courseCategories.length === 0 && <p style={{ fontSize: "0.85rem", color: "#888" }}>No categories defined. Add categories like "Technology", "Business", "Design", etc.</p>}
-        {courseCategories.map((cat, idx) => (
-          <div key={cat.id} style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.5rem", padding: "0.5rem", border: "1px solid #ddd", background: "#fff" }}>
-            <input style={{ ...inputStyle, marginBottom: 0, flex: 1 }} value={cat.name} onChange={e => { const u = [...courseCategories]; u[idx] = { ...u[idx], name: e.target.value }; setCourseCategories(u); }} placeholder="Category name" />
-            <button style={btn("#f44336")} onClick={() => { const u = courseCategories.filter((_, i) => i !== idx); setCourseCategories(u); }}>Remove</button>
-          </div>
-        ))}
-        <button style={btn("#000")} onClick={() => saveCourseCategories()} disabled={catsSaving}>{catsSaving ? "Saving..." : "Save Categories"}</button>
-      </div>
-    </div>
-  );
-}
+/* ── MCP & API Management ── */
 
 /* ── MCP & API Management ── */
 function McpApiSection({ user }) {

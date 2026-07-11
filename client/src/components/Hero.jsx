@@ -99,7 +99,7 @@ export default function Hero({ onApplyClick, onExploreClick }) {
             <div style={{ display: 'flex', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '3rem', fontSize: '1rem', fontWeight: 700 }}>
               {features.map((feat, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ color: '#34A853', fontSize: '1.3rem' }}>{feat.icon || '✓'}</span> {feat.label}
+                  <span style={{ color: '#34A853', fontSize: '1.3rem' }}>{feat.icon || ''}</span> {feat.label}
                 </div>
               ))}
             </div>
