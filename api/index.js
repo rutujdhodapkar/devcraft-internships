@@ -80,8 +80,8 @@ async function listCollection(db, name) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-async function getDoc(db, collection, id, fallback = null) {
-  const snap = await db.collection(collection).doc(id).get();
+async function getDoc(db, collection, id, fallback = null, options = null) {
+  const snap = await db.collection(collection).doc(id).get(options || undefined);
   return snap.exists ? { id: snap.id, ...snap.data() } : fallback;
 }
 
@@ -1493,7 +1493,14 @@ async function handleFirebaseProxy(req, res) {
     }
     if (isWrite) {
       const syncBuckets = BUCKET_FOR_COLLECTION[collection];
-      if (syncBuckets && syncBuckets.length) await bumpSyncVersions(db, syncBuckets);
+      if (syncBuckets && syncBuckets.length) {
+        // Scope the invalidation to the user whose data actually changed.
+        const affectedUid =
+          (data && (data.uid || data.userId)) ||
+          (decoded && decoded.uid) ||
+          null;
+        await bumpSyncVersions(db, syncBuckets, affectedUid);
+      }
     }
     return send(res, 200, { success: true, data: result });
   } catch (error) {
@@ -1913,21 +1920,35 @@ async function handleAutoExpire(req, res) {
   }
 }
 
-// Lightweight version fingerprint per data bucket. The client calls this on load
-// and only re-fetches buckets whose fingerprint changed. Fingerprints are cheap
-// A maintained `siteConfig/syncVersions` doc stores a per-bucket version stamp
-// (a timestamp of the last known change). On every load the client fetches ONLY
-// this one small doc — it never scans the backing collections — and re-fetches a
-// bucket only when its stamp changed. Stamps are bumped on writes (see
-// bumpSyncVersions) and, as a safety net for server-internal writes we don't
-// hook directly, recomputed from the collections at most once per TTL window.
-//   tasks            -> enrollments collection
-//   certs            -> enrollments where allowedCertificate === "yes"
-//   badges_combined  -> badges + userBadges (+ userStreaks + userFlags if present)
-const SYNC_VERSION_TTL = 30 * 1000;
+// ── Per-user cache-sync version stamps ────────────────────────────────────────
+// The client calls this on load and re-fetches a bucket ONLY when its stamp changed.
+// Stamps are PER USER: a write by user A advances only A's stamp, so B's cache is
+// never needlessly invalidated. This is the key correctness property the previous
+// global `siteConfig/syncVersions` doc lacked.
+//
+// Storage model (within the app's single-container Cosmos shim):
+//   Each user's stamps live in a doc id `versions:<userId>` under the logical
+//   collection "siteConfig". The shim's partition key is the collection name
+//   ("siteConfig"), so every read is a genuine Cosmos POINT READ —
+//   container.item("versions:<userId>", "siteConfig").read() — by id + partition key,
+//   never a cross-partition SQL query. (NOTE: a dedicated "SyncVersions" container
+//   with a true /userId partition key would be the ideal Cosmos-native layout; the
+//   shim's single-container constraint is documented here rather than worked around.)
+//
+// Consistency: version reads use Eventual consistency (forwarded via the shim). Non-
+// critical badge/template data tolerates Eventual staleness; writes go through
+// set/update which default to Session+ so a read immediately after a user's own write
+// sees it.
+//
+// Buckets:
+//   tasks            -> enrollments (per user)
+//   certs            -> enrollments where allowedCertificate === "yes" (per user)
+//   badges_combined  -> userBadges + userStreaks + userFlags (+ global badge defs)
 const SYNC_BUCKETS = ["tasks", "certs", "badges_combined"];
+const SYNC_VERSION_DOC = (userId) => `versions:${userId}`;
+const SYNC_VERSION_PK = "siteConfig"; // shim partition key (collection name)
 
-// Maps a written collection to the sync buckets whose version stamp must advance.
+// Maps a written collection to the sync buckets whose stamp must advance.
 const BUCKET_FOR_COLLECTION = {
   enrollments: ["tasks", "certs"],
   badges: ["badges_combined"],
@@ -1936,19 +1957,27 @@ const BUCKET_FOR_COLLECTION = {
   userFlags: ["badges_combined"],
 };
 
-// Best-effort: stamp the given buckets as changed. Called after successful writes.
-async function bumpSyncVersions(db, buckets) {
+// Advance the given user's stamps. Called after a successful proxy write. `userId`
+// scopes the invalidation so only that user re-fetches on next load.
+async function bumpSyncVersions(db, buckets, userId) {
   try {
-    if (!db || !buckets || !buckets.length) return;
-    const cur = (await getDoc(db, "siteConfig", "syncVersions", null)) || {};
+    if (!db || !buckets || !buckets.length || !userId) return;
+    const cur = (await getDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), null)) || {};
     const ts = Date.now();
-    const next = { ...cur };
+    const next = { ...cur, userId };
     for (const b of buckets) next[b] = ts;
     next.computedAt = ts;
-    await setDoc(db, "siteConfig", "syncVersions", next);
+    await setDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), next);
   } catch (e) {
     console.warn("[sync] bump failed:", e.message);
   }
+}
+
+// Build a fresh zeroed stamp set (forces a full client fetch on first contact).
+function zeroVersions() {
+  const v = { computedAt: 0 };
+  for (const b of SYNC_BUCKETS) v[b] = 0;
+  return v;
 }
 
 async function handleSyncVersions(req, res) {
@@ -1956,45 +1985,45 @@ async function handleSyncVersions(req, res) {
     const db = await initCosmosDb();
     if (!db) return send(res, 503, { success: false, message: "Database not configured" });
 
+    const userId = (req.query && req.query.userId) || null;
     const now = Date.now();
-    const doc = await getDoc(db, "siteConfig", "syncVersions", null);
-    const fresh = doc && doc.computedAt && now - doc.computedAt < SYNC_VERSION_TTL;
 
-    if (fresh) {
-      // O(1): serve the maintained stamps, no collection scan.
+    // No userId → we cannot scope a stamp; tell the client to fetch everything.
+    if (!userId) {
+      const zero = zeroVersions();
       return send(res, 200, {
         success: true,
-        data: {
-          tasks: String(doc.tasks ?? 0),
-          certs: String(doc.certs ?? 0),
-          badges_combined: String(doc.badges_combined ?? 0),
-        },
+        userId: null,
+        data: Object.fromEntries(SYNC_BUCKETS.map((b) => [b, String(zero[b] ?? 0)])),
+        serverTime: now,
+        cached: false,
+      });
+    }
+
+    // POINT READ by id + partition key, Eventual consistency (non-critical).
+    const doc = await getDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), null, {
+      consistencyLevel: "Eventual",
+    });
+
+    if (doc && doc.computedAt) {
+      return send(res, 200, {
+        success: true,
+        userId,
+        data: Object.fromEntries(SYNC_BUCKETS.map((b) => [b, String(doc[b] ?? 0)])),
         serverTime: now,
         cached: true,
       });
     }
 
-    // Self-heal: recompute stamps from the collections (one scan), then cache.
-    const enrollments = await listCollection(db, "enrollments");
-    const certs = enrollments.filter((e) => e.allowedCertificate === "yes");
-    const badges = await listCollection(db, "badges");
-    const userBadges = await listCollection(db, "userBadges");
-    const streaks = await listCollection(db, "userStreaks").catch(() => []);
-    const flags = await listCollection(db, "userFlags").catch(() => []);
-    const versions = {
-      tasks: now,
-      certs: now,
-      badges_combined: now,
-      computedAt: now,
-    };
-    await setDoc(db, "siteConfig", "syncVersions", versions).catch(() => {});
+    // First contact for this user: create the stamp doc (stamps = now forces one
+    // full fetch), then return. Subsequent writes advance specific buckets only.
+    const fresh = { ...zeroVersions(), userId, computedAt: now };
+    for (const b of SYNC_BUCKETS) fresh[b] = now;
+    await setDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), fresh).catch(() => {});
     return send(res, 200, {
       success: true,
-      data: {
-        tasks: String(versions.tasks),
-        certs: String(versions.certs),
-        badges_combined: String(versions.badges_combined),
-      },
+      userId,
+      data: Object.fromEntries(SYNC_BUCKETS.map((b) => [b, String(now)])),
       serverTime: now,
       cached: false,
     });

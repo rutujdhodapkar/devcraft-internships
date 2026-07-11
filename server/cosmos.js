@@ -59,9 +59,13 @@ class DocumentReference {
     this.id = id;
   }
 
-  async get() {
+  // options may carry a Cosmos request option such as { consistencyLevel: "Eventual" }.
+  // Non-critical reads (badges, task templates, sync version stamps) intentionally use
+  // Eventual consistency to save RU and latency; transactional writes go through set/update
+  // which default to Session+ so a subsequent read sees its own write.
+  async get(options = {}) {
     try {
-      const { resource } = await this.container.item(this.id, this.collection).read();
+      const { resource } = await this.container.item(this.id, this.collection).read(options);
       return new DocumentSnapshot(resource);
     } catch (e) {
       if (e.code === 404) return new DocumentSnapshot(null);

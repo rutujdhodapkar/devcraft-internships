@@ -1721,7 +1721,7 @@ export async function revokeBadge(entryId) {
 export async function fetchUserEnrollmentsCached(uid, email, { force = false } = {}) {
   const res = await syncBuckets([
     { bucket: "tasks", key: uid, fetcher: () => fetchUserEnrollments(uid, email), force },
-  ], { force });
+  ], { force, userId: uid });
   return res.tasks || [];
 }
 
@@ -1747,7 +1747,7 @@ export async function fetchUserCertificatesCached(uid, email, { force = false } 
       },
       force,
     },
-  ], { force });
+  ], { force, userId: uid });
   return res.certs || [];
 }
 
@@ -1763,7 +1763,7 @@ export async function fetchUserBadgesCached(uid, { force = false } = {}) {
       },
       force,
     },
-  ], { force });
+  ], { force, userId: uid });
   const combined = res.badges_combined || {};
   return { badges: combined.badges || [], userBadges: combined.userBadges || [] };
 }
@@ -1791,7 +1791,7 @@ export async function syncUserCache(uid, email, { force = false } = {}) {
       },
       force,
     },
-  ], { force });
+  ], { force, userId: uid });
   return {
     enrollments: res.tasks || [],
     certificates: res.certs || [],
