@@ -1,4 +1,5 @@
 import LoadingText from "./LoadingText";
+import LearningView from "./LearningView";
 import React, { useEffect, useState, useRef } from "react";
 import {
   fetchUserEnrollments,
@@ -23,6 +24,7 @@ import {
   unhideEnrollmentFromUser,
   fetchBadges,
   fetchUserBadges,
+  fetchCourseContent,
   loadCachedUserBuckets,
   syncUserCache,
   startSyncLoop,
@@ -69,6 +71,8 @@ export default function StudentDashboard({
   const [couponDiscount, setCouponDiscount] = useState(0);
 
   const [activeTab, setActiveTab] = useState(initialReferralTab ? "referral" : "overview");
+  const [activeCourseLearning, setActiveCourseLearning] = useState(null);
+  const [courseContentsMap, setCourseContentsMap] = useState({});
   const [referralStat, setReferralStat] = useState(null);
   const [referralDashData, setReferralDashData] = useState(null);
   const [referralDashLoading, setReferralDashLoading] = useState(false);
@@ -201,6 +205,16 @@ export default function StudentDashboard({
       ]);
       setPaymentMethods(pm);
       setReferralStat(refStat);
+
+      // Fetch course content for enrolled courses
+      const courseEnrs = active.filter(e => e.type === "course");
+      if (courseEnrs.length > 0) {
+        const contents = {};
+        await Promise.all(courseEnrs.map(async (enr) => {
+          try { contents[enr.courseId] = await fetchCourseContent(enr.courseId); } catch {}
+        }));
+        if (Object.keys(contents).length > 0) setCourseContentsMap(contents);
+      }
 
       const matchResults = {};
       await Promise.all(
@@ -560,6 +574,7 @@ export default function StudentDashboard({
             {[
               { id: "overview", label: "Overview", icon: "\u25C8" },
               { id: "tasks", label: "My Tasks", icon: "\u2630" },
+              { id: "courses", label: "My Courses", icon: "\uD83D\uDCDA" },
               { id: "completed", label: "Completed", icon: "\u2713" },
               { id: "referral", label: "Refer & Earn", icon: "\u2197" },
               { id: "badges", label: "Badges", icon: "\u2606" },
@@ -910,6 +925,49 @@ export default function StudentDashboard({
             )}
             </>);
           })()}
+          </div>
+        ) : activeTab === "courses" ? (
+          <div>
+            {(() => {
+              const courseEnrollments = enrollments.filter(e => e.type === "course");
+              if (activeCourseLearning) {
+                return <LearningView enrollment={activeCourseLearning} userId={user?.uid} onBack={() => setActiveCourseLearning(null)} />;
+              }
+              if (courseEnrollments.length === 0) {
+                return (
+                  <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
+                    <p style={{ color: "#888", fontSize: "1rem" }}>No courses enrolled yet. Browse courses on the homepage to get started.</p>
+                  </div>
+                );
+              }
+              return (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
+                  {courseEnrollments.map(enr => {
+                    const completedCount = (enr.progress?.completedModules || []).length;
+                    const allContent = courseContentsMap[enr.courseId];
+                    const moduleCount = allContent?.modules?.length || 0;
+                    const pct = moduleCount > 0 ? Math.round((completedCount / moduleCount) * 100) : 0;
+                    return (
+                      <div key={enr.id} style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", display: "flex", flexDirection: "column" }}>
+                        <h3 style={{ fontSize: "1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{enr.courseId.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</h3>
+                        <p style={{ fontSize: "0.8rem", color: "#666", marginBottom: "0.75rem" }}>{enr.paymentAmount > 0 ? "Paid" : "Free"} · {enr.status}</p>
+                        {moduleCount > 0 && (
+                          <div style={{ marginBottom: "0.75rem" }}>
+                            <div style={{ height: 6, background: "#eee", borderRadius: 3, overflow: "hidden" }}>
+                              <div style={{ height: "100%", width: `${pct}%`, background: pct === 100 ? "#4caf50" : "#1976d2", transition: "width 0.3s" }} />
+                            </div>
+                            <p style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem" }}>{completedCount}/{moduleCount} modules completed</p>
+                          </div>
+                        )}
+                        <button onClick={() => setActiveCourseLearning(enr)} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>
+                          {completedCount > 0 ? "Continue →" : "Start Course"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         ) : activeTab === "completed" ? (
           <div>

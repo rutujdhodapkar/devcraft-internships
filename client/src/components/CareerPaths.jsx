@@ -87,7 +87,7 @@ function ViewAllModal({ paths, categories, onClose, onApply }) {
   );
 }
 
-export default function CareerPaths({ onApplyDomain }) {
+export default function CareerPaths({ onApplyDomain, maxItems }) {
   const [paths, setPaths] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -122,7 +122,7 @@ export default function CareerPaths({ onApplyDomain }) {
   }
 
   const enabledIds = homepageSettings?.visibleDomains || [];
-  const featured = enabledIds.length > 0 ? paths.filter((p) => enabledIds.includes(p.id)) : paths.slice(0, 3);
+  const featured = enabledIds.length > 0 ? paths.filter((p) => enabledIds.includes(p.id)) : paths.slice(0, maxItems || 3);
   const totalCount = paths.length;
 
   return (

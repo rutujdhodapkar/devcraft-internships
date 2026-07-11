@@ -128,6 +128,7 @@ const TAB_GROUPS = [
     label: "Content",
     tabs: [
       { id: "homepage", label: "Homepage" },
+      { id: "homepage-layout", label: "Homepage Layout" },
       { id: "career paths", label: "Domains" },
       { id: "how it works", label: "How It Works" },
       { id: "faq", label: "FAQ" },
@@ -2864,6 +2865,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             );})()}
           </div>
         )}
+
+        {activeTab === "homepage-layout" && <HomepageLayoutSection />}
 
         {activeTab === "career paths" && (
           <div
@@ -11532,6 +11535,57 @@ function AuditLogSection({ user }) {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Homepage Layout Configuration ── */
+function HomepageLayoutSection() {
+  const [config, setConfig] = useState({ showInternships: true, showCourses: true, internshipCount: 3, courseCount: 3 });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    fetchSiteConfig("homepageLayout").then(d => { if (d) setConfig(d); }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+  const save = async () => {
+    setSaving(true);
+    try { await saveSiteConfig("homepageLayout", config); notify("Layout saved!", "success"); } catch (e) { notify(e.message, "error"); }
+    setSaving(false);
+  };
+  const ls = { fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" };
+  const inp = { width: "100%", padding: "0.5rem", border: "1px solid #ccc", fontSize: "0.85rem", boxSizing: "border-box" };
+  if (loading) return <p style={{ color: "#888" }}>Loading...</p>;
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "1rem" }}>Homepage Layout</h3>
+      <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>Control which sections appear on the homepage and how many items to show.</p>
+      <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fafafa" }}>
+        <div style={{ marginBottom: "1rem" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }}>
+            <input type="checkbox" checked={config.showInternships !== false} onChange={e => setConfig(p => ({ ...p, showInternships: e.target.checked }))} />
+            Show Internships / Domains
+          </label>
+          {config.showInternships !== false && (
+            <div style={{ marginLeft: "1.5rem", marginTop: "0.5rem" }}>
+              <label style={ls}>Number of domains to show</label>
+              <input style={{ ...inp, width: 100 }} type="number" min={1} max={20} value={config.internshipCount || 3} onChange={e => setConfig(p => ({ ...p, internshipCount: Number(e.target.value) }))} />
+            </div>
+          )}
+        </div>
+        <div style={{ marginBottom: "1.5rem" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.9rem", fontWeight: 700 }}>
+            <input type="checkbox" checked={config.showCourses !== false} onChange={e => setConfig(p => ({ ...p, showCourses: e.target.checked }))} />
+            Show Courses
+          </label>
+          {config.showCourses !== false && (
+            <div style={{ marginLeft: "1.5rem", marginTop: "0.5rem" }}>
+              <label style={ls}>Number of courses to show</label>
+              <input style={{ ...inp, width: 100 }} type="number" min={1} max={20} value={config.courseCount || 3} onChange={e => setConfig(p => ({ ...p, courseCount: Number(e.target.value) }))} />
+            </div>
+          )}
+        </div>
+        <button onClick={save} disabled={saving} style={{ background: "#000", color: "#fff", border: "none", padding: "0.6rem 1.5rem", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem" }}>{saving ? "Saving..." : "Save Layout"}</button>
       </div>
     </div>
   );

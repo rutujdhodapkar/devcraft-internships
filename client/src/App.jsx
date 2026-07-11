@@ -28,8 +28,6 @@ import MessageBox from "./components/MessageBox";
 import ConfirmModal from "./components/ConfirmModal";
 import McpDashboard from "./components/McpDashboard";
 import UniversityOrgPage from "./components/UniversityOrgPage";
-import CourseCatalog from "./components/CourseCatalog";
-import LearningView from "./components/LearningView";
 import { notify } from "./services/notify";
 import { confirmAction } from "./services/confirm";
 import {
@@ -148,8 +146,6 @@ export default function App() {
     if (path === "/earn") return "earn";
     if (path === "/mcp") return "mcp";
     if (path === "/university") return "university";
-    if (path === "/courses") return "courses";
-    if (path.startsWith("/learn/")) return "learn";
     if (path === "/") return "site";
     return "error";
   })();
@@ -204,6 +200,8 @@ export default function App() {
   const [showPopup, setShowPopup] = useState(false);
   // Course learning state
   const [currentCourseEnrollment, setCurrentCourseEnrollment] = useState(null);
+  const [homeCourses, setHomeCourses] = useState([]);
+  const [homeLayout, setHomeLayout] = useState(null);
   const [popupSettings, setPopupSettings] = useState(null);
 
   // Refs to avoid re-registering the auth listener on view changes
@@ -227,6 +225,14 @@ export default function App() {
         }
       })
       .catch(() => {});
+  }, []);
+
+  // Fetch courses and homepage layout on mount
+  useEffect(() => {
+    import("../services/data").then(({ fetchCourses, fetchSiteConfig }) => {
+      fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {});
+      fetchCourses().then(setHomeCourses).catch(() => {});
+    });
   }, []);
 
   // Show popup on login if configured
@@ -724,13 +730,34 @@ export default function App() {
     setCurrentView("site");
   };
 
+  const handleCourseEnroll = async (course) => {
+    if (!user) {
+      notify("Please sign in first.", "info");
+      return;
+    }
+    const profile = userProfile;
+    if (!profile?.phone) {
+      notify("Complete your profile in Dashboard first.", "info");
+      return;
+    }
+    try {
+      const { courseEnroll } = await import("../services/data");
+      const enr = await courseEnroll(course.id, {
+        uid: user.uid, email: user.email, name: user.displayName || profile?.name,
+        phone: profile?.phone, college: profile?.college, city: profile?.city, country: profile?.country,
+      });
+      setCurrentCourseEnrollment(enr);
+      setCurrentView("dashboard");
+      setTimeout(() => notify("Enrolled in " + course.title + "!", "success"), 100);
+    } catch (e) { notify(e.message, "error"); }
+  };
+
   const renderPartnerHeader = () => <Navbar
     onAdminClick={() => setCurrentView("admin")} user={user} userProfile={userProfile} isAdmin={isAdmin} isAgency={isAgency}
     onAgencyClick={() => setCurrentView("agency")} onLogout={handleLogout} authLoading={authLoading} onLoginClick={handleLoginClick}
     onHomeClick={() => setCurrentView("site")} onDashboardClick={() => setCurrentView("dashboard")}
     onReferralDashboardClick={() => setCurrentView("dashboard")} hasReferralCode={hasReferralCode} onShowIdCard={handleShowIdCard}
     onEarnClick={() => setShowEarnModal(true)} onMcpApiClick={() => setCurrentView("mcp")} onUniOrgClick={() => setCurrentView("university")}
-    onCoursesClick={() => setCurrentView("courses")}
     isHomePage={false} headerSettings={headerSettings}
   />;
 
@@ -823,7 +850,6 @@ export default function App() {
               onEarnClick={() => setShowEarnModal(true)}
               onMcpApiClick={() => setCurrentView("mcp")}
               onUniOrgClick={() => setCurrentView("university")}
-              onCoursesClick={() => setCurrentView("courses")}
               isHomePage={false}
               headerSettings={headerSettings}
             />
@@ -859,10 +885,6 @@ export default function App() {
         return <><div style={{ minHeight: "100vh", background: "#fafafa" }}>{renderPartnerHeader()}<McpDashboard onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} /></div><Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} /></>;
       case "university":
         return <><div style={{ minHeight: "100vh", background: "#fafafa" }}>{renderPartnerHeader()}<UniversityOrgPage onClose={() => setCurrentView("site")} isAdmin={isAdmin} user={user} /></div><Footer onTandpClick={() => setCurrentView("tandp")} onPrivacyClick={() => setCurrentView("privacy")} onRefundClick={() => setCurrentView("refund")} /></>;
-      case "courses":
-        return <>{renderPartnerHeader()}<CourseCatalog user={user} userProfile={userProfile} onEnroll={(enr) => { setCurrentCourseEnrollment(enr); setCurrentView("learn"); }} /></>;
-      case "learn":
-        return <>{renderPartnerHeader()}<LearningView enrollment={currentCourseEnrollment} userId={user?.uid} onBack={() => setCurrentView("courses")} /></>;
       case "tandp":
         return (
           <PolicyPage
@@ -922,7 +944,6 @@ export default function App() {
               }}
               onMcpApiClick={() => setCurrentView("mcp")}
               onUniOrgClick={() => setCurrentView("university")}
-              onCoursesClick={() => setCurrentView("courses")}
               isHomePage={true}
               headerSettings={headerSettings}
             />
@@ -938,7 +959,41 @@ export default function App() {
             />
             <SlidingStrip />
             <LogoLoopSection />
-            <CareerPaths onApplyDomain={handleApplyDomain} />
+            {homeLayout?.showInternships !== false && <CareerPaths onApplyDomain={handleApplyDomain} maxItems={homeLayout?.internshipCount || null} />}
+            {homeLayout?.showCourses !== false && homeCourses.length > 0 && (() => {
+              const count = homeLayout?.courseCount || 3;
+              const shown = homeCourses.slice(0, count);
+              return (
+                <div style={{ maxWidth: 1200, margin: "0 auto", padding: "3rem 1rem", fontFamily: "system-ui, sans-serif" }}>
+                  <h2 style={{ fontSize: "1.75rem", fontWeight: 900, textTransform: "uppercase", textAlign: "center", margin: "0 0 0.25rem" }}>Courses</h2>
+                  <p style={{ textAlign: "center", color: "#666", fontSize: "0.95rem", marginBottom: "2rem" }}>Structured programs with certificates</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1.5rem" }}>
+                    {shown.map(c => {
+                      const free = c.price === 0 || !c.price;
+                      return (
+                        <div key={c.id} style={{ border: "2px solid #000", padding: "1.5rem", background: free ? "#fafafa" : "#fffde7", display: "flex", flexDirection: "column" }}>
+                          <span style={{ display: "inline-block", background: free ? "#4caf50" : "#f9a825", color: "#fff", fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.6rem", textTransform: "uppercase", marginBottom: "0.75rem", alignSelf: "flex-start" }}>{free ? "Free" : "₹199"}</span>
+                          <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{c.icon || "📚"}</div>
+                          <h3 style={{ fontSize: "1.1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{c.title}</h3>
+                          <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 0.75rem", flex: 1 }}>{c.description}</p>
+                          <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "#777", marginBottom: "0.75rem" }}>
+                            <span>⏱ {c.duration || "Self-paced"}</span>
+                            <span>📊 {c.level || "All Levels"}</span>
+                          </div>
+                          <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.8 }}>
+                            {(c.features || []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
+                          </ul>
+                          <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: "1.25rem", fontWeight: 900 }}>{free ? "Free" : "₹199"}</span>
+                            <button onClick={() => handleCourseEnroll(c)} style={{ background: "#000", color: "#fff", border: "none", padding: "0.6rem 1.25rem", fontWeight: 700, cursor: "pointer", fontSize: "0.85rem", textTransform: "uppercase" }}>Enroll</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             <HowItWorks />
             <WhatDoYouGet />
             <FAQ />
