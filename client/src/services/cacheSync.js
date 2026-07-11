@@ -218,20 +218,23 @@ export async function forceCacheRefresh() {
   await Promise.all(keys.map((k) => kvDel(STORE_META, k)));
 }
 
-// ── Server version endpoint ───────────────────────────────────────────────────
-// userId scopes the returned stamps to the calling user (per-user invalidation).
-export async function fetchServerVersions(userId) {
-  const url = `${API_BASE}/api/sync/versions${userId ? `?userId=${encodeURIComponent(userId)}` : ""}`;
-  const res = await fetch(url, {
-    method: "GET",
+// ── Unified sync/pull endpoint ────────────────────────────────────────────────
+// One POST: the client sends its last-known per-bucket versions; the server point-
+// reads the user's stamp doc and returns ONLY the buckets whose stamp changed
+// (computed from its own in-memory read cache). Unchanged buckets are omitted, so
+// they cost zero payload and zero extra server reads.
+export async function pullBuckets(userId, email, localVersions) {
+  const res = await fetch(`${API_BASE}/api/sync/pull`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, email, versions: localVersions }),
     cache: "no-store",
   });
   const json = await res.json().catch(() => null);
   if (!res.ok || !json || json.success === false) {
-    throw new Error(json?.message || `versions fetch failed (${res.status})`);
+    throw new Error(json?.message || `sync/pull failed (${res.status})`);
   }
-  return json.data || {};
+  return { versions: json.versions || {}, buckets: json.buckets || {} };
 }
 
 // Force-refresh escape hatch: ?refresh=1 on the URL or window.__DEVCRAFT_FORCE_SYNC.
@@ -251,56 +254,67 @@ export function isForceRefreshRequested() {
 // ── Core sync orchestrator ────────────────────────────────────────────────────
 // items: [{ bucket, key, fetcher, force? }]
 // opts.userId: scopes all versions/cache to this user
-// opts.force: force re-fetch of every bucket
+// opts.email:  used server-side for the enrollment email-fallback merge
+// opts.force:  force re-fetch of every bucket
 // Returns: { [bucket]: data }
+//
+// Happy path: ONE request to /sync/pull. The server returns only changed buckets;
+// they are written to IndexedDB and the new stamps cached. Unchanged buckets are
+// served straight from IndexedDB (no network at all). If /sync/pull is unreachable,
+// we fall back to each item's own fetcher (original behaviour) so the app still
+// loads from cache or a direct fetch.
 export async function syncBuckets(items, opts = {}) {
   const userId = opts.userId || "anon";
   const forceAll = !!opts.force || isForceRefreshRequested();
 
-  // ── Step 1: version check (single point read, per user) ─────────────────────
-  let serverVersions = null;
-  try {
-    serverVersions = await fetchServerVersions(userId);
-  } catch (e) {
-    // Version endpoint down: serve cache where we have it; retry silently next load.
-    console.warn("[cacheSync] version fetch failed, serving cache:", e.message);
+  // Build the per-bucket local version map we send to the server.
+  const localVersions = {};
+  for (const item of items) {
+    localVersions[item.bucket] = forceAll ? "0" : (await getLocalVersion(item.bucket, userId) || "0");
   }
-  const unknown = serverVersions === null;
+
+  let pulled = null;
+  try {
+    pulled = await pullBuckets(userId, opts.email, localVersions);
+  } catch (e) {
+    // Server unreachable: fall back to per-bucket fetchers (cache-first).
+    console.warn("[cacheSync] /sync/pull failed, using fetcher fallback:", e.message);
+  }
 
   const results = {};
+  if (pulled) {
+    for (const item of items) {
+      const { bucket, key } = item;
+      const payload = pulled.buckets[bucket];
+      if (payload !== undefined) {
+        // Changed (or forced): store server payload + new stamp.
+        await putCached(bucket, key, payload, userId);
+        await putLocalVersion(bucket, pulled.versions[bucket] ?? "0", userId);
+        results[bucket] = payload;
+      } else {
+        // Unchanged: serve from IndexedDB, no network.
+        const cached = await getCached(bucket, key, userId);
+        results[bucket] = cached != null ? cached : null;
+      }
+    }
+    return results;
+  }
+
+  // ── Fallback: no server. Use each item's fetcher, cache-first. ───────────────
   for (const item of items) {
     const { bucket, key, fetcher } = item;
     const localVer = await getLocalVersion(bucket, userId);
-    const serverVer = unknown ? null : (serverVersions[bucket] ?? null);
-
-    // ── Step 2: decide whether this bucket must be re-fetched ─────────────────
-    let changed = forceAll || item.force;
-    if (!changed && !unknown) changed = localVer === null || localVer !== serverVer;
-    if (!changed && unknown) {
-      // Can't verify against the server — serve cache if present, else fetch once.
-      const cached = await getCached(bucket, key, userId);
-      if (cached != null) { results[bucket] = cached; continue; }
-      changed = true;
-    }
-    if (!changed) {
-      const cached = await getCached(bucket, key, userId);
-      if (cached != null) { results[bucket] = cached; continue; }
-      changed = true; // matching version but no cached data — fetch.
-    }
-
-    // ── Step 3: fetch (or serve stale on failure) ────────────────────────────
+    const cached = await getCached(bucket, key, userId);
+    const changed = forceAll || item.force || localVer === null || cached == null;
+    if (!changed) { results[bucket] = cached; continue; }
     try {
       const data = await fetcher();
       await putCached(bucket, key, data, userId);
-      // Persist the version we validated against (or a local sentinel when unknown),
-      // so a later unknown/down state serves cache instead of re-fetching.
-      await putLocalVersion(bucket, serverVer != null ? serverVer : `local:${Date.now()}`, userId);
+      await putLocalVersion(bucket, `local:${Date.now()}`, userId);
       results[bucket] = data;
     } catch (err) {
-      // Fetch failed: serve stale cache if present (no blank flash), keep last version.
       console.warn(`[cacheSync] fetch failed for bucket "${bucket}", serving stale:`, err.message);
-      const stale = await getCached(bucket, key, userId);
-      results[bucket] = stale;
+      results[bucket] = cached; // serve stale if present
     }
   }
   return results;

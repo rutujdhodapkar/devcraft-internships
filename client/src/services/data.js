@@ -3,7 +3,7 @@ const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.x
 // Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
 import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
 import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cookies";
-import { syncBuckets, forceCacheRefresh, getCached, putCached, getLocalVersion, putLocalVersion, clearBucket, fetchServerVersions } from "./cacheSync";
+import { syncBuckets, forceCacheRefresh } from "./cacheSync";
 
 async function _rtdbRead(path) {
   try { const s = await rtdbGet(ref(rtdb, path)); return s.val(); } catch { return null; }
@@ -1721,7 +1721,7 @@ export async function revokeBadge(entryId) {
 export async function fetchUserEnrollmentsCached(uid, email, { force = false } = {}) {
   const res = await syncBuckets([
     { bucket: "tasks", key: uid, fetcher: () => fetchUserEnrollments(uid, email), force },
-  ], { force, userId: uid });
+  ], { force, userId: uid, email });
   return res.tasks || [];
 }
 
@@ -1747,7 +1747,7 @@ export async function fetchUserCertificatesCached(uid, email, { force = false } 
       },
       force,
     },
-  ], { force, userId: uid });
+  ], { force, userId: uid, email });
   return res.certs || [];
 }
 
@@ -1791,7 +1791,7 @@ export async function syncUserCache(uid, email, { force = false } = {}) {
       },
       force,
     },
-  ], { force, userId: uid });
+  ], { force, userId: uid, email });
   return {
     enrollments: res.tasks || [],
     certificates: res.certs || [],

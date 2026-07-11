@@ -1,5 +1,6 @@
 import { initCosmosDb } from "../server/cosmos.js";
 import { generateText, generateImage, buildPromoPrompt } from "../server/aiContent.js";
+import { readThrough, cacheDelete, cacheDeleteByPrefix, TTL } from "../server/readCache.js";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -1500,6 +1501,10 @@ async function handleFirebaseProxy(req, res) {
           (decoded && decoded.uid) ||
           null;
         await bumpSyncVersions(db, syncBuckets, affectedUid);
+        // Drop the server-side read cache for the affected user so their next pull
+        // is fresh (don't wait out the 30 s TTL after their own write).
+        invalidateSyncCaches(syncBuckets, affectedUid, data && data.email);
+        if (collection === "badges") cacheDelete("badges:all");
       }
     }
     return send(res, 200, { success: true, data: result });
@@ -1868,6 +1873,7 @@ export default async function handler(req, res) {
     if (parts[0] === "payment-history" && parts[1]) return handlePaymentHistory(req, res, parts[1]);
     if (parts[0] === "auto-expire-enrollments") return handleAutoExpire(req, res);
     if (parts[0] === "sync" && parts[1] === "versions") return handleSyncVersions(req, res);
+    if (parts[0] === "sync" && parts[1] === "pull") return handleSyncPull(req, res);
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {
@@ -2031,3 +2037,139 @@ async function handleSyncVersions(req, res) {
     return send(res, 500, { success: false, message: error.message });
   }
 }
+
+// ── Server-side cached data fetchers (read-through to Cosmos) ──────────────────
+// These absorb the expensive repeated reads so a warm instance hits Cosmos rarely.
+// Badges are global + rare (5 min). Per-user data is cached 30 s; writes invalidate
+// the affected keys (see invalidateSyncCaches) so a user always sees their own write.
+
+async function getBadgesCached(db) {
+  return readThrough("badges:all", TTL.BADGES, () => listCollection(db, "badges"));
+}
+
+async function getEnrollmentsForUserCached(db, uid, email) {
+  const key = `enr:${uid}`;
+  return readThrough(key, TTL.USER_DATA, async () => {
+    const list = await db.collection("enrollments").where("uid", "==", uid).get();
+    const arr = list.docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (email) {
+      const emailList = await db.collection("enrollments").where("email", "==", email).get();
+      const existing = new Set(arr.map((e) => e.id));
+      for (const d of emailList.docs) {
+        const e = { id: d.id, ...d.data() };
+        if (!existing.has(e.id)) { arr.push(e); existing.add(e.id); }
+      }
+    }
+    return arr.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  });
+}
+
+async function getUserBadgesCached(db, userId) {
+  return readThrough(`ub:${userId}`, TTL.USER_DATA, async () => {
+    const snap = await db.collection("userBadges").where("userId", "==", userId).get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  });
+}
+
+async function getUserStreaksCached(db, userId) {
+  return readThrough(`streak:${userId}`, TTL.USER_DATA, async () => {
+    const snap = await db.collection("userStreaks").where("userId", "==", userId).get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  });
+}
+
+async function getUserFlagsCached(db, userId) {
+  return readThrough(`flag:${userId}`, TTL.USER_DATA, async () => {
+    const snap = await db.collection("userFlags").where("userId", "==", userId).get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  });
+}
+
+// Drop just the cache entries that a write invalidates, so the next read is fresh.
+function invalidateSyncCaches(buckets, userId) {
+  if (!buckets || !buckets.length) return;
+  if (buckets.includes("tasks") || buckets.includes("certs")) {
+    if (userId) cacheDelete(`enr:${userId}`);
+  }
+  if (buckets.includes("badges_combined") && userId) {
+    cacheDelete(`ub:${userId}`);
+    cacheDelete(`streak:${userId}`);
+    cacheDelete(`flag:${userId}`);
+  }
+}
+
+// ── /sync/pull: one round trip, version point-read, returns ONLY changed buckets ─
+// The client sends its last-known per-bucket versions. We point-read the user's
+// stamp doc (Eventual), and for each bucket whose stamp differs we compute the
+// payload from the server cache and include it. Unchanged buckets are omitted
+// entirely — zero payload, zero extra reads. The client merges + caches the result.
+async function handleSyncPull(req, res) {
+  try {
+    const db = await initCosmosDb();
+    if (!db) return send(res, 503, { success: false, message: "Database not configured" });
+
+    let body = {};
+    try { body = req.method === "POST" ? (req.body || {}) : (req.query || {}); } catch {}
+
+    const userId = body.userId || (req.query && req.query.userId) || null;
+    const email = body.email || (req.query && req.query.email) || null;
+    const clientVersions = (body.versions && typeof body.versions === "object") ? body.versions : {};
+
+    if (!userId) {
+      return send(res, 400, { success: false, message: "userId is required for sync/pull" });
+    }
+
+    // POINT READ by id + partition key, Eventual consistency.
+    const doc = await getDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), null, {
+      consistencyLevel: "Eventual",
+    });
+    const server = {};
+    for (const b of SYNC_BUCKETS) server[b] = String((doc && doc[b]) ?? 0);
+
+    // Decide which buckets actually changed since the client's last pull.
+    const changed = SYNC_BUCKETS.filter((b) => String(clientVersions[b] ?? 0) !== server[b]);
+
+    const buckets = {};
+    // Only compute + return what changed — unchanged buckets cost nothing here.
+    for (const b of changed) {
+      if (b === "tasks" || b === "certs") {
+        const enrollments = await getEnrollmentsForUserCached(db, userId, email);
+        if (b === "tasks") {
+          buckets.tasks = enrollments;
+        } else {
+          buckets.certs = enrollments
+            .filter((e) => e.allowedCertificate === "yes")
+            .map((e) => ({
+              id: e.id, domain: e.domain, domainId: e.domainId, status: e.status,
+              completedAt: e.completedAt || e.updatedAt, name: e.name, email: e.email,
+            }));
+        }
+      } else if (b === "badges_combined") {
+        const [badges, userBadges, streaks, flags] = await Promise.all([
+          getBadgesCached(db),
+          getUserBadgesCached(db, userId),
+          getUserStreaksCached(db, userId),
+          getUserFlagsCached(db, userId),
+        ]);
+        buckets.badges_combined = {
+          badges: badges || [],
+          userBadges: userBadges || [],
+          streaks: streaks || [],
+          flags: flags || [],
+        };
+      }
+    }
+
+    return send(res, 200, {
+      success: true,
+      userId,
+      versions: server,
+      buckets,
+      changed,
+      serverTime: Date.now(),
+    });
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
+}
+
