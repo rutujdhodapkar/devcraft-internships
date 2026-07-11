@@ -1,4 +1,5 @@
 import { initCosmosDb, getSyncVersion, putSyncVersion } from "../server/cosmos.js";
+import { firestoreGetDoc, firestoreSetDoc } from "../server/firestore.js";
 import { generateText, generateImage, buildPromoPrompt } from "../server/aiContent.js";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
@@ -584,10 +585,16 @@ async function handleData(req, res, routeParts) {
   }
   if (resource === "site-config") {
     const key = req.query?.key || id;
-    if (req.method === "GET" && key) return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", key, null))?.value || null });
+    // Non-sensitive site config lives in Firestore; user data stays in Cosmos.
+    if (req.method === "GET" && key) {
+      const fb = await firestoreGetDoc("siteConfig", key);
+      return send(res, 200, { success: true, data: fb?.value || (await getDoc(db, "siteConfig", key, null))?.value || null });
+    }
     if (req.method === "PUT" && key) {
       const raw = req.body || {};
       const value = typeof raw === "string" ? raw : raw.value;
+      const saved = await firestoreSetDoc("siteConfig", key, { value, updatedAt: now() });
+      if (saved) return send(res, 200, { success: true, data: saved.value });
       return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value, updatedAt: now() })).value }));
     }
   }
