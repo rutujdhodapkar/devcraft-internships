@@ -237,9 +237,9 @@ export async function fetchCareerPaths() {
     }
     return p;
   });
-  if (!mergedPaths.length && !categories.length) { const e = { paths: [], categories: [] }; _lsSet("careerPaths", e); return e; }
+  if (!mergedPaths.length && !categories.length) { return { paths: [], categories: [] }; }
   const result = { paths: mergedPaths, categories };
-  _lsSet("careerPaths", result);
+  _lsSet("careerPaths", result, 120_000); // 2 min cache so new MCP-added domains appear quickly
   return result;
 }
 

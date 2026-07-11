@@ -2,6 +2,17 @@
   "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
   "installCommand": "npm install && cd client && npm install",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/.well-known/oauth-authorization-server", "destination": "/api/oauth" },
     { "source": "/api/oauth/:path*", "destination": "/api/oauth" },
