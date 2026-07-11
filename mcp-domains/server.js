@@ -249,6 +249,13 @@ const toolDefinitions = [
     }, required: ["email", "domain_id", "title"] },
   },
   {
+    name: "remove_domain",
+    description: "Suggest removing a domain. Goes to admin for review (admin removes live).",
+    inputSchema: { type: "object", properties: {
+      email: { type: "string" }, id: { type: "string" },
+    }, required: ["id"] },
+  },
+  {
     name: "list_changes",
     description: "List all pending or past change suggestions.",
     inputSchema: { type: "object", properties: { status: { type: "string", enum: ["pending", "approved", "rejected", "all"], default: "pending" } } },
@@ -399,6 +406,20 @@ async function handleToolCall(name, args) {
       logAction("add_task", email, `Suggested new task: ${args.title} for ${args.domain_id}`);
       return `Task "${args.title}" submitted for review (ID: ${proposal.id}). Admin will review and make it live.`;
     }
+    case "remove_domain": {
+      const isAdmin = await verifyAdmin(args);
+      if (isAdmin) {
+        const r = await executeMutate("careerPaths", "delete", {}, args.id, null);
+        logAction("remove_domain", "admin", `Removed domain live: ${args.id}`);
+        return `Domain "${args.id}" removed live.`;
+      }
+      const member = await authorizedMcpUser(args, "remove_domain", "write");
+      const proposals = await loadProposals();
+      const proposal = { id: `prop_${generateId()}`, type: "remove_domain", requester_email: member.email, data: { id: args.id }, status: "pending", submittedAt: new Date().toISOString() };
+      proposals.push(proposal); await saveProposals(proposals);
+      logAction("remove_domain", member.email, `Suggested removing domain: ${args.id}`);
+      return `Removal of domain "${args.id}" submitted for review (ID: ${proposal.id}). Admin will review and apply.`;
+    }
     case "list_changes": {
       if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       let proposals = await loadProposals();
@@ -420,6 +441,8 @@ async function handleToolCall(name, args) {
         try { const docs = await executeQuery("careerPaths", [], null); const domain = docs.find(d => d.id === prop.data.domain_id); if (!domain) throw new Error("Domain not found"); const projects = domain.projects || []; projects.push({ title: prop.data.title, description: prop.data.description, type: prop.data.type, links: prop.data.links }); result = await executeMutate("careerPaths", "update", { projects }, prop.data.domain_id, null); } catch (err) { result = `Error: ${err.message}`; }
       } else if (prop.type === "edit_data") {
         try { result = await executeMutate(prop.data.collection, prop.data.action, prop.data.data, prop.data.document_id, null); } catch (err) { result = `Error: ${err.message}`; }
+      } else if (prop.type === "remove_domain") {
+        try { result = await executeMutate("careerPaths", "delete", {}, prop.data.id, null); } catch (err) { result = `Error: ${err.message}`; }
       }
       prop.status = "approved"; prop.approvedAt = new Date().toISOString(); prop.executionResult = result;
       proposals[idx] = prop; await saveProposals(proposals);

@@ -11480,6 +11480,7 @@ Discovery:      /.well-known/oauth-authorization-server
 Configure in ChatGPT:
   URL: https://devcraft.fennark.xyz/api/mcp-domains`}
         </div>
+        <button className="btn-sharp" style={{ marginTop: "0.75rem" }} onClick={async () => { try { const t = user?.getIdToken ? await user.getIdToken() : null; if (!t) { notify("Sign in first.", "error"); return; } await navigator.clipboard.writeText(t); notify("MCP token copied to clipboard", "success"); } catch (e) { notify("Copy failed: " + e.message, "error"); } }}>Copy my MCP token</button>
       </div>
       <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
         <h3 style={{ marginTop: 0, textTransform: "uppercase", fontSize: "1rem" }}>Public details & actions</h3>
