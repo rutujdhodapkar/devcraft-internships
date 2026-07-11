@@ -18,7 +18,7 @@ export async function initFirestore() {
     const { initializeApp, getApps, cert } = await import('firebase-admin/app');
     const { getFirestore } = await import('firebase-admin/firestore');
     if (!getApps().length) initializeApp({ credential: cert(sa) });
-    _firestore = getFirestore();
+    _firestore = getFirestore('intern');
     console.log('[Firestore] Connected');
     return _firestore;
   } catch (e) {
