@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from "react";
 import { notify } from "../services/notify";
 
@@ -885,7 +886,7 @@ export default function EarnSection({
                 }}
               >
                 {detailsLoading
-                  ? "Loading…"
+                  ? <LoadingText text="Loading…" />
                   : earnDetails?.title || "Refer & Earn — Details"}
               </div>
               <button

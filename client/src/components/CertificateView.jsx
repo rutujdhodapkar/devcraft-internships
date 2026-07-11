@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from "react";
 import { fetchEnrollmentById, fetchTemplates } from "../services/data";
 import { getFirebaseIdToken, auth } from "../firebase";
@@ -277,7 +278,7 @@ export default function CertificateView() {
   if (!html) {
     return (
       <div style={{ padding: "3rem", textAlign: "center", fontFamily: "Arial, sans-serif" }}>
-        <p>Loading certificate…</p>
+        <p><LoadingText text="Loading certificate…" /></p>
       </div>
     );
   }

@@ -4,11 +4,14 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprot
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import {
+  verifyFirebaseToken,
+  isFirebaseAdmin,
+  resolveIdentity,
+  isAuthorizedEmail,
+} from "../server/auth.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const ADMIN_SECRET_FALLBACK = process.env.MCP_DOMAINS_ADMIN_SECRET || "devcraft_admin_mcp_2025";
-const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
-const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || "";
 const DATA_DIR = process.env.VERCEL ? join("/tmp", "mcp-domains-data") : join(__dirname, "data");
 try { if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true }); } catch {}
 
@@ -67,42 +70,17 @@ function cleanId(email) {
   return email.replace(/\./g, ",");
 }
 
-// ── Auth helpers ──
+// ── Auth helpers (delegated to shared server/auth.js) ──
 
-async function verifyFirebaseToken(idToken) {
-  if (!idToken || !FIREBASE_API_KEY) return null;
-  try {
-    const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
-    });
-    const data = await res.json();
-    if (!data.users || !data.users.length) return null;
-    return { uid: data.users[0].localId, email: data.users[0].email };
-  } catch { return null; }
-}
-
-async function isFirebaseAdmin(email) {
-  if (!email) return false;
-  if (email.toLowerCase() === ROOT_ADMIN_EMAIL.toLowerCase()) return true;
-  const db = await getDb();
-  if (!db) return false;
-  try {
-    const snap = await db.collection("admins").doc(cleanId(email.toLowerCase())).get();
-    return snap.exists;
-  } catch { return false; }
-}
-
-async function verifyAdmin(adminToken, adminSecret) {
-  if (adminToken && FIREBASE_API_KEY) {
-    const user = await verifyFirebaseToken(adminToken);
-    if (!user || !user.email) return false;
-    return isFirebaseAdmin(user.email);
-  }
-  if (adminSecret && ADMIN_SECRET_FALLBACK) return adminSecret === ADMIN_SECRET_FALLBACK;
-  if (!ADMIN_SECRET_FALLBACK && !FIREBASE_API_KEY) return true;
-  return false;
+async function verifyAdmin(args) {
+  const id = await resolveIdentity({
+    admin_token: args.admin_token,
+    admin_secret: args.admin_secret,
+    bearer: args.bearer,
+    user_token: args.user_token,
+    api_key: args.api_key,
+  });
+  return !!(id && id.role === "admin");
 }
 
 async function isAuthorized(email) {
@@ -112,10 +90,14 @@ async function isAuthorized(email) {
 }
 
 async function authorizedMcpUser(args, tool, requiredPermission = "read") {
-  const identity = await verifyFirebaseToken(args.user_token);
-  if (!identity?.email) throw new Error("Sign in with an approved email to use MCP.");
-  if (args.email && args.email.toLowerCase() !== identity.email.toLowerCase()) throw new Error("Requested email does not match the signed-in user.");
-  const record = (await loadAuthUsers()).find((item) => item.email.toLowerCase() === identity.email.toLowerCase());
+  const id = await resolveIdentity({ user_token: args.user_token, bearer: args.bearer });
+  if (!id) throw new Error("Sign in with an approved email to use MCP.");
+  // Service/admin identities (local, api_key, admin_secret, admin JWT) bypass
+  // per-account tool gating.
+  if (id.role === "admin" || (id.email && id.email.endsWith("@devcraft.local"))) return id;
+  if (!id.email) throw new Error("Sign in with an approved email to use MCP.");
+  if (args.email && args.email.toLowerCase() !== id.email.toLowerCase()) throw new Error("Requested email does not match the signed-in user.");
+  const record = (await loadAuthUsers()).find((item) => item.email.toLowerCase() === id.email.toLowerCase());
   if (!record) throw new Error("This email has not been approved for MCP access.");
   // Empty permissions mean no access, never unrestricted access.  Hooks are
   // stored independently so selecting GitHub/Slack cannot accidentally grant
@@ -124,7 +106,7 @@ async function authorizedMcpUser(args, tool, requiredPermission = "read") {
   if (!allowed.length) throw new Error("No MCP permissions have been granted for this account.");
   if (allowed.length && !allowed.includes(tool)) throw new Error(`Your role is not allowed to use ${tool}.`);
   if (!record.permissions?.[requiredPermission] && !record.permissions?.admin) throw new Error(`Your role does not have ${requiredPermission} permission.`);
-  return { ...identity, ...record };
+  return { ...id, ...record };
 }
 
 function generateId() { return `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`; }
@@ -332,7 +314,7 @@ async function handleToolCall(name, args) {
       return "Request submitted. Admin will review. You will be notified when approved.";
     }
     case "approve_user": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       const e = args.email.toLowerCase();
       if (args.request_id) { const r = await loadAccessRequests(); const i = r.findIndex(x => x.id === args.request_id); if (i>-1) { r[i].status="approved"; r[i].approvedAt=new Date().toISOString(); r[i].allowed_tools = args.allowed_tools || r[i].allowed_tools || ""; r[i].webhook_url = args.webhook_url || r[i].webhook_url || ""; await saveAccessRequests(r); } }
       const u = await loadAuthUsers();
@@ -343,7 +325,7 @@ async function handleToolCall(name, args) {
       return JSON.stringify({ok:true, message:`${e} now has access`});
     }
     case "remove_user": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       let u = await loadAuthUsers(); const b = u.length;
       u = u.filter(x => x.email.toLowerCase() !== args.email.toLowerCase());
       if (u.length === b) return "Not found";
@@ -352,22 +334,22 @@ async function handleToolCall(name, args) {
       return "Removed";
     }
     case "pending_users": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       return JSON.stringify((await loadAccessRequests()).filter(r => r.status === "pending"));
     }
     case "active_users": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       return JSON.stringify(await loadAuthUsers());
     }
     case "get_domains": {
-      const isAdmin = await verifyAdmin(args.admin_token, args.admin_secret);
+      const isAdmin = await verifyAdmin(args);
       const member = isAdmin ? null : await authorizedMcpUser(args, "get_domains");
       const docs = await executeQuery("careerPaths", [], null);
       logAction("get_domains", isAdmin ? "admin" : member.email, `Read ${docs.length} domains`);
       return JSON.stringify(docs.map(d => ({ id: d.id, title: d.title, duration: d.duration, paymentAmount: d.paymentAmount, description: d.description, features: d.features, icon: d.icon, projects: (d.projects||[]).length })), null, 2);
     }
     case "get_tasks": {
-      const isAdmin = await verifyAdmin(args.admin_token, args.admin_secret);
+      const isAdmin = await verifyAdmin(args);
       const member = isAdmin ? null : await authorizedMcpUser(args, "get_tasks");
       const docs = await executeQuery("careerPaths", [], null);
       const domain = docs.find(d => d.id === args.domain_id);
@@ -394,14 +376,14 @@ async function handleToolCall(name, args) {
       return `Task "${args.title}" submitted for review (ID: ${proposal.id}). Admin will review and make it live.`;
     }
     case "list_changes": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       let proposals = await loadProposals();
       const s = args.status || "pending";
       if (s !== "all") proposals = proposals.filter(p => p.status === s);
       return JSON.stringify(proposals, null, 2);
     }
     case "approve_change": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       const proposals = await loadProposals();
       const idx = proposals.findIndex(p => p.id === args.change_id);
       if (idx === -1) throw new Error(`Change "${args.change_id}" not found`);
@@ -419,7 +401,7 @@ async function handleToolCall(name, args) {
       return `Approved. ${result}`;
     }
     case "reject_change": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       const proposals = await loadProposals();
       const idx = proposals.findIndex(p => p.id === args.change_id);
       if (idx === -1) throw new Error(`Change "${args.change_id}" not found`);
@@ -430,23 +412,23 @@ async function handleToolCall(name, args) {
       return `Rejected. Reason: ${proposals[idx].rejectionReason}`;
     }
     case "lookup": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       const docs = await executeQuery(args.collection, args.filters||[], null);
       logAction("lookup", "admin", `Queried ${args.collection}: ${docs.length} results`);
       return JSON.stringify(docs, null, 2);
     }
     case "edit_data": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       const r = await executeMutate(args.collection, args.action, args.data||{}, args.document_id, null);
       logAction("edit_data", "admin", `${args.action} on ${args.collection}/${args.document_id||""}`);
       return r;
     }
     case "collections": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       return Object.keys(COLLECTIONS).join(", ");
     }
     case "audit_log": {
-      if (!(await verifyAdmin(args.admin_token, args.admin_secret))) throw new Error("Unauthorized");
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       try { return JSON.stringify(readJSON(join(DATA_DIR, "mcp-log.json")) || [], null, 2); } catch { return "[]"; }
     }
     default: throw new Error(`Unknown tool: ${name}`);

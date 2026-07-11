@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState, useRef } from "react";
 import {
   fetchUserEnrollments,
@@ -687,7 +688,7 @@ export default function StudentDashboard({
               fontSize: "1.1rem",
             }}
           >
-            Loading your internship data…
+            <LoadingText text="Loading your internship data…" />
           </div>
         ) : activeTab === "overview" ? (
           <div>
@@ -1409,7 +1410,7 @@ function BadgesTab({ user, fetchBadges, fetchUserBadges }) {
       .finally(() => setLoading(false));
   }, [user?.uid]);
 
-  if (loading) return <div style={{ color: "#888", padding: "2rem", textAlign: "center" }}>Loading badges...</div>;
+  if (loading) return <div style={{ color: "#888", padding: "2rem", textAlign: "center" }}><LoadingText text="Loading badges..." /></div>;
 
   const earnedIds = new Set((userBadges || []).map(b => b.badgeId || b.id));
 

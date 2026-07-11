@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { resolveIdentity } from "../server/auth.js";
 
 const TEMPLATES = [
   "Join DEV/CRAFT and kickstart your career with hands-on virtual internships. Gain real-world skills, work on real projects, and earn verified completion certificates! 🚀\n\n#VirtualInternship #DEVRAFT #CareerGrowth #TechSkills #Internships",
@@ -68,6 +69,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
+    // Every social tool requires an authenticated admin/service identity.
+    // Local opencode runs set MCP_LOCAL_TRUSTED=1; remote callers must pass a
+    // Bearer JWT or MCP_API_KEY.
+    const idn = await resolveIdentity({ bearer: args?.bearer, api_key: args?.api_key });
+    if (!idn || idn.role !== "admin") {
+      return { content: [{ type: "text", text: "Error: Unauthorized. Provide a valid Bearer token or API key." }], isError: true };
+    }
+
     switch (name) {
       case "post_linkedin": {
         const { text, visibility = "PUBLIC" } = args;

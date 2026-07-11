@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { ListToolsRequestSchema, CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { resolveIdentity } from "../server/auth.js";
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || "support@fennark.xyz";
@@ -92,6 +93,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
+    // Every email tool requires an authenticated admin/service identity.
+    // Local opencode runs set MCP_LOCAL_TRUSTED=1; remote callers must pass a
+    // Bearer JWT or MCP_API_KEY.
+    const idn = await resolveIdentity({ bearer: args?.bearer, api_key: args?.api_key });
+    if (!idn || idn.role !== "admin") {
+      return { content: [{ type: "text", text: "Error: Unauthorized. Provide a valid Bearer token or API key." }], isError: true };
+    }
+
     switch (name) {
       case "send_email": {
         const { to, subject, html, category } = args;

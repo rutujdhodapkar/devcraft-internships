@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from 'react';
 import { fetchReferralDashboardData, fetchSiteNotices } from '../services/data';
 import { notify } from '../services/notify';
@@ -125,7 +126,7 @@ export default function ReferralDashboard({ user, userProfile, onBackClick, stan
 
         {loading && user ? (
           <div style={{ textAlign: 'center', padding: '4rem', color: '#888', fontSize: '1.1rem' }}>
-            Loading your referral dashboard...
+            <LoadingText text="Loading your referral dashboard..." />
           </div>
         ) : data ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>

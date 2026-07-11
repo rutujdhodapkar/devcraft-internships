@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from 'react';
 import { fetchServices } from '../services/data';
 
@@ -75,7 +76,7 @@ export default function Services({ currency, rates, convertPrice, formatPrice, o
         </div>
 
         {loadingServices ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>Loading services...</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}><LoadingText text="Loading services..." /></div>
         ) : (
           <>
             <div className="fade-in-section service-group" style={{ marginBottom: '3rem' }}>

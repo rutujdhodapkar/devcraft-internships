@@ -13,10 +13,28 @@ async function getHandler() {
   }
 }
 
-export default async function mcpHandler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+const ALLOWED_ORIGINS = [
+  "https://devcraft.fennark.xyz",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
+function setCors(req, res) {
+  const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGINS.some((o) => origin.startsWith(o.replace(/\/$/, "")))) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else if (origin) {
+    res.setHeader("Access-Control-Allow-Origin", "https://devcraft.fennark.xyz");
+  } else {
+    res.setHeader("Access-Control-Allow-Origin", "https://devcraft.fennark.xyz");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+}
+
+export default async function mcpHandler(req, res) {
+  setCors(req, res);
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -51,11 +69,11 @@ export default async function mcpHandler(req, res) {
   const authHeader = req.headers["authorization"] || "";
   const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
 
-  // A bearer token represents the current MCP user. Admin actions still use
-  // explicit admin credentials and are verified separately.
+  // Propagate the bearer token as `bearer` for every call so JWT / API-key
+  // credentials work uniformly with admin_secret / *_token arguments.
   if (method === "tools/call" && params && params.arguments) {
-    if (bearerToken && !params.arguments.user_token && !params.arguments.admin_secret && !params.arguments.admin_token) {
-      params.arguments.user_token = bearerToken;
+    if (bearerToken && !params.arguments.bearer) {
+      params.arguments.bearer = bearerToken;
     }
   }
 

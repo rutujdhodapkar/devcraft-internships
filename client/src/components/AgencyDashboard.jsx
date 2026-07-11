@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from "react";
 import { fetchAgencies, fetchAgencyEnrollments, addAgencyAdminEmail, removeAgencyAdminEmail } from "../services/data";
 import { notify } from "../services/notify";
@@ -74,7 +75,7 @@ export default function AgencyDashboard({ user, onClose }) {
   };
 
   if (loading) return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", color: "#888" }}>Loading...</div>
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh", color: "#888" }}><LoadingText text="Loading..." /></div>
   );
 
   if (agencies.length === 0) return (
@@ -145,7 +146,7 @@ export default function AgencyDashboard({ user, onClose }) {
 
           <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
             <h3 style={{ fontWeight: 800, textTransform: "uppercase", fontSize: "0.9rem", marginBottom: "0.75rem" }}>Applied Users ({enrollments.length})</h3>
-            {enrLoading ? <p style={{ color: "#888" }}>Loading...</p> : enrollments.length === 0 ? (
+            {enrLoading ? <p style={{ color: "#888" }}><LoadingText text="Loading..." /></p> : enrollments.length === 0 ? (
               <p style={{ color: "#888", fontStyle: "italic" }}>No users have applied through this agency yet.</p>
             ) : (
               <div style={{ display: "grid", gap: "0.4rem", maxHeight: "350px", overflowY: "auto" }}>

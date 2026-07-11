@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from 'react';
 import { fetchCareerPaths, fetchHomepageSettings } from '../services/data';
 
@@ -114,7 +115,7 @@ export default function CareerPaths({ onApplyDomain }) {
     return (
       <section id="domains" className="section-padding" style={{ backgroundColor: '#fff', borderBottom: '2px solid var(--border-primary)' }}>
         <div className="container" style={{ textAlign: 'center', padding: '3rem 0' }}>
-          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Loading domains...</div>
+          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}><LoadingText text="Loading domains..." /></div>
         </div>
       </section>
     );

@@ -13,7 +13,7 @@ const ShinyText = ({
   yoyo = false,
   pauseOnHover = false,
   direction = 'left',
-  delay = 0
+  delay = 0,
 }) => {
   const [isPaused, setIsPaused] = useState(false);
   const progress = useMotionValue(0);
@@ -24,7 +24,7 @@ const ShinyText = ({
   const animationDuration = speed * 1000;
   const delayDuration = delay * 1000;
 
-  useAnimationFrame(time => {
+  useAnimationFrame((time) => {
     if (disabled || isPaused) {
       lastTimeRef.current = null;
       return;
@@ -77,8 +77,7 @@ const ShinyText = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [direction]);
 
-  // Transform: p=0 -> 150% (shine off right), p=100 -> -50% (shine off left)
-  const backgroundPosition = useTransform(progress, p => `${150 - p * 2}% center`);
+  const backgroundPosition = useTransform(progress, (p) => `${150 - p * 2}% center`);
 
   const handleMouseEnter = useCallback(() => {
     if (pauseOnHover) setIsPaused(true);
@@ -93,7 +92,7 @@ const ShinyText = ({
     backgroundSize: '200% auto',
     WebkitBackgroundClip: 'text',
     backgroundClip: 'text',
-    WebkitTextFillColor: 'transparent'
+    WebkitTextFillColor: 'transparent',
   };
 
   return (

@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from "react";
 
 const fetchMap = {
@@ -37,7 +38,7 @@ export default function PolicyPage({ type, onBackToSite }) {
       </div>
       <div style={{ maxWidth: "800px", width: "100%", margin: "0 auto", padding: "3rem 1.5rem 5rem" }}>
         {loading ? (
-          <div style={{ textAlign: "center", color: "#888", padding: "3rem 0" }}>Loading…</div>
+          <div style={{ textAlign: "center", color: "#888", padding: "3rem 0" }}><LoadingText text="Loading…" /></div>
         ) : html ? (
           <div className="terms-content" dangerouslySetInnerHTML={{ __html: html }} style={{ fontSize: "0.92rem", lineHeight: "1.7", color: "#333" }} />
         ) : (

@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
@@ -2924,7 +2925,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               ))}
             </div>
             {contentLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <div
                 style={{
@@ -3736,7 +3737,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               How It Works Timeline
             </h3>
             {contentLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <>
                 {howItWorksSteps.map((step, idx) => (
@@ -3841,7 +3842,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", margin: 0 }}>User Types</h3>
               <button type="button" className="btn-sharp-outline" onClick={() => setUserTypes([...userTypes, { id: "type_" + Date.now(), name: "", type: "receive", description: "" }])} style={{ fontSize: "0.75rem", padding: "0.35rem 0.75rem" }}>+ Add User Type</button>
             </div>
-            {userTypesLoading ? <div style={{ color: "#888" }}>Loading…</div> : (
+            {userTypesLoading ? <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div> : (
               <>
                 {userTypes.length === 0 && <p style={{ color: "#888" }}>No user types configured. Add one to define new participant categories like referral partners, mentors, etc.</p>}
                 {userTypes.map((ut, idx) => (
@@ -3895,7 +3896,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <div><strong>Net Total:</strong> <span style={{ color: "#34A853", fontWeight: 800 }}>₹{paymentStats.netTotal}</span></div>
                   <div><strong>Paid Interns:</strong> {paymentStats.paidEnrollments}</div>
                 </div>
-              ) : <div style={{ color: "#888" }}>Loading stats…</div>}
+              ) : <div style={{ color: "#888" }}><LoadingText text="Loading stats…" /></div>}
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.5rem" }}>
                 <button onClick={loadPaymentStats} style={{ padding: "0.3rem 0.75rem", fontSize: "0.75rem", border: "2px solid #000", background: "#fff", cursor: "pointer", fontWeight: 700 }}>Refresh Stats</button>
                 <button onClick={async () => {
@@ -3911,7 +3912,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             </div>
 
             {!paymentSettings ? (
-              <div style={{ color: "#888" }}>Loading payment data…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading payment data…" /></div>
             ) : (
               <>
                 {/* Global default */}
@@ -3961,7 +3962,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
                   <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>UPI Payment Configuration</h4>
                   {upiSettingsLoading ? (
-                    <div style={{ color: "#888" }}>Loading UPI settings…</div>
+                    <div style={{ color: "#888" }}><LoadingText text="Loading UPI settings…" /></div>
                   ) : (
                     <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
                       <div>
@@ -4019,7 +4020,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
                   <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Active Payment Methods</h4>
                   {paymentMethodsLoading ? (
-                    <div style={{ color: "#888" }}>Loading…</div>
+                    <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
                   ) : (
                     <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap", alignItems: "center" }}>
                       <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", cursor: "pointer", fontSize: "0.88rem", fontWeight: 600 }}>
@@ -4051,7 +4052,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
                   <h4 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Dodo Payments (Card / International)</h4>
                   {dodoConfigLoading ? (
-                    <div style={{ color: "#888" }}>Loading Dodo config…</div>
+                    <div style={{ color: "#888" }}><LoadingText text="Loading Dodo config…" /></div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
                       <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -4172,7 +4173,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               </button>
             </div>
             {contentLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <>
                 {faqsList.map((faq, idx) => (
@@ -4281,7 +4282,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               </p>
             </div>
             {contentLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <>
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
@@ -4363,7 +4364,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               </p>
             </div>
             {contentLoading ? (
-              <div style={{ color: "#888" }}>Loading templates…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading templates…" /></div>
             ) : (
               <>
                 <button type="button" className="btn-sharp-outline" onClick={() => {
@@ -5032,7 +5033,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               <div
                 style={{ textAlign: "center", padding: "2rem", color: "#888" }}
               >
-                Loading referral users…
+                <LoadingText text="Loading referral users…" />
               </div>
             ) : referralUsersData.length === 0 ? (
               <EmptyBox msg="No referral users found." />
@@ -6160,7 +6161,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               Earn section.
             </p>
             {earnSettingsLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <div
                 style={{
@@ -6295,7 +6296,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 on the Earn section.
               </p>
               {earnDetailsLoading ? (
-                <div style={{ color: "#888" }}>Loading…</div>
+                <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
               ) : (
                 <div
                   style={{
@@ -6655,7 +6656,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 Banned Users ({bannedUsers.length})
               </h3>
               {bannedUsersLoading ? (
-                <div style={{ color: "#888" }}>Loading…</div>
+                <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
               ) : bannedUsers.length === 0 ? (
                 <EmptyBox msg="No banned users." />
               ) : (
@@ -6946,7 +6947,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 All Messages ({adminMessages.length})
               </h3>
               {messagesLoading ? (
-                <div style={{ color: "#888" }}>Loading…</div>
+                <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
               ) : adminMessages.length === 0 ? (
                 <EmptyBox msg="No messages yet." />
               ) : (
@@ -7189,7 +7190,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 Active Notices ({siteNotices.length})
               </h3>
               {noticesLoading ? (
-                <div style={{ color: "#888" }}>Loading…</div>
+                <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
               ) : siteNotices.length === 0 ? (
                 <EmptyBox msg="No notices yet. Create one to show on user dashboards." />
               ) : (
@@ -7234,7 +7235,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           <div style={{ maxWidth: "800px" }}>
             <h3 style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "1rem" }}>Homepage Content Editor</h3>
             {homepageLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : homepageContent ? (
               <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
                 {/* Headline */}
@@ -7739,7 +7740,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
               Include policies about no refunds, paid courses, unregistered status, and certificate limitations.
             </p>
             {termsLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <textarea
@@ -7789,7 +7790,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>Privacy Policy Editor</h3>
             <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>Write HTML content for the Privacy Policy page.</p>
             {privacyLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <textarea value={privacyContent} onChange={(e) => setPrivacyContent(e.target.value)} rows={30}
@@ -7818,7 +7819,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>Refund Policy Editor</h3>
             <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>Write HTML content for the Refund Policy page.</p>
             {refundLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <textarea value={refundContent} onChange={(e) => setRefundContent(e.target.value)} rows={30}
@@ -7846,7 +7847,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           <div style={{ maxWidth: "800px" }}>
             <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>Footer Settings Editor</h3>
             {footerLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
@@ -7935,7 +7936,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           <div style={{ maxWidth: "800px" }}>
             <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>Popup Settings Editor</h3>
             {popupLoading ? (
-              <div style={{ color: "#888" }}>Loading…</div>
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
@@ -10275,7 +10276,7 @@ function OldAuditLogSection() {
         style={{ width: "100%", boxSizing: "border-box", border: "2px solid #000", padding: "0.5rem 0.75rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", marginBottom: "1rem" }}
       />
       {loading ? (
-        <div style={{ color: "#888", fontSize: "0.85rem" }}>Loading audit log...</div>
+        <div style={{ color: "#888", fontSize: "0.85rem" }}><LoadingText text="Loading audit log..." /></div>
       ) : filtered.length === 0 ? (
         <div style={{ color: "#888", fontSize: "0.85rem" }}>No entries found.</div>
       ) : (
@@ -10323,7 +10324,7 @@ function ThemeSection() {
     fetchTheme().then((t) => { if (t) { setTheme(t); applyTheme(t); } }).catch(() => {}).finally(() => setLoading(false));
   }, [applyTheme]);
   const handleSave = async () => { setSaving(true); try { await saveTheme(theme); applyTheme(theme); notify("Theme saved.", "success"); } catch (err) { notify("Failed: " + err.message, "error"); } finally { setSaving(false); } };
-  if (loading) return <div style={{ color: "#888" }}>Loading theme...</div>;
+  if (loading) return <div style={{ color: "#888" }}><LoadingText text="Loading theme..." /></div>;
   const fields = [
     { key: "primaryColor", label: "Primary Color", type: "color" },
     { key: "bgColor", label: "Background Color", type: "color" },
@@ -10378,7 +10379,7 @@ function HeaderSettingsSection() {
     }
   };
 
-  if (loading) return <div style={{ color: "#888" }}>Loading header settings...</div>;
+  if (loading) return <div style={{ color: "#888" }}><LoadingText text="Loading header settings..." /></div>;
 
   return (
     <div style={{ border: "2px solid #000", padding: "1.75rem", boxShadow: "4px 4px 0 #000", maxWidth: "480px", width: "100%", boxSizing: "border-box", background: "#fff" }}>
@@ -10488,7 +10489,7 @@ function LoggedInUsersSection() {
       </div>
       {error && <div style={{ color: "#EA4335", fontWeight: 700, marginBottom: "1rem" }}>{error}</div>}
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "#888" }}>Loading...</div>
+        <div style={{ padding: "2rem", textAlign: "center", color: "#888" }}><LoadingText text="Loading..." /></div>
       ) : (
         <SimpleTable
           empty="No users currently logged in."
@@ -10527,7 +10528,7 @@ function ReferralLeaderboardSection() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => { fetchReferralLeaderboard().then(setEntries).catch(() => {}).finally(() => setLoading(false)); }, []);
-  if (loading) return <div style={{ color: "#888" }}>Loading leaderboard...</div>;
+  if (loading) return <div style={{ color: "#888" }}><LoadingText text="Loading leaderboard..." /></div>;
   return (
     <div style={{ border: "2px solid #000", boxShadow: "4px 4px 0 #000" }}>
       <div style={{ padding: "0.75rem 1rem", borderBottom: "2px solid #000", background: "#fafafa", fontWeight: 800 }}>Referral Leaderboard</div>
@@ -10790,7 +10791,7 @@ function EditInternsSection() {
         </div>
       </div>
       {message && <div style={{ padding: "0.5rem 0.75rem", border: "2px solid #000", fontSize: "0.85rem", fontWeight: 600, marginBottom: "1rem", background: message.startsWith("Error") ? "#fee" : "#efe" }}>{message}</div>}
-      {loading ? <p>Loading...</p> : (
+      {loading ? <p><LoadingText text="Loading..." /></p> : (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
           {filtered.length === 0 && <p style={{ color: "#888" }}>No interns found.</p>}
           {filtered.map(intern => (
@@ -10940,7 +10941,7 @@ function ProposalsSection({ user }) {
   const s = { border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000", marginBottom: "1.25rem" };
   const cellS = { border: "1px solid #ccc", padding: "0.4rem 0.6rem", fontSize: "0.82rem", textAlign: "left" };
 
-  if (loading) return <div style={{ color: "#888", padding: "1rem" }}>Loading proposals...</div>;
+  if (loading) return <div style={{ color: "#888", padding: "1rem" }}><LoadingText text="Loading proposals..." /></div>;
 
   return (
     <div>
@@ -11064,7 +11065,7 @@ function AccessRequestsSection({ user }) {
   const s = { border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000", marginBottom: "1.25rem" };
   const cellS = { border: "1px solid #ccc", padding: "0.4rem 0.6rem", fontSize: "0.82rem", textAlign: "left" };
 
-  if (loading) return <div style={{ color: "#888", padding: "1rem" }}>Loading access requests...</div>;
+  if (loading) return <div style={{ color: "#888", padding: "1rem" }}><LoadingText text="Loading access requests..." /></div>;
 
   return (
     <div>
@@ -11178,7 +11179,7 @@ function BadgesSection({ user }) {
 
   const s = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
 
-  if (loading) return <div style={{ color: "#888" }}>Loading...</div>;
+  if (loading) return <div style={{ color: "#888" }}><LoadingText text="Loading..." /></div>;
 
   return (
     <div>
@@ -11294,7 +11295,7 @@ function AgenciesSection({ user }) {
 
   const is = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", boxSizing: "border-box", width: "100%" };
 
-  if (loading) return <div style={{ color: "#888" }}>Loading...</div>;
+  if (loading) return <div style={{ color: "#888" }}><LoadingText text="Loading..." /></div>;
 
   return (
     <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
@@ -11369,7 +11370,7 @@ function AgenciesSection({ user }) {
                   <div><label style={{ fontSize: "0.6rem", fontWeight: 700, display: "block" }}>Domain</label><input value={assignDomain} onChange={e => setAssignDomain(e.target.value)} placeholder="Optional domain" style={{ ...is, width: "140px" }} /></div>
                   <button onClick={handleAssign} disabled={saving} className="btn-sharp" style={{ padding: "0.35rem 0.8rem", fontSize: "0.78rem" }}>{saving ? "..." : "Assign to Agency"}</button>
                 </div>
-                {enrLoading ? <p style={{ color: "#888" }}>Loading...</p> : enrollments.length === 0 ? <p style={{ color: "#888", fontStyle: "italic" }}>No enrollments assigned to this agency.</p> : (
+                {enrLoading ? <p style={{ color: "#888" }}><LoadingText text="Loading..." /></p> : enrollments.length === 0 ? <p style={{ color: "#888", fontStyle: "italic" }}>No enrollments assigned to this agency.</p> : (
                   <div style={{ display: "grid", gap: "0.4rem", maxHeight: "300px", overflowY: "auto" }}>
                     {enrollments.map(e => (
                       <div key={e.id} style={{ display: "flex", gap: "0.5rem", alignItems: "center", border: "1px solid #ddd", padding: "0.4rem 0.6rem", fontSize: "0.78rem" }}>
@@ -11425,7 +11426,7 @@ function AuditLogSection({ user }) {
 
   useEffect(() => { loadData(); }, []);
 
-  if (loading) return <div style={{ color: "#888", padding: "1rem" }}>Loading audit logs...</div>;
+  if (loading) return <div style={{ color: "#888", padding: "1rem" }}><LoadingText text="Loading audit logs..." /></div>;
 
   return (
     <div>

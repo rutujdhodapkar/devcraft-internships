@@ -1,3 +1,4 @@
+import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from "react";
 import { fetchTermsContent } from "../services/data";
 
@@ -60,7 +61,7 @@ export default function TermsAndServices({ onBackToSite }) {
         }}
       >
         {loading ? (
-          <div style={{ textAlign: "center", color: "#888", padding: "3rem 0" }}>Loading…</div>
+          <div style={{ textAlign: "center", color: "#888", padding: "3rem 0" }}><LoadingText text="Loading…" /></div>
         ) : html ? (
           <div
             className="terms-content"
