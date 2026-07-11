@@ -149,11 +149,14 @@ export async function resolveIdentity(creds = {}) {
     }
   }
 
-  // Firebase user
+  // Firebase user (admins are recognized here too, regardless of field)
   const fbToken = user_token || bearer;
   if (fbToken && fbToken !== jwtRaw) {
     const u = await verifyFirebaseToken(fbToken);
-    if (u?.email) return { email: u.email, role: "user", source: "firebase", firebase: u };
+    if (u?.email) {
+      const admin = await isFirebaseAdmin(u.email);
+      return { email: u.email, role: admin ? "admin" : "user", source: "firebase", firebase: u };
+    }
   }
 
   return null;
