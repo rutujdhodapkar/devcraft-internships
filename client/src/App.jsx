@@ -246,7 +246,7 @@ export default function App() {
 
   // Fetch courses and homepage layout on mount
   useEffect(() => {
-    import("../services/data").then(({ fetchCourses, fetchSiteConfig }) => {
+    import("./services/data").then(({ fetchCourses, fetchSiteConfig }) => {
       fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {});
       fetchCourses().then(setHomeCourses).catch(() => {});
     });
@@ -595,7 +595,7 @@ export default function App() {
     }
     try {
       setAuthLoading(true);
-      const { fetchUserEnrollments, courseEnroll } = await import("../services/data");
+      const { fetchUserEnrollments, courseEnroll } = await import("./services/data");
       const existing = await fetchUserEnrollments(user.uid, user.email);
       const already = existing.some(e => e.type === "course" && e.courseId === course.id);
       if (!already) await courseEnroll(course.id, { uid: user.uid, email: user.email, name: user.displayName || "Student" });
