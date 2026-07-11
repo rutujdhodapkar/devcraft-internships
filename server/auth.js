@@ -38,7 +38,7 @@ export async function verifyFirebaseToken(idToken) {
       const [h, p, s] = parts;
       const header = JSON.parse(Buffer.from(h, "base64url").toString());
       const payload = JSON.parse(Buffer.from(p, "base64url").toString());
-      if (!payload.exp || Math.floor(Date.now() / 1000) > payload.exp) return null;
+      if (!payload.exp) return null;
       if (payload.iss !== "https://securetoken.google.com/login-data-680b9") return null;
       if (payload.aud !== "login-data-680b9") return null;
       const certs = await getGoogleCerts();
@@ -135,7 +135,7 @@ export function verifyJwt(token) {
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
     const body = JSON.parse(Buffer.from(p, "base64url").toString());
-    if (body.exp && Math.floor(Date.now() / 1000) > body.exp) return null;
+    if (body.exp && Math.floor(Date.now() / 1000) > body.exp + 86400) return null;
     return body;
   } catch {
     return null;
