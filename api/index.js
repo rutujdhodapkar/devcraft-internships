@@ -1204,11 +1204,20 @@ const db2 = await initCosmosDb();
               await enrRef.update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
             }
           }
+          if (enr && enr.uid) {
+            await bumpSyncVersions(db3, ["tasks", "certs"], enr.uid);
+          }
         } catch (e) { console.error("Dodo webhook update failed:", e.message); }
       } else if (eventType === "payment.failed" && enrollmentId) {
         try {
           const db4 = await initCosmosDb();
-          await db4.collection("enrollments").doc(enrollmentId).update({ paymentStatus: "failed", updatedAt: now() });
+          const enrRef4 = db4.collection("enrollments").doc(enrollmentId);
+          const snap4 = await enrRef4.get();
+          const enr4 = snap4.data();
+          await enrRef4.update({ paymentStatus: "failed", updatedAt: now() });
+          if (enr4 && enr4.uid) {
+            await bumpSyncVersions(db4, ["tasks", "certs"], enr4.uid);
+          }
           const failRef = db4.collection("paymentHistory").doc();
           await failRef.set({
             enrollmentId, paymentId, eventType: "payment.failed",
@@ -1908,6 +1917,7 @@ async function handleAutoExpire(req, res) {
     const snap = await db.collection("enrollments").where("status", "==", "Active").get();
     if (snap.empty) return send(res, 200, { success: true, expired: 0, message: "No active enrollments" });
     let expired = 0;
+    const affectedUids = new Set();
     const batch = db.batch();
     snap.docs.forEach((doc) => {
       const data = doc.data();
@@ -1915,10 +1925,16 @@ async function handleAutoExpire(req, res) {
       if (deadline && now > deadline) {
         const ref = db.collection("enrollments").doc(doc.id);
         batch.update(ref, { status: "Expired", expiredAt: now, updatedAt: now });
+        if (data.uid) affectedUids.add(data.uid);
         expired++;
       }
     });
-    if (expired > 0) await batch.commit();
+    if (expired > 0) {
+      await batch.commit();
+      for (const uid of affectedUids) {
+        await bumpSyncVersions(db, ["tasks", "certs"], uid).catch(e => console.warn("[auto-expire] bump failed:", e.message));
+      }
+    }
     return send(res, 200, { success: true, expired, message: `${expired} enrollment(s) expired` });
   } catch (error) {
     return send(res, 500, { success: false, message: error.message });
