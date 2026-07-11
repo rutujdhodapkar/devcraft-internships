@@ -454,24 +454,25 @@ export default function App() {
     }
   }, [currentView]);
 
-  // Handle browser back/forward navigation
+  // Handle browser back/forward navigation — always derive view from path,
+  // never from stale currentView, to avoid accidental redirects.
   useEffect(() => {
-    const handlePop = () => {
-      const path = window.location.pathname;
-      if (path.startsWith("/certificate/")) setCurrentView("certificate");
-      else if (path.startsWith("/verify/")) setCurrentView("verify");
-      else if (path === "/admin") setCurrentView("admin");
-      else if (path === "/tandp") setCurrentView("tandp");
-      else if (path === "/privacy") setCurrentView("privacy");
-      else if (path === "/refund") setCurrentView("refund");
-      else if (path === "/earn") setCurrentView("earn");
-      else if (path === "/mcp") setCurrentView("mcp");
-      else if (path === "/university") setCurrentView("university");
-      else if (["tandp", "privacy", "refund", "certificate", "earn", "mcp", "university", "verify"].includes(currentView)) setCurrentView("site");
+    const pathToView = (path) => {
+      if (path.startsWith("/certificate/")) return "certificate";
+      if (path.startsWith("/verify/")) return "verify";
+      if (path === "/admin") return "admin";
+      if (path === "/tandp") return "tandp";
+      if (path === "/privacy") return "privacy";
+      if (path === "/refund") return "refund";
+      if (path === "/earn") return "earn";
+      if (path === "/mcp") return "mcp";
+      if (path === "/university") return "university";
+      return "site";
     };
+    const handlePop = () => setCurrentView(pathToView(window.location.pathname));
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
-  }, [currentView]);
+  }, []); // empty deps — no stale closures
 
   // Close country dropdown on outside click
   useEffect(() => {
