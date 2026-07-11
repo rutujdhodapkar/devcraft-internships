@@ -290,6 +290,9 @@ export async function syncBuckets(items, opts = {}) {
   let server;
   try {
     server = await fetchServerVersions(userId);
+    // Record when we last verified, so a reload within minCheckInterval can skip
+    // the point-read (we'll still catch updates via the background loop / on focus).
+    await markVersionChecked(userId).catch(() => {});
   } catch (e) {
     // Version endpoint down: keep serving cache silently, retry in background.
     console.warn("[cacheSync] /sync/versions failed; serving cache, retrying:", e.message);
@@ -357,4 +360,64 @@ export async function forceRefresh(userId = "anon") {
 
 export function isIdbAvailable() {
   return _idbAvailable === true;
+}
+
+// ── Last-checked bookkeeping (used to skip needless point-reads) ───────────────
+async function getMetaNumber(key, userId) {
+  const v = await kvGet(STORE_META, `${userId}:__meta:${key}`);
+  return Number(v || 0) || 0;
+}
+async function putMeta(key, userId, val) {
+  await kvSet(STORE_META, `${userId}:__meta:${key}`, val);
+}
+
+// Called by syncBuckets after a successful version point-read.
+export async function markVersionChecked(userId) {
+  await putMeta("lastCheck", userId, Date.now());
+}
+
+// ── Background sync loop (Vercel-friendly "push") ─────────────────────────────
+// A real WebSocket push needs an external service (Azure SignalR / Ably) which
+// doesn't run on serverless without keys. This is the serverless equivalent: a
+// timer + tab-focus/visibility driven check. Updates are caught the moment the
+// tab regains focus or within pollInterval — no per-mount polling, no missed
+// writes (the version bump still drives exactly which bucket refreshes).
+let _loop = null;
+
+export function startSyncLoop(userId, email, opts = {}) {
+  const {
+    pollInterval = 60000,
+    minCheckInterval = 30000,
+    onSync,
+    onBucket,
+  } = opts;
+  stopSyncLoop(); // never stack loops
+
+  const run = async () => {
+    const now = Date.now();
+    const last = await getMetaNumber("lastCheck", userId);
+    if (now - last < minCheckInterval) return; // recently verified → skip point-read
+    if (typeof onSync === "function") {
+      try { await onSync(); }
+      catch (e) { console.warn("[cacheSync] loop sync failed:", e.message); }
+    }
+  };
+
+  run(); // initial (honours minCheckInterval)
+  const timer = setInterval(run, pollInterval);
+  const onVisible = () => {
+    if (typeof document !== "undefined" && document.visibilityState === "visible") run();
+  };
+  const onFocus = () => run();
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible);
+  if (typeof window !== "undefined") window.addEventListener("focus", onFocus);
+  _loop = { timer, onVisible, onFocus, userId };
+}
+
+export function stopSyncLoop() {
+  if (!_loop) return;
+  clearInterval(_loop.timer);
+  if (typeof document !== "undefined") document.removeEventListener("visibilitychange", _loop.onVisible);
+  if (typeof window !== "undefined") window.removeEventListener("focus", _loop.onFocus);
+  _loop = null;
 }

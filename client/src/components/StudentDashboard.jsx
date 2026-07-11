@@ -25,6 +25,8 @@ import {
   fetchUserBadges,
   loadCachedUserBuckets,
   syncUserCache,
+  startSyncLoop,
+  stopSyncLoop,
 } from "../services/data";
 import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
@@ -181,6 +183,17 @@ export default function StudentDashboard({
       const active = applyEnrollments(result.enrollments || []);
       setLoading(false);
 
+      // Start the background sync loop (timer + focus/visibility). It re-checks
+      // versions and refreshes only changed buckets; it will skip the point-read if
+      // we just verified above, so we don't double-read.
+      startSyncLoop(uid, email, {
+        onSync: () => syncUserCache(uid, email, {
+          onBucket: (bucket, data, { changed }) => {
+            if (changed && bucket === "tasks") applyEnrollments(data);
+          },
+        }),
+      });
+
       // Referral stat + payment methods (outside the 3-bucket cache) stay as before.
       const [refStat, pm] = await Promise.all([
         fetchUserReferralStat(email),
@@ -209,6 +222,7 @@ export default function StudentDashboard({
     if (user) {
       loadAll();
     }
+    return () => stopSyncLoop();
   }, [user, dashboardRefreshKey]);
 
   // Reset the referral tab flag after consumption

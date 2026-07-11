@@ -3,8 +3,8 @@ const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.x
 // Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
 import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
 import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cookies";
-import { syncBuckets, loadCachedUserBuckets } from "./cacheSync";
-export { loadCachedUserBuckets };
+import { syncBuckets, loadCachedUserBuckets, startSyncLoop, stopSyncLoop } from "./cacheSync";
+export { loadCachedUserBuckets, startSyncLoop, stopSyncLoop };
 
 async function _rtdbRead(path) {
   try { const s = await rtdbGet(ref(rtdb, path)); return s.val(); } catch { return null; }
