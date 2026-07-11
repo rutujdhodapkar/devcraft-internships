@@ -79,6 +79,18 @@ export default function StudentDashboard({
   const [learnHereDocs, setLearnHereDocs] = useState(null);
   const [learnHereProjectName, setLearnHereProjectName] = useState("");
 
+  const [mcpToken, setMcpToken] = useState("");
+
+  async function loadMcpToken() {
+    try {
+      const { getFirebaseIdToken } = await import("../firebase");
+      const t = await getFirebaseIdToken();
+      setMcpToken(t || "");
+    } catch { setMcpToken(""); }
+  }
+
+  useEffect(() => { loadMcpToken(); }, []);
+
   // Lock body scroll when payment or profile modals are open
   useEffect(() => {
     if (showPaymentChoice || showPaymentModal) {
@@ -554,9 +566,13 @@ export default function StudentDashboard({
           )}
         </div>
 
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap", marginBottom: "1.25rem" }}>
-          <button className="btn-sharp" onClick={async () => { try { const t = user?.getIdToken ? await user.getIdToken() : null; if (!t) { notify("Sign in first.", "error"); return; } await navigator.clipboard.writeText(t); notify("MCP token copied to clipboard", "success"); } catch (e) { notify("Copy failed: " + e.message, "error"); } }} style={{ padding: "0.6rem 1.1rem", fontSize: "0.85rem", fontWeight: 800 }}>Copy my MCP token</button>
-          <span style={{ fontSize: "0.78rem", color: "#666" }}>Use this token to authenticate MCP/API requests.</span>
+        <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
+          <div style={{ fontSize: "0.7rem", fontWeight: 900, letterSpacing: "2px", textTransform: "uppercase", marginBottom: "0.4rem" }}>MCP &amp; API TOKEN</div>
+          <textarea readOnly value={mcpToken} rows={3} style={{ width: "100%", boxSizing: "border-box", border: "2px solid #000", padding: "0.6rem", fontFamily: "monospace", fontSize: "0.75rem", resize: "vertical" }} placeholder="Sign in and refresh to see your token…" />
+          <div style={{ display: "flex", gap: "0.6rem", marginTop: "0.6rem", flexWrap: "wrap" }}>
+            <button type="button" className="btn-sharp" onClick={async () => { if (!mcpToken) { notify("No token. Click Refresh first.", "warning"); return; } try { await navigator.clipboard.writeText(mcpToken); notify("Token copied!", "success"); } catch (e) { notify("Copy failed: " + e.message, "error"); } }} style={{ padding: "0.6rem 1.1rem", fontSize: "0.85rem", fontWeight: 800, border: "2px solid #000", background: "#000", color: "#fff" }}>Copy token</button>
+            <button type="button" className="btn-sharp" onClick={async () => { await loadMcpToken(); notify("Token refreshed", "success"); }} style={{ padding: "0.6rem 1.1rem", fontSize: "0.85rem", fontWeight: 800, border: "2px solid #000", background: "#fff", color: "#000" }}>Refresh token</button>
+          </div>
         </div>
 
         <div style={{ display: "flex", gap: "1.5rem", alignItems: "flex-start", flexDirection: "column" }}>
