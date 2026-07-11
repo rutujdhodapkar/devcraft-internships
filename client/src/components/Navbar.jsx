@@ -367,6 +367,7 @@ export default function Navbar({
                         {isAgency && <button type="button" className="btn-sharp" onClick={onAgencyClick} style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700, background: "#000", color: "#fff", border: "2px solid #000" }}>Agency</button>}
                         <button type="button" onClick={handleOpenProfileEdit} className="btn-sharp-outline" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Profile</button>
                         <button type="button" onClick={onShowIdCard} className="btn-sharp-outline nav-id-btn" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>ID Card</button>
+                        <button type="button" onClick={async () => { try { const t = user?.getIdToken ? await user.getIdToken() : null; if (!t) { notify("Sign in first.", "error"); return; } await navigator.clipboard.writeText(t); notify("MCP token copied to clipboard", "success"); } catch (e) { notify("Copy failed: " + e.message, "error"); } }} className="btn-sharp-outline nav-mcp-token-btn" style={{ padding: "0.4rem 1rem", fontSize: "0.85rem", fontWeight: 700 }}>Copy MCP token</button>
                         <button type="button" className="nav-link nav-button-link nav-logout-btn" onClick={onLogout} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.9rem" }}>Logout</button>
                       </div>
                     ) : (
