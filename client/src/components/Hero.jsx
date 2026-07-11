@@ -64,7 +64,7 @@ export default function Hero({ onApplyClick, onExploreClick }) {
   const c = content || {};
   const buttons = c.buttons || [];
   const badges = c.badges || [];
-  const features = c.features || [];
+  const features = Array.isArray(c.features) ? c.features : [];
 
   const handleButtonClick = (action) => {
     if (action === 'apply' && onApplyClick) onApplyClick();

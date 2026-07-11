@@ -992,7 +992,7 @@ export default function App() {
                             <span>📊 {c.level || "All Levels"}</span>
                           </div>
                           <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.8 }}>
-                            {(c.features || []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
+                            {(Array.isArray(c.features) ? c.features : []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
                           </ul>
                           <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontSize: "1.25rem", fontWeight: 900 }}>{free ? "Free" : "₹199"}</span>
@@ -1037,7 +1037,7 @@ export default function App() {
                               <span>📊 {c.level || "All Levels"}</span>
                             </div>
                             <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.8 }}>
-                              {(c.features || []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
+                              {(Array.isArray(c.features) ? c.features : []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
                             </ul>
                             <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                               <span style={{ fontSize: "1.25rem", fontWeight: 900 }}>{free ? "Free" : "₹199"}</span>

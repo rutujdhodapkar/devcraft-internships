@@ -850,7 +850,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   }, [data]);
 
   // Helpers
-  const getProjectsForEnrollment = (enrollment) => enrollment.projects || [];
+  const getProjectsForEnrollment = (enrollment) => Array.isArray(enrollment.projects) ? enrollment.projects : [];
   const getSubmissions = (enrollment) => enrollment.submissions || {};
   const getCompletionPct = (enrollment) => {
     const projects = getProjectsForEnrollment(enrollment);
@@ -3154,7 +3154,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           Features
                         </label>
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                          {(path.features || []).map((feat, fi) => (
+                          {(Array.isArray(path.features) ? path.features : []).map((feat, fi) => (
                             <div key={fi} style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
                               <input
                                 className="input-sharp"
@@ -3214,7 +3214,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                             marginBottom: "0.75rem",
                           }}
                         >
-                          {(path.projects || []).map((proj, pIdx) => {
+                          {(Array.isArray(path.projects) ? path.projects : []).map((proj, pIdx) => {
                             const title =
                               typeof proj === "object"
                                 ? proj.title || ""
@@ -3285,7 +3285,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                       const u = JSON.parse(
                                         JSON.stringify(careerPaths),
                                       );
-                                      u[idx].projects = u[idx].projects.filter(
+                                      u[idx].projects = (Array.isArray(u[idx].projects) ? u[idx].projects : []).filter(
                                         (_, i) => i !== pIdx,
                                       );
                                       setCareerPaths(u);
@@ -7295,13 +7295,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                     <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Feature Highlights</span>
-                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, features: [...(p.features || []), { icon: "✓", label: "New Feature" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Feature</button>
+                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, features: [...(Array.isArray(p.features) ? p.features : []), { icon: "✓", label: "New Feature" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Feature</button>
                   </div>
-                  {(homepageContent.features || []).map((feat, idx) => (
+                  {(Array.isArray(homepageContent.features) ? homepageContent.features : []).map((feat, idx) => (
                     <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
-                      <input value={feat.icon} onChange={(e) => { const u = [...homepageContent.features]; u[idx] = { ...u[idx], icon: e.target.value }; setHomepageContent((p) => ({ ...p, features: u })); }} style={{ ...s, width: "60px" }} placeholder="Icon" />
-                      <input value={feat.label} onChange={(e) => { const u = [...homepageContent.features]; u[idx] = { ...u[idx], label: e.target.value }; setHomepageContent((p) => ({ ...p, features: u })); }} style={{ ...s, flex: 1 }} placeholder="Feature text" />
-                      <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, features: p.features.filter((_, i) => i !== idx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
+                      <input value={feat.icon} onChange={(e) => { const arr = Array.isArray(homepageContent.features) ? homepageContent.features : []; const u = [...arr]; u[idx] = { ...u[idx], icon: e.target.value }; setHomepageContent((p) => ({ ...p, features: u })); }} style={{ ...s, width: "60px" }} placeholder="Icon" />
+                      <input value={feat.label} onChange={(e) => { const arr = Array.isArray(homepageContent.features) ? homepageContent.features : []; const u = [...arr]; u[idx] = { ...u[idx], label: e.target.value }; setHomepageContent((p) => ({ ...p, features: u })); }} style={{ ...s, flex: 1 }} placeholder="Feature text" />
+                      <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, features: (Array.isArray(p.features) ? p.features : []).filter((_, i) => i !== idx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
                     </div>
                   ))}
                 </div>
@@ -11793,7 +11793,7 @@ function CourseSection({ user }) {
               {courseCategories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
             </select></div>
             <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Features (comma separated)</label><input style={inputStyle} value={Array.isArray(form.features) ? form.features.join(", ") : form.features || ""} onChange={e => setForm(p => ({ ...p, features: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="4 Modules, 12 Lessons, Certificate" /></div>
-            <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Skills (comma separated)</label><input style={inputStyle} value={form.skills.join(", ")} onChange={e => setForm(p => ({ ...p, skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="HTML, CSS, JavaScript" /></div>
+            <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Skills (comma separated)</label><input style={inputStyle} value={(Array.isArray(form.skills) ? form.skills : []).join(", ")} onChange={e => setForm(p => ({ ...p, skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="HTML, CSS, JavaScript" /></div>
           </div>
           <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
             <button style={btn("#000")} onClick={save} disabled={saving}>{saving ? "Saving..." : "Save Course"}</button>

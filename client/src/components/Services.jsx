@@ -43,7 +43,7 @@ export default function Services({ currency, rates, convertPrice, formatPrice, o
           <p>{tier.description}</p>
           <hr />
           <ul>
-            {(tier.features || []).map((feat) => (
+            {(Array.isArray(tier.features) ? tier.features : []).map((feat) => (
               <li key={feat}>
                 <span className="feature-square">■</span>
                 {feat}
