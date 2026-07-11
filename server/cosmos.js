@@ -3,6 +3,7 @@ import { CosmosClient } from '@azure/cosmos';
 let _client = null;
 let _db = null;
 let _container = null;
+let _syncContainer = null; // dedicated SyncVersions container, partition key /userId
 let _initPromise = null;
 
 function cleanDoc(doc) {
@@ -270,6 +271,38 @@ class FirestoreWrapper {
   }
 }
 
+// ── SyncVersions container (partition key /userId) ──────────────────────────
+// Holds one small doc per user: { id: "versions:<userId>", userId, tasks,
+// badges_combined, certs, computedAt }. Reads are POINT READS by id + partition
+// key (never a cross-partition query), which is what makes the version check O(1)
+// and cheap. The container is created on first init if it doesn't exist.
+export const SYNC_CONTAINER_ID = process.env.COSMOS_DB_SYNC_CONTAINER || 'syncversions';
+const SYNC_PK = '/userId';
+
+export function syncContainer() {
+  return _syncContainer;
+}
+
+// POINT READ by id + partition key /userId. Returns the doc or null. This is the
+// only Cosmos operation the per-load version check performs.
+export async function getSyncVersion(userId) {
+  if (!_syncContainer || !userId) return null;
+  try {
+    const { resource } = await _syncContainer
+      .item(`versions:${userId}`, userId)
+      .read();
+    return resource || null;
+  } catch (e) {
+    if (e.code === 404) return null;
+    throw e;
+  }
+}
+
+export async function putSyncVersion(doc) {
+  if (!_syncContainer) return;
+  await _syncContainer.items.upsert(doc);
+}
+
 // ── Init ──
 export async function initCosmosDb() {
   const connStr = process.env.COSMOS_DB_CONNECTION_STRING;
@@ -287,6 +320,12 @@ export async function initCosmosDb() {
       _client = new CosmosClient(connStr);
       _db = _client.database(process.env.COSMOS_DB_DATABASE || 'devcraft');
       _container = _db.container(process.env.COSMOS_DB_CONTAINER || 'main');
+      // Dedicated SyncVersions container with /userId partition key.
+      const { container: syncC } = await _db.containers.createIfNotExists({
+        id: SYNC_CONTAINER_ID,
+        partitionKey: SYNC_PK,
+      });
+      _syncContainer = syncC;
       console.log('[Cosmos] Connected');
       return _container;
     } catch (e) {

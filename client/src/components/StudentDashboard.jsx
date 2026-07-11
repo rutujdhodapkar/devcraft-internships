@@ -23,6 +23,8 @@ import {
   unhideEnrollmentFromUser,
   fetchBadges,
   fetchUserBadges,
+  loadCachedUserBuckets,
+  syncUserCache,
 } from "../services/data";
 import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
@@ -137,7 +139,6 @@ export default function StudentDashboard({
   }
 
   const loadAll = async () => {
-    setLoading(true);
     setError("");
     try {
       await autoExpireEnrollments();
@@ -147,39 +148,59 @@ export default function StudentDashboard({
       if (!cpResult) cpResult = await fetchCareerPaths();
       setCache('templatesCache', tmpl);
       setCache('careerPathsCache', cpResult);
-      const [data, refStat, pm] = await Promise.all([
-        fetchUserEnrollments(user.uid, user.email),
-        fetchUserReferralStat(user.email),
+      setTemplates(tmpl?.templates || tmpl || null);
+      setCareerPaths(cpResult.paths || []);
+
+      const uid = user.uid;
+      const email = user.email;
+      const hiddenIds = () => getHiddenEnrollments(uid);
+      const applyEnrollments = (list) => {
+        const active = (list || []).filter((e) => !hiddenIds().includes(e.id));
+        setAllData(list || []);
+        setEnrollments(active);
+        // Keep the selected internship when possible; otherwise show the first.
+        setSelectedEnrollment((current) => active.find((item) => item.id === current?.id) || active[0] || null);
+        return active;
+      };
+
+      // STEP 1 (spec): render IMMEDIATELY from IndexedDB cache, no network wait.
+      const cached = await loadCachedUserBuckets(uid);
+      if (cached.tasks && cached.tasks.length) {
+        applyEnrollments(cached.tasks);
+        setLoading(false); // instant paint; network sync happens below
+      }
+
+      // STEP 2-4 (spec): background version-diff sync. Only changed buckets are
+      // fetched from Cosmos and pushed to the UI via onBucket (re-render that section).
+      const result = await syncUserCache(uid, email, {
+        onBucket: (bucket, data, { changed }) => {
+          if (changed && bucket === "tasks") applyEnrollments(data);
+        },
+      });
+
+      const active = applyEnrollments(result.enrollments || []);
+      setLoading(false);
+
+      // Referral stat + payment methods (outside the 3-bucket cache) stay as before.
+      const [refStat, pm] = await Promise.all([
+        fetchUserReferralStat(email),
         fetchPaymentMethods(),
       ]);
       setPaymentMethods(pm);
-      const hiddenIds = getHiddenEnrollments(user.uid);
-      setAllData(data);
-      const activeEnrollments = data.filter((e) => !hiddenIds.includes(e.id));
-      setEnrollments(activeEnrollments);
-      setTemplates(tmpl?.templates || tmpl || null);
-      setCareerPaths(cpResult.paths || []);
       setReferralStat(refStat);
 
       const matchResults = {};
       await Promise.all(
-        activeEnrollments.map(async (enrollment) => {
+        active.map(async (enrollment) => {
           if (enrollment.referralCode) {
-            matchResults[enrollment.id] = await isReferralCodeMatched(
-              enrollment.referralCode,
-            );
+            matchResults[enrollment.id] = await isReferralCodeMatched(enrollment.referralCode);
           }
         }),
       );
       setReferralMatchedMap(matchResults);
-
-      // Keep the selected internship when possible; otherwise show the first
-      // one immediately so tasks are never hidden below a long domain list.
-      setSelectedEnrollment((current) => activeEnrollments.find((item) => item.id === current?.id) || activeEnrollments[0] || null);
     } catch (err) {
       setError("Failed to load your internship data.");
       console.error(err);
-    } finally {
       setLoading(false);
     }
   };

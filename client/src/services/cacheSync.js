@@ -1,33 +1,42 @@
 // client/src/services/cacheSync.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Client-side cache-sync layer backed by IndexedDB, with a localStorage/in-memory
-// fallback for environments where IndexedDB is unavailable (e.g. Safari private
-// mode). Network reads are gated by a per-user, per-bucket version check so only
-// changed buckets are re-fetched; unchanged buckets serve straight from cache.
+// Client-side version-diffed cache-sync layer, backed by IndexedDB (with a
+// localStorage/in-memory fallback for Safari private mode etc.).
 //
-// Version stamps are PER USER (the server keeps one stamp doc per `userId`), so a
-// write by user A advances only A's stamps and never invalidates user B's cache.
-// The version check is a single point read; on failure we serve cache and retry
-// silently on the next load.
+// TARGET FLOW (exactly as specified):
+//   1. On app load we read IndexedDB FIRST and render immediately. If IndexedDB is
+//      empty we show a loading state and go straight to a full fetch.
+//   2. In the background (non-blocking) we call GET /sync/versions?userId= — a
+//      single Cosmos POINT READ on the SyncVersions container returning per-bucket
+//      version tokens { tasks, badges_combined, certs }.
+//   3. We diff those against versions stored in IndexedDB alongside the cached data.
+//   4. Buckets whose version matches → do nothing (keep serving cache).
+//      Buckets whose version differs (or were empty) → fetch ONLY that bucket's
+//      full data from Cosmos, write it + its new version into IndexedDB, and notify
+//      the caller (onBucket) so only that UI section re-renders.
 //
-// Failure handling (no data loss, no blank flash):
-//   • version fetch fails      → serve cache where present, else fetch once; retry next load
-//   • bucket fetch fails        → serve stale cache + console.warn; keep last good version
-//   • force refresh (?refresh=1 or window.__DEVCRAFT_FORCE_SYNC) → re-fetch everything
+// Failure handling (mandatory):
+//   • /sync/versions fails → keep serving cache silently, retry in background with
+//     exponential backoff, NO error shown.
+//   • a specific bucket fetch fails after a mismatch → keep showing the OLD cached
+//     version, log it, retry with backoff. Never leave the section blank.
+//   • forceRefresh() bypasses cache + versions for a full fetch (debugging).
 //
-// Bucket model:
-//   tasks            -> large/volatile (task history / enrollments)  own version
-//   certs            -> large/volatile (certificate records)         own version
-//   badges_combined  -> small/low-churn (badges + userBadges + streaks + flags)
-//                       merged into ONE bucket with a shared version
+// Buckets:
+//   tasks            -> own version key (large, changes often)
+//   certs            -> own version key
+//   badges_combined  -> ONE version key merging badges + streaks + ambassador flags
+//                       + registered task list (small, low-churn)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
 
 const DB_NAME = "devcraft_cache";
 const DB_VERSION = 1;
-const STORE_DATA = "buckets"; // key: `${bucket}:${key}`  value: { data, savedAt }
-const STORE_META = "versions"; // key: bucket name        value: version string
+const STORE_DATA = "buckets"; // key: `${bucket}:${key}:${userId}`  value: { data, savedAt }
+const STORE_META = "versions"; // key: `${userId}:${bucket}`        value: version string
+
+export const SYNC_BUCKETS = ["tasks", "certs", "badges_combined"];
 
 // In-memory fallback maps (used when IndexedDB is unavailable)
 const _mem = new Map();
@@ -146,7 +155,6 @@ async function kvDel(store, key) {
   _mem.delete(lsKey(store, key));
 }
 
-// List keys in a store (used to clear a whole bucket). Returns array of raw keys.
 async function kvKeys(store) {
   if (await usingIdb()) {
     try {
@@ -198,43 +206,36 @@ export async function putLocalVersion(bucket, version, userId = "anon") {
   await kvSet(STORE_META, `${userId}:${bucket}`, version);
 }
 
+// STEP 1: read all cached buckets for a user immediately (no network). Returns
+// { tasks, certs, badges_combined } where each value is the cached data or null.
+export async function loadCachedUserBuckets(userId = "anon") {
+  const out = {};
+  for (const b of SYNC_BUCKETS) out[b] = await getCached(b, userId, userId);
+  return out;
+}
+
 export async function clearBucket(bucket, userId = "anon") {
   const keys = await kvKeys(STORE_DATA);
-  const prefix = `${bucket}:${userId === "*" ? "" : userId + ":"}`;
+  const prefix = `${bucket}:${userId}:`;
   await Promise.all(keys.filter((k) => k.startsWith(prefix)).map((k) => kvDel(STORE_DATA, k)));
-  if (userId === "*") {
-    const mkeys = await kvKeys(STORE_META);
-    await Promise.all(mkeys.filter((k) => k.startsWith(`${bucket}:`)).map((k) => kvDel(STORE_META, k)));
-  } else {
-    await kvDel(STORE_META, `${userId}:${bucket}`);
-  }
+  await kvDel(STORE_META, `${userId}:${bucket}`);
 }
 
-// Manual "force refresh" escape hatch: drop all stored versions so the next sync
-// re-fetches every bucket from the server. Cached data is left in place (and
-// overwritten on re-fetch) to avoid a blank flash if the network is down.
-export async function forceCacheRefresh() {
-  const keys = await kvKeys(STORE_META);
-  await Promise.all(keys.map((k) => kvDel(STORE_META, k)));
-}
-
-// ── Unified sync/pull endpoint ────────────────────────────────────────────────
-// One POST: the client sends its last-known per-bucket versions; the server point-
-// reads the user's stamp doc and returns ONLY the buckets whose stamp changed
-// (computed from its own in-memory read cache). Unchanged buckets are omitted, so
-// they cost zero payload and zero extra server reads.
-export async function pullBuckets(userId, email, localVersions) {
-  const res = await fetch(`${API_BASE}/api/sync/pull`, {
-    method: "POST",
+// ── Server version endpoint ───────────────────────────────────────────────────
+// STEP 2: a single GET that hits /sync/versions?userId= which performs ONE Cosmos
+// point read (by id + partition key /userId) on the SyncVersions container.
+export async function fetchServerVersions(userId) {
+  const url = `${API_BASE}/api/sync/versions${userId ? `?userId=${encodeURIComponent(userId)}` : ""}`;
+  const res = await fetch(url, {
+    method: "GET",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ userId, email, versions: localVersions }),
     cache: "no-store",
   });
   const json = await res.json().catch(() => null);
   if (!res.ok || !json || json.success === false) {
-    throw new Error(json?.message || `sync/pull failed (${res.status})`);
+    throw new Error(json?.message || `versions fetch failed (${res.status})`);
   }
-  return { versions: json.versions || {}, buckets: json.buckets || {} };
+  return json.data || {};
 }
 
 // Force-refresh escape hatch: ?refresh=1 on the URL or window.__DEVCRAFT_FORCE_SYNC.
@@ -251,73 +252,107 @@ export function isForceRefreshRequested() {
   return false;
 }
 
+// ── Exponential backoff retry manager ─────────────────────────────────────────
+const RETRY_DELAYS = [1000, 2000, 4000, 8000, 15000];
+const MAX_ATTEMPTS = 6;
+const _retries = new Map(); // key -> { attempt, timer }
+
+function scheduleRetry(key, attempt, fn) {
+  if (_retries.has(key)) return; // one in-flight retry per key
+  if (attempt >= MAX_ATTEMPTS) { _retries.delete(key); return; }
+  const delay = RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
+  const timer = setTimeout(() => {
+    _retries.delete(key);
+    Promise.resolve(fn(attempt + 1)).catch(() => {});
+  }, delay);
+  _retries.set(key, { attempt, timer });
+}
+
 // ── Core sync orchestrator ────────────────────────────────────────────────────
 // items: [{ bucket, key, fetcher, force? }]
-// opts.userId: scopes all versions/cache to this user
-// opts.email:  used server-side for the enrollment email-fallback merge
-// opts.force:  force re-fetch of every bucket
-// Returns: { [bucket]: data }
-//
-// Happy path: ONE request to /sync/pull. The server returns only changed buckets;
-// they are written to IndexedDB and the new stamps cached. Unchanged buckets are
-// served straight from IndexedDB (no network at all). If /sync/pull is unreachable,
-// we fall back to each item's own fetcher (original behaviour) so the app still
-// loads from cache or a direct fetch.
+// opts.userId      : scopes all versions/cache to this user
+// opts.email       : forwarded to fetchers (enrollment email-fallback merge)
+// opts.force       : force re-fetch of every bucket
+// opts.onBucket    : (bucket, data, { changed }) => void  — called as each bucket
+//                    resolves so the UI can re-render ONLY that section.
+// Returns: { [bucket]: data } (cache-first; never throws)
 export async function syncBuckets(items, opts = {}) {
   const userId = opts.userId || "anon";
   const forceAll = !!opts.force || isForceRefreshRequested();
+  const onBucket = typeof opts.onBucket === "function" ? opts.onBucket : null;
+  const attempt = opts._attempt || 0;
 
-  // Build the per-bucket local version map we send to the server.
+  // Build the local version map we will diff against.
   const localVersions = {};
-  for (const item of items) {
-    localVersions[item.bucket] = forceAll ? "0" : (await getLocalVersion(item.bucket, userId) || "0");
-  }
+  for (const item of items) localVersions[item.bucket] = await getLocalVersion(item.bucket, userId);
 
-  let pulled = null;
+  // STEP 2: background version point-read.
+  let server;
   try {
-    pulled = await pullBuckets(userId, opts.email, localVersions);
+    server = await fetchServerVersions(userId);
   } catch (e) {
-    // Server unreachable: fall back to per-bucket fetchers (cache-first).
-    console.warn("[cacheSync] /sync/pull failed, using fetcher fallback:", e.message);
+    // Version endpoint down: keep serving cache silently, retry in background.
+    console.warn("[cacheSync] /sync/versions failed; serving cache, retrying:", e.message);
+    scheduleRetry(`versions:${userId}`, attempt, (a) =>
+      syncBuckets(items, { ...opts, _attempt: a })
+    );
+    const cached = {};
+    for (const item of items) cached[item.bucket] = await getCached(item.bucket, item.key, userId);
+    return cached;
   }
 
   const results = {};
-  if (pulled) {
-    for (const item of items) {
-      const { bucket, key } = item;
-      const payload = pulled.buckets[bucket];
-      if (payload !== undefined) {
-        // Changed (or forced): store server payload + new stamp.
-        await putCached(bucket, key, payload, userId);
-        await putLocalVersion(bucket, pulled.versions[bucket] ?? "0", userId);
-        results[bucket] = payload;
-      } else {
-        // Unchanged: serve from IndexedDB, no network.
-        const cached = await getCached(bucket, key, userId);
-        results[bucket] = cached != null ? cached : null;
-      }
-    }
-    return results;
-  }
-
-  // ── Fallback: no server. Use each item's fetcher, cache-first. ───────────────
   for (const item of items) {
     const { bucket, key, fetcher } = item;
-    const localVer = await getLocalVersion(bucket, userId);
+    const localVer = localVersions[bucket] || null;
+    const serverVer = server[bucket] != null ? String(server[bucket]) : null;
     const cached = await getCached(bucket, key, userId);
-    const changed = forceAll || item.force || localVer === null || cached == null;
-    if (!changed) { results[bucket] = cached; continue; }
+    const isEmpty = cached == null;
+
+    // STEP 4a: version matches AND we have cached data → do nothing, keep cache.
+    if (!forceAll && !isEmpty && localVer != null && localVer === serverVer) {
+      console.log(`[cacheSync] bucket "${bucket}": version match → serve cache, NO fetch`);
+      results[bucket] = cached;
+      if (onBucket) onBucket(bucket, cached, { changed: false });
+      continue;
+    }
+
+    // STEP 4b: version differs (or empty) → fetch ONLY this bucket.
     try {
       const data = await fetcher();
       await putCached(bucket, key, data, userId);
-      await putLocalVersion(bucket, `local:${Date.now()}`, userId);
+      await putLocalVersion(bucket, serverVer, userId);
+      console.log(`[cacheSync] bucket "${bucket}": version changed → fetched from Cosmos`);
       results[bucket] = data;
+      if (onBucket) onBucket(bucket, data, { changed: true });
     } catch (err) {
-      console.warn(`[cacheSync] fetch failed for bucket "${bucket}", serving stale:`, err.message);
-      results[bucket] = cached; // serve stale if present
+      // Fetch failed: keep OLD cached version, log, retry with backoff. Never blank.
+      console.warn(`[cacheSync] fetch failed for "${bucket}" (keeping old cache, retrying):`, err.message);
+      scheduleRetry(`bucket:${userId}:${bucket}`, 0, async () => {
+        try {
+          const data = await fetcher();
+          await putCached(bucket, key, data, userId);
+          await putLocalVersion(bucket, serverVer, userId);
+          if (onBucket) onBucket(bucket, data, { changed: true });
+        } catch (e2) {
+          console.warn(`[cacheSync] retry failed for "${bucket}":`, e2.message);
+          throw e2; // re-thrown so scheduleRetry reschedules
+        }
+      });
+      results[bucket] = cached; // stale-but-present
+      if (onBucket && cached != null) onBucket(bucket, cached, { changed: false });
     }
   }
   return results;
+}
+
+// ── Manual force refresh (debugging) ──────────────────────────────────────────
+// Bypasses all cache + version checks: wipes stored versions so the next sync
+// re-fetches every bucket from Cosmos.
+export async function forceRefresh(userId = "anon") {
+  const keys = await kvKeys(STORE_META);
+  await Promise.all(keys.filter((k) => k.startsWith(`${userId}:`)).map((k) => kvDel(STORE_META, k)));
+  window && window.__DEVCRAFT_FORCE_SYNC && (window.__DEVCRAFT_FORCE_SYNC = false);
 }
 
 export function isIdbAvailable() {

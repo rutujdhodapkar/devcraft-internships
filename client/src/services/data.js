@@ -3,7 +3,8 @@ const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.x
 // Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
 import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
 import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cookies";
-import { syncBuckets, forceCacheRefresh } from "./cacheSync";
+import { syncBuckets, loadCachedUserBuckets } from "./cacheSync";
+export { loadCachedUserBuckets };
 
 async function _rtdbRead(path) {
   try { const s = await rtdbGet(ref(rtdb, path)); return s.val(); } catch { return null; }
@@ -112,7 +113,7 @@ const FALLBACK_FAQS = [
   { id: "faq_5", question: "How long does the internship last?", answer: "Each domain is designed for 4 weeks, but you can work at your own pace." },
 ];
 
-async function dbProxy(action, path, data, query) {
+async function dbProxy(action, path, data, query, opts) {
   const key = _cacheKey(action, path, query);
   const ck = `db_${key}`;
   const siteConfigRead = path.startsWith("siteConfig/");
@@ -127,6 +128,8 @@ async function dbProxy(action, path, data, query) {
     }
   }
   const body = { action, path, data, query };
+  // Forward read consistency (Eventual) for non-critical reads. Writes are untouched.
+  if (opts && opts.consistencyLevel) body.consistencyLevel = opts.consistencyLevel;
   if (action !== "get" && action !== "list" && action !== "query") {
     const token = await getFirebaseIdToken().catch(() => null);
     if (token) body.idToken = token;
@@ -148,8 +151,8 @@ async function dbProxy(action, path, data, query) {
   try { return await request; } finally { _inflightReads.delete(key); }
 }
 
-async function dbGet(path) {
-  try { return await dbProxy("get", path); } catch (e) { console.warn("dbGet", path, e.message); return null; }
+async function dbGet(path, opts) {
+  try { return await dbProxy("get", path, null, null, opts); } catch (e) { console.warn("dbGet", path, e.message); return null; }
 }
 
 async function dbPut(path, data) {
@@ -172,12 +175,12 @@ async function dbDelete(path) {
   try { await dbProxy("delete", path); } catch (e) { console.warn("dbDelete", path, e.message); }
 }
 
-async function dbList(path) {
-  try { return await dbProxy("list", path); } catch (e) { console.warn("dbList", path, e.message); return []; }
+async function dbList(path, opts) {
+  try { return await dbProxy("list", path, null, null, opts); } catch (e) { console.warn("dbList", path, e.message); return []; }
 }
 
-async function dbQueryList(path, field, value) {
-  try { return await dbProxy("query", path, null, { orderBy: field, equalTo: value }); } catch (e) { console.warn("dbQueryList", path, e.message); return []; }
+async function dbQueryList(path, field, value, opts) {
+  try { return await dbProxy("query", path, null, { orderBy: field, equalTo: value }, opts); } catch (e) { console.warn("dbQueryList", path, e.message); return []; }
 }
 
 function userIdentity(user) {
@@ -421,12 +424,12 @@ export async function enrollStudent(uid, profile, domainObj) {
 
 export async function fetchEnrollments() { return dbList("enrollments"); }
 
-export async function fetchUserEnrollments(uid, email) {
-  const list = await dbQueryList("enrollments", "uid", uid);
+export async function fetchUserEnrollments(uid, email, opts) {
+  const list = await dbQueryList("enrollments", "uid", uid, opts);
   // Also fetch by email to catch manually-added interns where uid was not set
   if (email) {
     try {
-      const emailList = await dbQueryList("enrollments", "email", email);
+      const emailList = await dbQueryList("enrollments", "email", email, opts);
       const existingIds = new Set(list.map((e) => e.id));
       const patches = [];
       for (const e of emailList) {
@@ -1681,10 +1684,10 @@ export async function triggerManualEmailType(type, email = "", dryRun = false) {
 }
 
 // ─── Skill Badges & Micro-Certifications ───
-export async function fetchBadges() {
+export async function fetchBadges(opts) {
   const cached = _lsGet("badges");
   if (cached) return cached;
-  const d = await dbList("badges");
+  const d = await dbList("badges", opts);
   const result = d || [];
   _lsSet("badges", result);
   return result;
@@ -1704,8 +1707,8 @@ export async function awardBadge(userId, badgeId, awardedBy) {
   return dbPost("userBadges", entry);
 }
 
-export async function fetchUserBadges(userId) {
-  const all = await dbList("userBadges");
+export async function fetchUserBadges(userId, opts) {
+  const all = await dbList("userBadges", opts);
   return all.filter(b => b.userId === userId);
 }
 
@@ -1714,10 +1717,15 @@ export async function revokeBadge(entryId) {
 }
 
 // ─── IndexedDB cache-sync wrappers ────────────────────────────────────────────
-// These mirror the plain fetch functions but serve unchanged data straight from
-// IndexedDB (via ./cacheSync) when the server-side bucket version is unchanged.
+// Serve unchanged data straight from IndexedDB (via ./cacheSync) when the server
+// bucket version is unchanged. The orchestrator (syncBuckets) decides per-bucket
+// whether to fetch from Cosmos. Consistency: certs + badges_combined reads use
+// Eventual (non-critical); tasks reads keep the default Session consistency and we
+// never touch consistency on the task-completion write path.
 
-// Large/volatile bucket: user task history (enrollments).
+const EVENTUAL = { consistencyLevel: "Eventual" };
+
+// Large/volatile bucket: user task history (enrollments). Own version key.
 export async function fetchUserEnrollmentsCached(uid, email, { force = false } = {}) {
   const res = await syncBuckets([
     { bucket: "tasks", key: uid, fetcher: () => fetchUserEnrollments(uid, email), force },
@@ -1726,13 +1734,14 @@ export async function fetchUserEnrollmentsCached(uid, email, { force = false } =
 }
 
 // Large/volatile bucket: certificate records (enrollments where allowedCertificate === "yes").
+// Own version key. Eventual consistency (reads tolerate staleness).
 export async function fetchUserCertificatesCached(uid, email, { force = false } = {}) {
   const res = await syncBuckets([
     {
       bucket: "certs",
       key: uid,
       fetcher: async () => {
-        const enrollments = await fetchUserEnrollments(uid, email);
+        const enrollments = await fetchUserEnrollments(uid, email, EVENTUAL);
         return enrollments
           .filter((e) => e.allowedCertificate === "yes")
           .map((e) => ({
@@ -1751,58 +1760,72 @@ export async function fetchUserCertificatesCached(uid, email, { force = false } 
   return res.certs || [];
 }
 
-// Small/low-churn bucket: badges + userBadges (merged, shared version).
+// Small/low-churn bucket: badges + streaks + ambassador flags + registered task
+// list merged into ONE bucket with ONE shared version key.
 export async function fetchUserBadgesCached(uid, { force = false } = {}) {
   const res = await syncBuckets([
-    {
-      bucket: "badges_combined",
-      key: uid,
-      fetcher: async () => {
-        const [badges, userBadges] = await Promise.all([fetchBadges(), fetchUserBadges(uid)]);
-        return { badges: badges || [], userBadges: userBadges || [] };
-      },
-      force,
-    },
+    { bucket: "badges_combined", key: uid, fetcher: () => fetchBadgesCombined(uid), force },
   ], { force, userId: uid });
   const combined = res.badges_combined || {};
-  return { badges: combined.badges || [], userBadges: combined.userBadges || [] };
+  return {
+    badges: combined.badges || [],
+    userBadges: combined.userBadges || [],
+    streaks: combined.streaks || [],
+    flags: combined.flags || [],
+    registeredTaskIds: combined.registeredTaskIds || [],
+  };
 }
 
-// Combined boot orchestrator: sync all three buckets in one round-trip to the
-// versions endpoint. Returns the data the dashboard needs.
-export async function syncUserCache(uid, email, { force = false } = {}) {
+// Merges all badge-related data into one object. Eventual consistency for all reads.
+async function fetchBadgesCombined(uid) {
+  const [badges, userBadges, streaks, flags, enrollments] = await Promise.all([
+    fetchBadges(EVENTUAL),
+    fetchUserBadges(uid, EVENTUAL),
+    dbList("userStreaks", EVENTUAL),
+    dbList("userFlags", EVENTUAL),
+    fetchUserEnrollments(uid, null),
+  ]);
+  const registeredTaskIds = (enrollments || []).map((e) => e.domainId || e.id).filter(Boolean);
+  return {
+    badges: badges || [],
+    userBadges: userBadges || [],
+    streaks: streaks || [],
+    flags: flags || [],
+    registeredTaskIds,
+  };
+}
+
+// Combined boot orchestrator used by App.jsx. Renders from cache first (via
+// loadCachedUserBuckets), then runs this in the background; onBucket lets the UI
+// re-render only the section that actually changed.
+export async function syncUserCache(uid, email, { force = false, onBucket } = {}) {
   const res = await syncBuckets([
     { bucket: "tasks", key: uid, fetcher: () => fetchUserEnrollments(uid, email), force },
     {
       bucket: "certs",
       key: uid,
       fetcher: async () =>
-        (await fetchUserEnrollments(uid, email))
+        (await fetchUserEnrollments(uid, email, EVENTUAL))
           .filter((e) => e.allowedCertificate === "yes")
           .map((e) => ({ id: e.id, domain: e.domain, domainId: e.domainId, status: e.status, completedAt: e.completedAt || e.updatedAt, name: e.name, email: e.email })),
       force,
     },
-    {
-      bucket: "badges_combined",
-      key: uid,
-      fetcher: async () => {
-        const [badges, userBadges] = await Promise.all([fetchBadges(), fetchUserBadges(uid)]);
-        return { badges: badges || [], userBadges: userBadges || [] };
-      },
-      force,
-    },
-  ], { force, userId: uid, email });
+    { bucket: "badges_combined", key: uid, fetcher: () => fetchBadgesCombined(uid), force },
+  ], { force, userId: uid, email, onBucket });
   return {
     enrollments: res.tasks || [],
     certificates: res.certs || [],
     badges: (res.badges_combined || {}).badges || [],
     userBadges: (res.badges_combined || {}).userBadges || [],
+    streaks: (res.badges_combined || {}).streaks || [],
+    flags: (res.badges_combined || {}).flags || [],
+    registeredTaskIds: (res.badges_combined || {}).registeredTaskIds || [],
   };
 }
 
-// Manual escape hatch — wipe stored versions so the next sync re-fetches all.
-export async function forceRefreshUserCache() {
-  await forceCacheRefresh();
+// Manual escape hatch — bypass all cache + version checks for a full fetch.
+export async function forceRefreshUserCache(uid = "anon") {
+  await forceRefresh(uid);
 }
 
 export async function evaluateBadgeCriteriaAI(criteria, userData) {

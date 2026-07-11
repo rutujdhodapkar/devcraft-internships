@@ -1,6 +1,5 @@
-import { initCosmosDb } from "../server/cosmos.js";
+import { initCosmosDb, getSyncVersion, putSyncVersion } from "../server/cosmos.js";
 import { generateText, generateImage, buildPromoPrompt } from "../server/aiContent.js";
-import { readThrough, cacheDelete, cacheDeleteByPrefix, TTL } from "../server/readCache.js";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -1387,6 +1386,11 @@ async function handleFirebaseProxy(req, res) {
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return send(res, 400, { success: false, message: "action and path required" });
 
+    // Optional read consistency: clients pass consistencyLevel:"Eventual" for
+    // non-critical reads (badges/certs). Writes keep the default (Session+); we
+    // deliberately do NOT alter consistency on task-state change paths.
+    const readOpts = req.body?.consistencyLevel ? { consistencyLevel: req.body.consistencyLevel } : undefined;
+
     const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog"];
     const root = path.split("/")[0];
     const isWrite = ["set", "update", "push", "delete"].includes(action);
@@ -1424,7 +1428,7 @@ async function handleFirebaseProxy(req, res) {
     if (action === "list" || action === "query" || action === "push") {
       const colRef = db.collection(collection);
       if (action === "list") {
-        const snap = await colRef.get();
+        const snap = await colRef.get(readOpts);
         if (snap.empty) { result = []; } else { result = snap.docs.map(d => ({ id: d.id, ...d.data() })); }
       } else if (action === "push") {
         const docRef = await colRef.add(data);
@@ -1434,7 +1438,7 @@ async function handleFirebaseProxy(req, res) {
         if (query?.orderBy && query?.equalTo !== undefined) q = q.where(query.orderBy, "==", query.equalTo);
         if (query?.limitToLast) q = q.limit(query.limitToLast);
         if (query?.limitToFirst) q = q.limit(query.limitToFirst);
-        const snap = await q.get();
+        const snap = await q.get(readOpts);
         if (snap.empty) { result = query?.single ? null : []; } else if (query?.single) { result = { id: snap.docs[0].id, ...snap.docs[0].data() }; } else { result = snap.docs.map(d => ({ id: d.id, ...d.data() })); }
       }
     } else {
@@ -1450,7 +1454,7 @@ async function handleFirebaseProxy(req, res) {
 
       switch (action) {
         case "get": {
-          const snap = await docRef.get();
+          const snap = await docRef.get(readOpts);
           if (!snap.exists) { result = null; break; }
           const docData = snap.data();
           if (fieldPath) {
@@ -1501,10 +1505,6 @@ async function handleFirebaseProxy(req, res) {
           (decoded && decoded.uid) ||
           null;
         await bumpSyncVersions(db, syncBuckets, affectedUid);
-        // Drop the server-side read cache for the affected user so their next pull
-        // is fresh (don't wait out the 30 s TTL after their own write).
-        invalidateSyncCaches(syncBuckets, affectedUid, data && data.email);
-        if (collection === "badges") cacheDelete("badges:all");
       }
     }
     return send(res, 200, { success: true, data: result });
@@ -1873,7 +1873,6 @@ export default async function handler(req, res) {
     if (parts[0] === "payment-history" && parts[1]) return handlePaymentHistory(req, res, parts[1]);
     if (parts[0] === "auto-expire-enrollments") return handleAutoExpire(req, res);
     if (parts[0] === "sync" && parts[1] === "versions") return handleSyncVersions(req, res);
-    if (parts[0] === "sync" && parts[1] === "pull") return handleSyncPull(req, res);
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {
@@ -1932,14 +1931,11 @@ async function handleAutoExpire(req, res) {
 // never needlessly invalidated. This is the key correctness property the previous
 // global `siteConfig/syncVersions` doc lacked.
 //
-// Storage model (within the app's single-container Cosmos shim):
-//   Each user's stamps live in a doc id `versions:<userId>` under the logical
-//   collection "siteConfig". The shim's partition key is the collection name
-//   ("siteConfig"), so every read is a genuine Cosmos POINT READ —
-//   container.item("versions:<userId>", "siteConfig").read() — by id + partition key,
-//   never a cross-partition SQL query. (NOTE: a dedicated "SyncVersions" container
-//   with a true /userId partition key would be the ideal Cosmos-native layout; the
-//   shim's single-container constraint is documented here rather than worked around.)
+// Storage model: each user's stamps live in a dedicated "SyncVersions" Cosmos
+// container (partition key /userId) as a single doc id `versions:<userId>`. Every
+// read is a genuine Cosmos POINT READ — container.item("versions:<userId>", userId)
+// .read() — by id + partition key, never a cross-partition query. Per-user scoping
+// means a write by user A advances only A's stamp, so B's cache is never invalidated.
 //
 // Consistency: version reads use Eventual consistency (forwarded via the shim). Non-
 // critical badge/template data tolerates Eventual staleness; writes go through
@@ -1951,8 +1947,6 @@ async function handleAutoExpire(req, res) {
 //   certs            -> enrollments where allowedCertificate === "yes" (per user)
 //   badges_combined  -> userBadges + userStreaks + userFlags (+ global badge defs)
 const SYNC_BUCKETS = ["tasks", "certs", "badges_combined"];
-const SYNC_VERSION_DOC = (userId) => `versions:${userId}`;
-const SYNC_VERSION_PK = "siteConfig"; // shim partition key (collection name)
 
 // Maps a written collection to the sync buckets whose stamp must advance.
 const BUCKET_FOR_COLLECTION = {
@@ -1963,27 +1957,20 @@ const BUCKET_FOR_COLLECTION = {
   userFlags: ["badges_combined"],
 };
 
-// Advance the given user's stamps. Called after a successful proxy write. `userId`
-// scopes the invalidation so only that user re-fetches on next load.
+// Advance the given user's stamps, scoped to that user (so only they re-fetch).
+// Written to the dedicated SyncVersions container via a POINT WRITE (upsert by id).
 async function bumpSyncVersions(db, buckets, userId) {
   try {
-    if (!db || !buckets || !buckets.length || !userId) return;
-    const cur = (await getDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), null)) || {};
+    if (!buckets || !buckets.length || !userId) return;
+    const cur = (await getSyncVersion(userId)) || {};
     const ts = Date.now();
-    const next = { ...cur, userId };
+    const next = { id: `versions:${userId}`, userId, ...cur };
     for (const b of buckets) next[b] = ts;
     next.computedAt = ts;
-    await setDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), next);
+    await putSyncVersion(next);
   } catch (e) {
     console.warn("[sync] bump failed:", e.message);
   }
-}
-
-// Build a fresh zeroed stamp set (forces a full client fetch on first contact).
-function zeroVersions() {
-  const v = { computedAt: 0 };
-  for (const b of SYNC_BUCKETS) v[b] = 0;
-  return v;
 }
 
 async function handleSyncVersions(req, res) {
@@ -1994,182 +1981,35 @@ async function handleSyncVersions(req, res) {
     const userId = (req.query && req.query.userId) || null;
     const now = Date.now();
 
-    // No userId → we cannot scope a stamp; tell the client to fetch everything.
+    // No userId → cannot scope; tell the client to fetch everything.
     if (!userId) {
-      const zero = zeroVersions();
       return send(res, 200, {
         success: true,
         userId: null,
-        data: Object.fromEntries(SYNC_BUCKETS.map((b) => [b, String(zero[b] ?? 0)])),
+        data: Object.fromEntries(SYNC_BUCKETS.map((b) => [b, "0"])),
         serverTime: now,
-        cached: false,
       });
     }
 
-    // POINT READ by id + partition key, Eventual consistency (non-critical).
-    const doc = await getDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), null, {
-      consistencyLevel: "Eventual",
-    });
+    // POINT READ: container.item("versions:<userId>", userId).read() — by id +
+    // partition key /userId on the SyncVersions container. This is a single-document
+    // read (O(1) RU), NOT a query. Eventual consistency is fine for a version stamp.
+    const doc = await getSyncVersion(userId);
 
-    if (doc && doc.computedAt) {
-      return send(res, 200, {
-        success: true,
-        userId,
-        data: Object.fromEntries(SYNC_BUCKETS.map((b) => [b, String(doc[b] ?? 0)])),
-        serverTime: now,
-        cached: true,
-      });
+    const versions = doc && doc.computedAt
+      ? Object.fromEntries(SYNC_BUCKETS.map((b) => [b, String(doc[b] ?? 0)]))
+      : Object.fromEntries(SYNC_BUCKETS.map((b) => [b, String(now)])); // first contact → force full fetch
+
+    // First contact: persist a fresh stamp doc so subsequent loads can diff.
+    if (!doc || !doc.computedAt) {
+      await putSyncVersion({ id: `versions:${userId}`, userId, ...versions, computedAt: now }).catch(() => {});
     }
 
-    // First contact for this user: create the stamp doc (stamps = now forces one
-    // full fetch), then return. Subsequent writes advance specific buckets only.
-    const fresh = { ...zeroVersions(), userId, computedAt: now };
-    for (const b of SYNC_BUCKETS) fresh[b] = now;
-    await setDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), fresh).catch(() => {});
-    return send(res, 200, {
-      success: true,
-      userId,
-      data: Object.fromEntries(SYNC_BUCKETS.map((b) => [b, String(now)])),
-      serverTime: now,
-      cached: false,
-    });
+    return send(res, 200, { success: true, userId, data: versions, serverTime: now });
   } catch (error) {
     return send(res, 500, { success: false, message: error.message });
   }
 }
 
-// ── Server-side cached data fetchers (read-through to Cosmos) ──────────────────
-// These absorb the expensive repeated reads so a warm instance hits Cosmos rarely.
-// Badges are global + rare (5 min). Per-user data is cached 30 s; writes invalidate
-// the affected keys (see invalidateSyncCaches) so a user always sees their own write.
 
-async function getBadgesCached(db) {
-  return readThrough("badges:all", TTL.BADGES, () => listCollection(db, "badges"));
-}
-
-async function getEnrollmentsForUserCached(db, uid, email) {
-  const key = `enr:${uid}`;
-  return readThrough(key, TTL.USER_DATA, async () => {
-    const list = await db.collection("enrollments").where("uid", "==", uid).get();
-    const arr = list.docs.map((d) => ({ id: d.id, ...d.data() }));
-    if (email) {
-      const emailList = await db.collection("enrollments").where("email", "==", email).get();
-      const existing = new Set(arr.map((e) => e.id));
-      for (const d of emailList.docs) {
-        const e = { id: d.id, ...d.data() };
-        if (!existing.has(e.id)) { arr.push(e); existing.add(e.id); }
-      }
-    }
-    return arr.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  });
-}
-
-async function getUserBadgesCached(db, userId) {
-  return readThrough(`ub:${userId}`, TTL.USER_DATA, async () => {
-    const snap = await db.collection("userBadges").where("userId", "==", userId).get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  });
-}
-
-async function getUserStreaksCached(db, userId) {
-  return readThrough(`streak:${userId}`, TTL.USER_DATA, async () => {
-    const snap = await db.collection("userStreaks").where("userId", "==", userId).get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  });
-}
-
-async function getUserFlagsCached(db, userId) {
-  return readThrough(`flag:${userId}`, TTL.USER_DATA, async () => {
-    const snap = await db.collection("userFlags").where("userId", "==", userId).get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  });
-}
-
-// Drop just the cache entries that a write invalidates, so the next read is fresh.
-function invalidateSyncCaches(buckets, userId) {
-  if (!buckets || !buckets.length) return;
-  if (buckets.includes("tasks") || buckets.includes("certs")) {
-    if (userId) cacheDelete(`enr:${userId}`);
-  }
-  if (buckets.includes("badges_combined") && userId) {
-    cacheDelete(`ub:${userId}`);
-    cacheDelete(`streak:${userId}`);
-    cacheDelete(`flag:${userId}`);
-  }
-}
-
-// ── /sync/pull: one round trip, version point-read, returns ONLY changed buckets ─
-// The client sends its last-known per-bucket versions. We point-read the user's
-// stamp doc (Eventual), and for each bucket whose stamp differs we compute the
-// payload from the server cache and include it. Unchanged buckets are omitted
-// entirely — zero payload, zero extra reads. The client merges + caches the result.
-async function handleSyncPull(req, res) {
-  try {
-    const db = await initCosmosDb();
-    if (!db) return send(res, 503, { success: false, message: "Database not configured" });
-
-    let body = {};
-    try { body = req.method === "POST" ? (req.body || {}) : (req.query || {}); } catch {}
-
-    const userId = body.userId || (req.query && req.query.userId) || null;
-    const email = body.email || (req.query && req.query.email) || null;
-    const clientVersions = (body.versions && typeof body.versions === "object") ? body.versions : {};
-
-    if (!userId) {
-      return send(res, 400, { success: false, message: "userId is required for sync/pull" });
-    }
-
-    // POINT READ by id + partition key, Eventual consistency.
-    const doc = await getDoc(db, SYNC_VERSION_PK, SYNC_VERSION_DOC(userId), null, {
-      consistencyLevel: "Eventual",
-    });
-    const server = {};
-    for (const b of SYNC_BUCKETS) server[b] = String((doc && doc[b]) ?? 0);
-
-    // Decide which buckets actually changed since the client's last pull.
-    const changed = SYNC_BUCKETS.filter((b) => String(clientVersions[b] ?? 0) !== server[b]);
-
-    const buckets = {};
-    // Only compute + return what changed — unchanged buckets cost nothing here.
-    for (const b of changed) {
-      if (b === "tasks" || b === "certs") {
-        const enrollments = await getEnrollmentsForUserCached(db, userId, email);
-        if (b === "tasks") {
-          buckets.tasks = enrollments;
-        } else {
-          buckets.certs = enrollments
-            .filter((e) => e.allowedCertificate === "yes")
-            .map((e) => ({
-              id: e.id, domain: e.domain, domainId: e.domainId, status: e.status,
-              completedAt: e.completedAt || e.updatedAt, name: e.name, email: e.email,
-            }));
-        }
-      } else if (b === "badges_combined") {
-        const [badges, userBadges, streaks, flags] = await Promise.all([
-          getBadgesCached(db),
-          getUserBadgesCached(db, userId),
-          getUserStreaksCached(db, userId),
-          getUserFlagsCached(db, userId),
-        ]);
-        buckets.badges_combined = {
-          badges: badges || [],
-          userBadges: userBadges || [],
-          streaks: streaks || [],
-          flags: flags || [],
-        };
-      }
-    }
-
-    return send(res, 200, {
-      success: true,
-      userId,
-      versions: server,
-      buckets,
-      changed,
-      serverTime: Date.now(),
-    });
-  } catch (error) {
-    return send(res, 500, { success: false, message: error.message });
-  }
-}
 
