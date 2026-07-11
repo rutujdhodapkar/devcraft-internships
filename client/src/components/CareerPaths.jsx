@@ -15,7 +15,7 @@ function PathCard({ path, onApply }) {
         <h3 style={{ fontSize: '1.4rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1rem' }}>{path.title}</h3>
         <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '1.5rem' }}>{path.description}</p>
         <hr style={{ border: 'none', borderTop: '2px solid var(--border-secondary)', marginBottom: '1.5rem' }} />
-        {path.features && path.features.length > 0 && (
+        {Array.isArray(path.features) && path.features.length > 0 && (
           <div style={{ marginBottom: '1.5rem' }}>
             <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px', marginBottom: '0.75rem', color: '#000' }}>What you will learn:</h4>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>

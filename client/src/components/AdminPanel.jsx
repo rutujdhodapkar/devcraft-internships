@@ -3171,7 +3171,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 className="btn-sharp"
                                 onClick={() => {
                                   const u = [...careerPaths];
-                                  u[idx].features = (u[idx].features || []).filter((_, i) => i !== fi);
+                                  u[idx].features = (Array.isArray(u[idx].features) ? u[idx].features : []).filter((_, i) => i !== fi);
                                   setCareerPaths(u);
                                 }}
                                 style={{ background: "#e00", color: "#fff", border: "none", borderRadius: "0.25rem", cursor: "pointer", fontSize: "0.75rem", padding: "0.3rem 0.55rem", lineHeight: 1 }}
@@ -11664,7 +11664,7 @@ function CourseSection({ user }) {
 
   const editCourse = (c) => {
     setEditingCourse(c.id);
-    setForm({ id: c.id, title: c.title, description: c.description, price: c.price || 0, duration: c.duration || "", icon: c.icon || "📚", level: c.level || "Beginner", category: c.category || "", features: c.features || [], skills: c.skills || [], learningObjectives: c.learningObjectives || [] });
+    setForm({ id: c.id, title: c.title, description: c.description, price: c.price || 0, duration: c.duration || "", icon: c.icon || "📚", level: c.level || "Beginner", category: c.category || "", features: Array.isArray(c.features) ? c.features : [], skills: Array.isArray(c.skills) ? c.skills : [], learningObjectives: Array.isArray(c.learningObjectives) ? c.learningObjectives : [] });
     setContentForm(content[c.id] || { modules: [] });
     setEditingContent(c.id);
   };
@@ -11792,7 +11792,7 @@ function CourseSection({ user }) {
               <option value="">Select category…</option>
               {courseCategories.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
             </select></div>
-            <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Features (comma separated)</label><input style={inputStyle} value={form.features.join(", ")} onChange={e => setForm(p => ({ ...p, features: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="4 Modules, 12 Lessons, Certificate" /></div>
+            <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Features (comma separated)</label><input style={inputStyle} value={Array.isArray(form.features) ? form.features.join(", ") : form.features || ""} onChange={e => setForm(p => ({ ...p, features: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="4 Modules, 12 Lessons, Certificate" /></div>
             <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Skills (comma separated)</label><input style={inputStyle} value={form.skills.join(", ")} onChange={e => setForm(p => ({ ...p, skills: e.target.value.split(",").map(s => s.trim()).filter(Boolean) }))} placeholder="HTML, CSS, JavaScript" /></div>
           </div>
           <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
