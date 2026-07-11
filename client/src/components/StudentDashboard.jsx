@@ -816,13 +816,21 @@ export default function StudentDashboard({
               <div>
                 <div style={{ border: "2px solid #000", background: "#fff", padding: "0.75rem", marginBottom: "1.25rem", boxShadow: "3px 3px 0 #000" }}>
                   <div style={{ fontSize: "0.72rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.65rem" }}>Your internships — select to view tasks</div>
-                  <div style={{ display: "flex", gap: "0.65rem", overflowX: "auto", paddingBottom: "0.15rem" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.55rem" }}>
                     {tasksEnrollments.map((e) => {
                       const selected = selectedEnrollment?.id === e.id;
-                      return <button key={e.id} type="button" onClick={() => setSelectedEnrollment(e)} aria-label={`Open ${e.domain || e.domainId} tasks`} title={e.domain || e.domainId || "Internship"} style={{ width: "54px", height: "54px", flex: "0 0 54px", border: "2px solid #000", background: selected ? "#000" : "#fff", color: selected ? "#fff" : "#000", fontSize: "1.25rem", fontWeight: 900, cursor: "pointer", display: "grid", placeItems: "center" }}>{getEnrollmentIcon(e)}</button>;
+                      const name = e.domain || e.domainId || "Internship";
+                      return (
+                        <div key={e.id} style={{ display: "flex", alignItems: "stretch", border: "2px solid #000", background: selected ? "#000" : "#fff", color: selected ? "#fff" : "#000" }}>
+                          <button type="button" onClick={() => setSelectedEnrollment(e)} aria-label={`Open ${name} tasks`} title={name} style={{ display: "flex", alignItems: "center", gap: "0.5rem", border: "none", background: "transparent", color: "inherit", padding: "0.5rem 0.8rem", fontWeight: 800, fontSize: "0.85rem", cursor: "pointer", maxWidth: "260px" }}>
+                            <span style={{ fontSize: "1.15rem", flex: "0 0 auto" }}>{getEnrollmentIcon(e)}</span>
+                            <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "uppercase" }}>{name}</span>
+                          </button>
+                          <button type="button" aria-label={`Hide ${name}`} title="Hide internship" onClick={() => { hideEnrollmentFromUser(user.uid, e.id); if (selected) setSelectedEnrollment(null); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ border: "none", borderLeft: `2px solid ${selected ? "#fff" : "#000"}`, background: "transparent", color: "inherit", padding: "0 0.65rem", fontWeight: 900, cursor: "pointer" }}>×</button>
+                        </div>
+                      );
                     })}
                   </div>
-                  {selectedEnrollment && <div style={{ marginTop: "0.7rem", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "0.5rem" }}><button type="button" aria-label="Hide selected internship" title="Hide selected internship" onClick={() => { hideEnrollmentFromUser(user.uid, selectedEnrollment.id); setSelectedEnrollment(null); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ width: "34px", height: "34px", border: "2px solid #000", background: "#fff", color: "#000", cursor: "pointer", fontWeight: 900 }}>×</button></div>}
                 </div>
                 {selectedEnrollment && (() => {
                   const enrollment = selectedEnrollment;

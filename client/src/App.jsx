@@ -38,6 +38,8 @@ import {
   saveUserProfile,
   enrollStudent,
   fetchUserEnrollments,
+  fetchUserEnrollmentsCached,
+  syncUserCache,
   recordReferralLogin,
   isReferralCodeMatched,
   savePermanentReferralCode,
@@ -360,7 +362,7 @@ export default function App() {
               const curView = currentViewRef.current;
               const redirectTarget = authRedirectRef.current;
               if (penDomain) {
-                const existingEnrollments = await fetchUserEnrollments(currentUser.uid, currentUser.email);
+                const existingEnrollments = await fetchUserEnrollmentsCached(currentUser.uid, currentUser.email);
                 const alreadyApplied = existingEnrollments.some(
                   (e) =>
                     e.domainId === penDomain.id ||
@@ -386,7 +388,7 @@ export default function App() {
                 }
               } else {
                 try {
-                  const userEnrs = await fetchUserEnrollments(currentUser.uid, currentUser.email);
+                  const userEnrs = await fetchUserEnrollmentsCached(currentUser.uid, currentUser.email);
                   if (
                     curView !== "admin" &&
                     curView !== "site" &&

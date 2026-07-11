@@ -1852,6 +1852,7 @@ export default async function handler(req, res) {
     if (parts[0] === "verify" && parts[1]) return handleVerify(req, res, parts[1]);
     if (parts[0] === "payment-history" && parts[1]) return handlePaymentHistory(req, res, parts[1]);
     if (parts[0] === "auto-expire-enrollments") return handleAutoExpire(req, res);
+    if (parts[0] === "sync" && parts[1] === "versions") return handleSyncVersions(req, res);
     console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {
@@ -1899,6 +1900,47 @@ async function handleAutoExpire(req, res) {
     });
     if (expired > 0) await batch.commit();
     return send(res, 200, { success: true, expired, message: `${expired} enrollment(s) expired` });
+  } catch (error) {
+    return send(res, 500, { success: false, message: error.message });
+  }
+}
+
+// Lightweight version fingerprint per data bucket. The client calls this on load
+// and only re-fetches buckets whose fingerprint changed. Fingerprints are cheap
+// aggregations (count + most-recent updatedAt) over the backing collections, so
+// no expensive hashing/indexes are required.
+//   tasks            -> enrollments collection
+//   certs            -> enrollments where allowedCertificate === "yes"
+//   badges_combined  -> badges + userBadges (+ userStreaks + userFlags if present)
+async function handleSyncVersions(req, res) {
+  try {
+    const db = await initCosmosDb();
+    if (!db) return send(res, 503, { success: false, message: "Database not configured" });
+
+    const enrollments = await listCollection(db, "enrollments");
+    const maxTs = (arr, pick) =>
+      arr.reduce((m, x) => {
+        const t = pick(x) || "";
+        return t > m ? t : m;
+      }, "");
+    const enrollTs = (e) => e.updatedAt || e.createdAt || "";
+    const certs = enrollments.filter((e) => e.allowedCertificate === "yes");
+    const tasksVer = `${enrollments.length}:${maxTs(enrollments, enrollTs)}`;
+    const certsVer = `${certs.length}:${maxTs(certs, enrollTs)}`;
+
+    const badges = await listCollection(db, "badges");
+    const userBadges = await listCollection(db, "userBadges");
+    const streaks = await listCollection(db, "userStreaks").catch(() => []);
+    const flags = await listCollection(db, "userFlags").catch(() => []);
+    const badgeDocs = [...badges, ...userBadges, ...streaks, ...flags];
+    const badgeTs = (d) => d.updatedAt || d.createdAt || "";
+    const badgesVer = `${badgeDocs.length}:${maxTs(badgeDocs, badgeTs)}`;
+
+    return send(res, 200, {
+      success: true,
+      data: { tasks: tasksVer, certs: certsVer, badges_combined: badgesVer },
+      serverTime: Date.now(),
+    });
   } catch (error) {
     return send(res, 500, { success: false, message: error.message });
   }

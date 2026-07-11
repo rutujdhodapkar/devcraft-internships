@@ -3,6 +3,7 @@ const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.x
 // Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
 import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
 import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cookies";
+import { syncBuckets, forceCacheRefresh, getCached, putCached, getLocalVersion, putLocalVersion, clearBucket, fetchServerVersions } from "./cacheSync";
 
 async function _rtdbRead(path) {
   try { const s = await rtdbGet(ref(rtdb, path)); return s.val(); } catch { return null; }
@@ -1710,6 +1711,98 @@ export async function fetchUserBadges(userId) {
 
 export async function revokeBadge(entryId) {
   return dbDelete(`userBadges/${entryId}`);
+}
+
+// ─── IndexedDB cache-sync wrappers ────────────────────────────────────────────
+// These mirror the plain fetch functions but serve unchanged data straight from
+// IndexedDB (via ./cacheSync) when the server-side bucket version is unchanged.
+
+// Large/volatile bucket: user task history (enrollments).
+export async function fetchUserEnrollmentsCached(uid, email, { force = false } = {}) {
+  const res = await syncBuckets([
+    { bucket: "tasks", key: uid, fetcher: () => fetchUserEnrollments(uid, email), force },
+  ], { force });
+  return res.tasks || [];
+}
+
+// Large/volatile bucket: certificate records (enrollments where allowedCertificate === "yes").
+export async function fetchUserCertificatesCached(uid, email, { force = false } = {}) {
+  const res = await syncBuckets([
+    {
+      bucket: "certs",
+      key: uid,
+      fetcher: async () => {
+        const enrollments = await fetchUserEnrollments(uid, email);
+        return enrollments
+          .filter((e) => e.allowedCertificate === "yes")
+          .map((e) => ({
+            id: e.id,
+            domain: e.domain,
+            domainId: e.domainId,
+            status: e.status,
+            completedAt: e.completedAt || e.updatedAt,
+            name: e.name,
+            email: e.email,
+          }));
+      },
+      force,
+    },
+  ], { force });
+  return res.certs || [];
+}
+
+// Small/low-churn bucket: badges + userBadges (merged, shared version).
+export async function fetchUserBadgesCached(uid, { force = false } = {}) {
+  const res = await syncBuckets([
+    {
+      bucket: "badges_combined",
+      key: uid,
+      fetcher: async () => {
+        const [badges, userBadges] = await Promise.all([fetchBadges(), fetchUserBadges(uid)]);
+        return { badges: badges || [], userBadges: userBadges || [] };
+      },
+      force,
+    },
+  ], { force });
+  const combined = res.badges_combined || {};
+  return { badges: combined.badges || [], userBadges: combined.userBadges || [] };
+}
+
+// Combined boot orchestrator: sync all three buckets in one round-trip to the
+// versions endpoint. Returns the data the dashboard needs.
+export async function syncUserCache(uid, email, { force = false } = {}) {
+  const res = await syncBuckets([
+    { bucket: "tasks", key: uid, fetcher: () => fetchUserEnrollments(uid, email), force },
+    {
+      bucket: "certs",
+      key: uid,
+      fetcher: async () =>
+        (await fetchUserEnrollments(uid, email))
+          .filter((e) => e.allowedCertificate === "yes")
+          .map((e) => ({ id: e.id, domain: e.domain, domainId: e.domainId, status: e.status, completedAt: e.completedAt || e.updatedAt, name: e.name, email: e.email })),
+      force,
+    },
+    {
+      bucket: "badges_combined",
+      key: uid,
+      fetcher: async () => {
+        const [badges, userBadges] = await Promise.all([fetchBadges(), fetchUserBadges(uid)]);
+        return { badges: badges || [], userBadges: userBadges || [] };
+      },
+      force,
+    },
+  ], { force });
+  return {
+    enrollments: res.tasks || [],
+    certificates: res.certs || [],
+    badges: (res.badges_combined || {}).badges || [],
+    userBadges: (res.badges_combined || {}).userBadges || [],
+  };
+}
+
+// Manual escape hatch — wipe stored versions so the next sync re-fetches all.
+export async function forceRefreshUserCache() {
+  await forceCacheRefresh();
 }
 
 export async function evaluateBadgeCriteriaAI(criteria, userData) {
