@@ -7,7 +7,7 @@
 //   5. Firebase idToken (admin_token / user_token / bearer) -> admin or user
 // No hardcoded fallback secrets: missing env => auth simply fails closed.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual, createPublicKey, verify as verifySignature } from "node:crypto";
 
 export const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
 
@@ -15,9 +15,44 @@ export function isLocalTrusted() {
   return process.env.MCP_LOCAL_TRUSTED === "1" || process.env.MCP_LOCAL_TRUSTED === "true";
 }
 
-// ── Firebase idToken verification (server-side lookup, no default key) ──
+// ── Firebase idToken verification ──
+// Primary: validate the JWT locally against Google's public certs (no apiKey needed).
+// Fallback: identitytoolkit lookup (requires FIREBASE_API_KEY).
+let _googleCerts = { ts: 0, certs: null };
+async function getGoogleCerts() {
+  const now = Date.now();
+  if (_googleCerts.certs && now - _googleCerts.ts < 55 * 60 * 1000) return _googleCerts.certs;
+  const res = await fetch("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com");
+  if (!res.ok) throw new Error("Failed to fetch Google certs");
+  const certs = await res.json();
+  _googleCerts = { ts: now, certs };
+  return certs;
+}
+
 export async function verifyFirebaseToken(idToken) {
-  if (!idToken) return null;
+  if (!idToken || typeof idToken !== "string") return null;
+
+  try {
+    const parts = idToken.split(".");
+    if (parts.length === 3) {
+      const [h, p, s] = parts;
+      const header = JSON.parse(Buffer.from(h, "base64url").toString());
+      const payload = JSON.parse(Buffer.from(p, "base64url").toString());
+      if (!payload.exp || Math.floor(Date.now() / 1000) > payload.exp) return null;
+      if (payload.iss !== "https://securetoken.google.com/login-data-680b9") return null;
+      if (payload.aud !== "login-data-680b9") return null;
+      const certs = await getGoogleCerts();
+      const cert = certs && certs[header.kid];
+      if (cert) {
+        const key = createPublicKey(cert);
+        const ok = verifySignature("RSA-SHA256", Buffer.from(`${h}.${p}`), key, Buffer.from(s, "base64url"));
+        if (ok) return { uid: payload.sub, email: payload.email, name: payload.name, picture: payload.picture };
+      }
+    }
+  } catch {
+    // fall through to apiKey lookup
+  }
+
   const apiKey =
     process.env.FIREBASE_API_KEY ||
     process.env.VITE_FIREBASE_API_KEY ||
