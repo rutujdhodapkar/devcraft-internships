@@ -65,6 +65,13 @@ async function getDb() {
   return _db;
 }
 
+// ── In-memory query cache (reduces Cosmos read units) ──
+const _queryCache = new Map();
+const CACHE_TTL = 30_000; // 30 seconds
+function cacheSet(key, data) { _queryCache.set(key, { data, ts: Date.now() }); }
+function cacheGet(key) { const e = _queryCache.get(key); if (!e || Date.now() - e.ts > CACHE_TTL) { _queryCache.delete(key); return null; } return e.data; }
+function cacheInvalidate(pattern) { for (const k of _queryCache.keys()) if (k.includes(pattern)) _queryCache.delete(k); }
+
 function cleanId(email) {
   if (!email) return email;
   return email.replace(/\./g, ",");
@@ -358,14 +365,16 @@ async function handleToolCall(name, args) {
     case "get_domains": {
       const isAdmin = await verifyAdmin(args);
       const member = isAdmin ? null : await authorizedMcpUser(args, "get_domains");
-      const docs = await executeQuery("careerPaths", [], null);
+      let docs = cacheGet("careerPaths");
+      if (!docs) { docs = await executeQuery("careerPaths", [], null); cacheSet("careerPaths", docs); }
       logAction("get_domains", isAdmin ? "admin" : member.email, `Read ${docs.length} domains`);
       return JSON.stringify(docs.map(d => ({ id: d.id, title: d.title, duration: d.duration, paymentAmount: d.paymentAmount, description: d.description, features: d.features, icon: d.icon, projects: (d.projects||[]).length })), null, 2);
     }
     case "get_tasks": {
       const isAdmin = await verifyAdmin(args);
       const member = isAdmin ? null : await authorizedMcpUser(args, "get_tasks");
-      const docs = await executeQuery("careerPaths", [], null);
+      let docs = cacheGet("careerPaths");
+      if (!docs) { docs = await executeQuery("careerPaths", [], null); cacheSet("careerPaths", docs); }
       const domain = docs.find(d => d.id === args.domain_id);
       if (!domain) throw new Error("Domain not found");
       logAction("get_tasks", isAdmin ? "admin" : member.email, `Read tasks for ${args.domain_id}`);
@@ -375,6 +384,7 @@ async function handleToolCall(name, args) {
       const isAdmin = await verifyAdmin(args);
       if (isAdmin) {
         const r = await executeMutate("careerPaths", "create", { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], icon: args.icon||"⭐", projects: [] }, null, null);
+        cacheInvalidate("careerPaths");
         logAction("add_domain", "admin", `Added domain live: ${args.title}`);
         return `Domain "${args.title}" added live. (ID: ${args.id})`;
       }
@@ -395,6 +405,7 @@ async function handleToolCall(name, args) {
         const projects = domain.projects || [];
         projects.push({ title: args.title, description: args.description||"", type: args.type||"project", links: args.links||[] });
         const r = await executeMutate("careerPaths", "update", { projects }, args.domain_id, null);
+        cacheInvalidate("careerPaths");
         logAction("add_task", "admin", `Added task live: ${args.title} for ${args.domain_id}`);
         return `Task "${args.title}" added live.`;
       }
@@ -410,6 +421,7 @@ async function handleToolCall(name, args) {
       const isAdmin = await verifyAdmin(args);
       if (isAdmin) {
         const r = await executeMutate("careerPaths", "delete", {}, args.id, null);
+        cacheInvalidate("careerPaths");
         logAction("remove_domain", "admin", `Removed domain live: ${args.id}`);
         return `Domain "${args.id}" removed live.`;
       }
@@ -444,6 +456,7 @@ async function handleToolCall(name, args) {
       } else if (prop.type === "remove_domain") {
         try { result = await executeMutate("careerPaths", "delete", {}, prop.data.id, null); } catch (err) { result = `Error: ${err.message}`; }
       }
+      cacheInvalidate(prop.data?.collection || "careerPaths");
       prop.status = "approved"; prop.approvedAt = new Date().toISOString(); prop.executionResult = result;
       proposals[idx] = prop; await saveProposals(proposals);
       logAction("approve_change", "admin", `Approved ${prop.type}: ${prop.data?.title || args.change_id}`);
@@ -471,6 +484,7 @@ async function handleToolCall(name, args) {
       const isAdmin = await verifyAdmin(args);
       if (isAdmin) {
         const r = await executeMutate(args.collection, args.action, args.data||{}, args.document_id, null);
+        cacheInvalidate(args.collection);
         logAction("edit_data", "admin", `${args.action} on ${args.collection}/${args.document_id||""}`);
         return r;
       }
