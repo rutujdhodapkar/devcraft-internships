@@ -164,16 +164,13 @@ export async function resolveIdentity(creds = {}) {
     }
   }
 
-  // JWT (bearer or any token-shaped arg)
-  const jwtRaw = bearer || admin_token || user_token;
+  // JWT (bearer only — admin_token / user_token are Firebase, not HS256)
+  const jwtRaw = bearer;
   if (jwtRaw) {
-    let jwt = null;
     try {
-      jwt = verifyJwt(jwtRaw);
-    } catch {
-      jwt = null;
-    }
-    if (jwt) return { email: jwt.email, role: jwt.role || "user", source: "jwt", jwt };
+      const jwt = verifyJwt(jwtRaw);
+      if (jwt) return { email: jwt.email, role: jwt.role || "user", source: "jwt", jwt };
+    } catch {}
   }
 
   // Firebase admin
@@ -184,9 +181,9 @@ export async function resolveIdentity(creds = {}) {
     }
   }
 
-  // Firebase user (admins are recognized here too, regardless of field)
-  const fbToken = user_token || bearer;
-  if (fbToken && fbToken !== jwtRaw) {
+  // Firebase user (also catches admin_token if not an admin)
+  const fbToken = user_token || admin_token || bearer;
+  if (fbToken) {
     const u = await verifyFirebaseToken(fbToken);
     if (u?.email) {
       const admin = await isFirebaseAdmin(u.email);
