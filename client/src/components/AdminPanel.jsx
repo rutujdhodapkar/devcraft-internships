@@ -10994,13 +10994,30 @@ function ProposalsSection({ user }) {
 }
 
 /* ── MCP Access Requests ── */
+const MCP_TOOLS = [
+  { id: "get_domains", label: "List Domains", group: "read" },
+  { id: "get_tasks", label: "List Tasks", group: "read" },
+  { id: "lookup", label: "Query Data", group: "read" },
+  { id: "add_domain", label: "Add Domain (proposal)", group: "write" },
+  { id: "add_task", label: "Add Task (proposal)", group: "write" },
+  { id: "remove_domain", label: "Remove Domain (proposal)", group: "write" },
+  { id: "edit_data", label: "Edit Data (proposal)", group: "write" },
+  { id: "list_changes", label: "View Proposals", group: "write" },
+  { id: "approve_change", label: "Approve Proposals", group: "admin" },
+  { id: "reject_change", label: "Reject Proposals", group: "admin" },
+  { id: "collections", label: "List Collections", group: "read" },
+  { id: "audit_log", label: "View Audit Log", group: "admin" },
+];
+
+const MCP_HOOKS = ["GitHub", "Slack", "Discord", "Webhook", "Zapier", "Custom"];
+
 function AccessRequestsSection({ user }) {
   const [pending, setPending] = useState([]);
   const [authorized, setAuthorized] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [configModal, setConfigModal] = useState(null);
-  const [configForm, setConfigForm] = useState({ allowed_tools: "get_domains,get_tasks", allowed_hooks: "", permissions: { read: true, write: false, execute: false, admin: false }, webhook_url: "" });
+  const [configForm, setConfigForm] = useState({ allowed_tools: "get_domains,get_tasks", allowed_hooks: "", permissions: { read: true, write: false, execute: false, admin: false }, webhook_url: "", website_url: "" });
 
   async function mcpCall(tool, args) {
     const { getFirebaseIdToken } = await import("../firebase");
@@ -11036,14 +11053,14 @@ function AccessRequestsSection({ user }) {
   useEffect(() => { loadData(); }, []);
 
   function openConfig(req) {
-    setConfigForm({ allowed_tools: req.allowed_tools || "get_domains,get_tasks", allowed_hooks: req.requested_hooks || "", permissions: { read: true, write: false, execute: false, admin: false }, webhook_url: req.webhook_url || "" });
+    setConfigForm({ allowed_tools: req.allowed_tools || "get_domains,get_tasks", allowed_hooks: req.requested_hooks || "", permissions: { read: true, write: false, execute: false, admin: false }, webhook_url: req.webhook_url || "", website_url: req.website_url || "" });
     setConfigModal(req);
   }
 
   async function handleAuthorize(req) {
     setActionLoading(req.id);
     try {
-      await mcpCall("approve_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id, allowed_tools: configForm.allowed_tools, allowed_hooks: configForm.allowed_hooks, permissions: configForm.permissions, webhook_url: configForm.webhook_url });
+      await mcpCall("approve_user", { email: req.email, name: req.name, agency_id: req.agency_id || null, request_id: req.id, allowed_tools: configForm.allowed_tools, allowed_hooks: configForm.allowed_hooks, permissions: configForm.permissions, webhook_url: configForm.webhook_url, website_url: configForm.website_url });
       notify(`Authorized ${req.email}`, "success");
       await logAdminAction("authorize-mcp-user", { email: req.email, admin: user?.email });
       setConfigModal(null);
@@ -11081,7 +11098,7 @@ function AccessRequestsSection({ user }) {
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr style={{ background: "#000", color: "#fff" }}>
-              <th style={cellS}>Name</th><th style={cellS}>Email</th><th style={cellS}>Reason</th><th style={cellS}>Agency</th><th style={cellS}>Webhook</th><th style={cellS}>Date</th><th style={cellS}>Action</th>
+              <th style={cellS}>Name</th><th style={cellS}>Email</th><th style={cellS}>Reason</th><th style={cellS}>Agency</th><th style={cellS}>Website</th><th style={cellS}>Webhook</th><th style={cellS}>Date</th><th style={cellS}>Action</th>
             </tr></thead>
             <tbody>
               {pending.map(r => (
@@ -11090,6 +11107,7 @@ function AccessRequestsSection({ user }) {
                   <td style={cellS}>{r.email}</td>
                   <td style={cellS}>{r.reason || "-"}</td>
                   <td style={cellS}>{r.agency_id || "-"}</td>
+                  <td style={{...cellS, fontSize:"0.7rem", maxWidth:"100px", overflow:"hidden", textOverflow:"ellipsis"}}>{r.website_url || "-"}</td>
                   <td style={{...cellS, fontSize:"0.7rem", maxWidth:"120px", overflow:"hidden", textOverflow:"ellipsis"}}>{r.webhook_url || "-"}</td>
                   <td style={cellS}>{r.submittedAt ? new Date(r.submittedAt).toLocaleDateString() : "-"}</td>
                   <td style={cellS}>
@@ -11136,15 +11154,71 @@ function AccessRequestsSection({ user }) {
 
       {configModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }} onClick={() => setConfigModal(null)}>
-          <div style={{ background: "#fff", border: "2px solid #000", padding: "1.5rem", boxShadow: "4px 4px 0 #000", maxWidth: "450px", width: "90%" }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: "#fff", border: "2px solid #000", padding: "1.5rem", boxShadow: "4px 4px 0 #000", maxWidth: "520px", width: "90%", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
             <h3 style={{ fontWeight: 800, marginBottom: "0.75rem" }}>Configure Access for {configModal.email}</h3>
-            <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Allowed Tools (comma-separated)</label>
-            <input value={configForm.allowed_tools} onChange={e => setConfigForm(p => ({ ...p, allowed_tools: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="get_domains,get_tasks,add_domain" />
-            <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Approved Hooks / APIs</label>
-            <input value={configForm.allowed_hooks} onChange={e => setConfigForm(p => ({ ...p, allowed_hooks: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="GitHub,Slack" />
-            <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", marginBottom: "0.75rem", fontSize: "0.8rem", fontWeight: 700 }}>{["read", "write", "execute", "admin"].map(permission => <label key={permission}><input type="checkbox" checked={!!configForm.permissions[permission]} onChange={e => setConfigForm(p => ({ ...p, permissions: { ...p.permissions, [permission]: e.target.checked } }))} /> {permission}</label>)}</div>
+
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.35rem" }}>Allowed Tools</label>
+              {["read", "write", "admin"].map(group => (
+                <div key={group} style={{ marginBottom: "0.4rem" }}>
+                  <div style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.2rem" }}>{group}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                    {MCP_TOOLS.filter(t => t.group === group).map(tool => {
+                      const checked = configForm.allowed_tools.split(",").map(s => s.trim()).includes(tool.id);
+                      return (
+                        <label key={tool.id} style={{ fontSize: "0.78rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer", border: "1px solid #ccc", padding: "0.2rem 0.5rem", background: checked ? "#e8f5e9" : "#fff" }}>
+                          <input type="checkbox" checked={checked} onChange={e => {
+                            const current = configForm.allowed_tools.split(",").map(s => s.trim()).filter(Boolean);
+                            const next = e.target.checked ? [...current, tool.id] : current.filter(t => t !== tool.id);
+                            setConfigForm(p => ({ ...p, allowed_tools: next.join(",") }));
+                          }} />
+                          {tool.label}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.35rem" }}>Approved Hooks / APIs</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem", marginBottom: "0.4rem" }}>
+                {MCP_HOOKS.map(hook => {
+                  const checked = configForm.allowed_hooks.split(",").map(s => s.trim()).includes(hook);
+                  return (
+                    <label key={hook} style={{ fontSize: "0.78rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.25rem", cursor: "pointer", border: "1px solid #ccc", padding: "0.2rem 0.5rem", background: checked ? "#e3f2fd" : "#fff" }}>
+                      <input type="checkbox" checked={checked} onChange={e => {
+                        const current = configForm.allowed_hooks.split(",").map(s => s.trim()).filter(Boolean);
+                        const next = e.target.checked ? [...current, hook] : current.filter(h => h !== hook);
+                        setConfigForm(p => ({ ...p, allowed_hooks: next.join(",") }));
+                      }} />
+                      {hook}
+                    </label>
+                  );
+                })}
+              </div>
+              <input value={configForm.allowed_hooks} onChange={e => setConfigForm(p => ({ ...p, allowed_hooks: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box" }} placeholder="Or type custom hooks, comma-separated" />
+            </div>
+
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.35rem" }}>Permissions</label>
+              <div style={{ display: "flex", gap: "0.7rem", flexWrap: "wrap", fontSize: "0.8rem", fontWeight: 700 }}>
+                {["read", "write", "execute", "admin"].map(permission => (
+                  <label key={permission}>
+                    <input type="checkbox" checked={!!configForm.permissions[permission]}
+                      onChange={e => setConfigForm(p => ({ ...p, permissions: { ...p.permissions, [permission]: e.target.checked } }))} /> {permission}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Website URL</label>
+            <input value={configForm.website_url} onChange={e => setConfigForm(p => ({ ...p, website_url: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="https://example.com" />
+
             <label style={{ fontWeight: 700, fontSize: "0.8rem", display: "block", marginBottom: "0.25rem" }}>Webhook URL (for notifications)</label>
             <input value={configForm.webhook_url} onChange={e => setConfigForm(p => ({ ...p, webhook_url: e.target.value }))} style={{ border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.82rem", width: "100%", boxSizing: "border-box", marginBottom: "0.75rem" }} placeholder="https://example.com/webhook" />
+
             <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
               <button onClick={() => setConfigModal(null)} className="btn-sharp" style={{ padding: "0.4rem 1rem", fontSize: "0.82rem" }}>Cancel</button>
               <button onClick={() => handleAuthorize(configModal)} disabled={actionLoading === configModal.id} className="btn-sharp" style={{ padding: "0.4rem 1rem", fontSize: "0.82rem", background: "#34A853", color: "#fff", border: "2px solid #34A853" }}>

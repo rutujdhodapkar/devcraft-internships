@@ -196,6 +196,7 @@ const toolDefinitions = [
     description: "Request access to use the system. Provide your email.",
     inputSchema: { type: "object", properties: {
       email: { type: "string" }, name: { type: "string" }, reason: { type: "string" }, agency_id: { type: "string" },
+      website_url: { type: "string", description: "Your website URL" },
       webhook_url: { type: "string", description: "URL to receive notifications" },
       allowed_tools: { type: "string", description: "Comma-separated MCP tools requested" },
       requested_hooks: { type: "string", description: "Comma-separated API/hooks requested" },
@@ -325,11 +326,11 @@ async function handleToolCall(name, args) {
       const email = (isOperator && args.email ? args.email : id?.email || "").toLowerCase();
       if (!email || email.endsWith("@devcraft.local")) throw new Error("Sign in with your account to request MCP access.");
       const requesterName = args.name || id?.name || "";
-      const { reason, agency_id, webhook_url, allowed_tools, requested_hooks } = args;
+      const { reason, agency_id, website_url, webhook_url, allowed_tools, requested_hooks } = args;
       if (await isAuthorized(email)) return "You already have access.";
       const reqs = await loadAccessRequests();
       if (reqs.find(r => r.email.toLowerCase() === email.toLowerCase() && r.status === "pending")) return "Request already pending.";
-      reqs.push({ id: generateId(), email: email.toLowerCase(), name: requesterName, reason: reason||"", agency_id: agency_id||null, webhook_url: webhook_url||"", allowed_tools: allowed_tools||"", requested_hooks: requested_hooks||"", status: "pending", submittedAt: new Date().toISOString() });
+      reqs.push({ id: generateId(), email: email.toLowerCase(), name: requesterName, reason: reason||"", agency_id: agency_id||null, website_url: website_url||"", webhook_url: webhook_url||"", allowed_tools: allowed_tools||"", requested_hooks: requested_hooks||"", status: "pending", submittedAt: new Date().toISOString() });
       await saveAccessRequests(reqs);
       logAction("request_access", email, `Requested access${agency_id ? ` (agency: ${agency_id})` : ""}`);
       return "Request submitted. Admin will review. You will be notified when approved.";
@@ -340,7 +341,7 @@ async function handleToolCall(name, args) {
       if (args.request_id) { const r = await loadAccessRequests(); const i = r.findIndex(x => x.id === args.request_id); if (i>-1) { r[i].status="approved"; r[i].approvedAt=new Date().toISOString(); r[i].allowed_tools = args.allowed_tools || r[i].allowed_tools || ""; r[i].webhook_url = args.webhook_url || r[i].webhook_url || ""; await saveAccessRequests(r); } }
       const u = await loadAuthUsers();
       if (u.some(x => x.email.toLowerCase() === e)) return JSON.stringify({ok:true, message:"Already has access"});
-      u.push({ email: e, name: args.name||"", agency_id: args.agency_id||null, allowed_tools: args.allowed_tools||"", allowed_hooks: args.allowed_hooks || "", permissions: args.permissions || { read: true, write: false, execute: false, admin: false }, webhook_url: args.webhook_url||"", authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
+      u.push({ email: e, name: args.name||"", agency_id: args.agency_id||null, allowed_tools: args.allowed_tools||"", allowed_hooks: args.allowed_hooks || "", permissions: args.permissions || { read: true, write: false, execute: false, admin: false }, website_url: args.website_url||"", webhook_url: args.webhook_url||"", authorizedAt: new Date().toISOString(), authorizedBy: "admin" });
       await saveAuthUsers(u);
       logAction("approve_user", "admin", `Approved ${e}${args.allowed_tools ? ` tools: ${args.allowed_tools}` : ""}`);
       return JSON.stringify({ok:true, message:`${e} now has access`});

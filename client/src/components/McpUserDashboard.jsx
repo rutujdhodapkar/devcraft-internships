@@ -27,6 +27,7 @@ export default function McpUserDashboard({ user, onClose }) {
   const [reqEmail, setReqEmail] = useState(user?.email || "");
   const [reqReason, setReqReason] = useState("");
   const [reqAgencyId, setReqAgencyId] = useState("");
+  const [reqWebsiteUrl, setReqWebsiteUrl] = useState("");
   const [reqWebhookUrl, setReqWebhookUrl] = useState("");
   const [reqAllowedTools, setReqAllowedTools] = useState("");
   const [reqRequestedHooks, setReqRequestedHooks] = useState("");
@@ -79,7 +80,7 @@ export default function McpUserDashboard({ user, onClose }) {
       const res = await fetch("/api/mcp-domains", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name: "request_access", arguments: { name: reqName.trim(), email: reqEmail.trim(), reason: reqReason.trim(), agency_id: reqAgencyId.trim() || undefined, webhook_url: reqWebhookUrl.trim() || undefined, allowed_tools: reqAllowedTools.trim() || undefined, requested_hooks: reqRequestedHooks.trim() || undefined, user_token: t } } }),
+        body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method: "tools/call", params: { name: "request_access", arguments: { name: reqName.trim(), email: reqEmail.trim(), reason: reqReason.trim(), agency_id: reqAgencyId.trim() || undefined, website_url: reqWebsiteUrl.trim() || undefined, webhook_url: reqWebhookUrl.trim() || undefined, allowed_tools: reqAllowedTools.trim() || undefined, requested_hooks: reqRequestedHooks.trim() || undefined, user_token: t } } }),
       });
       const data = await res.json();
       if (data.error) { notify("Error: " + (data.error.message || JSON.stringify(data.error)), "error"); return; }
@@ -150,6 +151,8 @@ export default function McpUserDashboard({ user, onClose }) {
               <textarea rows={3} value={reqReason} onChange={(e) => setReqReason(e.target.value)} placeholder="Why do you need MCP access? What tools will you use?" style={{ ...input, resize: "vertical" }} />
               <label style={{ fontSize: "0.75rem", fontWeight: 800, display: "block", marginBottom: "0.2rem" }}>Agency ID (optional)</label>
               <input type="text" value={reqAgencyId} onChange={(e) => setReqAgencyId(e.target.value)} placeholder="e.g. agency-123" style={input} />
+              <label style={{ fontSize: "0.75rem", fontWeight: 800, display: "block", marginBottom: "0.2rem" }}>Website URL (optional)</label>
+              <input type="url" value={reqWebsiteUrl} onChange={(e) => setReqWebsiteUrl(e.target.value)} placeholder="https://my-website.com" style={input} />
               <label style={{ fontSize: "0.75rem", fontWeight: 800, display: "block", marginBottom: "0.2rem" }}>Webhook URL (optional)</label>
               <input type="url" value={reqWebhookUrl} onChange={(e) => setReqWebhookUrl(e.target.value)} placeholder="https://your-server.com/webhook" style={input} />
               <label style={{ fontSize: "0.75rem", fontWeight: 800, display: "block", marginBottom: "0.2rem" }}>Requested Tools (optional, comma-separated)</label>
