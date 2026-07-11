@@ -10905,7 +10905,8 @@ function ProposalsSection({ user }) {
   const [filter, setFilter] = useState("pending");
 
   async function mcpCall(tool, args) {
-    const token = user?.getIdToken ? await user.getIdToken() : null;
+    const { getFirebaseIdToken } = await import("../firebase");
+    const token = await getFirebaseIdToken();
     const res = await fetch("/api/mcp-domains", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -11002,7 +11003,8 @@ function AccessRequestsSection({ user }) {
   const [configForm, setConfigForm] = useState({ allowed_tools: "get_domains,get_tasks", allowed_hooks: "", permissions: { read: true, write: false, execute: false, admin: false }, webhook_url: "" });
 
   async function mcpCall(tool, args) {
-    const token = user?.getIdToken ? await user.getIdToken() : null;
+    const { getFirebaseIdToken } = await import("../firebase");
+    const token = await getFirebaseIdToken();
     const res = await fetch("/api/mcp-domains", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -11397,7 +11399,8 @@ function AuditLogSection({ user }) {
   const [loading, setLoading] = useState(true);
 
   async function mcpCall(tool, args) {
-    const token = user?.getIdToken ? await user.getIdToken() : null;
+    const { getFirebaseIdToken } = await import("../firebase");
+    const token = await getFirebaseIdToken();
     const res = await fetch("/api/mcp-domains", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
