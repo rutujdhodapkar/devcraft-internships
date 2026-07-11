@@ -214,13 +214,16 @@ async function apiFetch(path, options = {}) {
 export async function fetchCareerPaths() {
   const cached = _lsGet("careerPaths");
   if (cached) return cached;
-  const paths = await dbList("careerPaths");
-  const catData = await dbGet("siteConfig/domainCategories");
-  const categories = catData?.value || [];
-  // Also fetch payment settings to merge domain-specific amounts
+  const bundled = await fetchSiteConfig("careerPaths");
+  let paths = bundled?.list || [];
+  let categories = bundled?.categories || [];
+  if (!paths.length) {
+    paths = await dbList("careerPaths");
+    const catData = await dbGet("siteConfig/domainCategories");
+    categories = catData?.value || [];
+  }
   const psData = await dbGet("siteConfig/paymentSettings");
   const ps = psData?.value || { defaultAmount: 200, defaultAmountReferral: 170, defaultTiming: "end" };
-  // Merge payment overrides into each path if they exist
   const domainOverrides = (ps.domains || []).reduce((acc, d) => {
     if (d.domain) acc[d.domain.toLowerCase()] = d;
     return acc;
@@ -228,18 +231,12 @@ export async function fetchCareerPaths() {
   const mergedPaths = paths.map((p) => {
     const override = domainOverrides[(p.title || "").toLowerCase()];
     if (override) {
-      return {
-        ...p,
-        paymentAmount: override.amount || p.paymentAmount,
-        paymentAmountReferral: override.amountReferral || p.paymentAmountReferral,
-        paymentTiming: override.timing || p.paymentTiming || ps.defaultTiming,
-      };
+      return { ...p, paymentAmount: override.amount || p.paymentAmount, paymentAmountReferral: override.amountReferral || p.paymentAmountReferral, paymentTiming: override.timing || p.paymentTiming || ps.defaultTiming };
     }
     return p;
   });
-  if (!mergedPaths.length && !categories.length) { return { paths: [], categories: [] }; }
   const result = { paths: mergedPaths, categories };
-  _lsSet("careerPaths", result, 120_000); // 2 min cache so new MCP-added domains appear quickly
+  _lsSet("careerPaths", result, 120_000);
   return result;
 }
 

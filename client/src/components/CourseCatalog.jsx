@@ -54,7 +54,7 @@ export default function CourseCatalog({ user, userProfile, onEnroll }) {
           return (
             <div key={c.id} style={styles.card(free)} onMouseEnter={e => e.currentTarget.style.transform = "translateY(-3px)"} onMouseLeave={e => e.currentTarget.style.transform = "none"}>
               <span style={styles.badge(free)}>{free ? "Free" : "₹199"}</span>
-              <div style={styles.icon}>{c.icon || "📚"}</div>
+              <div style={styles.icon}>{c.icon || ""}</div>
               <h2 style={styles.title}>{c.title}</h2>
               <p style={styles.desc}>{c.description}</p>
               <div style={styles.meta}>

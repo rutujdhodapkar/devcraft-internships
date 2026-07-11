@@ -41,26 +41,6 @@ await db.collection('siteConfig').doc('paymentSettings').set({
 }, { merge: true });
 console.log('✓ paymentSettings');
 
-// ── Courses (3 seeded) ──
-const courses = [
-  { id: 'python-basics', title: 'Python Programming Basics', description: 'Learn Python from scratch — variables, loops, functions, and file handling.', price: 0, duration: '4 Weeks', icon: '🐍', level: 'Beginner', category: 'Programming', features: ['4 Modules','14 Lessons','3 Quizzes','Certificate on Completion'], skills: ['Python','Functions'], learningObjectives: ['Write Python programs'], createdAt: new Date().toISOString() },
-  { id: 'web-dev-fundamentals', title: 'Web Development Fundamentals', description: 'Master HTML, CSS, and JavaScript to build modern responsive websites.', price: 199, duration: '6 Weeks', icon: '🌐', level: 'Beginner', category: 'Web Development', features: ['6 Modules','18 Lessons','4 Quizzes','Certificate on Completion'], skills: ['HTML5','CSS3','JavaScript'], learningObjectives: ['Build responsive websites'], createdAt: new Date().toISOString() },
-  { id: 'react-modern-apps', title: 'React & Modern Web Apps', description: 'Build modern single-page applications with React, hooks, state management.', price: 199, duration: '8 Weeks', icon: '⚛️', level: 'Intermediate', category: 'Web Development', features: ['8 Modules','24 Lessons','5 Quizzes','Certificate on Completion'], skills: ['React','Hooks'], learningObjectives: ['Build SPAs with React'], createdAt: new Date().toISOString() },
-];
-await db.collection('siteConfig').doc('courses').set({ value: { list: courses }, updatedAt: new Date().toISOString() }, { merge: true });
-console.log(`✓ ${courses.length} courses`);
-
-// ── Course Content ──
-const courseContents = {
-  'python-basics': { modules: [{ title: 'Getting Started with Python', lessons: [{ title: 'What is Python?', type: 'text', content: '<h3>Welcome to Python!</h3><p>Python is a high-level, interpreted programming language.</p>', duration: '10 min' }, { title: 'Installing Python', type: 'text', content: '<h3>Setting Up</h3><p>Download from python.org</p>', duration: '15 min' }, { title: 'Your First Program', type: 'text', content: '<h3>Hello, World!</h3><pre>print(\'Hello, World!\')</pre>', duration: '10 min' }], quiz: { title: 'Python Basics Quiz', passingScore: 70, questions: [{ question: 'Who created Python?', options: ['Guido van Rossum','Dennis Ritchie','James Gosling','Brendan Eich'], correctIndex: 0 }, { question: 'Which function prints to console?', options: ['log()','print()','echo()','write()'], correctIndex: 1 }, { question: 'Python is a ______ language.', options: ['Compiled','Interpreted','Markup','Query'], correctIndex: 1 }] } }] },
-  'web-dev-fundamentals': { modules: [{ title: 'HTML Foundations', lessons: [{ title: 'What is HTML?', type: 'text', content: '<h3>HTML</h3><p>HyperText Markup Language</p>', duration: '10 min' }, { title: 'Basic HTML Tags', type: 'text', content: '<h3>Tags</h3><p>&lt;h1&gt;, &lt;p&gt;</p>', duration: '15 min' }], quiz: { title: 'HTML Quiz', passingScore: 70, questions: [{ question: 'What does HTML stand for?', options: ['Hyper Text Markup Language','High Tech','Home Tool','Hyper Transfer'], correctIndex: 0 }, { question: 'Which tag is for a paragraph?', options: ['<paragraph>','<p>','<text>','<para>'], correctIndex: 1 }] } }, { title: 'CSS Styling', lessons: [{ title: 'Intro to CSS', type: 'text', content: '<h3>CSS</h3><p>Cascading Style Sheets</p>', duration: '10 min' }], quiz: { title: 'CSS Quiz', passingScore: 70, questions: [{ question: 'Which property changes text color?', options: ['font-color','text-color','color','foreground'], correctIndex: 2 }] } }] },
-  'react-modern-apps': { modules: [{ title: 'React Fundamentals', lessons: [{ title: 'What is React?', type: 'text', content: '<h3>React</h3><p>A JS library for building UIs</p>', duration: '12 min' }, { title: 'Setting Up a React Project', type: 'text', content: '<h3>Setup</h3><pre>npx create-react-app my-app</pre>', duration: '15 min' }], quiz: { title: 'React Basics', passingScore: 70, questions: [{ question: 'React is a ______ for building UI.', options: ['Framework','Library','Language','Database'], correctIndex: 1 }, { question: 'What passes data to components?', options: ['State','Props','Variables','Functions'], correctIndex: 1 }] } }] },
-};
-for (const [id, content] of Object.entries(courseContents)) {
-  await db.collection('siteConfig').doc(`courseContent_${id}`).set({ value: content, updatedAt: new Date().toISOString() }, { merge: true });
-}
-console.log(`✓ ${Object.keys(courseContents).length} course contents`);
-
 // ── Payment Settings with domain overrides ──
 const domainOverrides = [
   { domain: 'Web Development', amount: 200, amountReferral: 180, timing: null },

@@ -246,7 +246,8 @@ const toolDefinitions = [
     inputSchema: { type: "object", properties: {
       email: { type: "string" }, id: { type: "string" }, title: { type: "string" },
       duration: { type: "string" }, paymentAmount: { type: "number" }, paymentAmountReferral: { type: "number" },
-      description: { type: "string" }, features: { type: "array", items: { type: "string" } }, icon: { type: "string" },
+      description: { type: "string" }, features: { type: "array", items: { type: "string" } },
+      category: { type: "string", description: "Category id from domainCategories" },
     }, required: ["email", "id", "title"] },
   },
   {
@@ -396,7 +397,7 @@ async function handleToolCall(name, args) {
       let docs = cacheGet("careerPaths");
       if (!docs) { docs = await executeQuery("careerPaths", [], null); cacheSet("careerPaths", docs); }
       logAction("get_domains", isAdmin ? "admin" : member.email, `Read ${docs.length} domains`);
-      return JSON.stringify(docs.map(d => ({ id: d.id, title: d.title, duration: d.duration, paymentAmount: d.paymentAmount, description: d.description, features: d.features, icon: d.icon, projects: (d.projects||[]).length })), null, 2);
+      return JSON.stringify(docs.map(d => ({ id: d.id, title: d.title, duration: d.duration, paymentAmount: d.paymentAmount, description: d.description, features: d.features, category: d.category, projects: (d.projects||[]).length })), null, 2);
     }
     case "get_tasks": {
       const isAdmin = await verifyAdmin(args);
@@ -410,8 +411,20 @@ async function handleToolCall(name, args) {
     }
     case "add_domain": {
       const isAdmin = await verifyAdmin(args);
+      const domainData = { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], category: args.category || null, projects: [] };
+      const syncBundled = async (db) => {
+        try {
+          const bundled = await db.collection("siteConfig").doc("careerPaths").get();
+          const current = bundled.exists ? (bundled.data()?.value?.list || []) : [];
+          const idx = current.findIndex(d => d.id === args.id);
+          if (idx >= 0) current[idx] = domainData; else current.push(domainData);
+          await db.collection("siteConfig").doc("careerPaths").set({ value: { list: current }, updatedAt: new Date().toISOString() }, { merge: true });
+        } catch (e) { console.warn("add_domain bundled sync failed:", e.message); }
+      };
       if (isAdmin) {
-        const r = await executeMutate("careerPaths", "create", { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], icon: args.icon||"⭐", projects: [] }, null, null);
+        await executeMutate("careerPaths", "create", domainData, null, null);
+        const db = await getDb();
+        if (db) await syncBundled(db);
         cacheInvalidate("careerPaths");
         logAction("add_domain", "admin", `Added domain live: ${args.title}`);
         return `Domain "${args.title}" added live. (ID: ${args.id})`;
@@ -419,7 +432,7 @@ async function handleToolCall(name, args) {
       const member = await authorizedMcpUser(args, "add_domain", "write");
       const email = member.email;
       const proposals = await loadProposals();
-      const proposal = { id: `prop_${generateId()}`, type: "add_domain", requester_email: email, data: { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], icon: args.icon||"⭐" }, status: "pending", submittedAt: new Date().toISOString() };
+      const proposal = { id: `prop_${generateId()}`, type: "add_domain", requester_email: email, data: domainData, status: "pending", submittedAt: new Date().toISOString() };
       proposals.push(proposal); await saveProposals(proposals);
       logAction("add_domain", email, `Suggested new domain: ${args.title}`);
       return `Domain "${args.title}" submitted for review (ID: ${proposal.id}). Admin will review and make it live.`;
@@ -448,7 +461,15 @@ async function handleToolCall(name, args) {
     case "remove_domain": {
       const isAdmin = await verifyAdmin(args);
       if (isAdmin) {
-        const r = await executeMutate("careerPaths", "delete", {}, args.id, null);
+        await executeMutate("careerPaths", "delete", {}, args.id, null);
+        const db = await getDb();
+        if (db) try {
+          const bundled = await db.collection("siteConfig").doc("careerPaths").get();
+          if (bundled.exists) {
+            const list = (bundled.data()?.value?.list || []).filter(d => d.id !== args.id);
+            await db.collection("siteConfig").doc("careerPaths").set({ value: { list }, updatedAt: new Date().toISOString() }, { merge: true });
+          }
+        } catch (e) { console.warn("remove_domain bundled sync failed:", e.message); }
         cacheInvalidate("careerPaths");
         logAction("remove_domain", "admin", `Removed domain live: ${args.id}`);
         return `Domain "${args.id}" removed live.`;
@@ -476,13 +497,16 @@ async function handleToolCall(name, args) {
       const prop = proposals[idx];
       let result = "";
       if (prop.type === "add_domain") {
-        try { result = await executeMutate("careerPaths", "create", { id: prop.data.id, title: prop.data.title, duration: prop.data.duration, paymentAmount: prop.data.paymentAmount, paymentAmountReferral: prop.data.paymentAmountReferral, description: prop.data.description, features: prop.data.features, icon: prop.data.icon, projects: [] }, null, null); } catch (err) { result = `Error: ${err.message}`; }
+        const domainData = { id: prop.data.id, title: prop.data.title, duration: prop.data.duration, paymentAmount: prop.data.paymentAmount, paymentAmountReferral: prop.data.paymentAmountReferral, description: prop.data.description, features: prop.data.features, category: prop.data.category || null, projects: [] };
+        try { result = await executeMutate("careerPaths", "create", domainData, null, null); } catch (err) { result = `Error: ${err.message}`; }
+        try { const db = await getDb(); if (db) { const bundled = await db.collection("siteConfig").doc("careerPaths").get(); const current = bundled.exists ? (bundled.data()?.value?.list || []) : []; current.push(domainData); await db.collection("siteConfig").doc("careerPaths").set({ value: { list: current }, updatedAt: new Date().toISOString() }, { merge: true }); } } catch (e) { console.warn("approve bundled sync failed:", e.message); }
       } else if (prop.type === "add_task") {
         try { const docs = await executeQuery("careerPaths", [], null); const domain = docs.find(d => d.id === prop.data.domain_id); if (!domain) throw new Error("Domain not found"); const projects = domain.projects || []; projects.push({ title: prop.data.title, description: prop.data.description, type: prop.data.type, links: prop.data.links }); result = await executeMutate("careerPaths", "update", { projects }, prop.data.domain_id, null); } catch (err) { result = `Error: ${err.message}`; }
       } else if (prop.type === "edit_data") {
         try { result = await executeMutate(prop.data.collection, prop.data.action, prop.data.data, prop.data.document_id, null); } catch (err) { result = `Error: ${err.message}`; }
       } else if (prop.type === "remove_domain") {
         try { result = await executeMutate("careerPaths", "delete", {}, prop.data.id, null); } catch (err) { result = `Error: ${err.message}`; }
+        try { const db = await getDb(); if (db) { const bundled = await db.collection("siteConfig").doc("careerPaths").get(); if (bundled.exists) { const list = (bundled.data()?.value?.list || []).filter(d => d.id !== prop.data.id); await db.collection("siteConfig").doc("careerPaths").set({ value: { list }, updatedAt: new Date().toISOString() }, { merge: true }); } } } catch (e) { console.warn("approve remove_domain bundled sync failed:", e.message); }
       }
       cacheInvalidate(prop.data?.collection || "careerPaths");
       prop.status = "approved"; prop.approvedAt = new Date().toISOString(); prop.executionResult = result;
@@ -556,7 +580,7 @@ async function handleToolCall(name, args) {
       const cd = await db.collection("siteConfig").doc("courses").get();
       let list = cd.exists ? (cd.data().value?.list || cd.data().value || []) : [];
       const idx = list.findIndex(c => c.id === args.id);
-      const course = { id: args.id, title: args.title, description: args.description || "", price: args.price || 0, duration: args.duration || "Self-paced", icon: args.icon || "📚", level: args.level || "All Levels", category: args.category || "", features: args.features || [], skills: args.skills || [], learningObjectives: args.learningObjectives || [], updatedAt: new Date().toISOString() };
+      const course = { id: args.id, title: args.title, description: args.description || "", price: args.price || 0, duration: args.duration || "Self-paced", icon: args.icon || "", level: args.level || "All Levels", category: args.category || "", features: args.features || [], skills: args.skills || [], learningObjectives: args.learningObjectives || [], updatedAt: new Date().toISOString() };
       if (idx >= 0) list[idx] = course; else list.push(course);
       await db.collection("siteConfig").doc("courses").set({ value: { list }, updatedAt: new Date().toISOString() }, { merge: true });
       cacheInvalidate("siteConfig");

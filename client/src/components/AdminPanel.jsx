@@ -11622,7 +11622,7 @@ function CourseSection({ user }) {
   const [saving, setSaving] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
   const [editingContent, setEditingContent] = useState(null);
-  const [form, setForm] = useState({ id: "", title: "", description: "", price: 0, duration: "", icon: "📚", level: "Beginner", category: "", features: [], skills: [], learningObjectives: [] });
+  const [form, setForm] = useState({ id: "", title: "", description: "", price: 0, duration: "", icon: "", level: "Beginner", category: "", features: [], skills: [], learningObjectives: [] });
   const [contentForm, setContentForm] = useState({ modules: [] });
   const [courseCategories, setCourseCategories] = useState([]);
   const [catsSaving, setCatsSaving] = useState(false);
@@ -11659,12 +11659,12 @@ function CourseSection({ user }) {
 
   const resetForm = () => {
     setEditingCourse(null);
-    setForm({ id: "", title: "", description: "", price: 0, duration: "", icon: "📚", level: "Beginner", category: "", features: [], skills: [], learningObjectives: [] });
+    setForm({ id: "", title: "", description: "", price: 0, duration: "", icon: "", level: "Beginner", category: "", features: [], skills: [], learningObjectives: [] });
   };
 
   const editCourse = (c) => {
     setEditingCourse(c.id);
-    setForm({ id: c.id, title: c.title, description: c.description, price: c.price || 0, duration: c.duration || "", icon: c.icon || "📚", level: c.level || "Beginner", category: c.category || "", features: Array.isArray(c.features) ? c.features : [], skills: Array.isArray(c.skills) ? c.skills : [], learningObjectives: Array.isArray(c.learningObjectives) ? c.learningObjectives : [] });
+    setForm({ id: c.id, title: c.title, description: c.description, price: c.price || 0, duration: c.duration || "", icon: c.icon || "", level: c.level || "Beginner", category: c.category || "", features: Array.isArray(c.features) ? c.features : [], skills: Array.isArray(c.skills) ? c.skills : [], learningObjectives: Array.isArray(c.learningObjectives) ? c.learningObjectives : [] });
     setContentForm(content[c.id] || { modules: [] });
     setEditingContent(c.id);
   };
@@ -11784,7 +11784,7 @@ function CourseSection({ user }) {
             <div style={{ gridColumn: "span 2" }}><label style={labelStyle}>Description</label><textarea style={{ ...inputStyle, minHeight: 60 }} value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Course description..." /></div>
             <div><label style={labelStyle}>Price (0 = free)</label><input style={inputStyle} type="number" value={form.price} onChange={e => setForm(p => ({ ...p, price: Number(e.target.value) }))} /></div>
             <div><label style={labelStyle}>Duration</label><input style={inputStyle} value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))} placeholder="4 Weeks" /></div>
-            <div><label style={labelStyle}>Icon</label><input style={inputStyle} value={form.icon} onChange={e => setForm(p => ({ ...p, icon: e.target.value }))} placeholder="📚" /></div>
+            <div><label style={labelStyle}>Icon</label><input style={inputStyle} value={form.icon} onChange={e => setForm(p => ({ ...p, icon: e.target.value }))} placeholder="Icon" /></div>
             <div><label style={labelStyle}>Level</label><select style={inputStyle} value={form.level} onChange={e => setForm(p => ({ ...p, level: e.target.value }))}>
               <option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>All Levels</option>
             </select></div>
