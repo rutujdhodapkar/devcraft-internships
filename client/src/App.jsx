@@ -149,7 +149,7 @@ export default function App() {
     if (path === "/") return "site";
     return "error";
   })();
-  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'agency', 'tandp', 'privacy', 'refund', 'certificate', 'verify', 'error', 'courses', 'learn'
+  const [currentView, setCurrentView] = useState(initialView); // 'site', 'auth', 'dashboard', 'admin', 'agency', 'tandp', 'privacy', 'refund', 'certificate', 'verify', 'error'
   const [referralCode, setReferralCode] = useState("");
 
   // Routing Redirection Target
@@ -198,11 +198,13 @@ export default function App() {
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
   const [headerSettings, setHeaderSettings] = useState({ animation: "slide-down", effect: "solid" });
   const [showPopup, setShowPopup] = useState(false);
-  // Course learning state
-  const [currentCourseEnrollment, setCurrentCourseEnrollment] = useState(null);
+  const [popupSettings, setPopupSettings] = useState(null);
   const [homeCourses, setHomeCourses] = useState([]);
   const [homeLayout, setHomeLayout] = useState(null);
-  const [popupSettings, setPopupSettings] = useState(null);
+  const [courseCategory, setCourseCategory] = useState("All");
+  const [homeCourses, setHomeCourses] = useState([]);
+  const [homeLayout, setHomeLayout] = useState(null);
+  const [courseCategory, setCourseCategory] = useState("All");
 
   // Refs to avoid re-registering the auth listener on view changes
   const pendingEnrollmentRef = useRef(pendingEnrollmentDomain);
@@ -227,14 +229,6 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  // Fetch courses and homepage layout on mount
-  useEffect(() => {
-    import("../services/data").then(({ fetchCourses, fetchSiteConfig }) => {
-      fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {});
-      fetchCourses().then(setHomeCourses).catch(() => {});
-    });
-  }, []);
-
   // Show popup on login if configured
   const prevUserRef = useRef(user);
   useEffect(() => {
@@ -251,11 +245,27 @@ export default function App() {
     }
   }, [currentView, popupSettings]);
 
+  // Fetch courses and homepage layout on mount
+  useEffect(() => {
+    import("../services/data").then(({ fetchCourses, fetchSiteConfig }) => {
+      fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {});
+      fetchCourses().then(setHomeCourses).catch(() => {});
+    });
+  }, []);
+
   // Load header settings from DB on mount
   useEffect(() => {
     fetchHeaderSettings()
       .then((s) => { if (s) setHeaderSettings(s); })
       .catch(() => {});
+  }, []);
+
+  // Fetch courses and homepage layout on mount
+  useEffect(() => {
+    import("../services/data").then(({ fetchCourses, fetchSiteConfig }) => {
+      fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {});
+      fetchCourses().then(setHomeCourses).catch(() => {});
+    });
   }, []);
 
   // Listen to Google Auth state (runs once on mount; uses refs for latest state values)
@@ -466,25 +476,24 @@ export default function App() {
     }
   }, [currentView]);
 
-  // Handle browser back/forward navigation — always derive view from path,
-  // never from stale currentView, to avoid accidental redirects.
+  // Handle browser back/forward navigation
   useEffect(() => {
-    const pathToView = (path) => {
-      if (path.startsWith("/certificate/")) return "certificate";
-      if (path.startsWith("/verify/")) return "verify";
-      if (path === "/admin") return "admin";
-      if (path === "/tandp") return "tandp";
-      if (path === "/privacy") return "privacy";
-      if (path === "/refund") return "refund";
-      if (path === "/earn") return "earn";
-      if (path === "/mcp") return "mcp";
-      if (path === "/university") return "university";
-      return "site";
+    const handlePop = () => {
+      const path = window.location.pathname;
+      if (path.startsWith("/certificate/")) setCurrentView("certificate");
+      else if (path.startsWith("/verify/")) setCurrentView("verify");
+      else if (path === "/admin") setCurrentView("admin");
+      else if (path === "/tandp") setCurrentView("tandp");
+      else if (path === "/privacy") setCurrentView("privacy");
+      else if (path === "/refund") setCurrentView("refund");
+      else if (path === "/earn") setCurrentView("earn");
+      else if (path === "/mcp") setCurrentView("mcp");
+      else if (path === "/university") setCurrentView("university");
+      else if (["tandp", "privacy", "refund", "certificate", "earn", "mcp", "university", "verify"].includes(currentView)) setCurrentView("site");
     };
-    const handlePop = () => setCurrentView(pathToView(window.location.pathname));
     window.addEventListener("popstate", handlePop);
     return () => window.removeEventListener("popstate", handlePop);
-  }, []); // empty deps — no stale closures
+  }, [currentView]);
 
   // Close country dropdown on outside click
   useEffect(() => {
@@ -579,6 +588,27 @@ export default function App() {
       }
       await enrollStudent(user.uid, profile, domainObj);
       setDashboardRefreshKey((k) => k + 1);
+      setCurrentView("dashboard");
+    } catch (err) {
+      notify("Enrollment failed: " + err.message, "error");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleCourseEnroll = async (course) => {
+    if (!user) {
+      setAuthRedirectTarget("dashboard");
+      setCurrentView("auth");
+      return;
+    }
+    try {
+      setAuthLoading(true);
+      const { fetchUserEnrollments, courseEnroll } = await import("../services/data");
+      const existing = await fetchUserEnrollments(user.uid, user.email);
+      const already = existing.some(e => e.type === "course" && e.courseId === course.id);
+      if (!already) await courseEnroll(course.id, { uid: user.uid, email: user.email, name: user.displayName || "Student" });
+      setDashboardRefreshKey(k => k + 1);
       setCurrentView("dashboard");
     } catch (err) {
       notify("Enrollment failed: " + err.message, "error");
@@ -728,28 +758,6 @@ export default function App() {
     setIsAgency(false);
     setHasReferralCode(false);
     setCurrentView("site");
-  };
-
-  const handleCourseEnroll = async (course) => {
-    if (!user) {
-      notify("Please sign in first.", "info");
-      return;
-    }
-    const profile = userProfile;
-    if (!profile?.phone) {
-      notify("Complete your profile in Dashboard first.", "info");
-      return;
-    }
-    try {
-      const { courseEnroll } = await import("../services/data");
-      const enr = await courseEnroll(course.id, {
-        uid: user.uid, email: user.email, name: user.displayName || profile?.name,
-        phone: profile?.phone, college: profile?.college, city: profile?.city, country: profile?.country,
-      });
-      setCurrentCourseEnrollment(enr);
-      setCurrentView("dashboard");
-      setTimeout(() => notify("Enrolled in " + course.title + "!", "success"), 100);
-    } catch (e) { notify(e.message, "error"); }
   };
 
   const renderPartnerHeader = () => <Navbar
@@ -959,14 +967,23 @@ export default function App() {
             />
             <SlidingStrip />
             <LogoLoopSection />
-            {homeLayout?.showInternships !== false && <CareerPaths onApplyDomain={handleApplyDomain} maxItems={homeLayout?.internshipCount || null} />}
+            <CareerPaths onApplyDomain={handleApplyDomain} maxItems={homeLayout?.internshipCount || null} />
             {homeLayout?.showCourses !== false && homeCourses.length > 0 && (() => {
               const count = homeLayout?.courseCount || 3;
-              const shown = homeCourses.slice(0, count);
+              const categories = [...new Set(homeCourses.map(c => c.category).filter(Boolean))];
+              const catFilter = courseCategory === "All" ? homeCourses : homeCourses.filter(c => c.category === courseCategory);
+              const shown = catFilter.slice(0, count);
               return (
                 <div style={{ maxWidth: 1200, margin: "0 auto", padding: "3rem 1rem", fontFamily: "system-ui, sans-serif" }}>
                   <h2 style={{ fontSize: "1.75rem", fontWeight: 900, textTransform: "uppercase", textAlign: "center", margin: "0 0 0.25rem" }}>Courses</h2>
                   <p style={{ textAlign: "center", color: "#666", fontSize: "0.95rem", marginBottom: "2rem" }}>Structured programs with certificates</p>
+                  {categories.length > 0 && (
+                    <div style={{ display: "flex", justifyContent: "center", gap: "0.5rem", marginBottom: "2rem", flexWrap: "wrap" }}>
+                      {["All", ...categories].map(cat => (
+                        <button key={cat} onClick={() => setCourseCategory(cat)} style={{ background: courseCategory === cat ? "#000" : "transparent", color: courseCategory === cat ? "#fff" : "#000", border: "2px solid #000", padding: "0.4rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>{cat}</button>
+                      ))}
+                    </div>
+                  )}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1.5rem" }}>
                     {shown.map(c => {
                       const free = c.price === 0 || !c.price;

@@ -138,6 +138,8 @@ const COLLECTIONS = {
   bannedUsers: { desc: "Banned users", scoped: false },
   paymentHistory: { desc: "Payment transaction history", scoped: false },
   auditLog: { desc: "System audit log", scoped: false },
+  courses: { desc: "Course metadata (list of courses)", scoped: false },
+  courseContent: { desc: "Course content (modules, lessons, quizzes)", scoped: false },
 };
 
 // ── DB operations ──
@@ -304,6 +306,31 @@ const toolDefinitions = [
     name: "audit_log",
     description: "View all MCP usage logs (reads, writes, approvals).",
     inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "get_courses",
+    description: "List all courses with metadata.",
+    inputSchema: { type: "object", properties: { email: { type: "string" } } },
+  },
+  {
+    name: "get_course_content",
+    description: "Get course content (modules, lessons, quizzes) for a course.",
+    inputSchema: { type: "object", properties: { email: { type: "string" }, course_id: { type: "string" } }, required: ["course_id"] },
+  },
+  {
+    name: "add_course",
+    description: "Add or update a course (admin only).",
+    inputSchema: { type: "object", properties: { id: { type: "string" }, title: { type: "string" }, description: { type: "string" }, price: { type: "number" }, duration: { type: "string" }, icon: { type: "string" }, level: { type: "string" }, category: { type: "string" }, features: { type: "array", items: { type: "string" } }, skills: { type: "array", items: { type: "string" } }, learningObjectives: { type: "array", items: { type: "string" } } }, required: ["id", "title"] },
+  },
+  {
+    name: "add_course_content",
+    description: "Add or update course modules/lessons/quizzes (admin only).",
+    inputSchema: { type: "object", properties: { course_id: { type: "string" }, modules: { type: "array", items: { type: "object", properties: { title: { type: "string" }, lessons: { type: "array", items: { type: "object", properties: { title: { type: "string" }, type: { type: "string", enum: ["text", "video", "code"] }, content: { type: "string" }, duration: { type: "string" } }, required: ["title", "type", "content"] } }, quiz: { type: "object", properties: { title: { type: "string" }, passingScore: { type: "number" }, questions: { type: "array", items: { type: "object", properties: { question: { type: "string" }, options: { type: "array", items: { type: "string" } }, correctIndex: { type: "number" } }, required: ["question", "options", "correctIndex"] } } } } }, required: ["title"] } }, required: ["course_id", "modules"] },
+  },
+  {
+    name: "remove_course",
+    description: "Remove a course and its content (admin only).",
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
   },
 ];
 
@@ -503,6 +530,60 @@ async function handleToolCall(name, args) {
     case "audit_log": {
       if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
       try { return JSON.stringify(readJSON(join(DATA_DIR, "mcp-log.json")) || [], null, 2); } catch { return "[]"; }
+    }
+    case "get_courses": {
+      if (!(await verifyAdmin(args))) await authorizedMcpUser(args, "get_courses");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const cd = await db.collection("siteConfig").doc("courses").get();
+      const list = cd.exists ? (cd.data().value?.list || cd.data().value || []) : [];
+      logAction("get_courses", "admin", `Read ${list.length} courses`);
+      return JSON.stringify(list, null, 2);
+    }
+    case "get_course_content": {
+      if (!(await verifyAdmin(args))) await authorizedMcpUser(args, "get_course_content");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const doc = await db.collection("siteConfig").doc(`courseContent_${args.course_id}`).get();
+      if (!doc.exists) throw new Error("Course content not found");
+      logAction("get_course_content", "admin", `Read content for ${args.course_id}`);
+      return JSON.stringify(doc.data().value || doc.data(), null, 2);
+    }
+    case "add_course": {
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const cd = await db.collection("siteConfig").doc("courses").get();
+      let list = cd.exists ? (cd.data().value?.list || cd.data().value || []) : [];
+      const idx = list.findIndex(c => c.id === args.id);
+      const course = { id: args.id, title: args.title, description: args.description || "", price: args.price || 0, duration: args.duration || "Self-paced", icon: args.icon || "📚", level: args.level || "All Levels", category: args.category || "", features: args.features || [], skills: args.skills || [], learningObjectives: args.learningObjectives || [], updatedAt: new Date().toISOString() };
+      if (idx >= 0) list[idx] = course; else list.push(course);
+      await db.collection("siteConfig").doc("courses").set({ value: { list }, updatedAt: new Date().toISOString() }, { merge: true });
+      cacheInvalidate("siteConfig");
+      logAction("add_course", "admin", `${idx >= 0 ? "Updated" : "Added"} course: ${args.id}`);
+      return `Course "${args.title}" ${idx >= 0 ? "updated" : "added"}.`;
+    }
+    case "add_course_content": {
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      await db.collection("siteConfig").doc(`courseContent_${args.course_id}`).set({ value: { modules: args.modules }, updatedAt: new Date().toISOString() }, { merge: true });
+      cacheInvalidate("siteConfig");
+      logAction("add_course_content", "admin", `Set content for ${args.course_id}`);
+      return `Content for "${args.course_id}" saved (${args.modules.length} modules).`;
+    }
+    case "remove_course": {
+      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+      const cd = await db.collection("siteConfig").doc("courses").get();
+      let list = cd.exists ? (cd.data().value?.list || cd.data().value || []) : [];
+      list = list.filter(c => c.id !== args.id);
+      await db.collection("siteConfig").doc("courses").set({ value: { list }, updatedAt: new Date().toISOString() }, { merge: true });
+      await db.collection("siteConfig").doc(`courseContent_${args.id}`).delete().catch(() => {});
+      cacheInvalidate("siteConfig");
+      logAction("remove_course", "admin", `Removed course: ${args.id}`);
+      return `Course "${args.id}" removed.`;
     }
     default: throw new Error(`Unknown tool: ${name}`);
   }

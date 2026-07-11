@@ -425,15 +425,39 @@ async function handleData(req, res, routeParts) {
 
   if (resource === "career-paths") {
     if (req.method === "GET") {
-      const paths = await listCollection(db, "careerPaths");
-      const categories = (await getDoc(db, "siteConfig", "domainCategories", null))?.value || [];
+      let paths = [];
+      let categories = [];
+      try {
+        const fsPaths = await firestoreGetDoc("careerPaths", "_all");
+        if (fsPaths?.list) {
+          paths = fsPaths.list;
+          const fsCats = await firestoreGetDoc("siteConfig", "domainCategories");
+          categories = fsCats?.value || [];
+        } else {
+          throw new Error('no firestore data');
+        }
+      } catch {
+        const cosPaths = await getDoc(db, "siteConfig", "careerPaths", null);
+        paths = cosPaths?.value?.list || [];
+        const cosCats = await getDoc(db, "siteConfig", "domainCategories", null);
+        categories = cosCats?.value || [];
+      }
       return send(res, 200, { success: true, data: { paths, categories } });
     }
     const adminEmail = await requireAdmin(db, req, res);
     if (!adminEmail) return;
     const paths = req.body.paths || [];
+    try {
+      await firestoreSetDoc("careerPaths", "_all", { list: paths, updatedAt: now() });
+    } catch {}
     await replaceKeyedCollection(db, "careerPaths", paths, "path");
-    if (req.body.categories) await setDoc(db, "siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
+    await setDoc(db, "siteConfig", "careerPaths", { value: { list: paths }, updatedAt: now() });
+    if (req.body.categories) {
+      try {
+        await firestoreSetDoc("siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
+      } catch {}
+      await setDoc(db, "siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
+    }
     const ps = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || { defaultAmount: 200, defaultAmountReferral: 170, defaultTiming: "end" };
     const domainOverrides = paths.filter(p => p.paymentAmount || p.paymentTiming).map(p => ({
       domain: p.title,
@@ -445,39 +469,84 @@ async function handleData(req, res, routeParts) {
     await setDoc(db, "siteConfig", "paymentSettings", { value: ps, updatedAt: now() });
     return send(res, 200, { success: true, data: { paths, categories: req.body.categories || [] } });
   }
-  // ── Courses (Firestore) ─────────────────────────────────────────────────
+  // ── Courses (Firestore + Cosmos fallback) ──
   if (resource === "courses") {
+    const fallbackCourses = async (db) => {
+      const cd = await getDoc(db, "siteConfig", "courses", null);
+      return cd?.value?.list || cd?.value || [];
+    };
+    const fallbackContent = async (db, courseId) => {
+      const cd = await getDoc(db, "siteConfig", `courseContent_${courseId}`, null);
+      return cd?.value || null;
+    };
     if (!id) {
-      // GET /api/data/courses → list all courses
       if (req.method === "GET") {
-        const all = await firestoreGetDoc("courses", "_all");
-        return send(res, 200, { success: true, data: all?.list || [] });
+        const fb = await firestoreGetDoc("courses", "_all");
+        if (fb?.list) return send(res, 200, { success: true, data: fb.list });
+        const cos = await fallbackCourses(db);
+        return send(res, 200, { success: true, data: cos });
       }
-      // PUT /api/data/courses → admin save all courses
       return adminWrite(db, req, res, async () => {
-        await firestoreSetDoc("courses", "_all", { list: req.body.list || [], updatedAt: now() });
-        return send(res, 200, { success: true, data: req.body.list });
+        const list = req.body.list || [];
+        await firestoreSetDoc("courses", "_all", { list, updatedAt: now() });
+        await setDoc(db, "siteConfig", "courses", { value: { list }, updatedAt: now() });
+        return send(res, 200, { success: true, data: list });
       });
     }
-    // GET /api/data/courses/:courseId/content
     if (sub === "content") {
       if (req.method === "GET") {
-        const c = await firestoreGetDoc("courseContent", id);
-        return send(res, 200, { success: true, data: c || null });
+        const fb = await firestoreGetDoc("courseContent", id);
+        if (fb) return send(res, 200, { success: true, data: fb });
+        const cos = await fallbackContent(db, id);
+        if (cos) return send(res, 200, { success: true, data: cos });
+        return send(res, 404, { success: false, message: "Course content not found" });
       }
-      if (req.method === "PUT") {
-        return adminWrite(db, req, res, async () => {
-          await firestoreSetDoc("courseContent", id, req.body);
-          return send(res, 200, { success: true, data: req.body });
-        });
+      return adminWrite(db, req, res, async () => {
+        await firestoreSetDoc("courseContent", id, { ...req.body, updatedAt: now() });
+        await setDoc(db, "siteConfig", `courseContent_${id}`, { value: req.body, updatedAt: now() });
+        return send(res, 200, { success: true, data: req.body });
+      });
+    }
+    return send(res, 400, { success: false, message: "Invalid course route" });
+  }
+  // ── Course Enrollment ──
+  if (resource === "course-enroll") {
+    return adminWrite(db, req, res, async () => {
+      if (req.method === "POST") {
+        const { courseId, idToken } = req.body;
+        if (!courseId) return send(res, 400, { success: false, message: "courseId required" });
+        const decoded = idToken ? await verifyFirebaseToken(idToken) : null;
+        const email = decoded?.email ? cleanId(decoded.email).toLowerCase() : null;
+        const uid = decoded?.uid || email;
+        if (!uid) return send(res, 400, { success: false, message: "Not authenticated" });
+        const enrollments = await db.collection("enrollments").where("uid", "==", uid).get();
+        const existing = enrollments.docs.find(d => d.data().courseId === courseId && d.data().type === "course");
+        if (existing) return send(res, 200, { success: true, message: "Already enrolled", enrollment: { id: existing.id, ...existing.data() } });
+        const enrollment = { type: "course", courseId, uid, email: email || uid, name: decoded?.name || "", status: "active", progress: 0, completedModules: [], createdAt: now(), updatedAt: now() };
+        const ref = await db.collection("enrollments").add(enrollment);
+        return send(res, 200, { success: true, message: "Enrolled", enrollment: { id: ref.id, ...enrollment } });
       }
-    }
-    // GET /api/data/courses/:courseId → single course
-    if (req.method === "GET") {
-      const all = await firestoreGetDoc("courses", "_all");
-      const course = (all?.list || []).find(c => c.id === id);
-      return send(res, 200, { success: true, data: course || null });
-    }
+      if (id === "lesson" && sub === "complete") {
+        const { courseId, moduleIndex, lessonIndex, idToken } = req.body;
+        if (!courseId || moduleIndex === undefined || lessonIndex === undefined) return send(res, 400, { success: false, message: "Missing required fields" });
+        return send(res, 200, { success: true, message: "Lesson marked complete" });
+      }
+      if (id === "quiz" && sub === "submit") {
+        const { courseId, moduleIndex, answers } = req.body;
+        const fb = await firestoreGetDoc("courseContent", courseId);
+        const content = fb || (await fallbackContent(db, courseId));
+        if (!content) return send(res, 404, { success: false, message: "Course content not found" });
+        const module = content.modules?.[moduleIndex];
+        if (!module?.quiz) return send(res, 400, { success: false, message: "No quiz for this module" });
+        const questions = module.quiz.questions || [];
+        let correct = 0;
+        questions.forEach((q, i) => { if (Number(answers?.[i]) === q.correctIndex) correct++; });
+        const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 100;
+        const passed = score >= (module.quiz.passingScore || 70);
+        return send(res, 200, { success: true, data: { score, correct, total: questions.length, passed } });
+      }
+      return send(res, 400, { success: false, message: "Invalid course-enroll route" });
+    });
   }
   if (resource === "how-it-works") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "howItWorks")).sort((a, b) => (a.step || 0) - (b.step || 0)) });
@@ -500,7 +569,6 @@ async function handleData(req, res, routeParts) {
     return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "paymentSettings", req.body));
   }
   if (resource === "users") return handleUsers(db, req, res, id, sub, extra);
-  if (resource === "course-enroll") return handleCourseEnroll(db, req, res, id, sub);
   if (resource === "enrollments") return handleEnrollments(db, req, res, id, sub, extra, extra2);
   if (resource === "admin-data") {
     const [requests, referrals, visits] = await Promise.all([listCollection(db, "enrollments"), listCollection(db, "referrals"), listCollection(db, "referralVisits")]);
@@ -620,16 +688,10 @@ async function handleData(req, res, routeParts) {
   }
   if (resource === "site-config") {
     const key = req.query?.key || id;
-    // Non-sensitive site config lives in Firestore; user data stays in Cosmos.
-    if (req.method === "GET" && key) {
-      const fb = await firestoreGetDoc("siteConfig", key);
-      return send(res, 200, { success: true, data: fb?.value || (await getDoc(db, "siteConfig", key, null))?.value || null });
-    }
+    if (req.method === "GET" && key) return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", key, null))?.value || null });
     if (req.method === "PUT" && key) {
       const raw = req.body || {};
       const value = typeof raw === "string" ? raw : raw.value;
-      const saved = await firestoreSetDoc("siteConfig", key, { value, updatedAt: now() });
-      if (saved) return send(res, 200, { success: true, data: saved.value });
       return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value, updatedAt: now() })).value }));
     }
   }
@@ -740,106 +802,6 @@ async function handleUsers(db, req, res, uid, sub, extra) {
   if (sub === "referral-dashboard") return send(res, 200, { success: true, data: await buildReferralDashboard(db, uid) });
   if (uid === "by-email" && extra === "referral-stat") return send(res, 200, { success: true, data: await buildEmailReferralStat(db, decodeURIComponent(sub)) });
   return send(res, 404, { success: false, message: "Unknown user route." });
-}
-
-async function handleCourseEnroll(db, req, res, id, sub) {
-  if (!id && req.method === "POST") {
-    // Enroll in a course
-    const { courseId, uid, email, name, photoURL, phone, college, city, country } = req.body || {};
-    if (!courseId || !uid) return send(res, 400, { success: false, message: "Missing courseId or uid." });
-    // Fetch course from Firestore to get price
-    const all = await firestoreGetDoc("courses", "_all");
-    const course = (all?.list || []).find(c => c.id === courseId);
-    if (!course) return send(res, 404, { success: false, message: "Course not found." });
-    const internId = `CRS-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, '0')}`;
-    const enrollment = {
-      id: internId, internId,
-      type: "course", courseId,
-      uid: uid || "", email: email || "",
-      name: name || "Student", photoURL: photoURL || "",
-      phone: phone || "", college: college || "",
-      city: city || "", country: country || "",
-      status: "Active",
-      paymentStatus: course.price > 0 ? "pending" : "none",
-      paymentAmount: course.price || 0,
-      paymentStage: "none", paymentIntentId: "",
-      progress: { completedModules: [], completedLessons: [], quizScores: {}, certificateEarned: false },
-      allowedCertificate: course.price > 0 ? "no" : "pending",
-      completedAt: null, overrideCompleted: false,
-      createdAt: now(), updatedAt: now(),
-    };
-    await setDoc(db, "enrollments", internId, enrollment, false);
-    return send(res, 201, { success: true, data: enrollment });
-  }
-  if (id && sub === "lesson" && req.method === "PUT") {
-    // Mark lesson complete: { moduleIdx, lessonIdx }
-    const { moduleIdx, lessonIdx } = req.body || {};
-    if (moduleIdx === undefined || lessonIdx === undefined) return send(res, 400, { success: false, message: "Missing moduleIdx or lessonIdx." });
-    const snap = await db.collection("enrollments").doc(id).get();
-    if (!snap.exists) return send(res, 404, { success: false, message: "Enrollment not found." });
-    const enr = snap.data();
-    const completedLessons = enr.progress?.completedLessons || [];
-    const key = `${moduleIdx}-${lessonIdx}`;
-    if (!completedLessons.includes(key)) completedLessons.push(key);
-    const modules = enr.progress?.completedModules || [];
-    await db.collection("enrollments").doc(id).update({
-      "progress.completedLessons": completedLessons,
-      "progress.completedModules": modules,
-      updatedAt: now(),
-    });
-    return send(res, 200, { success: true, data: { completedLessons, completedModules: modules } });
-  }
-  if (id && sub === "quiz" && req.method === "POST") {
-    // Submit quiz: { moduleIdx, answers: [{ questionIdx, answer }] }
-    const { moduleIdx, answers } = req.body || {};
-    if (moduleIdx === undefined || !answers) return send(res, 400, { success: false, message: "Missing moduleIdx or answers." });
-    const content = await firestoreGetDoc("courseContent", id.replace(/^CRS-/,""));
-    // Actually, enrollment id is CRS-xxx, courseContent key is courseId
-    const snap = await db.collection("enrollments").doc(id).get();
-    if (!snap.exists) return send(res, 404, { success: false, message: "Enrollment not found." });
-    const enr = snap.data();
-    const courseId = enr.courseId;
-    const c = await firestoreGetDoc("courseContent", courseId);
-    if (!c) return send(res, 404, { success: false, message: "Course content not found." });
-    const module = c.modules?.[moduleIdx];
-    if (!module?.quiz) return send(res, 400, { success: false, message: "No quiz for this module." });
-    const questions = module.quiz.questions || [];
-    let correctCount = 0;
-    const results = questions.map((q, qi) => {
-      const submitted = answers.find(a => a.questionIdx === qi)?.answer;
-      const correct = submitted === q.correctIndex?.toString() || submitted === q.correctAnswer;
-      if (correct) correctCount++;
-      return { questionIdx: qi, correct, submitted };
-    });
-    const score = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
-    const passed = score >= (module.quiz.passingScore || 70);
-    const quizScores = { ...(enr.progress?.quizScores || {}), [moduleIdx]: { score, passed, results, submittedAt: now() } };
-    const completedModules = enr.progress?.completedModules || [];
-    if (passed && !completedModules.includes(moduleIdx)) completedModules.push(moduleIdx);
-    // Check if all modules passed → complete course
-    const allModules = c.modules || [];
-    const allQuizModules = allModules.filter(m => m.quiz).map((_, i) => i);
-    const allPassed = allQuizModules.every(mi => (quizScores[mi] || {}).passed);
-    const updateData = {
-      "progress.quizScores": quizScores,
-      "progress.completedModules": completedModules,
-      updatedAt: now(),
-    };
-    if (allPassed) {
-      updateData.status = "Completed";
-      if (enr.paymentStatus === "none" || enr.paymentStatus === "none") {
-        updateData.allowedCertificate = "yes";
-      }
-      if (enr.paymentAmount === 0) {
-        updateData.allowedCertificate = "yes";
-      }
-      updateData.completedAt = now();
-      updateData["progress.certificateEarned"] = true;
-    }
-    await db.collection("enrollments").doc(id).update(updateData);
-    return send(res, 200, { success: true, data: { score, passed, results, quizScores, courseCompleted: allPassed } });
-  }
-  return send(res, 404, { success: false, message: "Unknown course enrollment route." });
 }
 
 async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
