@@ -73,12 +73,13 @@ function cleanId(email) {
 // ── Auth helpers (delegated to shared server/auth.js) ──
 
 async function verifyAdmin(args) {
+  // Service keys (admin_secret / MCP_API_KEY) are intentionally NOT accepted
+  // for mcp-domains — only Firebase-authenticated admins, approved-user JWTs,
+  // or the local operator (MCP_LOCAL_TRUSTED) may administer MCP.
   const id = await resolveIdentity({
     admin_token: args.admin_token,
-    admin_secret: args.admin_secret,
     bearer: args.bearer,
     user_token: args.user_token,
-    api_key: args.api_key,
   });
   return !!(id && id.role === "admin");
 }
@@ -303,12 +304,18 @@ async function handleToolCall(name, args) {
 
   switch (name) {
     case "request_access": {
-      const { email, name: n, reason, agency_id, webhook_url, allowed_tools, requested_hooks } = args;
-      if (!email) throw new Error("Email required");
+      const id = await resolveIdentity({ user_token: args.user_token, bearer: args.bearer, admin_token: args.admin_token });
+      // Anonymous/local operators may specify any email; everyone else can only
+      // request access for their own signed-in account.
+      const isOperator = id && (id.source === "local" || id.role === "admin");
+      const email = (isOperator && args.email ? args.email : id?.email || "").toLowerCase();
+      if (!email || email.endsWith("@devcraft.local")) throw new Error("Sign in with your account to request MCP access.");
+      const requesterName = args.name || id?.name || "";
+      const { reason, agency_id, webhook_url, allowed_tools, requested_hooks } = args;
       if (await isAuthorized(email)) return "You already have access.";
       const reqs = await loadAccessRequests();
       if (reqs.find(r => r.email.toLowerCase() === email.toLowerCase() && r.status === "pending")) return "Request already pending.";
-      reqs.push({ id: generateId(), email: email.toLowerCase(), name: n||"", reason: reason||"", agency_id: agency_id||null, webhook_url: webhook_url||"", allowed_tools: allowed_tools||"", requested_hooks: requested_hooks||"", status: "pending", submittedAt: new Date().toISOString() });
+      reqs.push({ id: generateId(), email: email.toLowerCase(), name: requesterName, reason: reason||"", agency_id: agency_id||null, webhook_url: webhook_url||"", allowed_tools: allowed_tools||"", requested_hooks: requested_hooks||"", status: "pending", submittedAt: new Date().toISOString() });
       await saveAccessRequests(reqs);
       logAction("request_access", email, `Requested access${agency_id ? ` (agency: ${agency_id})` : ""}`);
       return "Request submitted. Admin will review. You will be notified when approved.";

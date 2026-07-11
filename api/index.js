@@ -11,7 +11,7 @@ function send(res, status, payload) {
 async function verifyFirebaseToken(idToken) {
   if (!idToken) return null;
   try {
-    const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY || "AIzaSyCn_dJ21ga0CuErOdvnYxO7mwIm9elFie8";
+    const apiKey = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_WEB_API_KEY;
     if (!apiKey) return null;
     const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`, {
       method: "POST",
@@ -1284,7 +1284,10 @@ async function handleVerifyData(req, res, enrollmentId) {
   }
 }
 
-const CRYPTO_SECRET = process.env.CRYPTO_SECRET || "devcraft-cert-secret-change-in-production";
+const CRYPTO_SECRET = process.env.CRYPTO_SECRET;
+if (!CRYPTO_SECRET) {
+  console.error("[cert] CRYPTO_SECRET is not configured; certificate signing disabled.");
+}
 
 function parseDuration(durationStr) {
   if (!durationStr) return 28;
@@ -1364,6 +1367,7 @@ async function handleCertificateData(req, res, enrollmentId) {
     };
 
     // HMAC signature
+    if (!CRYPTO_SECRET) return send(res, 500, { success: false, message: "CRYPTO_SECRET is not configured." });
     const { createHmac } = await import("crypto");
     const hmac = createHmac("sha256", CRYPTO_SECRET);
     hmac.update(JSON.stringify({ name: certData.name, domain: certData.domain, status: certData.status, internId: certData.internId, date: certData.date }));
@@ -1486,6 +1490,10 @@ async function handleFirebaseProxy(req, res) {
         default:
           return send(res, 400, { success: false, message: `Unknown action: ${action}` });
       }
+    }
+    if (isWrite) {
+      const syncBuckets = BUCKET_FOR_COLLECTION[collection];
+      if (syncBuckets && syncBuckets.length) await bumpSyncVersions(db, syncBuckets);
     }
     return send(res, 200, { success: true, data: result });
   } catch (error) {
@@ -1907,39 +1915,88 @@ async function handleAutoExpire(req, res) {
 
 // Lightweight version fingerprint per data bucket. The client calls this on load
 // and only re-fetches buckets whose fingerprint changed. Fingerprints are cheap
-// aggregations (count + most-recent updatedAt) over the backing collections, so
-// no expensive hashing/indexes are required.
+// A maintained `siteConfig/syncVersions` doc stores a per-bucket version stamp
+// (a timestamp of the last known change). On every load the client fetches ONLY
+// this one small doc — it never scans the backing collections — and re-fetches a
+// bucket only when its stamp changed. Stamps are bumped on writes (see
+// bumpSyncVersions) and, as a safety net for server-internal writes we don't
+// hook directly, recomputed from the collections at most once per TTL window.
 //   tasks            -> enrollments collection
 //   certs            -> enrollments where allowedCertificate === "yes"
 //   badges_combined  -> badges + userBadges (+ userStreaks + userFlags if present)
+const SYNC_VERSION_TTL = 30 * 1000;
+const SYNC_BUCKETS = ["tasks", "certs", "badges_combined"];
+
+// Maps a written collection to the sync buckets whose version stamp must advance.
+const BUCKET_FOR_COLLECTION = {
+  enrollments: ["tasks", "certs"],
+  badges: ["badges_combined"],
+  userBadges: ["badges_combined"],
+  userStreaks: ["badges_combined"],
+  userFlags: ["badges_combined"],
+};
+
+// Best-effort: stamp the given buckets as changed. Called after successful writes.
+async function bumpSyncVersions(db, buckets) {
+  try {
+    if (!db || !buckets || !buckets.length) return;
+    const cur = (await getDoc(db, "siteConfig", "syncVersions", null)) || {};
+    const ts = Date.now();
+    const next = { ...cur };
+    for (const b of buckets) next[b] = ts;
+    next.computedAt = ts;
+    await setDoc(db, "siteConfig", "syncVersions", next);
+  } catch (e) {
+    console.warn("[sync] bump failed:", e.message);
+  }
+}
+
 async function handleSyncVersions(req, res) {
   try {
     const db = await initCosmosDb();
     if (!db) return send(res, 503, { success: false, message: "Database not configured" });
 
-    const enrollments = await listCollection(db, "enrollments");
-    const maxTs = (arr, pick) =>
-      arr.reduce((m, x) => {
-        const t = pick(x) || "";
-        return t > m ? t : m;
-      }, "");
-    const enrollTs = (e) => e.updatedAt || e.createdAt || "";
-    const certs = enrollments.filter((e) => e.allowedCertificate === "yes");
-    const tasksVer = `${enrollments.length}:${maxTs(enrollments, enrollTs)}`;
-    const certsVer = `${certs.length}:${maxTs(certs, enrollTs)}`;
+    const now = Date.now();
+    const doc = await getDoc(db, "siteConfig", "syncVersions", null);
+    const fresh = doc && doc.computedAt && now - doc.computedAt < SYNC_VERSION_TTL;
 
+    if (fresh) {
+      // O(1): serve the maintained stamps, no collection scan.
+      return send(res, 200, {
+        success: true,
+        data: {
+          tasks: String(doc.tasks ?? 0),
+          certs: String(doc.certs ?? 0),
+          badges_combined: String(doc.badges_combined ?? 0),
+        },
+        serverTime: now,
+        cached: true,
+      });
+    }
+
+    // Self-heal: recompute stamps from the collections (one scan), then cache.
+    const enrollments = await listCollection(db, "enrollments");
+    const certs = enrollments.filter((e) => e.allowedCertificate === "yes");
     const badges = await listCollection(db, "badges");
     const userBadges = await listCollection(db, "userBadges");
     const streaks = await listCollection(db, "userStreaks").catch(() => []);
     const flags = await listCollection(db, "userFlags").catch(() => []);
-    const badgeDocs = [...badges, ...userBadges, ...streaks, ...flags];
-    const badgeTs = (d) => d.updatedAt || d.createdAt || "";
-    const badgesVer = `${badgeDocs.length}:${maxTs(badgeDocs, badgeTs)}`;
-
+    const versions = {
+      tasks: now,
+      certs: now,
+      badges_combined: now,
+      computedAt: now,
+    };
+    await setDoc(db, "siteConfig", "syncVersions", versions).catch(() => {});
     return send(res, 200, {
       success: true,
-      data: { tasks: tasksVer, certs: certsVer, badges_combined: badgesVer },
-      serverTime: Date.now(),
+      data: {
+        tasks: String(versions.tasks),
+        certs: String(versions.certs),
+        badges_combined: String(versions.badges_combined),
+      },
+      serverTime: now,
+      cached: false,
     });
   } catch (error) {
     return send(res, 500, { success: false, message: error.message });

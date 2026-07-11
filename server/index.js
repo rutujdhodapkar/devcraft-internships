@@ -43,7 +43,21 @@ const ADMINS_FILE = path.join(__dirname, 'admins.json');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
+const ALLOWED_ORIGINS = [
+  "https://devcraft.fennark.xyz",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin || ALLOWED_ORIGINS.some((o) => origin.startsWith(o.replace(/\/$/, "")))) {
+      cb(null, true);
+    } else {
+      cb(null, false);
+    }
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 async function readJson(filePath, fallback = []) {

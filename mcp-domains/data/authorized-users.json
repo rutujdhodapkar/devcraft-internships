@@ -1,0 +1,18 @@
+[
+  {
+    "email": "someone@gmail.com",
+    "name": "",
+    "agency_id": null,
+    "allowed_tools": "get_domains",
+    "allowed_hooks": "",
+    "permissions": {
+      "read": true,
+      "write": false,
+      "execute": false,
+      "admin": false
+    },
+    "webhook_url": "",
+    "authorizedAt": "2026-07-11T06:20:47.666Z",
+    "authorizedBy": "admin"
+  }
+]

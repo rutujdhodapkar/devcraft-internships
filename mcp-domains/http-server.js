@@ -83,24 +83,22 @@ const server = createServer(async (req, res) => {
     const toolName = params?.name;
     const args = params?.arguments || {};
 
-    // `request_access` is the only open door (onboarding); everything else
-    // requires a valid credential.
-    if (toolName !== "request_access") {
-      const authHeader = req.headers["authorization"] || "";
-      const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : (args.bearer || "");
-      const idn = await resolveIdentity({
-        bearer,
-        user_token: args.user_token,
-        admin_token: args.admin_token,
-        admin_secret: args.admin_secret,
-        api_key: args.api_key,
-      });
-      if (!idn) {
-        send(200, { jsonrpc, id, error: { code: -32001, message: "Unauthorized: valid authentication required." } });
-        return;
-      }
-      if (!args.bearer && bearer) args.bearer = bearer;
+    // Every tool call requires a valid credential — including request_access,
+    // which is now tied to the signed-in account (no anonymous onboarding).
+    const authHeader = req.headers["authorization"] || "";
+    const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : (args.bearer || "");
+    const idn = await resolveIdentity({
+      bearer,
+      user_token: args.user_token,
+      admin_token: args.admin_token,
+      admin_secret: args.admin_secret,
+      api_key: args.api_key,
+    });
+    if (!idn) {
+      send(200, { jsonrpc, id, error: { code: -32001, message: "Unauthorized: valid authentication required." } });
+      return;
     }
+    if (!args.bearer && bearer) args.bearer = bearer;
 
     try {
       const text = await handleToolCall(toolName, args);

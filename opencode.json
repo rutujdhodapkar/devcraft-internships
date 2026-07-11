@@ -6,6 +6,7 @@
       "command": ["node", "mcp-email/server.js"],
       "enabled": true,
       "environment": {
+        "MCP_LOCAL_TRUSTED": "1",
         "BREVO_API_KEY": "{env:BREVO_API_KEY}",
         "FROM_EMAIL": "{env:FROM_EMAIL}",
         "FROM_NAME": "{env:FROM_NAME}"
@@ -14,13 +15,17 @@
     "domains": {
       "type": "local",
       "command": ["node", "mcp-domains/server.js"],
-      "enabled": true
+      "enabled": true,
+      "environment": {
+        "MCP_LOCAL_TRUSTED": "1"
+      }
     },
     "social-automation": {
       "type": "local",
       "command": ["node", "mcp-social/server.js"],
       "enabled": true,
       "environment": {
+        "MCP_LOCAL_TRUSTED": "1",
         "TWITTER_API_KEY": "{env:TWITTER_API_KEY}",
         "LINKEDIN_ACCESS_TOKEN": "{env:LINKEDIN_ACCESS_TOKEN}",
         "LINKEDIN_PERSON_ID": "{env:LINKEDIN_PERSON_ID}",

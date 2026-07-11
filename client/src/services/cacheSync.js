@@ -222,35 +222,42 @@ export async function fetchServerVersions() {
 // Returns: { [bucket]: data }
 export async function syncBuckets(items, opts = {}) {
   const forceAll = !!opts.force;
-  let serverVersions = {};
+  let serverVersions = null;
   try {
     serverVersions = await fetchServerVersions();
   } catch (e) {
-    // Network/endpoint failure: fall back to whatever is cached so the app still
-    // renders. If nothing is cached, re-run the fetchers so we don't return empty.
+    // Network/endpoint failure: we can't diff, so serve cache where we have it.
     console.warn("[cacheSync] version fetch failed, using cache fallback:", e.message);
   }
+  const unknown = serverVersions === null;
 
   const results = {};
   for (const item of items) {
     const { bucket, key, fetcher } = item;
     const localVer = await getLocalVersion(bucket);
-    const serverVer = serverVersions[bucket] ?? null;
-    const changed = forceAll || item.force || localVer === null || localVer !== serverVer;
+    const serverVer = unknown ? null : (serverVersions[bucket] ?? null);
 
+    // Decide whether we must re-fetch this bucket.
+    let changed = forceAll || item.force;
+    if (!changed && !unknown) changed = localVer === null || localVer !== serverVer;
+    if (!changed && unknown) {
+      // Can't verify against the server — serve cache if present, else fetch once.
+      const cached = await getCached(bucket, key);
+      if (cached != null) { results[bucket] = cached; continue; }
+      changed = true;
+    }
     if (!changed) {
       const cached = await getCached(bucket, key);
-      if (cached != null) {
-        results[bucket] = cached;
-        continue;
-      }
-      // Cached data missing despite a matching version — fall through to fetch.
+      if (cached != null) { results[bucket] = cached; continue; }
+      changed = true; // matching version but no cached data — fetch.
     }
 
     try {
       const data = await fetcher();
       await putCached(bucket, key, data);
-      if (serverVer != null) await putLocalVersion(bucket, serverVer);
+      // Persist the version we validated against (or a local sentinel when unknown),
+      // so a subsequent unknown/down state serves cache instead of refetching.
+      await putLocalVersion(bucket, serverVer != null ? serverVer : `local:${Date.now()}`);
       results[bucket] = data;
     } catch (err) {
       // Fetch failed: serve stale cache if present, otherwise rethrow-free null.
