@@ -27,7 +27,7 @@ function PathCard({ path, onApply }) {
             </ul>
           </div>
         )}
-        {path.projects && path.projects.length > 0 && (
+        {Array.isArray(path.projects) && path.projects.length > 0 && (
           <div style={{ marginBottom: '2rem' }}>
             <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px', marginBottom: '0.75rem', color: '#000' }}>Hands-on Projects:</h4>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
