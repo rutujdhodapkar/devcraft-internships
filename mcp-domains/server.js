@@ -365,6 +365,12 @@ async function handleToolCall(name, args) {
       return JSON.stringify(domain.projects || [], null, 2);
     }
     case "add_domain": {
+      const isAdmin = await verifyAdmin(args);
+      if (isAdmin) {
+        const r = await executeMutate("careerPaths", "create", { id: args.id, title: args.title, duration: args.duration||"8 Weeks", paymentAmount: args.paymentAmount||249, paymentAmountReferral: args.paymentAmountReferral||220, description: args.description||"", features: args.features||[], icon: args.icon||"⭐", projects: [] }, null, null);
+        logAction("add_domain", "admin", `Added domain live: ${args.title}`);
+        return `Domain "${args.title}" added live. (ID: ${args.id})`;
+      }
       const member = await authorizedMcpUser(args, "add_domain", "write");
       const email = member.email;
       const proposals = await loadProposals();
@@ -374,6 +380,17 @@ async function handleToolCall(name, args) {
       return `Domain "${args.title}" submitted for review (ID: ${proposal.id}). Admin will review and make it live.`;
     }
     case "add_task": {
+      const isAdmin = await verifyAdmin(args);
+      if (isAdmin) {
+        const docs = await executeQuery("careerPaths", [], null);
+        const domain = docs.find(d => d.id === args.domain_id);
+        if (!domain) throw new Error("Domain not found");
+        const projects = domain.projects || [];
+        projects.push({ title: args.title, description: args.description||"", type: args.type||"project", links: args.links||[] });
+        const r = await executeMutate("careerPaths", "update", { projects }, args.domain_id, null);
+        logAction("add_task", "admin", `Added task live: ${args.title} for ${args.domain_id}`);
+        return `Task "${args.title}" added live.`;
+      }
       const member = await authorizedMcpUser(args, "add_task", "write");
       const email = member.email;
       const proposals = await loadProposals();
@@ -401,6 +418,8 @@ async function handleToolCall(name, args) {
         try { result = await executeMutate("careerPaths", "create", { id: prop.data.id, title: prop.data.title, duration: prop.data.duration, paymentAmount: prop.data.paymentAmount, paymentAmountReferral: prop.data.paymentAmountReferral, description: prop.data.description, features: prop.data.features, icon: prop.data.icon, projects: [] }, null, null); } catch (err) { result = `Error: ${err.message}`; }
       } else if (prop.type === "add_task") {
         try { const docs = await executeQuery("careerPaths", [], null); const domain = docs.find(d => d.id === prop.data.domain_id); if (!domain) throw new Error("Domain not found"); const projects = domain.projects || []; projects.push({ title: prop.data.title, description: prop.data.description, type: prop.data.type, links: prop.data.links }); result = await executeMutate("careerPaths", "update", { projects }, prop.data.domain_id, null); } catch (err) { result = `Error: ${err.message}`; }
+      } else if (prop.type === "edit_data") {
+        try { result = await executeMutate(prop.data.collection, prop.data.action, prop.data.data, prop.data.document_id, null); } catch (err) { result = `Error: ${err.message}`; }
       }
       prop.status = "approved"; prop.approvedAt = new Date().toISOString(); prop.executionResult = result;
       proposals[idx] = prop; await saveProposals(proposals);
@@ -419,16 +438,25 @@ async function handleToolCall(name, args) {
       return `Rejected. Reason: ${proposals[idx].rejectionReason}`;
     }
     case "lookup": {
-      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
+      const isAdmin = await verifyAdmin(args);
+      const who = isAdmin ? "admin" : (await authorizedMcpUser(args, "lookup")).email;
       const docs = await executeQuery(args.collection, args.filters||[], null);
-      logAction("lookup", "admin", `Queried ${args.collection}: ${docs.length} results`);
+      logAction("lookup", who, `Queried ${args.collection}: ${docs.length} results`);
       return JSON.stringify(docs, null, 2);
     }
     case "edit_data": {
-      if (!(await verifyAdmin(args))) throw new Error("Unauthorized");
-      const r = await executeMutate(args.collection, args.action, args.data||{}, args.document_id, null);
-      logAction("edit_data", "admin", `${args.action} on ${args.collection}/${args.document_id||""}`);
-      return r;
+      const isAdmin = await verifyAdmin(args);
+      if (isAdmin) {
+        const r = await executeMutate(args.collection, args.action, args.data||{}, args.document_id, null);
+        logAction("edit_data", "admin", `${args.action} on ${args.collection}/${args.document_id||""}`);
+        return r;
+      }
+      const member = await authorizedMcpUser(args, "edit_data", "write");
+      const proposals = await loadProposals();
+      const proposal = { id: `prop_${generateId()}`, type: "edit_data", requester_email: member.email, data: { collection: args.collection, action: args.action, data: args.data||{}, document_id: args.document_id }, status: "pending", submittedAt: new Date().toISOString() };
+      proposals.push(proposal); await saveProposals(proposals);
+      logAction("edit_data", member.email, `Proposed edit on ${args.collection}/${args.document_id||""}`);
+      return `Edit proposed (ID: ${proposal.id}). Admin will review and apply.`;
     }
     case "collections": {
       if (!(await verifyAdmin(args))) throw new Error("Unauthorized");

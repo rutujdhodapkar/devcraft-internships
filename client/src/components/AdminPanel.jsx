@@ -10912,7 +10912,7 @@ function ProposalsSection({ user }) {
       body: JSON.stringify({
         jsonrpc: "2.0", id: Date.now(),
         method: "tools/call",
-        params: { name: tool, arguments: { ...args, ...(token ? { admin_token: token } : { admin_secret: "devcraft_admin_mcp_2025" }) } },
+        params: { name: tool, arguments: { ...args, ...(token ? { admin_token: token } : {}) } },
       }),
     });
     const data = await res.json();
@@ -11404,7 +11404,7 @@ function AuditLogSection({ user }) {
       body: JSON.stringify({
         jsonrpc: "2.0", id: Date.now(),
         method: "tools/call",
-        params: { name: tool, arguments: { ...args, ...(token ? { admin_token: token } : { admin_secret: "devcraft_admin_mcp_2025" }) } },
+        params: { name: tool, arguments: { ...args, ...(token ? { admin_token: token } : {}) } },
       }),
     });
     const data = await res.json();
