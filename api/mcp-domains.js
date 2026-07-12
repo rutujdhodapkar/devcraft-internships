@@ -15,6 +15,7 @@ async function getHandler() {
 
 const ALLOWED_ORIGINS = [
   "https://devcraft.fennark.xyz",
+  "https://devcraft.rutujdhodapkar.tech",
   "http://localhost:5173",
   "http://localhost:5174",
 ];
@@ -24,7 +25,7 @@ function setCors(req, res) {
   if (origin && ALLOWED_ORIGINS.some((o) => origin.startsWith(o.replace(/\/$/, "")))) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else if (origin) {
-    res.setHeader("Access-Control-Allow-Origin", "https://devcraft.fennark.xyz");
+    res.setHeader("Access-Control-Allow-Origin", origin);
   } else {
     res.setHeader("Access-Control-Allow-Origin", "https://devcraft.fennark.xyz");
   }
