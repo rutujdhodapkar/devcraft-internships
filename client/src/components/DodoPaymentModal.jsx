@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
-import { fetchEnrollmentById, fetchDodoConfig } from "../services/data";
+import { fetchEnrollmentById } from "../services/data";
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
 
 export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onClose, userEmail, userName }) {
   const [status, setStatus] = useState("creating");
   const [errorMessage, setErrorMessage] = useState("");
+  const [checkoutAttempt, setCheckoutAttempt] = useState(0);
   const initRef = useRef(false);
   const pollingRef = useRef(false);
   const paidRef = useRef(false);
@@ -34,12 +35,22 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
     initRef.current = true;
     (async () => {
       try {
-        const config = await fetchDodoConfig();
-        const mode = config?.mode === "live" ? "live" : "test";
+        const res = await fetch(`${API_BASE}/api/dodo/create-checkout-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount, enrollmentId, customerEmail: userEmail, customerName: userName }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.message || "Failed to create checkout");
+        if (!data.data?.checkout_url) throw new Error("Dodo did not return a checkout URL");
         const mod = await import("dodopayments-checkout");
         const DodoPayments = mod.DodoPayments;
+        // The checkout SDK rewrites session URLs to its selected environment.
+        // Use the environment that created this session, never a stale admin UI
+        // setting, otherwise test session IDs are sent to the live endpoint.
         DodoPayments.Initialize({
-          mode,
+          mode: data.data.mode === "live" ? "live" : "test",
+          linkType: "session",
           displayType: "overlay",
           onEvent: (event) => {
             if (event.event_type === "payment.succeeded") {
@@ -55,13 +66,6 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
             }
           },
         });
-        const res = await fetch(`${API_BASE}/api/dodo/create-checkout-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount, enrollmentId, customerEmail: userEmail, customerName: userName }),
-        });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message || "Failed to create checkout");
         setStatus("processing");
         await DodoPayments.Checkout.open({ checkoutUrl: data.data.checkout_url });
       } catch (err) {
@@ -69,7 +73,7 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         setErrorMessage(err.message);
       }
     })();
-  }, []);
+  }, [amount, checkoutAttempt, enrollmentId, userEmail, userName]);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, overflowY: "auto", padding: "2rem 0" }}>
@@ -117,7 +121,7 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
               {errorMessage || "Something went wrong."}
             </p>
             <div style={{ display: "flex", gap: "0.75rem", justifyContent: "center", marginTop: "1.5rem" }}>
-              <button onClick={() => { setStatus("creating"); initRef.current = false; setErrorMessage(""); }} className="btn-sharp" style={{ padding: "0.65rem 1.5rem", fontWeight: 800 }}>
+              <button onClick={() => { setStatus("creating"); initRef.current = false; setErrorMessage(""); setCheckoutAttempt((attempt) => attempt + 1); }} className="btn-sharp" style={{ padding: "0.65rem 1.5rem", fontWeight: 800 }}>
                 Retry
               </button>
               <button onClick={onClose} className="btn-sharp" style={{ background: "#fff", color: "#000", border: "2px solid #000", padding: "0.65rem 1.5rem" }}>

@@ -1853,14 +1853,17 @@ export async function triggerManualEmailType(type, email = "", dryRun = false) {
 
 // ─── Skill Badges & Micro-Certifications ───
 export async function fetchBadges() {
-  return fetchSiteConfig("badges");
+  const badges = await fetchSiteConfig("badges");
+  return Array.isArray(badges) ? badges : [];
 }
 
 export async function saveBadges(badges) {
   _lsRemove("badges");
   const now = new Date().toISOString();
   const obj = {};
-  badges.forEach(b => { obj[b.id] = { ...b, updatedAt: now }; });
+  (Array.isArray(badges) ? badges : []).forEach(b => {
+    if (b?.id) obj[b.id] = { ...b, updatedAt: now };
+  });
   if (Object.keys(obj).length) await dbPut("badges", obj);
   return badges;
 }

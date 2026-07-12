@@ -11333,7 +11333,14 @@ function BadgesSection({ user }) {
   const [awarding, setAwarding] = useState(false);
   const [awardResult, setAwardResult] = useState(null);
 
-  useEffect(() => { fetchBadges().then(setBadges).catch(() => {}).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    // A newly installed site has no badge config yet.  Keep the editor usable
+    // when the API/cache represents that absence as null rather than an array.
+    fetchBadges()
+      .then((items) => setBadges(Array.isArray(items) ? items : []))
+      .catch(() => setBadges([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const addBadge = () => setBadges(p => [...p, { id: "b_" + Date.now(), title: "", description: "", icon: "", type: "badge", criteriaType: "manual", criteria: "", htmlTemplate: "" }]);
 

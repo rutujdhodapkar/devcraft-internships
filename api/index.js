@@ -1443,7 +1443,12 @@ async function handleDodo(req, res, parts) {
       };
       if (customerEmail) body.customer = { email: customerEmail, name: customerName || "" };
       const session = await dodoApi("/checkouts", { method: "POST", body: JSON.stringify(body) });
-      return send(res, 200, { success: true, data: { checkout_url: session.checkout_url, session_id: session.session_id } });
+      if (!session.checkout_url || !session.session_id) {
+        throw new Error("Dodo did not return a checkout session URL");
+      }
+      // The browser SDK uses this value to select its checkout host. Keeping it
+      // coupled to the server-side API environment prevents test/live URL swaps.
+      return send(res, 200, { success: true, data: { checkout_url: session.checkout_url, session_id: session.session_id, mode: DODO_ENV } });
     }
     if (sub === "webhook") {
       const rawBody = JSON.stringify(req.body);
