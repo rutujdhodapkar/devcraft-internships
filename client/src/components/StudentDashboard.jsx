@@ -30,6 +30,7 @@ import {
 } from "../services/data";
 import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
+import { getDomainIconUrl } from "../utils/domainIcons";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
 import DodoPaymentModal from "./DodoPaymentModal";
@@ -360,7 +361,7 @@ export default function StudentDashboard({
 
   const getEnrollmentIcon = (enrollment) => {
     const path = careerPaths.find((item) => item.id === enrollment.domainId || item.title === enrollment.domain);
-    return path?.icon || "";
+    return getDomainIconUrl(path || enrollment);
   };
 
   const handleSubmitProject = async (enrollment, projectIdx) => {
@@ -863,7 +864,7 @@ export default function StudentDashboard({
                       return (
                         <div key={e.id} style={{ display: "flex", alignItems: "stretch", border: "2px solid #000", background: selected ? "#000" : "#fff", color: selected ? "#fff" : "#000" }}>
                           <button type="button" onClick={() => setSelectedEnrollment(e)} aria-label={`Open ${name} tasks`} title={name} style={{ display: "flex", alignItems: "center", gap: "0.5rem", border: "none", background: "transparent", color: "inherit", padding: "0.5rem 0.8rem", fontWeight: 800, fontSize: "0.85rem", cursor: "pointer", maxWidth: "260px" }}>
-                            <span style={{ fontSize: "1.15rem", flex: "0 0 auto" }}>{getEnrollmentIcon(e)}</span>
+                            <img src={getEnrollmentIcon(e)} alt="" width="28" height="28" style={{ width: "28px", height: "28px", objectFit: "contain", flex: "0 0 auto" }} />
                             <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "uppercase" }}>{name}</span>
                           </button>
                           <button type="button" aria-label={`Hide ${name}`} title="Hide internship" onClick={() => { hideEnrollmentFromUser(user.uid, e.id); if (selected) setSelectedEnrollment(null); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ border: "none", borderLeft: `2px solid ${selected ? "#fff" : "#000"}`, background: "transparent", color: "inherit", padding: "0 0.65rem", fontWeight: 900, cursor: "pointer" }}>×</button>

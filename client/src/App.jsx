@@ -29,6 +29,7 @@ import ConfirmModal from "./components/ConfirmModal";
 import McpDashboard from "./components/McpDashboard";
 import UniversityOrgPage from "./components/UniversityOrgPage";
 import { notify } from "./services/notify";
+import { getDomainIconUrl } from "./utils/domainIcons";
 import { confirmAction } from "./services/confirm";
 import {
   processReferralFromUrl,
@@ -1001,7 +1002,7 @@ export default function App() {
                       return (
                         <div key={c.id} style={{ border: "2px solid #000", padding: "1.5rem", background: free ? "#fafafa" : "#fffde7", display: "flex", flexDirection: "column" }}>
                           <span style={{ display: "inline-block", background: free ? "#4caf50" : "#f9a825", color: "#fff", fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.6rem", textTransform: "uppercase", marginBottom: "0.75rem", alignSelf: "flex-start" }}>{free ? "Free" : "₹199"}</span>
-                          <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{c.icon || ""}</div>
+                          <img src={getDomainIconUrl(c)} alt="" width="52" height="52" style={{ width: "52px", height: "52px", objectFit: "contain", marginBottom: "0.5rem" }} />
                           <h3 style={{ fontSize: "1.1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{c.title}</h3>
                           <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 0.75rem", flex: 1 }}>{c.description}</p>
                           <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "#777", marginBottom: "0.75rem" }}>
@@ -1046,7 +1047,7 @@ export default function App() {
                         return (
                           <div key={c.id} style={{ border: "2px solid #000", padding: "1.5rem", background: free ? "#fafafa" : "#fffde7", display: "flex", flexDirection: "column" }}>
                             <span style={{ display: "inline-block", background: free ? "#4caf50" : "#f9a825", color: "#fff", fontSize: "0.75rem", fontWeight: 700, padding: "0.2rem 0.6rem", textTransform: "uppercase", marginBottom: "0.75rem", alignSelf: "flex-start" }}>{free ? "Free" : "₹199"}</span>
-                            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{c.icon || ""}</div>
+                            <img src={getDomainIconUrl(c)} alt="" width="52" height="52" style={{ width: "52px", height: "52px", objectFit: "contain", marginBottom: "0.5rem" }} />
                             <h3 style={{ fontSize: "1.1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{c.title}</h3>
                             <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 0.75rem", flex: 1 }}>{c.description}</p>
                             <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "#777", marginBottom: "0.75rem" }}>

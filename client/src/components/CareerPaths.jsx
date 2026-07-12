@@ -1,6 +1,7 @@
 import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from 'react';
 import { fetchCareerPaths, fetchHomepageSettings } from '../services/data';
+import { getDomainIconUrl } from '../utils/domainIcons';
 
 const COLS = 3;
 
@@ -12,6 +13,7 @@ function PathCard({ path, onApply }) {
           <span className="badge-sharp" style={{ backgroundColor: '#000', color: '#fff', fontSize: '0.8rem' }}>{path.duration || '4 Weeks'}</span>
           <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>100% Free</span>
         </div>
+        <img src={getDomainIconUrl(path)} alt="" width="56" height="56" style={{ width: '56px', height: '56px', objectFit: 'contain', marginBottom: '1rem' }} />
         <h3 style={{ fontSize: '1.4rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1rem' }}>{path.title}</h3>
         <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: '1.6', marginBottom: '1.5rem' }}>{path.description}</p>
         <hr style={{ border: 'none', borderTop: '2px solid var(--border-secondary)', marginBottom: '1.5rem' }} />
@@ -74,6 +76,7 @@ function ViewAllModal({ paths, categories, onClose, onApply }) {
               {filtered.map((path) => (
                 <div key={path.id} className="card-sharp" style={{ padding: "1.5rem", border: "2px solid #000", boxShadow: "3px 3px 0 #000" }}>
                   <span className="badge-sharp" style={{ backgroundColor: "#000", color: "#fff", fontSize: "0.75rem", marginBottom: "0.75rem", display: "inline-block" }}>{path.duration || '4 Weeks'}</span>
+                  <img src={getDomainIconUrl(path)} alt="" width="48" height="48" style={{ width: '48px', height: '48px', objectFit: 'contain', display: 'block', marginBottom: '0.75rem' }} />
                   <h4 style={{ fontWeight: 800, textTransform: "uppercase", fontSize: "1.1rem", margin: "0.5rem 0" }}>{path.title}</h4>
                   <p style={{ fontSize: "0.82rem", color: "#666", lineHeight: "1.5", marginBottom: "1rem" }}>{path.description}</p>
                   <button type="button" className="btn-sharp" onClick={() => onApply(path)} style={{ width: "100%", padding: "0.6rem", fontWeight: 700, fontSize: "0.82rem" }}>Apply Now</button>
