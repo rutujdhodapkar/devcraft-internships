@@ -18,7 +18,7 @@ const s = {
   certLink: { display: "inline-block", marginTop: "1rem", background: "#4caf50", color: "#fff", padding: "0.75rem 2rem", fontWeight: 700, textDecoration: "none", fontSize: "1rem" },
 };
 
-export default function LearningView({ enrollment, userId, onBack, careerPaths }) {
+export default function LearningView({ enrollment, userId, onBack, onOpenPayment, careerPaths }) {
   const [content, setContent] = useState(null);
   const [activeBlock, setActiveBlock] = useState(0);
   const [completedBlocks, setCompletedBlocks] = useState([]);
@@ -107,6 +107,7 @@ export default function LearningView({ enrollment, userId, onBack, careerPaths }
           <p>You have completed all content blocks.</p>
           {certAllowed && <a style={s.certLink} href={`/certificate/${enrollment.id}/Certificate`} target="_blank" rel="noopener noreferrer">View Certificate</a>}
           {enrollment.paymentAmount > 0 && enrollment.paymentStatus !== "paid" && <p style={{ marginTop: "1rem", fontSize: "0.85rem" }}>Complete payment to receive your certificate.</p>}
+          {enrollment.paymentAmount > 0 && enrollment.paymentStatus !== "paid" && onOpenPayment && <button style={s.btn} onClick={() => onOpenPayment(enrollment.paymentTiming === "both" ? "end" : "full")}>Complete Payment</button>}
         </div>
       )}
       {content && content.length > 0 && (

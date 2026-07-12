@@ -3186,6 +3186,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           <option value="both">Both (pay at end for certificate)</option>
                         </select>
                       </div>
+                      <div>
+                        <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                          Split at Start (%)
+                        </label>
+                        <input type="number" min="0" max="100" value={path.paymentSplitPercent ?? ""} onChange={(e) => { const u = [...careerPaths]; u[idx].paymentSplitPercent = e.target.value === "" ? null : Math.min(100, Math.max(0, +e.target.value)); setCareerPaths(u); }}
+                          placeholder="Use global default" style={{ border: "2px solid #000", padding: "0.35rem 0.5rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "120px" }} />
+                      </div>
                     </div>
                     <div
                       style={{

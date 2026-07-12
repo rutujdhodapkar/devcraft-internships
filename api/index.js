@@ -627,7 +627,12 @@ async function handleData(req, res, routeParts) {
       const enrolled = existing.docs.find((doc) => doc.data().courseId === courseId && doc.data().type === "course");
       if (enrolled) return send(res, 200, { success: true, data: { id: enrolled.id, ...enrolled.data() } });
       const paymentSettings = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || {};
-      const amount = Math.max(0, Number(course.paymentAmount ?? course.price ?? paymentSettings.defaultAmount ?? 0));
+      const referralCode = codeId(req.body?.referralCode);
+      const isReferral = Boolean(referralCode);
+      const configuredAmount = isReferral
+        ? (course.paymentAmountReferral ?? paymentSettings.defaultAmountReferral ?? course.paymentAmount ?? course.price ?? paymentSettings.defaultAmount)
+        : (course.paymentAmount ?? course.price ?? paymentSettings.defaultAmount);
+      const amount = Math.max(0, Number(configuredAmount ?? 0));
       const paymentTiming = amount > 0 ? (course.paymentTiming || paymentSettings.defaultTiming || "end") : "none";
       const splitPercent = Math.min(100, Math.max(0, Number(course.paymentSplitPercent ?? paymentSettings.defaultSplitPercent ?? 50)));
       const paymentStartAmount = paymentTiming === "both" ? Math.round(amount * splitPercent / 100) : 0;
@@ -638,7 +643,7 @@ async function handleData(req, res, routeParts) {
         status: "Active", allowedCertificate: "no", progress: { completedBlocks: [] },
         courseBlockCount: Array.isArray(course.content) ? course.content.length : 0,
         paymentStatus: amount > 0 ? "none" : "paid", paymentStage: amount > 0 ? "none" : "fully_paid",
-        paymentAmount: amount, paymentStartAmount, paymentEndAmount, paymentTiming, paymentIntentId: "",
+        paymentAmount: amount, paymentStartAmount, paymentEndAmount, paymentTiming, paymentIntentId: "", referralCode,
         createdAt: now(), updatedAt: now(),
       };
       const ref = await db.collection("enrollments").add(enrollment);

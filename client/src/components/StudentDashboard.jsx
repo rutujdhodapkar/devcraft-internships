@@ -920,7 +920,7 @@ export default function StudentDashboard({
             {(() => {
               const courseEnrollments = enrollments.filter(e => e.type === "course");
               if (activeCourseLearning) {
-                return <LearningView enrollment={activeCourseLearning} userId={user?.uid} onBack={() => setActiveCourseLearning(null)} careerPaths={careerPaths} />;
+                return <LearningView enrollment={activeCourseLearning} userId={user?.uid} onBack={() => setActiveCourseLearning(null)} onOpenPayment={(stage) => handleOpenPayment(activeCourseLearning, stage)} careerPaths={careerPaths} />;
               }
               if (courseEnrollments.length === 0) {
                 return (

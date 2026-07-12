@@ -50,10 +50,12 @@ export default function CourseCatalog({ user, userProfile, onEnroll }) {
       {courses.length === 0 && <p style={{ textAlign: "center", color: "#888" }}>No courses available yet.</p>}
       <div style={styles.grid}>
         {courses.map(c => {
-          const free = c.price === 0 || !c.price;
+          const amount = Number(c.paymentAmount ?? c.price ?? 0);
+          const free = amount <= 0;
+          const timingLabel = c.paymentTiming === "start" ? "Pay before starting" : c.paymentTiming === "both" ? "Split payment" : "Pay after completion";
           return (
             <div key={c.id} style={styles.card(free)} onMouseEnter={e => e.currentTarget.style.transform = "translateY(-3px)"} onMouseLeave={e => e.currentTarget.style.transform = "none"}>
-              <span style={styles.badge(free)}>{free ? "Free" : "₹199"}</span>
+              <span style={styles.badge(free)}>{free ? "Free" : timingLabel}</span>
               <div style={styles.icon}>{c.icon || ""}</div>
               <h2 style={styles.title}>{c.title}</h2>
               <p style={styles.desc}>{c.description}</p>
@@ -65,7 +67,7 @@ export default function CourseCatalog({ user, userProfile, onEnroll }) {
                 {(Array.isArray(c.features) ? c.features : []).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>{f}</li>)}
               </ul>
               <div style={{ marginTop: "auto" }}>
-                <div style={styles.price}>{free ? "Free" : "₹199"}</div>
+                <div style={styles.price}>{free ? "Free" : `₹${amount}`}</div>
                 <button style={styles.btn} onClick={() => handleEnroll(c)} disabled={enrolling === c.id}>
                   {enrolling === c.id ? "Enrolling..." : "Enroll Now"}
                 </button>

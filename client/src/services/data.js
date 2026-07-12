@@ -1547,8 +1547,9 @@ export async function saveCourseContent(courseId, content) {
 }
 
 export async function courseEnroll(courseId, profile) {
+  const referralCode = localStorage.getItem("detected_referral_code") || "";
   const data = await apiFetch("/api/data/course-enroll", {
-    method: "POST", body: JSON.stringify({ courseId, ...profile }),
+    method: "POST", body: JSON.stringify({ courseId, referralCode, ...profile }),
   });
   return data.data;
 }
