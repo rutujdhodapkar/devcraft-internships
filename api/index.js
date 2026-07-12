@@ -2260,7 +2260,9 @@ const ALLOWED_ORIGINS = [
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin;
-  if (origin && ALLOWED_ORIGINS.some(o => origin.startsWith(o.replace(/\/$/, "")))) {
+  // Match complete origins. A prefix check would trust a hostile origin such as
+  // https://devcraft.fennark.xyz.attacker.example.
+  if (origin && ALLOWED_ORIGINS.includes(origin.replace(/\/$/, ""))) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else {
     res.setHeader("Access-Control-Allow-Origin", "https://devcraft.fennark.xyz");
