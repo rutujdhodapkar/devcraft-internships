@@ -626,14 +626,19 @@ async function handleData(req, res, routeParts) {
       const existing = await db.collection("enrollments").where("uid", "==", decoded.uid).get();
       const enrolled = existing.docs.find((doc) => doc.data().courseId === courseId && doc.data().type === "course");
       if (enrolled) return send(res, 200, { success: true, data: { id: enrolled.id, ...enrolled.data() } });
-      const amount = Math.max(0, Number(course.paymentAmount ?? course.price ?? 0));
+      const paymentSettings = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || {};
+      const amount = Math.max(0, Number(course.paymentAmount ?? course.price ?? paymentSettings.defaultAmount ?? 0));
+      const paymentTiming = amount > 0 ? (course.paymentTiming || paymentSettings.defaultTiming || "end") : "none";
+      const splitPercent = Math.min(100, Math.max(0, Number(course.paymentSplitPercent ?? paymentSettings.defaultSplitPercent ?? 50)));
+      const paymentStartAmount = paymentTiming === "both" ? Math.round(amount * splitPercent / 100) : 0;
+      const paymentEndAmount = paymentTiming === "both" ? amount - paymentStartAmount : amount;
       const enrollment = {
         type: "course", courseId, domainId: courseId, domain: course.title || courseId,
         uid: decoded.uid, email: cleanId(decoded.email).toLowerCase(), name: decoded.name || name || "Student",
         status: "Active", allowedCertificate: "no", progress: { completedBlocks: [] },
         courseBlockCount: Array.isArray(course.content) ? course.content.length : 0,
         paymentStatus: amount > 0 ? "none" : "paid", paymentStage: amount > 0 ? "none" : "fully_paid",
-        paymentAmount: amount, paymentEndAmount: amount, paymentTiming: amount > 0 ? (course.paymentTiming || "start") : "none", paymentIntentId: "",
+        paymentAmount: amount, paymentStartAmount, paymentEndAmount, paymentTiming, paymentIntentId: "",
         createdAt: now(), updatedAt: now(),
       };
       const ref = await db.collection("enrollments").add(enrollment);
@@ -645,7 +650,7 @@ async function handleData(req, res, routeParts) {
       if (!await requireEnrollmentAccess(db, req, res, enrollment)) return;
       const completedBlocks = [...new Set((req.body?.completedBlocks || []).filter((index) => Number.isInteger(index) && index >= 0 && index < enrollment.courseBlockCount))];
       const complete = enrollment.courseBlockCount > 0 && completedBlocks.length === enrollment.courseBlockCount;
-      const paid = enrollment.paymentAmount <= 0 || enrollment.paymentStatus === "paid";
+      const paid = enrollment.paymentAmount <= 0 || (enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid");
       const patch = { progress: { ...(enrollment.progress || {}), completedBlocks }, updatedAt: now() };
       if (complete && paid) Object.assign(patch, { status: "Completed", allowedCertificate: "yes", completedAt: now() });
       await db.collection("enrollments").doc(id).update(patch);
@@ -1217,7 +1222,7 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
         const projects = enr.projects || [];
         const submissions = enr.submissions || {};
         const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
-        const isPaid = enr.paymentStatus === "paid" || enr.paymentStage === "fully_paid";
+        const isPaid = enr.paymentTiming === "both" ? enr.paymentStage === "fully_paid" : enr.paymentStatus === "paid";
         const courseComplete = enr.type === "course" && enr.courseBlockCount > 0 && (enr.progress?.completedBlocks || []).length >= enr.courseBlockCount;
         if ((allVerified || courseComplete) && isPaid) {
           await db.collection("enrollments").doc(id).update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
@@ -1727,7 +1732,8 @@ async function handleCertificateData(req, res, enrollmentId) {
     const submissions = enrollment.submissions || {};
     const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
     const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
-    const eligible = enrollment.allowedCertificate === "yes" || ((allVerified || projects.length === 0) && (isPaid || enrollment.status === "Completed"));
+    const courseComplete = enrollment.type === "course" && enrollment.courseBlockCount > 0 && (enrollment.progress?.completedBlocks || []).length >= enrollment.courseBlockCount;
+    const eligible = enrollment.allowedCertificate === "yes" || ((allVerified || courseComplete) && (isPaid || enrollment.status === "Completed"));
     const status = eligible ? "Completed" : (enrollment.status || "Active");
 
     // Get org settings (MSME ID)

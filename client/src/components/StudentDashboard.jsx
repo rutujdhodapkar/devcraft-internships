@@ -936,7 +936,11 @@ export default function StudentDashboard({
                     const allContent = courseContentsMap[enr.courseId];
                     const blockCount = Array.isArray(allContent) ? allContent.length : 0;
                     const pct = blockCount > 0 ? Math.round((completedCount / blockCount) * 100) : 0;
-                    const paymentRequired = Number(enr.paymentAmount || 0) > 0 && enr.paymentStatus !== "paid";
+                    const paymentTiming = enr.paymentTiming || "end";
+                    const courseFinished = blockCount > 0 && completedCount >= blockCount;
+                    const startPaid = paymentTiming === "both" ? (enr.paymentStage === "start_paid" || enr.paymentStage === "fully_paid") : enr.paymentStatus === "paid";
+                    const needsStartPayment = Number(enr.paymentAmount || 0) > 0 && (paymentTiming === "start" || paymentTiming === "both") && !startPaid;
+                    const needsEndPayment = Number(enr.paymentAmount || 0) > 0 && courseFinished && ((paymentTiming === "both" && enr.paymentStage !== "fully_paid") || (paymentTiming === "end" && enr.paymentStatus !== "paid"));
                     return (
                       <div key={enr.id} style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", display: "flex", flexDirection: "column" }}>
                         <h3 style={{ fontSize: "1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{enr.courseId.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</h3>
@@ -949,8 +953,10 @@ export default function StudentDashboard({
                             <p style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem" }}>{completedCount}/{blockCount} sections completed</p>
                           </div>
                         )}
-                        {paymentRequired ? (
-                          <button onClick={() => handleOpenPayment(enr, "full")} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>Pay ₹{enr.paymentAmount} to Start</button>
+                        {needsStartPayment ? (
+                          <button onClick={() => handleOpenPayment(enr, paymentTiming === "both" ? "start" : "full")} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>Pay ₹{paymentTiming === "both" ? enr.paymentStartAmount : enr.paymentAmount} to Start</button>
+                        ) : needsEndPayment ? (
+                          <button onClick={() => handleOpenPayment(enr, paymentTiming === "both" ? "end" : "full")} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>Pay ₹{enr.paymentEndAmount || enr.paymentAmount} to Unlock Certificate</button>
                         ) : (
                           <button onClick={() => setActiveCourseLearning(enr)} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>
                             {completedCount > 0 ? "Continue →" : "Start Course"}
