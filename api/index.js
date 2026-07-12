@@ -1401,6 +1401,22 @@ async function dodoApi(path, options = {}) {
   return response.json();
 }
 
+function dodoPaymentDetails(enrollment, requestedStage = "full") {
+  const timing = enrollment?.paymentTiming || "end";
+  const stage = requestedStage === "start" ? "start" : "end";
+  if (timing === "both") {
+    if (stage === "start") {
+      if (enrollment.paymentStage === "start_paid" || enrollment.paymentStage === "fully_paid") throw new Error("The start payment has already been completed");
+      return { stage, amount: Number(enrollment.paymentStartAmount) };
+    }
+    if (enrollment.paymentStage !== "start_paid") throw new Error("Complete the start payment before the final payment");
+    return { stage, amount: Number(enrollment.paymentEndAmount) };
+  }
+  if (stage === "start") throw new Error("This enrollment does not have a start payment");
+  if (enrollment?.paymentStatus === "paid") throw new Error("This enrollment has already been paid");
+  return { stage: "full", amount: Number(enrollment?.paymentEndAmount || enrollment?.paymentAmount) };
+}
+
 async function handleDodo(req, res, parts) {
   if (req.method !== "POST") return send(res, 405, { success: false, message: "Method not allowed" });
   const sub = parts[0] || "";
@@ -1420,22 +1436,31 @@ async function handleDodo(req, res, parts) {
     }
     if (!DODO_KEY) return send(res, 400, { success: false, message: "Dodo API key not configured in Vercel env" });
     if (sub === "create-checkout-session") {
-      const { amount, enrollmentId, customerEmail, customerName } = req.body || {};
-      if (!amount || amount <= 0 || !enrollmentId) return send(res, 400, { success: false, message: "Valid amount and enrollmentId required" });
+      const { enrollmentId, customerEmail, customerName, paymentStage, idToken } = req.body || {};
+      if (!enrollmentId) return send(res, 400, { success: false, message: "enrollmentId is required" });
+      const decoded = await verifyFirebaseToken(idToken);
+      if (!decoded) return send(res, 401, { success: false, message: "Authentication required" });
+      const db2 = await initCosmosDb();
+      const enrollment = (await db2.collection("enrollments").doc(enrollmentId).get()).data();
+      if (!enrollment) return send(res, 404, { success: false, message: "Enrollment not found" });
+      if (enrollment.uid !== decoded.uid) return send(res, 403, { success: false, message: "You do not own this enrollment" });
+      let payment;
+      try { payment = dodoPaymentDetails(enrollment, paymentStage); }
+      catch (error) { return send(res, 400, { success: false, message: error.message }); }
+      if (!Number.isFinite(payment.amount) || payment.amount <= 0) return send(res, 400, { success: false, message: "A valid enrollment payment amount is required" });
       let productId = DODO_PRODUCT_ID;
       if (!productId) {
         try {
-          const db2 = await initCosmosDb();
           const snap2 = await db2.collection("siteConfig").doc("dodoConfig").get();
           const val = snap2.data();
           productId = val?.value?.productId || null;
         } catch {}
       }
       if (!productId) return send(res, 400, { success: false, message: "Dodo product not configured" });
-      const amountPaise = Math.round(amount * 100);
+      const amountPaise = Math.round(payment.amount * 100);
       const body = {
         product_cart: [{ product_id: productId, quantity: 1, amount: amountPaise }],
-        metadata: { enrollment_id: enrollmentId },
+        metadata: { enrollment_id: enrollmentId, payment_stage: payment.stage },
         return_url: `${req.headers.origin || "https://devcraft.fennark.xyz"}/dashboard?dodo_success=1`,
         cancel_url: `${req.headers.origin || "https://devcraft.fennark.xyz"}/dashboard?dodo_cancelled=1`,
         billing_address: { country: "IN" },
@@ -1475,10 +1500,12 @@ async function handleDodo(req, res, parts) {
       if ((eventType === "payment.succeeded") && enrollmentId) {
         try {
           let verifiedStatus = false;
+          let verifiedPayment = null;
           if (DODO_KEY && paymentId) {
             try {
               const payment = await dodoApi(`/payments/${paymentId}`);
               verifiedStatus = payment?.status === "succeeded";
+              verifiedPayment = payment;
               if (payment) {
                 Object.assign(payload, { currency: payment.currency, amount: payment.amount, payment_method: payment.payment_method });
               }
@@ -1493,18 +1520,30 @@ async function handleDodo(req, res, parts) {
           }
           const db3 = await initCosmosDb();
           const enrRef = db3.collection("enrollments").doc(enrollmentId);
+          const enrBefore = (await enrRef.get()).data();
+          if (!enrBefore) return send(res, 404, { received: false, error: "enrollment not found" });
+          const stage = metadata.payment_stage === "start" ? "start" : "end";
+          let expectedPayment;
+          try { expectedPayment = dodoPaymentDetails(enrBefore, stage); }
+          catch (error) { return send(res, 400, { received: false, error: error.message }); }
+          const verifiedAmount = Number(verifiedPayment?.amount ?? paymentAmount);
+          if (verifiedAmount !== Math.round(expectedPayment.amount * 100)) {
+            console.warn("Dodo webhook: payment amount mismatch", { enrollmentId, paymentId, verifiedAmount, expectedAmount: expectedPayment.amount });
+            return send(res, 400, { received: false, error: "payment amount mismatch" });
+          }
           const updateData = {
-            paymentStatus: "paid", paymentStage: "fully_paid",
+            paymentStatus: "paid", paymentStage: expectedPayment.stage === "start" ? "start_paid" : "fully_paid",
             paidAt: now(), paymentIntentId: paymentId,
             transactionId: paymentId, paymentMethod,
-            paymentCurrency, paymentAmount,
+            paymentCurrency: verifiedPayment?.currency || paymentCurrency,
+            paidAmount: expectedPayment.amount,
             paymentGateway: "dodo", updatedAt: now()
           };
           await enrRef.update(updateData);
           const historyRef = db3.collection("paymentHistory").doc();
           await historyRef.set({
             enrollmentId, paymentId, eventType: "payment.succeeded",
-            amount: paymentAmount, currency: paymentCurrency,
+            amount: expectedPayment.amount, currency: verifiedPayment?.currency || paymentCurrency,
             method: paymentMethod, gateway: "dodo",
             createdAt: now(), updatedAt: now()
           });
@@ -1514,7 +1553,7 @@ async function handleDodo(req, res, parts) {
             const projects = enr.projects || [];
             const submissions = enr.submissions || {};
             const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
-            if (allVerified) {
+            if (allVerified && updateData.paymentStage === "fully_paid") {
               await enrRef.update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
             }
           }
@@ -1528,7 +1567,12 @@ async function handleDodo(req, res, parts) {
           const enrRef4 = db4.collection("enrollments").doc(enrollmentId);
           const snap4 = await enrRef4.get();
           const enr4 = snap4.data();
-          await enrRef4.update({ paymentStatus: "failed", updatedAt: now() });
+          // Do not overwrite a completed payment because a different/retried
+          // checkout session failed later.
+          const failedUpdate = enr4?.paymentStatus === "paid"
+            ? { lastPaymentFailedAt: now(), lastPaymentFailedId: paymentId, updatedAt: now() }
+            : { paymentStatus: "failed", updatedAt: now() };
+          await enrRef4.update(failedUpdate);
           if (enr4 && enr4.uid) {
             await bumpSyncVersions(db4, ["tasks", "certs"], enr4.uid);
           }
@@ -1733,10 +1777,21 @@ async function handleFirebaseProxy(req, res) {
         const docId = parts[1];
         if (docId && action !== "push") {
           const doc = await getDoc(db, "enrollments", docId, null);
-          if (doc && doc.uid !== decoded.uid) {
-            const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
-            const adminDoc = email ? await getDoc(db, "admins", emailId(email), null) : null;
-            if (!adminDoc) return send(res, 403, { success: false, message: "Unauthorized. You do not own this enrollment." });
+          const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
+          const adminDoc = email ? await getDoc(db, "admins", emailId(email), null) : null;
+          const isAdmin = email === ROOT_ADMIN_EMAIL || Boolean(adminDoc);
+          if (doc && doc.uid !== decoded.uid && !isAdmin) {
+            return send(res, 403, { success: false, message: "Unauthorized. You do not own this enrollment." });
+          }
+          // Enrollment owners may record a UPI reference and learning progress,
+          // but never payment, certificate, status, or task-verification fields.
+          if (!isAdmin && action === "update") {
+            const ownerWritableFields = new Set(["transactionId", "progress", "updatedAt"]);
+            if (parts.length !== 2 || !data || Object.keys(data).some((key) => !ownerWritableFields.has(key))) {
+              return send(res, 403, { success: false, message: "This enrollment field can only be changed by an administrator." });
+            }
+          } else if (!isAdmin && action !== "update") {
+            return send(res, 403, { success: false, message: "Enrollment changes require administrator access." });
           }
         } else if (action === "push" && data?.uid && data.uid !== decoded.uid) {
           return send(res, 403, { success: false, message: "Cannot create enrollment for another user." });

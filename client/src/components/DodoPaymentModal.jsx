@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useRef } from "react";
 import { fetchEnrollmentById } from "../services/data";
+import { getFirebaseIdToken } from "../firebase";
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
 
-export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onClose, userEmail, userName }) {
+export default function DodoPaymentModal({ enrollmentId, amount, paymentStage, onSuccess, onClose, userEmail, userName }) {
   const [status, setStatus] = useState("creating");
   const [errorMessage, setErrorMessage] = useState("");
   const [checkoutAttempt, setCheckoutAttempt] = useState(0);
@@ -38,7 +39,7 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         const res = await fetch(`${API_BASE}/api/dodo/create-checkout-session`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ amount, enrollmentId, customerEmail: userEmail, customerName: userName }),
+          body: JSON.stringify({ enrollmentId, paymentStage, customerEmail: userEmail, customerName: userName, idToken: await getFirebaseIdToken() }),
         });
         const data = await res.json();
         if (!data.success) throw new Error(data.message || "Failed to create checkout");
@@ -73,7 +74,7 @@ export default function DodoPaymentModal({ enrollmentId, amount, onSuccess, onCl
         setErrorMessage(err.message);
       }
     })();
-  }, [amount, checkoutAttempt, enrollmentId, userEmail, userName]);
+  }, [amount, checkoutAttempt, enrollmentId, paymentStage, userEmail, userName]);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, overflowY: "auto", padding: "2rem 0" }}>

@@ -17,7 +17,6 @@ import {
   fetchSiteNotices,
   fetchPaymentMethods,
   autoExpireEnrollments,
-  markEnrollmentComplete,
 
   hideEnrollmentFromUser,
   getHiddenEnrollments,
@@ -433,16 +432,6 @@ export default function StudentDashboard({
       notify("Quiz submission failed: " + err.message, "error");
     } finally {
       setSubmitting((prev) => ({ ...prev, [key]: false }));
-    }
-  };
-
-  const handleMarkComplete = async (enrollment) => {
-    if (!(await confirmAction("Are you sure you want to mark this internship as complete? This action cannot be undone."))) return;
-    try {
-      await markEnrollmentComplete(enrollment.id);
-      await refreshEnrollment(enrollment.id);
-    } catch (err) {
-      notify("Failed to mark as complete: " + err.message, "error");
     }
   };
 
@@ -1460,6 +1449,7 @@ export default function StudentDashboard({
         <UPIPaymentModal
           enrollmentId={paymentEnrollment.id}
           amount={getFullAmount(paymentEnrollment)}
+          paymentStage={paymentEnrollment._paymentStage}
           onSuccess={handlePaymentSuccess}
           onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
         />
@@ -1618,7 +1608,6 @@ function EnrollmentCard({
   showBackButton,
   onBackClick,
   careerPaths,
-  onMarkComplete,
   onVerifyInternship,
   onLearnHere,
 }) {
@@ -2102,31 +2091,6 @@ function EnrollmentCard({
             </div>
           )}
 
-          {allVerified && enrollment.transactionId && !isCompleted && (
-            <div style={{ marginTop: "1rem", textAlign: "center" }}>
-              <button
-                onClick={() => onMarkComplete(enrollment)}
-                className="btn-sharp"
-                style={{
-                  padding: "0.85rem 2.5rem",
-                  fontSize: "1rem",
-                  fontWeight: 900,
-                  background: "#34A853",
-                  color: "#fff",
-                  border: "2px solid #1a5c2e",
-                  cursor: "pointer",
-                  borderRadius: 0,
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                }}
-              >
-                Mark as Complete
-              </button>
-              <p style={{ fontSize: "0.78rem", color: "#777", marginTop: "0.5rem" }}>
-                All projects verified and transaction received. Click to finalize.
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </div>
