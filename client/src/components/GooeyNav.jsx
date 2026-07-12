@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import './GooeyNav.css';
 
 const GooeyNav = ({
-  items,
+  items = [],
   animationTime = 600,
   particleCount = 15,
   particleDistances = [90, 10],

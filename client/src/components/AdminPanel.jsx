@@ -5355,7 +5355,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                               gap: "0.75rem",
                             }}
                           >
-                            {referral.interns.map((intern) => (
+                            {(referral.interns || []).map((intern) => (
                               <div
                                 key={intern.id}
                                 style={{
@@ -5510,7 +5510,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   padding: "0.75rem",
                                 }}
                               >
-                                {referral.interns.slice(0, 5).map((intern) => (
+                                {(referral.interns || []).slice(0, 5).map((intern) => (
                                   <div
                                     key={intern.id}
                                     style={{
@@ -10053,7 +10053,7 @@ function EmptyBox({ msg }) {
   );
 }
 
-function SimpleTable({ columns, rows, empty }) {
+function SimpleTable({ columns = [], rows, empty }) {
   if (!rows || !rows.length) return <EmptyBox msg={empty} />;
   return (
     <div

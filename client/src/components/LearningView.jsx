@@ -140,7 +140,7 @@ export default function LearningView({ enrollment, userId, onBack, careerPaths }
                     {!(block.html || "").includes("[quiz]") && <h3 style={{ fontSize: "1rem", marginBottom: "0.75rem" }}>{block.quiz.title || "Quiz"}</h3>}
                     {!quizSubmitted ? (
                       <>
-                        {block.quiz.questions.map((q, qi) => (
+                        {(block.quiz?.questions || []).map((q, qi) => (
                           <div key={qi} style={{ marginBottom: "1rem" }}>
                             <p style={{ fontWeight: 700, margin: "0 0 0.5rem" }}>{qi + 1}. {q.question}</p>
                             {(q.options || []).map((opt, oi) => (
@@ -151,8 +151,8 @@ export default function LearningView({ enrollment, userId, onBack, careerPaths }
                             ))}
                           </div>
                         ))}
-                        <button style={Object.keys(quizAnswers).length === block.quiz.questions.length ? s.btn : s.disabledBtn}
-                          disabled={Object.keys(quizAnswers).length < block.quiz.questions.length}
+                        <button style={Object.keys(quizAnswers).length === (block.quiz?.questions || []).length ? s.btn : s.disabledBtn}
+                          disabled={Object.keys(quizAnswers).length < (block.quiz?.questions || []).length}
                           onClick={() => submitBlockQuiz(activeBlock)}>
                           Submit
                         </button>
