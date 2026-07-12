@@ -1359,8 +1359,9 @@ export async function saveSiteConfig(key, value) {
 
 // ── Courses ──────────────────────────────────────────────────────────────
 export async function fetchCourses() {
-  const data = await apiFetch("/api/data/courses");
-  return data.data || [];
+  const result = await fetchCareerPaths();
+  const paths = result.paths || result || [];
+  return paths.filter((p) => p.type === "course");
 }
 
 export async function saveCourses(list) {
@@ -1368,8 +1369,13 @@ export async function saveCourses(list) {
 }
 
 export async function fetchCourseContent(courseId) {
-  const data = await apiFetch(`/api/data/courses/${encodeURIComponent(courseId)}/content`);
-  return data.data || null;
+  try {
+    const data = await apiFetch(`/api/data/courses/${encodeURIComponent(courseId)}/content`);
+    if (data?.data) return data.data;
+  } catch {}
+  const r = await fetchCareerPaths();
+  const p = (r.paths || r || []).find(x => x.id === courseId);
+  return p?.content ? { modules: p.content } : null;
 }
 
 export async function saveCourseContent(courseId, content) {

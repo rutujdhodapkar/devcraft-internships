@@ -24,7 +24,6 @@ import {
   unhideEnrollmentFromUser,
   fetchBadges,
   fetchUserBadges,
-  fetchCourseContent,
   loadCachedUserBuckets,
   syncUserCache,
   startSyncLoop,
@@ -211,7 +210,8 @@ export default function StudentDashboard({
       if (courseEnrs.length > 0) {
         const contents = {};
         await Promise.all(courseEnrs.map(async (enr) => {
-          try { contents[enr.courseId] = await fetchCourseContent(enr.courseId); } catch {}
+          const cp = careerPaths.find(p => p.id === enr.courseId || p.id === enr.domainId);
+          if (cp?.content) contents[enr.courseId] = cp.content;
         }));
         if (Object.keys(contents).length > 0) setCourseContentsMap(contents);
       }
@@ -931,7 +931,7 @@ export default function StudentDashboard({
             {(() => {
               const courseEnrollments = enrollments.filter(e => e.type === "course");
               if (activeCourseLearning) {
-                return <LearningView enrollment={activeCourseLearning} userId={user?.uid} onBack={() => setActiveCourseLearning(null)} />;
+                return <LearningView enrollment={activeCourseLearning} userId={user?.uid} onBack={() => setActiveCourseLearning(null)} careerPaths={careerPaths} />;
               }
               if (courseEnrollments.length === 0) {
                 return (
@@ -943,20 +943,20 @@ export default function StudentDashboard({
               return (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "1rem" }}>
                   {courseEnrollments.map(enr => {
-                    const completedCount = (enr.progress?.completedModules || []).length;
+                    const completedCount = (enr.progress?.completedBlocks || []).length;
                     const allContent = courseContentsMap[enr.courseId];
-                    const moduleCount = allContent?.modules?.length || 0;
-                    const pct = moduleCount > 0 ? Math.round((completedCount / moduleCount) * 100) : 0;
+                    const blockCount = Array.isArray(allContent) ? allContent.length : 0;
+                    const pct = blockCount > 0 ? Math.round((completedCount / blockCount) * 100) : 0;
                     return (
                       <div key={enr.id} style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", display: "flex", flexDirection: "column" }}>
                         <h3 style={{ fontSize: "1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{enr.courseId.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</h3>
                         <p style={{ fontSize: "0.8rem", color: "#666", marginBottom: "0.75rem" }}>{enr.paymentAmount > 0 ? "Paid" : "Free"} · {enr.status}</p>
-                        {moduleCount > 0 && (
+                        {blockCount > 0 && (
                           <div style={{ marginBottom: "0.75rem" }}>
                             <div style={{ height: 6, background: "#eee", borderRadius: 3, overflow: "hidden" }}>
                               <div style={{ height: "100%", width: `${pct}%`, background: pct === 100 ? "#4caf50" : "#1976d2", transition: "width 0.3s" }} />
                             </div>
-                            <p style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem" }}>{completedCount}/{moduleCount} modules completed</p>
+                            <p style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem" }}>{completedCount}/{blockCount} sections completed</p>
                           </div>
                         )}
                         <button onClick={() => setActiveCourseLearning(enr)} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>

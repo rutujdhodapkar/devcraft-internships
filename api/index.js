@@ -510,19 +510,34 @@ async function handleData(req, res, routeParts) {
     return send(res, 400, { success: false, message: "Invalid course route" });
   }
   // ── Course Enrollment ──
+  async function fetchCourseContentFromPaths(courseId) {
+    try {
+      const fsPaths = await firestoreGetDoc("careerPaths", "_all");
+      const list = fsPaths?.list || [];
+      const path = list.find(p => p.id === courseId);
+      return path?.content || null;
+    } catch {
+      const cosPaths = await getDoc(db, "siteConfig", "careerPaths", null);
+      const list = cosPaths?.value?.list || [];
+      const path = list.find(p => p.id === courseId);
+      return path?.content || null;
+    }
+  }
   if (resource === "course-enroll") {
     return adminWrite(db, req, res, async () => {
       if (req.method === "POST") {
-        const { courseId, idToken } = req.body;
+        const { courseId, uid, email, name, idToken } = req.body;
         if (!courseId) return send(res, 400, { success: false, message: "courseId required" });
-        const decoded = idToken ? await verifyFirebaseToken(idToken) : null;
-        const email = decoded?.email ? cleanId(decoded.email).toLowerCase() : null;
-        const uid = decoded?.uid || email;
-        if (!uid) return send(res, 400, { success: false, message: "Not authenticated" });
-        const enrollments = await db.collection("enrollments").where("uid", "==", uid).get();
+        let decoded = null;
+        if (idToken) decoded = await verifyFirebaseToken(idToken);
+        const userUid = decoded?.uid || uid;
+        const userEmail = decoded?.email ? cleanId(decoded.email).toLowerCase() : (email ? cleanId(email).toLowerCase() : null);
+        const userName = decoded?.name || name || "";
+        if (!userUid) return send(res, 400, { success: false, message: "Not authenticated" });
+        const enrollments = await db.collection("enrollments").where("uid", "==", userUid).get();
         const existing = enrollments.docs.find(d => d.data().courseId === courseId && d.data().type === "course");
         if (existing) return send(res, 200, { success: true, message: "Already enrolled", enrollment: { id: existing.id, ...existing.data() } });
-        const enrollment = { type: "course", courseId, uid, email: email || uid, name: decoded?.name || "", status: "active", progress: 0, completedModules: [], createdAt: now(), updatedAt: now() };
+        const enrollment = { type: "course", courseId, uid: userUid, email: userEmail || userUid, name: userName, status: "active", progress: { completedBlocks: [] }, completedBlocks: [], createdAt: now(), updatedAt: now() };
         const ref = await db.collection("enrollments").add(enrollment);
         return send(res, 200, { success: true, message: "Enrolled", enrollment: { id: ref.id, ...enrollment } });
       }
@@ -532,17 +547,16 @@ async function handleData(req, res, routeParts) {
         return send(res, 200, { success: true, message: "Lesson marked complete" });
       }
       if (id === "quiz" && sub === "submit") {
-        const { courseId, moduleIndex, answers } = req.body;
-        const fb = await firestoreGetDoc("courseContent", courseId);
-        const content = fb || (await fallbackContent(db, courseId));
+        const { courseId, blockIndex, answers } = req.body;
+        const content = await fetchCourseContentFromPaths(courseId);
         if (!content) return send(res, 404, { success: false, message: "Course content not found" });
-        const module = content.modules?.[moduleIndex];
-        if (!module?.quiz) return send(res, 400, { success: false, message: "No quiz for this module" });
-        const questions = module.quiz.questions || [];
+        const block = content[blockIndex];
+        if (!block?.quiz) return send(res, 400, { success: false, message: "No quiz for this block" });
+        const questions = block.quiz.questions || [];
         let correct = 0;
         questions.forEach((q, i) => { if (Number(answers?.[i]) === q.correctIndex) correct++; });
         const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 100;
-        const passed = score >= (module.quiz.passingScore || 70);
+        const passed = score >= (block.quiz.passingScore || 70);
         return send(res, 200, { success: true, data: { score, correct, total: questions.length, passed } });
       }
       return send(res, 400, { success: false, message: "Invalid course-enroll route" });

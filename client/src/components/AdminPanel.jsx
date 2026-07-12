@@ -3238,6 +3238,45 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           </button>
                         </div>
                       </div>
+                      {path.type === "course" && (
+                        <div style={{ marginTop: "1rem", borderTop: "2px dashed #ccc", paddingTop: "1rem" }}>
+                          <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>Course Content Blocks</label>
+                          <p style={{ fontSize: "0.75rem", color: "#888", marginBottom: "0.75rem" }}>Add HTML content blocks with optional quiz questions. Each block renders as a page students read and mark complete.</p>
+                          {(Array.isArray(path.content) ? path.content : []).map((block, ci) => (
+                            <div key={ci} style={{ border: "2px solid #1976d2", padding: "1rem", marginBottom: "1rem", background: "#f5faff" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                                <strong style={{ fontSize: "0.8rem" }}>Block {ci + 1}</strong>
+                                <button type="button" onClick={() => { const u = [...careerPaths]; u[idx].content = (u[idx].content || []).filter((_, i) => i !== ci); setCareerPaths(u); }} style={{ border: "1px solid #e00", color: "#e00", background: "none", cursor: "pointer", fontSize: "0.75rem", padding: "0.2rem 0.5rem" }}>Remove</button>
+                              </div>
+                              <input className="input-sharp" value={block.title || ""} onChange={(e) => { const u = [...careerPaths]; const c = [...(u[idx].content || [])]; c[ci] = { ...c[ci], title: e.target.value }; u[idx].content = c; setCareerPaths(u); }} placeholder="Block title" style={{ marginBottom: "0.5rem", width: "100%", boxSizing: "border-box", fontSize: "0.85rem", padding: "0.35rem 0.5rem", border: "1px solid #000" }} />
+                              <textarea className="input-sharp" value={block.html || ""} onChange={(e) => { const u = [...careerPaths]; const c = [...(u[idx].content || [])]; c[ci] = { ...c[ci], html: e.target.value }; u[idx].content = c; setCareerPaths(u); }} placeholder="HTML content (use HTML tags for formatting)" rows={6} style={{ width: "100%", boxSizing: "border-box", fontSize: "0.85rem", padding: "0.35rem 0.5rem", border: "1px solid #000", fontFamily: "monospace", marginBottom: "0.5rem", resize: "vertical" }} />
+                              <details style={{ fontSize: "0.8rem" }}>
+                                <summary style={{ cursor: "pointer", fontWeight: 700, marginBottom: "0.5rem" }}>Quiz (optional)</summary>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                                  {(Array.isArray(block.quiz?.questions) ? block.quiz.questions : []).map((q, qi) => (
+                                    <div key={qi} style={{ border: "1px solid #ff9800", padding: "0.5rem", background: "#fff8e1" }}>
+                                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.25rem" }}>
+                                        <strong style={{ fontSize: "0.75rem" }}>Q{qi + 1}</strong>
+                                        <button type="button" onClick={() => { const u = [...careerPaths]; const c = [...(u[idx].content || [])]; const questions = (c[ci].quiz?.questions || []).filter((_, i) => i !== qi); c[ci] = { ...c[ci], quiz: { ...(c[ci].quiz || {}), questions } }; u[idx].content = c; setCareerPaths(u); }} style={{ border: "1px solid #e00", color: "#e00", background: "none", cursor: "pointer", fontSize: "0.7rem", padding: "0.1rem 0.4rem" }}>×</button>
+                                      </div>
+                                      <input value={q.question || ""} onChange={(e) => { const u = [...careerPaths]; const c = [...(u[idx].content || [])]; const questions = [...(c[ci].quiz?.questions || [])]; questions[qi] = { ...questions[qi], question: e.target.value }; c[ci] = { ...c[ci], quiz: { ...(c[ci].quiz || {}), questions } }; u[idx].content = c; setCareerPaths(u); }} placeholder="Question" style={{ width: "100%", boxSizing: "border-box", fontSize: "0.8rem", padding: "0.3rem 0.5rem", border: "1px solid #000", marginBottom: "0.25rem" }} />
+                                      {(q.options || ["", "", "", ""]).map((opt, oi) => (
+                                        <div key={oi} style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginBottom: "0.2rem" }}>
+                                          <span style={{ fontSize: "0.7rem", fontWeight: 700, minWidth: "1.2rem" }}>{String.fromCharCode(65 + oi)}.</span>
+                                          <input value={opt || ""} onChange={(e) => { const u = [...careerPaths]; const c = [...(u[idx].content || [])]; const questions = [...(c[ci].quiz?.questions || [])]; const opts = [...(questions[qi].options || [])]; opts[oi] = e.target.value; questions[qi] = { ...questions[qi], options: opts }; c[ci] = { ...c[ci], quiz: { ...(c[ci].quiz || {}), questions } }; u[idx].content = c; setCareerPaths(u); }} placeholder={`Option ${String.fromCharCode(65 + oi)}`} style={{ flex: 1, fontSize: "0.8rem", padding: "0.25rem 0.4rem", border: "1px solid #ccc" }} />
+                                          <input type="radio" name={`correct-${idx}-${ci}-${qi}`} checked={q.correctIndex === oi} onChange={() => { const u = [...careerPaths]; const c = [...(u[idx].content || [])]; const questions = [...(c[ci].quiz?.questions || [])]; questions[qi] = { ...questions[qi], correctIndex: oi }; c[ci] = { ...c[ci], quiz: { ...(c[ci].quiz || {}), questions } }; u[idx].content = c; setCareerPaths(u); }} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                  <button type="button" className="btn-sharp-outline" onClick={() => { const u = [...careerPaths]; const c = [...(u[idx].content || [])]; const questions = [...(c[ci].quiz?.questions || []), { question: "", options: ["", "", "", ""], correctIndex: 0 }]; c[ci] = { ...c[ci], quiz: { ...(c[ci].quiz || {}), questions } }; u[idx].content = c; setCareerPaths(u); }} style={{ alignSelf: "flex-start", fontSize: "0.75rem", padding: "0.3rem 0.75rem" }}>+ Add Question</button>
+                                </div>
+                              </details>
+                            </div>
+                          ))}
+                          <button type="button" className="btn-sharp-outline" onClick={() => { const u = [...careerPaths]; u[idx].content = [...(u[idx].content || []), { title: "", html: "<h2>New Section</h2>\n<p>Write your content here.</p>\n<p>Use <code>[quiz]</code> to place the quiz inline in your HTML.</p>", quiz: null }]; setCareerPaths(u); }} style={{ fontSize: "0.75rem", padding: "0.35rem 0.75rem" }}>+ Add Content Block</button>
+                        </div>
+                      )}
                       <div style={{ marginTop: "1rem" }}>
                         <label
                           style={{
