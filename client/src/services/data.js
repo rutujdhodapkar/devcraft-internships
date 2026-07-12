@@ -147,7 +147,7 @@ async function dbProxy(action, path, data, query, opts) {
   const body = { action, path, data, query };
   // Enrollment records contain student PII and payment state. Supply an
   // identity for reads as well as writes so the server can enforce ownership.
-  if (path.split("/")[0] === "enrollments") {
+  if (["enrollments", "userBadges"].includes(path.split("/")[0])) {
     const token = await getFirebaseIdToken().catch(() => null);
     if (token) body.idToken = token;
   }
@@ -1864,20 +1864,48 @@ export async function triggerManualEmailType(type, email = "", dryRun = false) {
 }
 
 // ─── Skill Badges & Micro-Certifications ───
-export async function fetchBadges() {
-  const badges = await fetchSiteConfig("badges");
-  return Array.isArray(badges) ? badges : [];
+function normalizeBadgeList(value) {
+  const items = Array.isArray(value) ? value : (value && typeof value === "object" ? Object.values(value) : []);
+  return items
+    .filter((badge) => badge && typeof badge === "object")
+    .map((badge, index) => ({
+      ...badge,
+      id: String(badge.id || `badge_${index}`),
+      title: badge.title || "",
+      description: badge.description || "",
+      icon: badge.icon || "",
+      type: badge.type === "micro-cert" ? "micro-cert" : "badge",
+      criteriaType: badge.criteriaType === "auto" ? "auto" : "manual",
+      criteria: badge.criteria || "",
+      htmlTemplate: badge.htmlTemplate || "",
+    }));
+}
+
+export async function saveCourseProgress(enrollmentId, completedBlocks) {
+  const data = await apiFetch(`/api/data/course-enroll/${encodeURIComponent(enrollmentId)}/progress`, {
+    method: "PUT", body: JSON.stringify({ completedBlocks }),
+  });
+  return data.data;
+}
+
+export async function fetchBadges(opts) {
+  const collectionBadges = await dbList("badges", opts);
+  if (collectionBadges.length) return normalizeBadgeList(collectionBadges);
+  // Compatibility for installations that stored definitions in siteConfig.
+  return normalizeBadgeList(await fetchSiteConfig("badges"));
 }
 
 export async function saveBadges(badges) {
   _lsRemove("badges");
   const now = new Date().toISOString();
-  const obj = {};
-  (Array.isArray(badges) ? badges : []).forEach(b => {
-    if (b?.id) obj[b.id] = { ...b, updatedAt: now };
-  });
-  if (Object.keys(obj).length) await dbPut("badges", obj);
-  return badges;
+  const nextBadges = normalizeBadgeList(badges);
+  const nextIds = new Set(nextBadges.map((badge) => badge.id));
+  const currentBadges = await dbList("badges");
+  await Promise.all([
+    ...nextBadges.map((badge) => dbPut(`badges/${badge.id}`, { ...badge, updatedAt: now })),
+    ...currentBadges.filter((badge) => badge?.id && !nextIds.has(badge.id)).map((badge) => dbDelete(`badges/${badge.id}`)),
+  ]);
+  return nextBadges;
 }
 
 export async function awardBadge(userId, badgeId, awardedBy) {
@@ -1886,8 +1914,9 @@ export async function awardBadge(userId, badgeId, awardedBy) {
 }
 
 export async function fetchUserBadges(userId, opts) {
-  const all = await dbList("userBadges", opts);
-  return all.filter(b => b.userId === userId);
+  if (!userId) return [];
+  const badges = await dbQueryList("userBadges", "userId", userId, opts);
+  return Array.isArray(badges) ? badges.filter((badge) => badge && typeof badge === "object") : [];
 }
 
 export async function revokeBadge(entryId) {
@@ -1965,8 +1994,8 @@ async function fetchBadgesCombined(uid) {
   ]);
   const registeredTaskIds = (enrollments || []).map((e) => e.domainId || e.id).filter(Boolean);
   return {
-    badges: badges || [],
-    userBadges: userBadges || [],
+    badges: normalizeBadgeList(badges),
+    userBadges: Array.isArray(userBadges) ? userBadges : [],
     streaks: streaks || [],
     flags: flags || [],
     registeredTaskIds,
@@ -2026,9 +2055,9 @@ export async function checkAndAwardBadges(adminEmail) {
   ]);
   const autoBadges = badges.filter(b => b.criteriaType === "auto" && b.criteria);
   const results = [];
-  const userIds = [...new Set((allEnrollments || []).map(e => e.userId).filter(Boolean))];
+  const userIds = [...new Set((allEnrollments || []).map(e => e.uid || e.userId).filter(Boolean))];
   for (const uid of userIds) {
-    const userEnrollments = (allEnrollments || []).filter(e => e.userId === uid);
+    const userEnrollments = (allEnrollments || []).filter(e => (e.uid || e.userId) === uid);
     const userBadges = await fetchUserBadges(uid).catch(() => []);
     const earnedIds = new Set((userBadges || []).map(b => b.badgeId));
     for (const badge of autoBadges) {

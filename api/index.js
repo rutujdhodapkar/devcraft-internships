@@ -614,43 +614,44 @@ async function handleData(req, res, routeParts) {
     }
   }
   if (resource === "course-enroll") {
-    return adminWrite(db, req, res, async () => {
-      if (req.method === "POST") {
-        const { courseId, uid, email, name, idToken } = req.body;
-        if (!courseId) return send(res, 400, { success: false, message: "courseId required" });
-        let decoded = null;
-        if (idToken) decoded = await verifyFirebaseToken(idToken);
-        const userUid = decoded?.uid || uid;
-        const userEmail = decoded?.email ? cleanId(decoded.email).toLowerCase() : (email ? cleanId(email).toLowerCase() : null);
-        const userName = decoded?.name || name || "";
-        if (!userUid) return send(res, 400, { success: false, message: "Not authenticated" });
-        const enrollments = await db.collection("enrollments").where("uid", "==", userUid).get();
-        const existing = enrollments.docs.find(d => d.data().courseId === courseId && d.data().type === "course");
-        if (existing) return send(res, 200, { success: true, message: "Already enrolled", enrollment: { id: existing.id, ...existing.data() } });
-        const enrollment = { type: "course", courseId, uid: userUid, email: userEmail || userUid, name: userName, status: "active", progress: { completedBlocks: [] }, completedBlocks: [], createdAt: now(), updatedAt: now() };
-        const ref = await db.collection("enrollments").add(enrollment);
-        return send(res, 200, { success: true, message: "Enrolled", enrollment: { id: ref.id, ...enrollment } });
-      }
-      if (id === "lesson" && sub === "complete") {
-        const { courseId, moduleIndex, lessonIndex, idToken } = req.body;
-        if (!courseId || moduleIndex === undefined || lessonIndex === undefined) return send(res, 400, { success: false, message: "Missing required fields" });
-        return send(res, 200, { success: true, message: "Lesson marked complete" });
-      }
-      if (id === "quiz" && sub === "submit") {
-        const { courseId, blockIndex, answers } = req.body;
-        const content = await fetchCourseContentFromPaths(courseId);
-        if (!content) return send(res, 404, { success: false, message: "Course content not found" });
-        const block = content[blockIndex];
-        if (!block?.quiz) return send(res, 400, { success: false, message: "No quiz for this block" });
-        const questions = block.quiz.questions || [];
-        let correct = 0;
-        questions.forEach((q, i) => { if (Number(answers?.[i]) === q.correctIndex) correct++; });
-        const score = questions.length > 0 ? Math.round((correct / questions.length) * 100) : 100;
-        const passed = score >= (block.quiz.passingScore || 70);
-        return send(res, 200, { success: true, data: { score, correct, total: questions.length, passed } });
-      }
-      return send(res, 400, { success: false, message: "Invalid course-enroll route" });
-    });
+    if (req.method === "POST" && !id) {
+      const { courseId, name, idToken } = req.body || {};
+      const decoded = await verifyFirebaseToken(idToken);
+      if (!decoded) return send(res, 401, { success: false, message: "Authentication required" });
+      if (!courseId) return send(res, 400, { success: false, message: "courseId required" });
+      const firestorePaths = await firestoreGetDoc("careerPaths", "_all");
+      const paths = firestorePaths?.list || (await getDoc(db, "siteConfig", "careerPaths", null))?.value?.list || [];
+      const course = paths.find((path) => path?.id === courseId && path.type === "course");
+      if (!course) return send(res, 404, { success: false, message: "Course not found" });
+      const existing = await db.collection("enrollments").where("uid", "==", decoded.uid).get();
+      const enrolled = existing.docs.find((doc) => doc.data().courseId === courseId && doc.data().type === "course");
+      if (enrolled) return send(res, 200, { success: true, data: { id: enrolled.id, ...enrolled.data() } });
+      const amount = Math.max(0, Number(course.paymentAmount ?? course.price ?? 0));
+      const enrollment = {
+        type: "course", courseId, domainId: courseId, domain: course.title || courseId,
+        uid: decoded.uid, email: cleanId(decoded.email).toLowerCase(), name: decoded.name || name || "Student",
+        status: "Active", allowedCertificate: "no", progress: { completedBlocks: [] },
+        courseBlockCount: Array.isArray(course.content) ? course.content.length : 0,
+        paymentStatus: amount > 0 ? "none" : "paid", paymentStage: amount > 0 ? "none" : "fully_paid",
+        paymentAmount: amount, paymentEndAmount: amount, paymentTiming: amount > 0 ? (course.paymentTiming || "start") : "none", paymentIntentId: "",
+        createdAt: now(), updatedAt: now(),
+      };
+      const ref = await db.collection("enrollments").add(enrollment);
+      return send(res, 201, { success: true, data: { id: ref.id, ...enrollment } });
+    }
+    if (id && sub === "progress" && req.method === "PUT") {
+      const enrollment = await getDoc(db, "enrollments", id, null);
+      if (!enrollment || enrollment.type !== "course") return send(res, 404, { success: false, message: "Course enrollment not found" });
+      if (!await requireEnrollmentAccess(db, req, res, enrollment)) return;
+      const completedBlocks = [...new Set((req.body?.completedBlocks || []).filter((index) => Number.isInteger(index) && index >= 0 && index < enrollment.courseBlockCount))];
+      const complete = enrollment.courseBlockCount > 0 && completedBlocks.length === enrollment.courseBlockCount;
+      const paid = enrollment.paymentAmount <= 0 || enrollment.paymentStatus === "paid";
+      const patch = { progress: { ...(enrollment.progress || {}), completedBlocks }, updatedAt: now() };
+      if (complete && paid) Object.assign(patch, { status: "Completed", allowedCertificate: "yes", completedAt: now() });
+      await db.collection("enrollments").doc(id).update(patch);
+      return send(res, 200, { success: true, data: { ...enrollment, ...patch } });
+    }
+    return send(res, 400, { success: false, message: "Invalid course-enroll route" });
   }
   if (resource === "how-it-works") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "howItWorks")).sort((a, b) => (a.step || 0) - (b.step || 0)) });
@@ -1112,7 +1113,6 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       }
       if (req.body.paymentStage === "end" || (req.body.paymentStage === "full")) {
         patch.paidAt = now();
-        patch.allowedCertificate = "yes";
         patch.paymentStage = "fully_paid";
       }
     }
@@ -1218,7 +1218,8 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
         const submissions = enr.submissions || {};
         const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
         const isPaid = enr.paymentStatus === "paid" || enr.paymentStage === "fully_paid";
-        if (allVerified && isPaid) {
+        const courseComplete = enr.type === "course" && enr.courseBlockCount > 0 && (enr.progress?.completedBlocks || []).length >= enr.courseBlockCount;
+        if ((allVerified || courseComplete) && isPaid) {
           await db.collection("enrollments").doc(id).update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
         }
       }
@@ -1579,7 +1580,8 @@ async function handleDodo(req, res, parts) {
             const projects = enr.projects || [];
             const submissions = enr.submissions || {};
             const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
-            if (allVerified && updateData.paymentStage === "fully_paid") {
+            const courseComplete = enr.type === "course" && enr.courseBlockCount > 0 && (enr.progress?.completedBlocks || []).length >= enr.courseBlockCount;
+            if ((allVerified || courseComplete) && updateData.paymentStage === "fully_paid") {
               await enrRef.update({ allowedCertificate: "yes", status: "Completed", completedAt: now(), updatedAt: now() });
             }
           }
@@ -1784,7 +1786,7 @@ async function handleFirebaseProxy(req, res) {
     // deliberately do NOT alter consistency on task-state change paths.
     const readOpts = req.body?.consistencyLevel ? { consistencyLevel: req.body.consistencyLevel } : undefined;
 
-    const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog"];
+    const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog", "badges", "userBadges"];
     const root = path.split("/")[0];
     const isWrite = ["set", "update", "push", "delete"].includes(action);
     let decoded = null;
@@ -1807,6 +1809,24 @@ async function handleFirebaseProxy(req, res) {
       if (action === "get" && pathParts[1] && !isAdmin) {
         const enrollment = await getDoc(db, "enrollments", pathParts[1], null);
         if (enrollment?.uid !== decoded.uid) return send(res, 403, { success: false, message: "You do not own this enrollment." });
+      }
+    }
+
+    // Badge awards are private to each student. Definition reads are public,
+    // but only administrators may create, revoke, or enumerate awards.
+    if (!isWrite && root === "userBadges") {
+      decoded = await verifyFirebaseToken(req.body?.idToken);
+      if (!decoded) return send(res, 401, { success: false, message: "Authentication required to read badge awards." });
+      const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
+      const adminDoc = email ? await getDoc(db, "admins", emailId(email), null) : null;
+      const isAdmin = email === ROOT_ADMIN_EMAIL || Boolean(adminDoc);
+      if (action === "list" && !isAdmin) return send(res, 403, { success: false, message: "Administrator access is required to list badge awards." });
+      if (action === "query" && !isAdmin && !(query?.orderBy === "userId" && query?.equalTo === decoded.uid)) {
+        return send(res, 403, { success: false, message: "You may only read your own badge awards." });
+      }
+      if (action === "get" && !isAdmin) {
+        const award = await getDoc(db, "userBadges", path.split("/")[1], null);
+        if (!award || award.userId !== decoded.uid) return send(res, 403, { success: false, message: "You do not own this badge award." });
       }
     }
 

@@ -936,6 +936,7 @@ export default function StudentDashboard({
                     const allContent = courseContentsMap[enr.courseId];
                     const blockCount = Array.isArray(allContent) ? allContent.length : 0;
                     const pct = blockCount > 0 ? Math.round((completedCount / blockCount) * 100) : 0;
+                    const paymentRequired = Number(enr.paymentAmount || 0) > 0 && enr.paymentStatus !== "paid";
                     return (
                       <div key={enr.id} style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", display: "flex", flexDirection: "column" }}>
                         <h3 style={{ fontSize: "1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{enr.courseId.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</h3>
@@ -948,9 +949,13 @@ export default function StudentDashboard({
                             <p style={{ fontSize: "0.75rem", color: "#888", marginTop: "0.25rem" }}>{completedCount}/{blockCount} sections completed</p>
                           </div>
                         )}
-                        <button onClick={() => setActiveCourseLearning(enr)} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>
-                          {completedCount > 0 ? "Continue →" : "Start Course"}
-                        </button>
+                        {paymentRequired ? (
+                          <button onClick={() => handleOpenPayment(enr, "full")} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>Pay ₹{enr.paymentAmount} to Start</button>
+                        ) : (
+                          <button onClick={() => setActiveCourseLearning(enr)} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>
+                            {completedCount > 0 ? "Continue →" : "Start Course"}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -1489,7 +1494,10 @@ function BadgesTab({ user, fetchBadges, fetchUserBadges }) {
     Promise.all([
       fetchBadges().catch(() => []),
       fetchUserBadges(user?.uid).catch(() => []),
-    ]).then(([b, ub]) => { setBadges(b); setUserBadges(ub); })
+    ]).then(([b, ub]) => {
+      setBadges(Array.isArray(b) ? b.filter((badge) => badge && typeof badge === "object") : []);
+      setUserBadges(Array.isArray(ub) ? ub.filter((badge) => badge && typeof badge === "object") : []);
+    })
       .finally(() => setLoading(false));
   }, [user?.uid]);
 

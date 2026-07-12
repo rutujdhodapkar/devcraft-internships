@@ -56,8 +56,12 @@ export default function LearningView({ enrollment, userId, onBack, careerPaths }
     const newCompleted = [...new Set([...completedBlocks, bi])];
     setCompletedBlocks(newCompleted);
     try {
-      const { dbPatch } = await import("../services/data");
-      if (enrollment.id) await dbPatch(`enrollments/${enrollment.id}`, { progress: { ...(enrollment.progress || {}), completedBlocks: newCompleted } });
+      const { saveCourseProgress } = await import("../services/data");
+      if (enrollment.id) {
+        const updated = await saveCourseProgress(enrollment.id, newCompleted);
+        setCertAllowed(updated?.allowedCertificate === "yes");
+        setCourseCompleted(updated?.status === "Completed" || newCompleted.length === content.length);
+      }
       if (newCompleted.length === content.length) {
         setCourseCompleted(true);
         if (enrollment.paymentAmount === 0) setCertAllowed(true);
