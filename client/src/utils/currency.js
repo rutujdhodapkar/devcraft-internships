@@ -54,9 +54,11 @@ export async function detectUserCurrency() {
   }
 }
 
+const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
+
 export async function fetchExchangeRates() {
   try {
-    const response = await fetch('http://localhost:5000/api/rates');
+    const response = await fetch(`${API_BASE}/api/rates`);
     if (!response.ok) throw new Error('Failed to fetch backend rates');
     const data = await response.json();
     if (data.success && data.rates) return data.rates;

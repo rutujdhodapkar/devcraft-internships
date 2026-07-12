@@ -69,6 +69,34 @@ function now() {
   return new Date().toISOString();
 }
 
+async function bumpVersion(db, key) {
+  let attempt = 0;
+  const maxRetries = 4;
+  while (attempt <= maxRetries) {
+    try {
+      const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+      const versions = vDoc?.value || {};
+      versions[key] = now();
+      await setDoc(db, "siteConfig", "configVersions", { value: versions, updatedAt: now() });
+      return;
+    } catch (e) {
+      // 412 Precondition Failed / 409 Conflict — concurrent write, retry
+      if (e.code === 412 || e.code === 409 || (e.message && (e.message.includes("412") || e.message.includes("precondition") || e.message.includes("ETag")))) {
+        attempt++;
+        if (attempt > maxRetries) {
+          console.error(`[bumpVersion] FAILED after ${maxRetries} retries for key="${key}": ${e.message}`);
+          return;
+        }
+        await new Promise(r => setTimeout(r, 50 * attempt)); // linear backoff: 50, 100, 150, 200ms
+        continue;
+      }
+      // Non-conflict error — log but don't retry
+      console.warn(`[bumpVersion] Non-retriable error for key="${key}": ${e.message}`);
+      return;
+    }
+  }
+}
+
 // Firestore helpers
 async function pushDoc(db, name, data) {
   const ref = await db.collection(name).add(data);
@@ -425,8 +453,23 @@ async function handleData(req, res, routeParts) {
 
   if (resource === "career-paths") {
     if (req.method === "GET") {
+      const clientVersion = req.query?._v;
+      if (clientVersion) {
+        try {
+          const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+          const currentVersion = vDoc?.value?.careerPaths;
+          if (currentVersion && clientVersion === currentVersion) {
+            return res.status(304).end();
+          }
+        } catch {}
+      }
       let paths = [];
       let categories = [];
+      let vers = "";
+      try {
+        const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+        vers = vDoc?.value?.careerPaths || "";
+      } catch {}
       try {
         const fsPaths = await firestoreGetDoc("careerPaths", "_all");
         if (fsPaths?.list) {
@@ -442,7 +485,8 @@ async function handleData(req, res, routeParts) {
         const cosCats = await getDoc(db, "siteConfig", "domainCategories", null);
         categories = cosCats?.value || [];
       }
-      return send(res, 200, { success: true, data: { paths, categories } });
+      res.setHeader("Cache-Control", "public, max-age=300, s-maxage=600, stale-while-revalidate=3600");
+      return send(res, 200, { success: true, data: { paths, categories }, _v: vers });
     }
     const adminEmail = await requireAdmin(db, req, res);
     if (!adminEmail) return;
@@ -452,6 +496,7 @@ async function handleData(req, res, routeParts) {
     } catch {}
     await replaceKeyedCollection(db, "careerPaths", paths, "path");
     await setDoc(db, "siteConfig", "careerPaths", { value: { list: paths }, updatedAt: now() });
+    await bumpVersion(db, "careerPaths");
     if (req.body.categories) {
       try {
         await firestoreSetDoc("siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
@@ -481,24 +526,52 @@ async function handleData(req, res, routeParts) {
     };
     if (!id) {
       if (req.method === "GET") {
+        const clientVersion = req.query?._v;
+        if (clientVersion) {
+          try {
+            const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+            if (vDoc?.value?.courses && clientVersion === vDoc.value.courses) {
+              return res.status(304).end();
+            }
+          } catch {}
+        }
         const fb = await firestoreGetDoc("courses", "_all");
-        if (fb?.list) return send(res, 200, { success: true, data: fb.list });
+        if (fb?.list) {
+          res.setHeader("Cache-Control", "public, max-age=300, s-maxage=600, stale-while-revalidate=3600");
+          return send(res, 200, { success: true, data: fb.list });
+        }
         const cos = await fallbackCourses(db);
+        res.setHeader("Cache-Control", "public, max-age=300, s-maxage=600, stale-while-revalidate=3600");
         return send(res, 200, { success: true, data: cos });
       }
       return adminWrite(db, req, res, async () => {
         const list = req.body.list || [];
         await firestoreSetDoc("courses", "_all", { list, updatedAt: now() });
         await setDoc(db, "siteConfig", "courses", { value: { list }, updatedAt: now() });
+        await bumpVersion(db, "courses");
         return send(res, 200, { success: true, data: list });
       });
     }
     if (sub === "content") {
       if (req.method === "GET") {
+        const clientVersion = req.query?._v;
+        if (clientVersion) {
+          try {
+            const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+            if (vDoc?.value?.courses && clientVersion === vDoc.value.courses) {
+              return res.status(304).end();
+            }
+          } catch {}
+        }
+        let vers = "";
+        try {
+          const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+          vers = vDoc?.value?.courses || "";
+        } catch {}
         const fb = await firestoreGetDoc("courseContent", id);
-        if (fb) return send(res, 200, { success: true, data: fb });
+        if (fb) return send(res, 200, { success: true, data: fb, _v: vers });
         const cos = await fallbackContent(db, id);
-        if (cos) return send(res, 200, { success: true, data: cos });
+        if (cos) return send(res, 200, { success: true, data: cos, _v: vers });
         return send(res, 404, { success: false, message: "Course content not found" });
       }
       return adminWrite(db, req, res, async () => {
@@ -564,19 +637,35 @@ async function handleData(req, res, routeParts) {
   }
   if (resource === "how-it-works") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await listCollection(db, "howItWorks")).sort((a, b) => (a.step || 0) - (b.step || 0)) });
-    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: await replaceKeyedCollection(db, "howItWorks", req.body.steps || [], "step") }));
+    return adminWrite(db, req, res, async () => {
+      const data = await replaceKeyedCollection(db, "howItWorks", req.body.steps || [], "step");
+      await bumpVersion(db, "howItWorks");
+      return send(res, 200, { success: true, data });
+    });
   }
   if (resource === "faqs") {
     if (req.method === "GET") return send(res, 200, { success: true, data: await listCollection(db, "faqs") });
-    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: await replaceKeyedCollection(db, "faqs", req.body.faqs || [], "faq") }));
+    return adminWrite(db, req, res, async () => {
+      const data = await replaceKeyedCollection(db, "faqs", req.body.faqs || [], "faq");
+      await bumpVersion(db, "faqs");
+      return send(res, 200, { success: true, data });
+    });
   }
   if (resource === "templates") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "config", "templates", null))?.value || null });
-    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "config", "templates", { value: req.body.templates || {}, updatedAt: now() })).value }));
+    return adminWrite(db, req, res, async () => {
+      const data = await setDoc(db, "config", "templates", { value: req.body.templates || {}, updatedAt: now() });
+      await bumpVersion(db, "templates");
+      return send(res, 200, { success: true, data: data.value });
+    });
   }
   if (resource === "about-text") {
     if (req.method === "GET") return send(res, 200, { success: true, data: (await getDoc(db, "config", "aboutText", null))?.value || "" });
-    return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "config", "aboutText", { value: req.body.text || "", updatedAt: now() })).value }));
+    return adminWrite(db, req, res, async () => {
+      const data = await setDoc(db, "config", "aboutText", { value: req.body.text || "", updatedAt: now() });
+      await bumpVersion(db, "aboutText");
+      return send(res, 200, { success: true, data: data.value });
+    });
   }
   if (resource === "payment-settings") {
     if (req.method === "GET") return getSetConfig(db, req, res, "paymentSettings", req.body);
@@ -631,11 +720,19 @@ async function handleData(req, res, routeParts) {
   if (resource === "admin-referral-users") return send(res, 200, { success: true, data: await buildReferralUsers(db) });
   if (resource === "earn-settings") {
     if (req.method === "GET") return getSetConfig(db, req, res, "earnSettings", req.body.settings);
-    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "earnSettings", req.body.settings));
+    return adminWrite(db, req, res, async () => {
+      const r = await getSetConfig(db, req, res, "earnSettings", req.body.settings);
+      await bumpVersion(db, "earnSettings");
+      return r;
+    });
   }
   if (resource === "earn-details") {
     if (req.method === "GET") return getSetConfig(db, req, res, "earnDetails", req.body.details);
-    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "earnDetails", req.body.details));
+    return adminWrite(db, req, res, async () => {
+      const r = await getSetConfig(db, req, res, "earnDetails", req.body.details);
+      await bumpVersion(db, "earnDetails");
+      return r;
+    });
   }
   if (resource === "banned-users") {
     if (req.method === "GET") return send(res, 200, { success: true, data: await listCollection(db, "bannedUsers") });
@@ -651,23 +748,49 @@ async function handleData(req, res, routeParts) {
   }
   if (resource === "homepage") {
     if (req.method === "GET") return getSetConfig(db, req, res, "homepage", req.body.content);
-    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "homepage", req.body.content));
+    return adminWrite(db, req, res, async () => {
+      const r = await getSetConfig(db, req, res, "homepage", req.body.content);
+      await bumpVersion(db, "homepage");
+      return r;
+    });
   }
   if (resource === "what-do-you-get") {
     if (req.method === "GET") return getSetConfig(db, req, res, "whatDoYouGet", req.body.whatDoYouGet);
-    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "whatDoYouGet", req.body.whatDoYouGet));
+    return adminWrite(db, req, res, async () => {
+      const r = await getSetConfig(db, req, res, "whatDoYouGet", req.body.whatDoYouGet);
+      await bumpVersion(db, "whatDoYouGet");
+      return r;
+    });
   }
   if (resource === "university-collab") {
     if (req.method === "GET") return getSetConfig(db, req, res, "universityCollab", req.body.content);
-    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "universityCollab", req.body.content));
+    return adminWrite(db, req, res, async () => {
+      const r = await getSetConfig(db, req, res, "universityCollab", req.body.content);
+      await bumpVersion(db, "universityCollab");
+      return r;
+    });
   }
   if (resource === "logo-loop") {
     if (req.method === "GET") return getSetConfig(db, req, res, "logoLoop", req.body.content);
-    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "logoLoop", req.body.content));
+    return adminWrite(db, req, res, async () => {
+      const r = await getSetConfig(db, req, res, "logoLoop", req.body.content);
+      await bumpVersion(db, "logoLoop");
+      return r;
+    });
   }
   if (resource === "sliding-strips") {
     if (req.method === "GET") return getSetConfig(db, req, res, "slidingStrips", req.body.content);
-    return adminWrite(db, req, res, async () => getSetConfig(db, req, res, "slidingStrips", req.body.content));
+    return adminWrite(db, req, res, async () => {
+      const r = await getSetConfig(db, req, res, "slidingStrips", req.body.content);
+      await bumpVersion(db, "slidingStrips");
+      return r;
+    });
+  }
+  // ── Bulk version check — one read returns all version timestamps ──
+  if (resource === "versions") {
+    if (req.method !== "GET") return send(res, 405, { error: "GET only" });
+    const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+    return send(res, 200, { success: true, data: vDoc?.value || {} });
   }
   if (resource === "site-visits") {
     const newRef = await db.collection("siteVisits").add({ ...req.body, createdAt: now() });
@@ -702,11 +825,26 @@ async function handleData(req, res, routeParts) {
   }
   if (resource === "site-config") {
     const key = req.query?.key || id;
-    if (req.method === "GET" && key) return send(res, 200, { success: true, data: (await getDoc(db, "siteConfig", key, null))?.value || null });
+    if (req.method === "GET" && key) {
+      const clientVersion = req.query?._v;
+      if (clientVersion) {
+        const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+        const currentVersion = vDoc?.value?.[key];
+        if (currentVersion && clientVersion === currentVersion) {
+          res.status(304).end();
+          return;
+        }
+      }
+      const doc = await getDoc(db, "siteConfig", key, null);
+      const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
+      return send(res, 200, { success: true, data: doc?.value || null, _v: vDoc?.value?.[key] || doc?.updatedAt || "" });
+    }
     if (req.method === "PUT" && key) {
-      const raw = req.body || {};
-      const value = typeof raw === "string" ? raw : raw.value;
-      return adminWrite(db, req, res, async () => send(res, 200, { success: true, data: (await setDoc(db, "siteConfig", key, { value, updatedAt: now() })).value }));
+      return adminWrite(db, req, res, async () => {
+        await setDoc(db, "siteConfig", key, { value: req.body?.value ?? req.body, updatedAt: now() });
+        await bumpVersion(db, key);
+        return send(res, 200, { success: true, data: req.body?.value ?? req.body });
+      });
     }
   }
   if (resource === "receipt" && id) {
@@ -795,7 +933,15 @@ async function handleData(req, res, routeParts) {
     if (Object.keys(updates).length === 0) return send(res, 400, { success: false, message: "No valid fields to update." });
     updates.updatedAt = now();
     updates.lastEditedBy = adminEmail;
+    updates.taskVersion = now();
     await db.collection("enrollments").doc(id).update(updates);
+    try {
+      const enrSnap = await db.collection("enrollments").doc(id).get();
+      const enr = enrSnap.data();
+      if (enr?.uid) {
+        await db.collection("users").doc(enr.uid).update({ externalUpdateVersion: now() });
+      }
+    } catch {}
     const updated = await getDoc(db, "enrollments", id, null);
     return send(res, 200, { success: true, data: updated });
   }
@@ -804,8 +950,20 @@ async function handleData(req, res, routeParts) {
 
 async function handleUsers(db, req, res, uid, sub, extra) {
   if (!uid) return send(res, 400, { success: false, message: "Missing user id." });
-  if (!sub && req.method === "GET") return send(res, 200, { success: true, data: await getDoc(db, "users", uid, null) });
-  if (!sub && req.method === "POST") return send(res, 200, { success: true, data: await setDoc(db, "users", uid, { ...req.body.profile, uid, updatedAt: now() }) });
+  if (!sub && req.method === "GET") {
+    const data = await getDoc(db, "users", uid, null);
+    const fields = req.query.fields;
+    if (fields && data) {
+      const selected = fields.split(",").reduce((acc, f) => { acc[f.trim()] = data[f.trim()]; return acc; }, {});
+      return send(res, 200, { success: true, data: selected });
+    }
+    return send(res, 200, { success: true, data });
+  }
+  if (!sub && req.method === "POST") {
+    const profile = req.body.profile || {};
+    const newData = { ...profile, uid, _updatedBy: uid, externalUpdateVersion: 0, updatedAt: now() };
+    return send(res, 200, { success: true, data: await setDoc(db, "users", uid, newData) });
+  }
   if (sub === "enrollments") return send(res, 200, { success: true, data: await listUserEnrollments(db, uid) });
   if (sub === "permanent-referral") {
     if (req.method === "GET") return send(res, 200, { success: true, data: { code: (await getDoc(db, "users", uid, {})).permanentReferralCode || null } });
@@ -835,6 +993,7 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     const enrollment = {
       id: internId,
       internId,
+      _updatedBy: req.body.uid,
       uid: req.body.uid,
       name: profile.name || profile.displayName || "Student",
       email: profile.email || "",
@@ -859,6 +1018,7 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       paymentTiming: paymentTiming,
       paymentIntentId: "",
       overrideCompleted: false,
+      taskVersion: 0,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -878,7 +1038,15 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     }
     return send(res, 201, { success: true, data: enrollment });
   }
-  if (id && req.method === "GET") return send(res, 200, { success: true, data: await getDoc(db, "enrollments", id, null) });
+  if (id && req.method === "GET") {
+    const data = await getDoc(db, "enrollments", id, null);
+    const fields = req.query.fields;
+    if (fields && data) {
+      const selected = fields.split(",").reduce((acc, f) => { acc[f.trim()] = data[f.trim()]; return acc; }, {});
+      return send(res, 200, { success: true, data: selected });
+    }
+    return send(res, 200, { success: true, data });
+  }
   if (id && req.method === "DELETE") {
     const adminEmail = await requireAdmin(db, req, res);
     if (!adminEmail) return;
@@ -991,6 +1159,29 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     if (extra2 === "reject") Object.assign(patch, { [`${base}.verified`]: false, [`${base}.rejected`]: true, [`${base}.resubmit`]: true, [`${base}.feedback`]: req.body.feedback || "", [`${base}.rejectedAt`]: now() });
   }
   await db.collection("enrollments").doc(id).update(patch);
+
+  // ── Version bumping ──
+  // Admin task verification = bump taskVersion on enrollment
+  if (sub === "projects" && ["verify", "unverify", "reject"].includes(extra2)) {
+    try {
+      await db.collection("enrollments").doc(id).update({ taskVersion: now() });
+    } catch {}
+  }
+  // Admin status/cert/payment changes on enrollment = bump externalUpdateVersion on user doc
+  if (sub && !(sub === "projects" && extra2 === "submit")) {
+    try {
+      const snap = await db.collection("enrollments").doc(id).get();
+      const enr = snap.data();
+      if (enr?.uid) {
+        const userSnap = await db.collection("users").doc(enr.uid).get();
+        const user = userSnap.data();
+        if (user) {
+          await db.collection("users").doc(enr.uid).update({ externalUpdateVersion: now() });
+        }
+      }
+    } catch {}
+  }
+
   const shouldCheckCompletion = extra2 === "verify" || sub === "payment-status";
   if (shouldCheckCompletion) {
     try {
@@ -1234,8 +1425,8 @@ async function handleDodo(req, res, parts) {
       let productId = DODO_PRODUCT_ID;
       if (!productId) {
         try {
-const db2 = await initCosmosDb();
-      const snap2 = await db2.collection("siteConfig").doc("dodoConfig").get();
+          const db2 = await initCosmosDb();
+          const snap2 = await db2.collection("siteConfig").doc("dodoConfig").get();
           const val = snap2.data();
           productId = val?.value?.productId || null;
         } catch {}
@@ -1962,8 +2153,6 @@ const ALLOWED_ORIGINS = [
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin;
   if (origin && ALLOWED_ORIGINS.some(o => origin.startsWith(o.replace(/\/$/, "")))) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  } else if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else {
     res.setHeader("Access-Control-Allow-Origin", "https://devcraft.fennark.xyz");

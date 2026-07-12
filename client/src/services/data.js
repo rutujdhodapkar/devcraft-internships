@@ -43,8 +43,8 @@ async function _rtdbDelete(path) {
 const _cache = new Map();
 const _inflightReads = new Map();
 const STATIC_CACHE_TTL = 10 * 60 * 1000;
-const STATIC_COLLECTIONS = new Set(["careerPaths", "howItWorks", "faqs", "homepage", "logoLoop", "slidingStrips", "universityCollab"]);
-const CACHE_TTL = 15 * 1000; // 15 seconds — short enough to avoid stale admin data, long enough to prevent double fetches
+const STATIC_COLLECTIONS = new Set(["careerPaths", "courses", "courseContent", "howItWorks", "faqs", "homepage", "logoLoop", "slidingStrips", "universityCollab"]);
+const CACHE_TTL = 60 * 1000; // 60 seconds — reduce redundant reads within same page session
 
 function _cacheKey(action, path, query) {
   return `${action}:${path}${query ? ":" + JSON.stringify(query) : ""}`;
@@ -96,6 +96,23 @@ function _lsSet(key, data, ttl) {
 }
 function _lsRemove(key) {
   try { localStorage.removeItem("lsc_" + key); } catch {}
+}
+
+// Version-diff storage: data lives forever in localStorage, version is the freshness signal
+function _lsSetV(key, data, version) {
+  try { localStorage.setItem("lsv_" + key, JSON.stringify({ d: data, v: version })); } catch {}
+}
+function _lsGetV(key) {
+  try { const raw = localStorage.getItem("lsv_" + key); if (!raw) return null; const e = JSON.parse(raw); return { data: e.d, version: e.v }; } catch { return null; }
+}
+
+async function _fetchVersions() {
+  try {
+    const resp = await fetch(`${API_BASE}/api/data/versions`);
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    return json.data || null;
+  } catch { return null; }
 }
 
 const FALLBACK_STEPS = [
@@ -213,7 +230,25 @@ async function apiFetch(path, options = {}) {
 // Career Paths
 export async function fetchCareerPaths() {
   const cached = _lsGet("careerPaths");
-  if (cached) return cached;
+  const version = _lsGet("cp_v");
+  if (cached && version) {
+    try {
+      const resp = await fetch(`${API_BASE}/api/data/career-paths?_v=${encodeURIComponent(version)}`);
+      if (resp.status === 304) {
+        _lsSet("careerPaths", cached);
+        return cached;
+      }
+      if (resp.ok) {
+        const data = await resp.json();
+        const result = data.data || null;
+        if (result) {
+          _lsSet("careerPaths", result);
+          if (data._v) _lsSet("cp_v", data._v);
+        }
+        return result;
+      }
+    } catch {}
+  }
   const bundled = await fetchSiteConfig("careerPaths");
   let paths = bundled?.list || [];
   let categories = bundled?.categories || [];
@@ -236,7 +271,8 @@ export async function fetchCareerPaths() {
     return p;
   });
   const result = { paths: mergedPaths, categories };
-  _lsSet("careerPaths", result, 120_000);
+  _lsSet("careerPaths", result);
+  if (!version) _lsSet("cp_v", "");
   return result;
 }
 
@@ -252,14 +288,119 @@ export async function saveCareerPaths(paths, categories) {
 }
 
 // How It Works
+// ── Session version map (fetched once, refreshed on triggers) ──
+let _sessionVersions = null;
+let _sessionVersionsPromise = null;
+
+async function _ensureVersions() {
+  if (_sessionVersions) return _sessionVersions;
+  if (_sessionVersionsPromise) return _sessionVersionsPromise;
+  _sessionVersionsPromise = _fetchVersions().then(v => { _sessionVersions = v || {}; return _sessionVersions; }).catch(() => { _sessionVersions = {}; return _sessionVersions; });
+  return _sessionVersionsPromise;
+}
+
+// Call this on route change / visibility change to refresh the version map (cheap — 1 doc read)
+export function refreshVersionMap() {
+  _sessionVersions = null;
+  _sessionVersionsPromise = null;
+}
+
+// ── Domain-scoped task version check (one partial field read) ──
+// Fetches ONLY the taskVersion field from the enrollment doc.
+// If matches localStorage, zero further reads. On mismatch, caller
+// should fetch the full enrollment fresh.
+const _domainVersionCache = new Map(); // enrollmentId → { version, promise }
+
+export async function checkEnrollmentTaskVersion(enrollmentId) {
+  const key = "enr_" + enrollmentId;
+  const cached = _lsGetV(key);
+  let remoteVersion;
+  if (_domainVersionCache.has(enrollmentId)) {
+    remoteVersion = await _domainVersionCache.get(enrollmentId);
+  } else {
+    const promise = _fetchEnrollmentTaskVersion(enrollmentId);
+    _domainVersionCache.set(enrollmentId, promise);
+    remoteVersion = await promise;
+    _domainVersionCache.delete(enrollmentId);
+  }
+  if (cached && remoteVersion !== null && remoteVersion !== undefined && String(cached.version) === String(remoteVersion)) {
+    console.log(`[cache] HIT enrollment:${enrollmentId}  v${remoteVersion}`);
+    return { changed: false, data: cached.data };
+  }
+  console.log(`[cache] MISS enrollment:${enrollmentId}  local=${cached?.version || "none"} remote=${remoteVersion}`);
+  return { changed: true, remoteVersion };
+}
+
+async function _fetchEnrollmentTaskVersion(enrollmentId) {
+  try {
+    const resp = await fetch(`${API_BASE}/api/data/enrollments/${encodeURIComponent(enrollmentId)}?fields=taskVersion`);
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    return json.data?.taskVersion ?? null;
+  } catch { return null; }
+}
+
+// ── User external status version check (one partial field read) ──
+const _extVersionCache = new Map();
+
+export async function checkUserExternalVersion(uid) {
+  const key = "ext_" + uid;
+  const cached = _lsGetV(key);
+  let remoteVersion;
+  if (_extVersionCache.has(uid)) {
+    remoteVersion = await _extVersionCache.get(uid);
+  } else {
+    const promise = _fetchUserExternalVersion(uid);
+    _extVersionCache.set(uid, promise);
+    remoteVersion = await promise;
+    _extVersionCache.delete(uid);
+  }
+  if (cached && remoteVersion !== null && remoteVersion !== undefined && String(cached.version) === String(remoteVersion)) {
+    console.log(`[cache] HIT external:${uid}  v${remoteVersion}`);
+    return { changed: false, data: cached.data };
+  }
+  console.log(`[cache] MISS external:${uid}  local=${cached?.version || "none"} remote=${remoteVersion}`);
+  return { changed: true, remoteVersion };
+}
+
+async function _fetchUserExternalVersion(uid) {
+  try {
+    const resp = await fetch(`${API_BASE}/api/data/users/${encodeURIComponent(uid)}?fields=externalUpdateVersion`);
+    if (!resp.ok) return null;
+    const json = await resp.json();
+    return json.data?.externalUpdateVersion ?? null;
+  } catch { return null; }
+}
+
+async function _versionedFetch(key, lsKey, fetcher, opts = {}) {
+  const k = lsKey || key;
+  const vKey = opts.versionKey || key;
+  const vMap = await _ensureVersions();
+  const remoteVersion = vMap[vKey] || null;
+
+  // Version-tracked key
+  if (remoteVersion) {
+    const cached = _lsGetV(k);
+    if (cached && cached.version === remoteVersion) return cached.data;
+    const data = await fetcher();
+    _lsSetV(k, data, remoteVersion);
+    return data;
+  }
+
+  // Untracked key: TTL fallback
+  const cached = _lsGet(k);
+  if (cached !== null) return cached;
+  const data = await fetcher();
+  _lsSet(k, data, opts.ttl);
+  return data;
+}
+
 export async function fetchHowItWorks() {
-  const cached = _lsGet("howItWorks");
-  if (cached) return cached;
-  const steps = await dbList("howItWorks");
-  const sorted = steps.sort((a, b) => (a.step || 0) - (b.step || 0));
-  const result = sorted.length ? sorted : FALLBACK_STEPS;
-  _lsSet("howItWorks", result);
-  return result;
+  return _versionedFetch("howItWorks", "howItWorks", async () => {
+    const steps = await dbList("howItWorks");
+    const sorted = steps.sort((a, b) => (a.step || 0) - (b.step || 0));
+    return sorted.length ? sorted : FALLBACK_STEPS;
+  });
 }
 
 export async function saveHowItWorks(steps) {
@@ -273,12 +414,10 @@ export async function saveHowItWorks(steps) {
 
 // FAQs
 export async function fetchFAQs() {
-  const cached = _lsGet("faqs");
-  if (cached) return cached;
-  const faqs = await dbList("faqs");
-  const result = faqs.length ? faqs : FALLBACK_FAQS;
-  _lsSet("faqs", result);
-  return result;
+  return _versionedFetch("faqs", "faqs", async () => {
+    const faqs = await dbList("faqs");
+    return faqs.length ? faqs : FALLBACK_FAQS;
+  });
 }
 
 export async function saveFAQs(faqs) {
@@ -292,19 +431,13 @@ export async function saveFAQs(faqs) {
 
 // Templates
 export async function fetchTemplates() {
-  const cached = _lsGet("templates");
-  if (cached) return cached;
-  const d = await dbGet("config/templates");
-  const raw = d?.value || null;
-  let result;
-  if (!raw) result = { templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] };
-  else if (raw.templates) result = { ...raw, templateOrder: raw.templateOrder || Object.keys(raw.templates) };
-  else {
-    const old = raw;
-    result = { templates: { "Offer Letter": old.offer_letter || "", "Certificate": old.certificate || "" }, templateOrder: ["Offer Letter", "Certificate"] };
-  }
-  _lsSet("templates", result);
-  return result;
+  return _versionedFetch("templates", "templates", async () => {
+    const d = await dbGet("config/templates");
+    const raw = d?.value || null;
+    if (!raw) return { templates: { "Offer Letter": "", "Certificate": "" }, templateOrder: ["Offer Letter", "Certificate"] };
+    if (raw.templates) return { ...raw, templateOrder: raw.templateOrder || Object.keys(raw.templates) };
+    return { templates: { "Offer Letter": raw.offer_letter || "", "Certificate": raw.certificate || "" }, templateOrder: ["Offer Letter", "Certificate"] };
+  });
 }
 
 export async function saveTemplates(data) {
@@ -315,12 +448,10 @@ export async function saveTemplates(data) {
 
 // About Text
 export async function fetchAboutText() {
-  const cached = _lsGet("aboutText");
-  if (cached) return cached;
-  const d = await dbGet("config/aboutText");
-  const result = d?.value || "";
-  _lsSet("aboutText", result);
-  return result;
+  return _versionedFetch("aboutText", "aboutText", async () => {
+    const d = await dbGet("config/aboutText");
+    return d?.value || "";
+  }, "aboutText");
 }
 
 export async function saveAboutText(text) {
@@ -439,7 +570,7 @@ export async function fetchUserEnrollments(uid, email, opts) {
         }
       }
       // Fire uid patches in background
-      if (patches.length > 0) Promise.all(patches);
+      if (patches.length > 0) Promise.all(patches).catch(() => {});
     } catch {}
   }
   return list.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
@@ -488,6 +619,26 @@ export async function submitProject(enrollmentId, projectIndex, submissionText, 
     method: "POST",
     body: JSON.stringify({ submissionText, submissionUrl }),
   });
+  // Optimistic local update — no re-read
+  _optimisticUpdateEnrollment(enrollmentId, (enr) => {
+    const subs = { ...(enr.submissions || {}) };
+    subs[projectIndex] = {
+      ...(subs[projectIndex] || {}),
+      text: submissionText,
+      url: submissionUrl,
+      submittedAt: new Date().toISOString(),
+      verified: false, rejected: false, resubmit: false,
+    };
+    return { ...enr, submissions: subs };
+  });
+}
+
+function _optimisticUpdateEnrollment(enrollmentId, updater) {
+  const cached = _lsGetV("enr_" + enrollmentId);
+  if (cached) {
+    const updated = updater(cached.data);
+    _lsSetV("enr_" + enrollmentId, updated, cached.version);
+  }
 }
 
 export async function submitQuizAnswer(enrollmentId, projectIndex, answers, project) {
@@ -825,12 +976,7 @@ export async function fetchPermanentReferralCode(uid) {
 }
 
 export async function fetchEarnSettings() {
-  const cached = _lsGet("earnSettings");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/earnSettings");
-  const result = d?.value || null;
-  _lsSet("earnSettings", result);
-  return result;
+  return fetchSiteConfig("earnSettings");
 }
 
 export async function saveEarnSettings(settings) {
@@ -840,12 +986,7 @@ export async function saveEarnSettings(settings) {
 }
 
 export async function fetchEarnDetails() {
-  const cached = _lsGet("earnDetails");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/earnDetails");
-  const result = d?.value || null;
-  _lsSet("earnDetails", result);
-  return result;
+  return fetchSiteConfig("earnDetails");
 }
 
 export async function saveEarnDetails(details) {
@@ -909,12 +1050,7 @@ export async function toggleSiteNotice(id, active) {
 export async function deleteSiteNotice(id) { await dbDelete(`siteNotices/${id}`); }
 
 export async function fetchHomepageContent() {
-  const cached = _lsGet("homepageContent");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/homepage");
-  const result = d?.value || null;
-  _lsSet("homepageContent", result);
-  return result;
+  return fetchSiteConfig("homepage");
 }
 
 export async function saveHomepageContent(content) {
@@ -1052,12 +1188,7 @@ export async function fetchAiPendingEnrollments() {
 }
 
 export async function fetchUPISettings() {
-  const cached = _lsGet("upiSettings");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/upiSettings");
-  const result = d?.value || null;
-  _lsSet("upiSettings", result);
-  return result;
+  return fetchSiteConfig("upiSettings");
 }
 
 export async function saveUPISettings(settings) {
@@ -1067,12 +1198,7 @@ export async function saveUPISettings(settings) {
 }
 
 export async function fetchPaymentSettings() {
-  const cached = _lsGet("paymentSettings");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/paymentSettings");
-  const result = d?.value || null;
-  _lsSet("paymentSettings", result);
-  return result;
+  return fetchSiteConfig("paymentSettings");
 }
 
 export async function savePaymentSettings(settings) {
@@ -1241,12 +1367,7 @@ export async function resetRevenue() {
 }
 
 export async function fetchUserTypes() {
-  const cached = _lsGet("userTypes");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/userTypes");
-  const result = d?.value || [];
-  _lsSet("userTypes", result);
-  return result;
+  return fetchSiteConfig("userTypes");
 }
 
 export async function saveUserTypes(types) {
@@ -1256,12 +1377,7 @@ export async function saveUserTypes(types) {
 }
 
 export async function fetchPayoutConfig() {
-  const cached = _lsGet("payoutConfig");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/payoutConfig");
-  const result = d?.value || { payoutDays: 30, defaultPayoutPerIntern: 30 };
-  _lsSet("payoutConfig", result);
-  return result;
+  return fetchSiteConfig("payoutConfig");
 }
 
 export async function savePayoutConfig(config) {
@@ -1278,12 +1394,7 @@ export async function clearReferralPayout(code) {
 }
 
 export async function fetchDodoConfig() {
-  const cached = _lsGet("dodoConfig");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/dodoConfig");
-  const result = d?.value || null;
-  _lsSet("dodoConfig", result);
-  return result;
+  return fetchSiteConfig("dodoConfig");
 }
 
 export async function saveDodoConfig(config) {
@@ -1293,21 +1404,11 @@ export async function saveDodoConfig(config) {
 }
 
 export async function fetchOrgSettings() {
-  const cached = _lsGet("orgSettings");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/organization");
-  const result = d?.value || null;
-  _lsSet("orgSettings", result);
-  return result;
+  return fetchSiteConfig("organization");
 }
 
 export async function fetchPaymentMethods() {
-  const cached = _lsGet("paymentMethods");
-  if (cached) return cached;
-  const d = await dbGet("siteConfig/paymentMethods");
-  const result = d?.value || { upi: true, dodo: false };
-  _lsSet("paymentMethods", result);
-  return result;
+  return fetchSiteConfig("paymentMethods");
 }
 
 export async function savePaymentMethods(config) {
@@ -1334,14 +1435,36 @@ export async function logAdminAction(action, details = {}) {
 // Site config (generic key-value)
 export async function fetchSiteConfig(key) {
   const cached = _lsGet("sc_" + key);
-  if (cached !== null) return cached;
+  if (cached !== null) {
+    const version = _lsGet("sc_v_" + key);
+    if (version) {
+      try {
+        const resp = await fetch(`${API_BASE}/api/data/site-config?key=${encodeURIComponent(key)}&_v=${encodeURIComponent(version)}`);
+        if (resp.status === 304) {
+          _lsSet("sc_" + key, cached);
+          return cached;
+        }
+        if (resp.ok) {
+          const data = await resp.json();
+          const result = data.data || null;
+          if (result !== null) {
+            _lsSet("sc_" + key, result);
+            if (data._v) _lsSet("sc_v_" + key, data._v);
+          }
+          return result;
+        }
+      } catch {}
+    }
+    return cached;
+  }
   const cachedCookie = getCookie(`sc_${key}`);
   if (cachedCookie !== null) return cachedCookie;
   const data = await apiFetch(`/api/data/site-config?key=${encodeURIComponent(key)}`);
   const result = data.data || null;
   if (result !== null) {
-    setCookie(`sc_${key}`, result);
     _lsSet("sc_" + key, result);
+    if (data._v) _lsSet("sc_v_" + key, data._v);
+    setCookie(`sc_${key}`, result);
   }
   return result;
 }
@@ -1369,13 +1492,40 @@ export async function saveCourses(list) {
 }
 
 export async function fetchCourseContent(courseId) {
+  const cacheKey = "cc_" + courseId;
+  const cached = _lsGet(cacheKey);
+  const versionKey = "cc_v_" + courseId;
+  const version = _lsGet(versionKey);
+  if (cached && version) {
+    try {
+      const resp = await fetch(`${API_BASE}/api/data/courses/${encodeURIComponent(courseId)}/content?_v=${encodeURIComponent(version)}`);
+      if (resp.status === 304) {
+        _lsSet(cacheKey, cached);
+        return cached;
+      }
+      if (resp.ok) {
+        const data = await resp.json();
+        const result = data.data || null;
+        if (result) {
+          _lsSet(cacheKey, result);
+          if (data._v) _lsSet(versionKey, data._v);
+        }
+        return result;
+      }
+    } catch {}
+  }
   try {
     const data = await apiFetch(`/api/data/courses/${encodeURIComponent(courseId)}/content`);
-    if (data?.data) return data.data;
+    if (data?.data) {
+      _lsSet(cacheKey, data.data);
+      return data.data;
+    }
   } catch {}
   const r = await fetchCareerPaths();
   const p = (r.paths || r || []).find(x => x.id === courseId);
-  return p?.content ? { modules: p.content } : null;
+  const fallback = p?.content ? { modules: p.content } : null;
+  if (fallback) _lsSet(cacheKey, fallback);
+  return fallback;
 }
 
 export async function saveCourseContent(courseId, content) {
@@ -1415,12 +1565,7 @@ export async function saveTheme(theme) {
 
 // What Do You Get (dedicated endpoint)
 export async function fetchWhatDoYouGet() {
-  const cached = _lsGet("whatDoYouGet");
-  if (cached) return cached;
-  const data = await apiFetch("/api/data/what-do-you-get");
-  const result = data.data || null;
-  _lsSet("whatDoYouGet", result);
-  return result;
+  return fetchSiteConfig("whatDoYouGet");
 }
 
 export async function saveWhatDoYouGet(whatDoYouGet) {
@@ -1432,14 +1577,8 @@ export async function saveWhatDoYouGet(whatDoYouGet) {
   return whatDoYouGet;
 }
 
-// University Collaboration (dedicated endpoint)
 export async function fetchUniversityCollab() {
-  const cached = _lsGet("universityCollab");
-  if (cached) return cached;
-  const d = await apiFetch("/api/data/university-collab");
-  const result = d.data || null;
-  _lsSet("universityCollab", result);
-  return result;
+  return fetchSiteConfig("universityCollab");
 }
 
 export async function saveUniversityCollab(content) {
@@ -1451,14 +1590,8 @@ export async function saveUniversityCollab(content) {
   return content;
 }
 
-// Logo Loop (dedicated endpoint)
 export async function fetchLogoLoopContent() {
-  const cached = _lsGet("logoLoop");
-  if (cached) return cached;
-  const d = await apiFetch("/api/data/logo-loop");
-  const result = d.data || null;
-  _lsSet("logoLoop", result);
-  return result;
+  return fetchSiteConfig("logoLoop");
 }
 
 export async function saveLogoLoopContent(content) {
@@ -1470,14 +1603,8 @@ export async function saveLogoLoopContent(content) {
   return content;
 }
 
-// Sliding Strips (dedicated endpoint)
 export async function fetchSlidingStripsContent() {
-  const cached = _lsGet("slidingStrips");
-  if (cached) return cached;
-  const d = await apiFetch("/api/data/sliding-strips");
-  const result = d.data || null;
-  _lsSet("slidingStrips", result);
-  return result;
+  return fetchSiteConfig("slidingStrips");
 }
 
 export async function saveSlidingStripsContent(content) {
@@ -1523,8 +1650,7 @@ export async function saveRefundContent(html) {
 
 // Footer Settings
 export async function fetchFooterSettings() {
-  const d = await fetchSiteConfig("footer");
-  return d || null;
+  return fetchSiteConfig("footer");
 }
 
 export async function saveFooterSettings(settings) {
@@ -1533,8 +1659,7 @@ export async function saveFooterSettings(settings) {
 
 // Popup Settings
 export async function fetchPopupSettings() {
-  const d = await fetchSiteConfig("popup");
-  return d || null;
+  return fetchSiteConfig("popup");
 }
 
 export async function savePopupSettings(settings) {
@@ -1543,8 +1668,7 @@ export async function savePopupSettings(settings) {
 
 // Homepage Settings (which domains to show, max visible before "View All")
 export async function fetchHomepageSettings() {
-  const d = await fetchSiteConfig("homepage");
-  return d || null;
+  return fetchSiteConfig("homepageLayout");
 }
 
 export async function saveHomepageSettings(settings) {
@@ -1728,13 +1852,8 @@ export async function triggerManualEmailType(type, email = "", dryRun = false) {
 }
 
 // ─── Skill Badges & Micro-Certifications ───
-export async function fetchBadges(opts) {
-  const cached = _lsGet("badges");
-  if (cached) return cached;
-  const d = await dbList("badges", opts);
-  const result = d || [];
-  _lsSet("badges", result);
-  return result;
+export async function fetchBadges() {
+  return fetchSiteConfig("badges");
 }
 
 export async function saveBadges(badges) {

@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Shared versions manifest ──
+    // Public read (version strings only, no user data)
+    // Write: Admin SDK service account only (deny all client SDK writes)
+    match /manifest/{doc} {
+      allow read: if true;
+      allow write: if false;  // Admin SDK bypasses rules
+    }
+
+    // ── Domain versions manifest ──
+    // Public read per domain (version number only)
+    // Write: Admin SDK service account only
+    match /manifest-domain-versions/{domainId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── Deny everything else ──
+    // No other data lives in Firestore
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

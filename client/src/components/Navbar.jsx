@@ -257,7 +257,7 @@ export default function Navbar({
                 style={{ pointerEvents: "auto" }}
                 {...activeGlassProps}
               >
-                {!isHomePage && <button
+                <button
                   className="hamburger-btn"
                   onClick={() => setShowMobileMenu(!showMobileMenu)}
                   style={{
@@ -276,7 +276,7 @@ export default function Navbar({
                   }}
                 >
                   {showMobileMenu ? "✕" : "☰"}
-                </button>}
+                </button>
               </GlassSurface>
             ) : (
               <div
@@ -293,7 +293,7 @@ export default function Navbar({
                   pointerEvents: "auto",
                 }}
               >
-                {!isHomePage && <button
+                <button
                   className="hamburger-btn"
                   onClick={() => setShowMobileMenu(!showMobileMenu)}
                   style={{
@@ -312,7 +312,7 @@ export default function Navbar({
                   }}
                 >
                   {showMobileMenu ? "✕" : "☰"}
-                </button>}
+                </button>
               </div>
             )}
           </div>

@@ -547,7 +547,7 @@ app.post('/api/dodo/setup', async (req, res) => {
 // Checkout session: Create a session and return checkout URL
 app.post('/api/dodo/create-checkout-session', async (req, res) => {
   try {
-    if (!DODO_KEY) return res.status(400).json({ success: false, message: 'Dodo API key not configured' });
+    if (!DODO_API_KEY) return res.status(400).json({ success: false, message: 'Dodo API key not configured' });
     const { amount, enrollmentId, customerEmail, customerName } = req.body;
     if (!amount || amount <= 0 || !enrollmentId) {
       return res.status(400).json({ success: false, message: 'Valid amount and enrollmentId required' });
@@ -612,7 +612,7 @@ app.post('/api/dodo/webhook', async (req, res) => {
     if (eventType === 'payment.succeeded' && enrollmentId) {
       try {
         const db = await initCosmosDb();
-        if (DODO_KEY && paymentId) {
+        if (DODO_API_KEY && paymentId) {
           try {
             const pmtRes = await dodoApi(`/payments/${paymentId}`);
             if (pmtRes?.status !== 'succeeded') return res.json({ received: true, skipped: true });

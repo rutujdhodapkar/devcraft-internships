@@ -39,7 +39,6 @@ import {
   enrollStudent,
   fetchUserEnrollments,
   fetchUserEnrollmentsCached,
-  syncUserCache,
   recordReferralLogin,
   isReferralCodeMatched,
   savePermanentReferralCode,
@@ -244,12 +243,30 @@ export default function App() {
     }
   }, [currentView, popupSettings]);
 
-  // Fetch courses and homepage layout on mount
+  // Fetch courses and homepage layout on mount; wire cache event listeners
   useEffect(() => {
-    import("./services/data").then(({ fetchCourses, fetchSiteConfig }) => {
-      fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {});
-      fetchCourses().then(setHomeCourses).catch(() => {});
+    import("./services/data").then(async ({ fetchCourses, fetchSiteConfig, fetchCareerPaths }) => {
+      await Promise.all([
+        fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {}),
+        fetchCourses().then(setHomeCourses).catch(() => {}),
+      ]);
+      // Pre-warm career paths cache on initial load (version check is fast)
+      fetchCareerPaths().catch(() => {});
     });
+    // Wire re-validation on route change and tab focus
+    // Refresh the version map (one cheap read) — all _versionedFetch calls
+    // benefit without individual _v round-trips.
+    const onTrigger = () => {
+      if (document.visibilityState === "visible" || !document.hidden) {
+        import("./services/data").then(({ refreshVersionMap }) => refreshVersionMap());
+      }
+    };
+    window.addEventListener("popstate", onTrigger);
+    document.addEventListener("visibilitychange", onTrigger);
+    return () => {
+      window.removeEventListener("popstate", onTrigger);
+      document.removeEventListener("visibilitychange", onTrigger);
+    };
   }, []);
 
   // Load header settings from DB on mount

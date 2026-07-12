@@ -1,0 +1,23 @@
+{
+  "bindings": [
+    {
+      "type": "cosmosDBTrigger",
+      "name": "documents",
+      "direction": "in",
+      "leaseCollectionName": "leases",
+      "connectionStringSetting": "COSMOS_DB_CONNECTION_STRING",
+      "databaseName": "devcraft",
+      "collectionName": "main",
+      "createLeaseCollectionIfNotExists": true,
+      "startFromBeginning": false,
+      "feedPollDelay": 500,
+      "maxItemsPerInvocation": 100
+    }
+  ],
+  "retry": {
+    "strategy": "exponentialBackoff",
+    "maxRetryCount": 5,
+    "minimumInterval": "00:00:05",
+    "maximumInterval": "00:01:00"
+  }
+}

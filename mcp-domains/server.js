@@ -638,7 +638,7 @@ async function main() {
 }
 
 // Only start stdio transport when run directly (not when imported by Vercel function)
-const isDirectRun = process.argv[1] && (process.argv[1].includes("server.js") || process.argv[1].includes("mcp-domains"));
+const isDirectRun = !process.env.VERCEL && process.argv[1] && (process.argv[1].endsWith("/server.js") || process.argv[1].endsWith("\\server.js"));
 if (isDirectRun) main();
 
 export function getToolDefinitions() { return toolDefinitions; }
