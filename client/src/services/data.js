@@ -145,6 +145,12 @@ async function dbProxy(action, path, data, query, opts) {
     }
   }
   const body = { action, path, data, query };
+  // Enrollment records contain student PII and payment state. Supply an
+  // identity for reads as well as writes so the server can enforce ownership.
+  if (path.split("/")[0] === "enrollments") {
+    const token = await getFirebaseIdToken().catch(() => null);
+    if (token) body.idToken = token;
+  }
   // Forward read consistency (Eventual) for non-critical reads. Writes are untouched.
   if (opts && opts.consistencyLevel) body.consistencyLevel = opts.consistencyLevel;
   if (action !== "get" && action !== "list" && action !== "query") {
@@ -333,7 +339,10 @@ export async function checkEnrollmentTaskVersion(enrollmentId) {
 
 async function _fetchEnrollmentTaskVersion(enrollmentId) {
   try {
-    const resp = await fetch(`${API_BASE}/api/data/enrollments/${encodeURIComponent(enrollmentId)}?fields=taskVersion`);
+    const token = await getFirebaseIdToken().catch(() => null);
+    const resp = await fetch(`${API_BASE}/api/data/enrollments/${encodeURIComponent(enrollmentId)}?fields=taskVersion`, {
+      headers: token ? { "x-id-token": token } : {},
+    });
     if (!resp.ok) return null;
     const json = await resp.json();
     return json.data?.taskVersion ?? null;
@@ -1237,7 +1246,10 @@ export async function setPaymentAmount(enrollmentId, paymentAmount) {
 
 export async function fetchPaymentHistory(enrollmentId) {
   try {
-    const res = await fetch(`${API_BASE}/api/payment-history/${enrollmentId}`);
+    const token = await getFirebaseIdToken().catch(() => null);
+    const res = await fetch(`${API_BASE}/api/payment-history/${enrollmentId}`, {
+      headers: token ? { "x-id-token": token } : {},
+    });
     const data = await res.json();
     return data.success ? data.data : [];
   } catch { return []; }

@@ -37,6 +37,23 @@ async function requireAdmin(db, req, res) {
   return email;
 }
 
+async function requireEnrollmentAccess(db, req, res, enrollment) {
+  const idToken = req.body?.idToken || req.query?.idToken || req.headers["x-id-token"];
+  const decoded = idToken ? await verifyFirebaseToken(idToken) : null;
+  if (!decoded) {
+    send(res, 401, { success: false, message: "Authentication required." });
+    return null;
+  }
+  const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
+  const adminDoc = email ? await getDoc(db, "admins", emailId(email), null) : null;
+  const isAdmin = email === ROOT_ADMIN_EMAIL || Boolean(adminDoc);
+  if (!isAdmin && enrollment?.uid !== decoded.uid) {
+    send(res, 403, { success: false, message: "You do not own this enrollment." });
+    return null;
+  }
+  return { decoded, isAdmin };
+}
+
 async function requireAdminFromToken(db, idToken) {
   if (!idToken) return null;
   const decoded = await verifyFirebaseToken(idToken);
@@ -977,7 +994,11 @@ async function handleUsers(db, req, res, uid, sub, extra) {
 }
 
 async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
-  if (!id && req.method === "GET") return send(res, 200, { success: true, data: await listCollection(db, "enrollments") });
+  if (!id && req.method === "GET") {
+    const adminEmail = await requireAdmin(db, req, res);
+    if (!adminEmail) return;
+    return send(res, 200, { success: true, data: await listCollection(db, "enrollments") });
+  }
   if (!id && req.method === "POST") {
     const domain = req.body.domain || {};
     const profile = req.body.profile || {};
@@ -1040,6 +1061,8 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
   }
   if (id && req.method === "GET") {
     const data = await getDoc(db, "enrollments", id, null);
+    if (!data) return send(res, 404, { success: false, message: "Enrollment not found" });
+    if (!await requireEnrollmentAccess(db, req, res, data)) return;
     const fields = req.query.fields;
     if (fields && data) {
       const selected = fields.split(",").reduce((acc, f) => { acc[f.trim()] = data[f.trim()]; return acc; }, {});
@@ -1052,6 +1075,9 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
     if (!adminEmail) return;
     return send(res, 200, { success: true, data: await deleteDoc(db, "enrollments", id) });
   }
+  const existingEnrollment = id ? await getDoc(db, "enrollments", id, null) : null;
+  if (id && !existingEnrollment) return send(res, 404, { success: false, message: "Enrollment not found" });
+  if (id && !await requireEnrollmentAccess(db, req, res, existingEnrollment)) return;
   // Admin-only enrollment mutations (status, cert, payment, verify)
   const adminSubs = ["status", "certificate", "complete", "override-complete", "completion-reject", "payment-status", "payment-amount", "unverify-payment"];
   if (sub && (adminSubs.includes(sub) || (sub === "projects" && ["verify", "unverify", "feedback", "reject"].includes(extra2)))) {
@@ -1761,6 +1787,28 @@ async function handleFirebaseProxy(req, res) {
     const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog"];
     const root = path.split("/")[0];
     const isWrite = ["set", "update", "push", "delete"].includes(action);
+    let decoded = null;
+
+    // Enrollment records include student identity, submissions, and payment
+    // data. They are visible only to their owner or an administrator.
+    if (!isWrite && root === "enrollments") {
+      decoded = await verifyFirebaseToken(req.body?.idToken);
+      if (!decoded) return send(res, 401, { success: false, message: "Authentication required to read enrollments." });
+      const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
+      const adminDoc = email ? await getDoc(db, "admins", emailId(email), null) : null;
+      const isAdmin = email === ROOT_ADMIN_EMAIL || Boolean(adminDoc);
+      const pathParts = path.split("/");
+      if (action === "list" && !isAdmin) return send(res, 403, { success: false, message: "Administrator access is required to list enrollments." });
+      if (action === "query" && !isAdmin) {
+        const ownUidQuery = query?.orderBy === "uid" && query?.equalTo === decoded.uid;
+        const ownEmailQuery = query?.orderBy === "email" && query?.equalTo === decoded.email;
+        if (!ownUidQuery && !ownEmailQuery) return send(res, 403, { success: false, message: "You may only query your own enrollments." });
+      }
+      if (action === "get" && pathParts[1] && !isAdmin) {
+        const enrollment = await getDoc(db, "enrollments", pathParts[1], null);
+        if (enrollment?.uid !== decoded.uid) return send(res, 403, { success: false, message: "You do not own this enrollment." });
+      }
+    }
 
     if (isWrite && adminCollections.includes(root)) {
       const adminEmail = await requireAdmin(db, req, res);
@@ -1769,7 +1817,7 @@ async function handleFirebaseProxy(req, res) {
 
     // Require auth on all non-admin writes (enrollments, referrals, users, etc.)
     if (isWrite && !adminCollections.includes(root)) {
-      const decoded = await verifyFirebaseToken(req.body?.idToken);
+      decoded = await verifyFirebaseToken(req.body?.idToken);
       if (!decoded) return send(res, 401, { success: false, message: "Authentication required for writes." });
       // For enrollments: verify uid ownership or admin
       if (root === "enrollments") {
@@ -2262,6 +2310,15 @@ async function handlePaymentHistory(req, res, enrollmentId) {
   try {
     const db = await initCosmosDb();
     if (!db) return send(res, 503, { success: false, message: "Database not configured" });
+    const idToken = req.headers["x-id-token"] || req.query?.idToken || "";
+    const decoded = await verifyFirebaseToken(idToken);
+    if (!decoded) return send(res, 401, { success: false, message: "Authentication required" });
+    const enrollment = await getDoc(db, "enrollments", enrollmentId, null);
+    if (!enrollment) return send(res, 404, { success: false, message: "Enrollment not found" });
+    const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
+    const adminDoc = email ? await getDoc(db, "admins", emailId(email), null) : null;
+    const isAdmin = email === ROOT_ADMIN_EMAIL || Boolean(adminDoc);
+    if (!isAdmin && enrollment.uid !== decoded.uid) return send(res, 403, { success: false, message: "You do not own this enrollment" });
     const snap = await db.collection("paymentHistory").where("enrollmentId", "==", enrollmentId).get();
     const records = [];
     snap.forEach(doc => {
