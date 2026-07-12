@@ -184,6 +184,7 @@ export default function App() {
 
   // Internship Enrollment Pipeline
   const [pendingEnrollmentDomain, setPendingEnrollmentDomain] = useState(null);
+  const [applyingDomain, setApplyingDomain] = useState(null);
 
   // ID Card Modal
   const [showIdCard, setShowIdCard] = useState(false);
@@ -581,6 +582,7 @@ export default function App() {
     }
 
     try {
+      setApplyingDomain(domainObj.title || "this domain");
       setAuthLoading(true);
       const existingEnrollments = await fetchUserEnrollments(user.uid, user.email);
       const alreadyApplied = existingEnrollments.some(
@@ -602,6 +604,7 @@ export default function App() {
       notify("Enrollment failed: " + err.message, "error");
     } finally {
       setAuthLoading(false);
+      setApplyingDomain(null);
     }
   };
 
@@ -977,6 +980,14 @@ export default function App() {
             <SlidingStrip />
             <LogoLoopSection />
             <CareerPaths onApplyDomain={handleApplyDomain} maxItems={homeLayout?.internshipCount || null} />
+            {applyingDomain && (
+              <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}>
+                <div style={{ background: "#fff", border: "3px solid #000", boxShadow: "8px 8px 0 #000", padding: "2rem 3rem", textAlign: "center" }}>
+                  <div style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", marginBottom: "0.5rem" }}>Applying...</div>
+                  <div style={{ fontSize: "0.95rem", color: "#555" }}>Please wait while we process your application for <strong>{applyingDomain}</strong></div>
+                </div>
+              </div>
+            )}
             {homeLayout?.showCourses !== false && homeCourses.length > 0 && (() => {
               const count = homeLayout?.courseCount || 3;
               const visibleCats = homeLayout?.visibleCourseCategories;
@@ -1006,11 +1017,11 @@ export default function App() {
                           <h3 style={{ fontSize: "1.1rem", fontWeight: 800, margin: "0 0 0.25rem" }}>{c.title}</h3>
                           <p style={{ fontSize: "0.85rem", color: "#555", margin: "0 0 0.75rem", flex: 1 }}>{c.description}</p>
                           <div style={{ display: "flex", gap: "0.75rem", fontSize: "0.8rem", color: "#777", marginBottom: "0.75rem" }}>
-                            <span>⏱ {c.duration || "Self-paced"}</span>
+                            <span>{c.duration || "Self-paced"}</span>
                             <span>{c.level || "All Levels"}</span>
                           </div>
                           <ul style={{ listStyle: "none", padding: 0, margin: "0 0 1rem", fontSize: "0.85rem", lineHeight: 1.8 }}>
-                            {(Array.isArray(c.features) ? c.features : []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>✓ {f}</li>)}
+                            {(Array.isArray(c.features) ? c.features : []).slice(0, 3).map((f, i) => <li key={i} style={{ paddingLeft: "1.25rem", textIndent: "-1.25rem" }}>-- {f}</li>)}
                           </ul>
                           <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <span style={{ fontSize: "1.25rem", fontWeight: 900 }}>{free ? "Free" : "₹199"}</span>

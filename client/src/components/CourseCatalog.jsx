@@ -61,7 +61,7 @@ export default function CourseCatalog({ user, userProfile, onEnroll }) {
               <h2 style={styles.title}>{c.title}</h2>
               <p style={styles.desc}>{c.description}</p>
               <div style={styles.meta}>
-                <span>⏱ {c.duration || "Self-paced"}</span>
+                <span>{c.duration || "Self-paced"}</span>
                 <span>{c.level || "All Levels"}</span>
               </div>
               <ul style={styles.features}>

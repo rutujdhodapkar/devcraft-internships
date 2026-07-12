@@ -20,6 +20,11 @@
         "MCP_LOCAL_TRUSTED": "1"
       }
     },
+    "icons8mcp": {
+      "type": "local",
+      "command": ["npx", "mcp-remote", "https://mcp.icons8.com/mcp/"],
+      "enabled": true
+    },
     "social-automation": {
       "type": "local",
       "command": ["node", "mcp-social/server.js"],

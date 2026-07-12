@@ -735,7 +735,7 @@ export default function StudentDashboard({
             <div style={{ border: "2px solid #000", padding: "1rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
               <h3 style={{ margin: "0 0 0.6rem", fontSize: "0.9rem", textTransform: "uppercase" }}>Your activation checklist</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "0.5rem", fontSize: "0.82rem" }}>
-                <span>{userProfile?.phone ? "✓" : "○"} Complete your profile</span><span>{enrollments.length ? "✓" : "○"} Join an internship</span><span>{enrollments.some((item) => Object.keys(item.submissions || {}).length) ? "✓" : "○"} Submit your first task</span><button onClick={() => setActiveTab("tasks")} style={{ border: "2px solid #000", background: "#000", color: "#fff", padding: "0.35rem 0.6rem", cursor: "pointer", fontWeight: 800 }}>Continue tasks</button>
+                <span style={{ fontWeight: userProfile?.phone ? 700 : 400 }}>{userProfile?.phone ? "[X]" : "[ ]"} Complete your profile</span><span style={{ fontWeight: enrollments.length ? 700 : 400 }}>{enrollments.length ? "[X]" : "[ ]"} Join an internship</span><span style={{ fontWeight: enrollments.some((item) => Object.keys(item.submissions || {}).length) ? 700 : 400 }}>{enrollments.some((item) => Object.keys(item.submissions || {}).length) ? "[X]" : "[ ]"} Submit your first task</span><button onClick={() => setActiveTab("tasks")} style={{ border: "2px solid #000", background: "#000", color: "#fff", padding: "0.35rem 0.6rem", cursor: "pointer", fontWeight: 800 }}>Continue tasks</button>
               </div>
             </div>
             <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
@@ -1349,7 +1349,7 @@ export default function StudentDashboard({
                               textTransform: "uppercase",
                             }}
                           >
-                            {isExpired ? "✕ EXPIRED" : e.status}
+                            {isExpired ? "EXPIRED" : e.status}
                           </span>
                           <h4
                             style={{
@@ -1713,7 +1713,7 @@ function EnrollmentCard({
                     textTransform: "uppercase",
                   }}
                 >
-                  {isExpired ? "✕ EXPIRED" : isCompleted ? "✓ COMPLETED" : "● ACTIVE"}
+                  {isExpired ? "EXPIRED" : isCompleted ? "COMPLETED" : "ACTIVE"}
                 </span>
                 <span
                   style={{
@@ -2191,7 +2191,7 @@ function ProjectBox({
               flexShrink: 0,
             }}
           >
-            {isVerified ? "✓" : idx + 1}
+            {idx + 1}
           </span>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <strong
@@ -2291,7 +2291,7 @@ function ProjectBox({
               textTransform: "uppercase",
             }}
           >
-            ✓ VERIFIED
+            VERIFIED
           </span>
         )}
         {isSubmitted && isQuiz && !isVerified && !sub?.resubmit && (
@@ -2321,7 +2321,7 @@ function ProjectBox({
               textTransform: "uppercase",
             }}
           >
-            ✓ VERIFIED
+            VERIFIED
           </span>
         )}
         {!isVerified && isSubmitted && !isQuiz && !sub?.resubmit && (
@@ -2336,7 +2336,7 @@ function ProjectBox({
               textTransform: "uppercase",
             }}
           >
-            ⏳ SUBMITTED
+            SUBMITTED
           </span>
         )}
         {sub?.resubmit && !isVerified && (
@@ -2351,7 +2351,7 @@ function ProjectBox({
               textTransform: "uppercase",
             }}
           >
-            ✏️ REVISION
+            REVISION
           </span>
         )}
         {!isSubmitted && !disabled && !isQuiz && (
@@ -2425,8 +2425,8 @@ function ProjectBox({
                     </div>
                     <div>
                       Your answer: <strong>{qAnswer ?? "(empty)"}</strong>
-                      {isCorrect && <span style={{ color: "#34A853", marginLeft: "0.5rem" }}>✓ Correct</span>}
-                      {isWrong && <span style={{ color: "#EA4335", marginLeft: "0.5rem" }}>✗ Incorrect</span>}
+                      {isCorrect && <span style={{ color: "#34A853", marginLeft: "0.5rem", fontWeight: 700 }}>CORRECT</span>}
+                      {isWrong && <span style={{ color: "#EA4335", marginLeft: "0.5rem", fontWeight: 700 }}>INCORRECT</span>}
                       {(qResult === undefined || qResult === null) && sub?.verified && q.answer !== undefined && q.answer !== "" && (
                         <span style={{ color: "#888", marginLeft: "0.5rem" }}>Correct answer: <strong style={{ color: "#34A853" }}>{q.answer}</strong></span>
                       )}
@@ -2436,7 +2436,7 @@ function ProjectBox({
               })}
               {sub?.quizScore !== undefined && (
                 <div style={{ marginTop: "0.75rem", padding: "0.65rem 0.85rem", background: sub.quizPassed ? "#f0fdf4" : "#fef2f2", border: `2px solid ${sub.quizPassed ? "#34A853" : "#EA4335"}`, display: "flex", alignItems: "center", gap: "0.65rem" }}>
-                  <span style={{ fontSize: "1.2rem" }}>{sub.quizPassed ? "✅" : "❌"}</span>
+                  <span style={{ fontSize: "1.2rem", fontWeight: 900, color: sub.quizPassed ? "#34A853" : "#EA4335" }}>{sub.quizPassed ? "PASS" : "FAIL"}</span>
                   <div>
                     <div style={{ fontWeight: 800, fontSize: "0.88rem", color: sub.quizPassed ? "#1a5c2e" : "#991b1b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                       Quiz Score: {sub.quizScore}% — {sub.quizPassed ? "PASSED" : "FAILED"}
@@ -2468,7 +2468,7 @@ function ProjectBox({
             Submitted: {new Date(sub.submittedAt).toLocaleString()}
             {sub.verified && sub.verifiedAt && (
               <span style={{ color: "#34A853", marginLeft: "1rem" }}>
-                ✓ Verified: {new Date(sub.verifiedAt).toLocaleString()}
+                Verified: {new Date(sub.verifiedAt).toLocaleString()}
               </span>
             )}
           </div>
@@ -2486,7 +2486,7 @@ function ProjectBox({
                 gap: "0.65rem",
               }}
             >
-              <span style={{ fontSize: "1.2rem" }}>✅</span>
+              <span style={{ fontSize: "0.75rem", fontWeight: 900, color: "#34A853", border: "2px solid currentColor", padding: "0.1rem 0.4rem" }}>OK</span>
               <div>
                 <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "#1a5c2e", textTransform: "uppercase", letterSpacing: "0.5px" }}>Verified by Team</div>
                 <div style={{ fontSize: "0.78rem", color: "#2e7d4f", marginTop: "0.15rem" }}>This submission has been approved. Great work!</div>
@@ -2528,7 +2528,7 @@ function ProjectBox({
                 lineHeight: "1.5",
               }}
             >
-              <strong>✏️ Revision Requested by Admin</strong>
+              <strong>Revision Requested by Admin</strong>
               {sub?.feedback && (
                 <div style={{ marginTop: "0.35rem", fontStyle: "italic" }}>
                   Feedback: {sub.feedback}
@@ -2625,7 +2625,7 @@ function ProjectBox({
                   fontWeight: 700,
                 }}
               >
-                ✓ Submitted successfully! Our team will verify it shortly.
+                Submitted successfully! Our team will verify it shortly.
               </span>
             )}
           </div>
@@ -2719,7 +2719,7 @@ function QuizForm({ project, inputValue, onInputChange, projectName, isRetry, pr
                     }}
                   >
                     {selected && (
-                      <span style={{ color: "#fff", fontSize: "12px", lineHeight: 1 }}>✓</span>
+                      <span style={{ color: "#fff", fontSize: "10px", lineHeight: 1, fontWeight: 900 }}>X</span>
                     )}
                   </span>
                   <span>{opt}</span>
