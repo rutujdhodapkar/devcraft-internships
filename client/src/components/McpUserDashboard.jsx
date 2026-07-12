@@ -167,8 +167,10 @@ export default function McpUserDashboard({ user, onClose }) {
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_domains", arguments: { user_token: t } } }),
       });
       const data = await res.json();
-      if (data.error) { setStatus("Error: " + data.error.message); setApproved(false); }
-      else { setStatus("Approved — reads go live, writes become proposals."); setApproved(true); }
+      if (data.error) {
+        const msg = typeof data.error === "string" ? data.error : (data.error.message || JSON.stringify(data.error));
+        setStatus("Error: " + msg); setApproved(false);
+      } else { setStatus("Approved — reads go live, writes become proposals."); setApproved(true); }
     } catch (e) { setStatus("Error: " + e.message); }
   }, [token, loadToken]);
 

@@ -9,7 +9,9 @@ async function getHandler() {
     _tools = m.getToolDefinitions();
     return _handler;
   } catch (e) {
-    throw new Error(`MCP domains module load failed: ${e.message}`);
+    // Module load error — could be missing SDK dependency in Vercel env
+    console.error("[mcp-domains] Handler load failed:", e.message);
+    return null;
   }
 }
 
@@ -39,19 +41,18 @@ export default async function mcpHandler(req, res) {
 
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  let handler;
-  try {
-    handler = await getHandler();
-  } catch (e) {
-    return res.status(500).json({ ok: false, error: e.message });
+  const handler = await getHandler();
+
+  if (!handler) {
+    return res.status(503).json({ jsonrpc: "2.0", id: null, error: { code: -32000, message: "MCP service unavailable — SDK not loaded. Check server logs." } });
   }
 
   if (req.method === "GET") {
-    const currentTools = (await getHandler()).getToolDefinitions?.() || _tools;
+    const currentTools = _tools || handler.getToolDefinitions?.();
     return res.json({
       server: "mcp-domains", version: "2.0.0",
       info: "request_access -> email propose -> admin approve/reject -> live on web",
-      tools: currentTools.map(t => ({ name: t.name, desc: t.description?.split(".")[0] })),
+      tools: (currentTools || []).map(t => ({ name: t.name, desc: t.description?.split(".")[0] })),
     });
   }
 

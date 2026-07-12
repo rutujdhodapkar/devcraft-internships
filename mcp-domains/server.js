@@ -326,7 +326,55 @@ const toolDefinitions = [
   {
     name: "add_course_content",
     description: "Add or update course modules/lessons/quizzes (admin only).",
-    inputSchema: { type: "object", properties: { course_id: { type: "string" }, modules: { type: "array", items: { type: "object", properties: { title: { type: "string" }, lessons: { type: "array", items: { type: "object", properties: { title: { type: "string" }, type: { type: "string", enum: ["text", "video", "code"] }, content: { type: "string" }, duration: { type: "string" } }, required: ["title", "type", "content"] } }, quiz: { type: "object", properties: { title: { type: "string" }, passingScore: { type: "number" }, questions: { type: "array", items: { type: "object", properties: { question: { type: "string" }, options: { type: "array", items: { type: "string" } }, correctIndex: { type: "number" } }, required: ["question", "options", "correctIndex"] } } } } }, required: ["title"] } }, required: ["course_id", "modules"] },
+    inputSchema: {
+      type: "object",
+      properties: {
+        course_id: { type: "string" },
+        modules: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              lessons: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    title: { type: "string" },
+                    type: { type: "string", enum: ["text", "video", "code"] },
+                    content: { type: "string" },
+                    duration: { type: "string" },
+                  },
+                  required: ["title", "type", "content"],
+                },
+              },
+              quiz: {
+                type: "object",
+                properties: {
+                  title: { type: "string" },
+                  passingScore: { type: "number" },
+                  questions: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        question: { type: "string" },
+                        options: { type: "array", items: { type: "string" } },
+                        correctIndex: { type: "number" },
+                      },
+                      required: ["question", "options", "correctIndex"],
+                    },
+                  },
+                },
+              },
+            },
+            required: ["title"],
+          },
+        },
+      },
+      required: ["course_id", "modules"],
+    },
   },
   {
     name: "remove_course",
