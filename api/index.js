@@ -819,6 +819,7 @@ async function handleData(req, res, routeParts) {
   // ── Bulk version check — one read returns all version timestamps ──
   if (resource === "versions") {
     if (req.method !== "GET") return send(res, 405, { error: "GET only" });
+    res.setHeader("Cache-Control", "public, max-age=30, s-maxage=60, stale-while-revalidate=300");
     const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
     return send(res, 200, { success: true, data: vDoc?.value || {} });
   }
