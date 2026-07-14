@@ -216,6 +216,15 @@ export default function App() {
   const [showCourseAllModal, setShowCourseAllModal] = useState(false);
   const [exploreFilter, setExploreFilter] = useState("All");
 
+  // Console greeting
+  useEffect(() => {
+    console.log("%c⚠️ Complete your Tasks Legally instead of this MF", "font-size:18px; font-weight:bold; color:#ff4444; background:#000; padding:8px 12px; border-radius:4px;");
+    console.log("Contacts : ceo@Fennark.xyz");
+    console.log("Main Website : https://www.fennark.xyz");
+    console.log("Founder : https://www.rutujdhodapkar.tech");
+    console.log("More Contact : https://contact.rutujdhodapkar.tech");
+  }, []);
+
   // Refs to avoid re-registering the auth listener on view changes
   const pendingEnrollmentRef = useRef(pendingEnrollmentDomain);
   useEffect(() => { pendingEnrollmentRef.current = pendingEnrollmentDomain; }, [pendingEnrollmentDomain]);
