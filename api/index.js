@@ -877,10 +877,6 @@ async function handleData(req, res, routeParts) {
       receipt: true,
     };
     if (!allDocs[docType]) return send(res, 400, { success: false, message: "Unknown document type." });
-    // For certificate, auto-allow if admin is requesting
-    if (enr.allowedCertificate !== "yes" && docType === "certificate") {
-      await db.collection("enrollments").doc(id).update({ allowedCertificate: "yes", updatedAt: now() });
-    }
     const templatesDoc = await getDoc(db, "config", "templates", null);
     const tpls = templatesDoc?.value?.templates || {};
     let html = "";
@@ -1070,18 +1066,9 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
   const patch = { updatedAt: now() };
   if (sub === "status") patch.status = req.body.status;
   if (sub === "transaction") patch.transactionId = req.body.transactionId;
-  if (sub === "certificate") patch.allowedCertificate = req.body.allowed;
   if (sub === "complete") {
     patch.status = "Completed";
-    patch.allowedCertificate = "yes";
     patch.completedAt = now();
-  }
-  if (sub === "override-complete") {
-    patch.status = "Completed";
-    patch.allowedCertificate = "yes";
-    patch.completedAt = now();
-    patch.overrideCompleted = true;
-    patch.overriddenBy = req.body.adminEmail || "admin";
   }
   if (sub === "completion-reject" && extra === "clear") Object.assign(patch, { completionRejectedAt: null, completionRejectReason: null });
   else if (sub === "completion-reject") Object.assign(patch, { completionRejectedAt: now(), completionRejectReason: req.body.reason || "" });

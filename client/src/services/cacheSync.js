@@ -312,7 +312,6 @@ export async function syncBuckets(items, opts = {}) {
 
     // STEP 4a: version matches AND we have cached data → do nothing, keep cache.
     if (!forceAll && !isEmpty && localVer != null && localVer === serverVer) {
-      console.log(`[cacheSync] bucket "${bucket}": version match → serve cache, NO fetch`);
       results[bucket] = cached;
       if (onBucket) onBucket(bucket, cached, { changed: false });
       continue;
@@ -323,7 +322,6 @@ export async function syncBuckets(items, opts = {}) {
       const data = await fetcher();
       await putCached(bucket, key, data, userId);
       await putLocalVersion(bucket, serverVer, userId);
-      console.log(`[cacheSync] bucket "${bucket}": version changed → fetched from Cosmos`);
       results[bucket] = data;
       if (onBucket) onBucket(bucket, data, { changed: true });
     } catch (err) {

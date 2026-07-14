@@ -99,18 +99,7 @@ export async function detectDialCode() {
   return null;
 }
 
-const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
-
 export async function fetchExchangeRates() {
-  try {
-    const response = await fetch(`${API_BASE}/api/rates`);
-    if (!response.ok) throw new Error('Failed to fetch backend rates');
-    const data = await response.json();
-    if (data.success && data.rates) return data.rates;
-  } catch (error) {
-    console.error('Backend exchange rates call failed, using fallback:', error.message);
-  }
-
   return {
     USD: 1.0,
     INR: 83.5,

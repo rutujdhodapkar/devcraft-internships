@@ -32,7 +32,6 @@ import {
   rejectEnrollmentCompletion,
   clearCompletionRejection,
   autoUnachieveIfActivity,
-  overrideCompleteEnrollment,
   unverifyProject,
   unverifyPayment,
   fetchPaymentSettings,
@@ -1115,21 +1114,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     }
   };
 
-  const handleOverrideComplete = async (enrollmentId) => {
-    if (!(await confirmAction(`Override-complete this intern? This will force-certify regardless of task/payment status.`))) return;
-    setActionLoading((p) => ({ ...p, [`override-${enrollmentId}`]: true }));
-    try {
-      await overrideCompleteEnrollment(enrollmentId, user?.email || "admin");
-      await loadData();
-      setSuccessMsg("Intern override-completed.");
-      setTimeout(() => setSuccessMsg(""), 3000);
-    } catch (err) {
-      setError("Override failed: " + err.message);
-    } finally {
-      setActionLoading((p) => ({ ...p, [`override-${enrollmentId}`]: false }));
-    }
-  };
-
   const handleUnverifyTask = async (enrollmentId, projectIdx) => {
     if (!(await confirmAction(`Unverify task #${+projectIdx + 1} for this intern?`))) return;
     const key = `unverify-task-${enrollmentId}-${projectIdx}`;
@@ -1167,21 +1151,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const handleGenerateCertificate = async (enrollment) => {
     const id = enrollment.id || enrollment.internId;
     if (!id) { notify("Enrollment ID not found.", "error"); return; }
-    // Ensure cert is unlocked and date is saved before printing
-    if (enrollment.allowedCertificate !== "yes") {
-      await allowCertificate(id, "yes");
-    }
-    if (enrollment._certDate) {
-      await updateEnrollmentField(id, "certificateDate", new Date(enrollment._certDate).toISOString());
-    }
-    await loadData();
     const url = `${window.location.origin}/certificate/${encodeURIComponent(id)}/certificate`;
     window.open(url, "_blank");
-    // Mark as Completed
-    if (enrollment.status !== "Completed") {
-      await updateEnrollmentStatus(id, "Completed");
-      await loadData();
-    }
   };
 
   const s = {
@@ -1755,26 +1726,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                 }}
                               >
                                 Completed
-                              </button>
-                            )}
-                            {!row.overrideCompleted && (
-                              <button
-                                type="button"
-                                onClick={() => handleOverrideComplete(row.id)}
-                                disabled={actionLoading[`override-${row.id}`]}
-                                style={{
-                                  padding: "0.2rem 0.6rem",
-                                  fontSize: "0.75rem",
-                                  fontWeight: 700,
-                                  border: "2px solid #9334E6",
-                                  background: actionLoading[`override-${row.id}`] ? "#9334E6" : "#fff",
-                                  color: actionLoading[`override-${row.id}`] ? "#fff" : "#9334E6",
-                                  cursor: "pointer",
-                                  marginRight: "0.35rem",
-                                  marginBottom: "0.25rem",
-                                }}
-                              >
-                                {actionLoading[`override-${row.id}`] ? "..." : "Override"}
                               </button>
                             )}
                             {row.paymentStatus === "paid" && (
@@ -6240,7 +6191,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
             markEnrollmentComplete={markEnrollmentComplete}
             rejectEnrollmentCompletion={rejectEnrollmentCompletion}
             clearCompletionRejection={clearCompletionRejection}
-            overrideCompleteEnrollment={overrideCompleteEnrollment}
             loadData={loadData}
             setSuccessMsg={setSuccessMsg}
             setError={setError}
@@ -8550,7 +8500,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     opacity: isCertUnlocked(selectedIntern) ? 1 : 0.6,
                   }}
                 >
-                  {isCertUnlocked(selectedIntern) ? "Print Certificate" : "Print Certificate (bypass)"}
+                  {isCertUnlocked(selectedIntern) ? "Print Certificate" : "Certificate Locked"}
                 </button>
 
                 <div style={{ borderTop: "1px solid #ddd", paddingTop: "0.5rem", marginTop: "0.5rem" }}>
@@ -9397,32 +9347,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                         </button>
                       </>
                     )}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!(await confirmAction("Override-complete this intern regardless of task/payment status?"))) return;
-                        try {
-                          await logAdminAction("override-complete", { enrollmentId: selectedIntern.id, name: selectedIntern.name, admin: user?.email || "admin" });
-                          await overrideCompleteEnrollment(selectedIntern.id, user?.email || "admin");
-                          const updated = await fetchEnrollmentById(selectedIntern.id);
-                          if (updated) setSelectedIntern(updated);
-                          await loadData();
-                          setSuccessMsg("Intern override-completed.");
-                          setTimeout(() => setSuccessMsg(""), 3000);
-                        } catch (err) { setError("Failed: " + err.message); }
-                      }}
-                      className="btn-sharp"
-                      style={{
-                        padding: "0.55rem 1.25rem",
-                        fontSize: "0.85rem",
-                        borderRadius: 0,
-                        background: "#9334E6",
-                        border: "2px solid #9334E6",
-                        color: "#fff",
-                      }}
-                    >
-                      Override Complete
-                    </button>
                     {isRejected && (
                       <span style={{ fontSize: "0.75rem", color: "#EA4335", fontWeight: 600 }}>
                         Rejected: {selectedIntern.completionRejectReason || "No reason given"}
@@ -10128,11 +10052,10 @@ const td = {
   color: "#000",
 };
 
-function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, markEnrollmentComplete, rejectEnrollmentCompletion, clearCompletionRejection, loadData, setSuccessMsg, setError, s, EmptyBox, overrideCompleteEnrollment }) {
+function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, markEnrollmentComplete, rejectEnrollmentCompletion, clearCompletionRejection, loadData, setSuccessMsg, setError, s, EmptyBox }) {
   const [rejectTexts, setRejectTexts] = useState({});
   const [completing, setCompleting] = useState({});
   const [rejecting, setRejecting] = useState({});
-  const [overrideLoading, setOverrideLoading] = useState({});
   const [verifySearch, setVerifySearch] = useState("");
   const [selectedIntern, setSelectedIntern] = useState(null);
 
@@ -10254,21 +10177,6 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
                         finally { setCompleting((p) => ({ ...p, [enrollment.id]: false })); }
                       }}
                     >{completing[enrollment.id] ? "Marking…" : "Mark Completed"}</button>
-                  )}
-                  {!check.ready && overrideCompleteEnrollment && (
-                    <button className="btn-sharp" disabled={overrideLoading[enrollment.id]} style={{ padding: "0.5rem 1.5rem", background: "#9334E6", borderColor: "#9334E6", color: "#fff" }}
-                      onClick={async () => {
-                        if (!(await confirmAction(`Override-complete ${enrollment.name} regardless of task/payment status?`))) return;
-                        setOverrideLoading((p) => ({ ...p, [enrollment.id]: true }));
-                        try {
-                          await overrideCompleteEnrollment(enrollment.id, "admin");
-                          await loadData();
-                          setSuccessMsg(`${enrollment.name} override-completed!`);
-                          setTimeout(() => setSuccessMsg(""), 3000);
-                        } catch (err) { setError("Failed: " + err.message); }
-                        finally { setOverrideLoading((p) => ({ ...p, [enrollment.id]: false })); }
-                      }}
-                    >{overrideLoading[enrollment.id] ? "…" : "Override Complete"}</button>
                   )}
                   {check.ready && !rejected && (
                     <>

@@ -1275,10 +1275,6 @@ export async function savePaymentSettings(settings) {
   return saveSiteConfig("paymentSettings", settings);
 }
 
-export async function overrideCompleteEnrollment(enrollmentId, adminEmail) {
-  await dbPatch(`enrollments/${enrollmentId}`, { status: "Completed", allowedCertificate: "yes", completedAt: new Date().toISOString(), overrideCompleted: true, overriddenBy: adminEmail, updatedAt: new Date().toISOString() });
-}
-
 export async function unverifyProject(enrollmentId, projectIndex) {
   await apiFetch(`/api/data/enrollments/${enrollmentId}/projects/${projectIndex}/unverify`, {
     method: "POST",
