@@ -294,19 +294,20 @@ export default function App() {
     }
   }, [currentView, popupSettings]);
 
-  // Fetch courses and homepage layout on mount; wire cache event listeners
+  // Fetch courses and homepage layout on mount and when returning to site
   useEffect(() => {
+    if (currentView !== "site") return;
     import("./services/data").then(async ({ fetchCourses, fetchSiteConfig, fetchCareerPaths }) => {
       await Promise.all([
         fetchSiteConfig("homepageLayout").then(setHomeLayout).catch(() => {}),
         fetchCourses().then(setHomeCourses).catch(() => {}),
       ]);
-      // Pre-warm career paths cache on initial load (version check is fast)
       fetchCareerPaths().catch(() => {});
     });
-    // Wire re-validation on route change and tab focus
-    // Refresh the version map (one cheap read) — all _versionedFetch calls
-    // benefit without individual _v round-trips.
+  }, [currentView]);
+
+  // Wire re-validation on route change and tab focus
+  useEffect(() => {
     const onTrigger = () => {
       if (document.visibilityState === "visible" || !document.hidden) {
         import("./services/data").then(({ refreshVersionMap }) => refreshVersionMap());
