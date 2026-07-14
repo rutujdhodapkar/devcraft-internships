@@ -218,11 +218,18 @@ export default function App() {
 
   // Console greeting
   useEffect(() => {
-    console.log("%c  _     ___ _   _ _   _ ___ _   _  ___    ____  _____ _   _ ____  \n / |   |_ _| \\ | | \\ | |_ _| \\ | |/ _ \\  |  _ \\| ____| \\ | |  _ \\ \n | |    | ||  \\| |  \\| || ||  \\| | | | | | |_) |  _| |  \\| | | | |\n | |_   | || |\\  | |\\  || || |\\  | |_| | |  __/| |___| |\\  | |_| |\n |_(_) |___|_| \\_|_| \\_|___|_| \\_|\\___/  |_|   |_____|_| \\_|____/ \n                                                                    \n%cComplete your Tasks Legally instead of this MF%c\n\nContacts  : ceo@Fennark.xyz\nWebsite   : https://www.fennark.xyz\nFounder   : https://www.rutujdhodapkar.tech\nContact   : https://contact.rutujdhodapkar.tech\n",
-      "color:#0aff0a; font-size:11px; line-height:1.2;",
-      "color:#fff; background:#ff4444; font-size:14px; font-weight:bold; padding:4px 8px; border-radius:3px;",
-      "color:#888; font-size:12px;"
+    console.log(
+      "%c  _____ _   _ ___ _   _  ___    ____  _____ _   _ ____\n / ___/| \\ | |_ _| \\ | |/ _ \\  |  _ \\| ____| \\ | |  _ \\\n| |  _ |  \\| || ||  \\| | | | | | |_) |  _| |  \\| | | | |\n| |_| || |\\  || || |\\  | |_| | |  __/| |___| |\\  | |_| |\n \\____||_| \\_|___|_| \\_|\\___/  |_|   |_____|_| \\_|____/\n",
+      "color:#888; font-size:11px; line-height:1.2; font-family:monospace;"
     );
+    console.log(
+      "%c⚠️ Complete your Tasks Legally instead of this MF",
+      "color:#fff; background:#ff4444; font-size:14px; font-weight:bold; padding:4px 8px; border-radius:3px;"
+    );
+    console.log("Contacts  : ceo@Fennark.xyz");
+    console.log("Website   : https://www.fennark.xyz");
+    console.log("Founder   : https://www.rutujdhodapkar.tech");
+    console.log("Contact   : https://contact.rutujdhodapkar.tech");
   }, []);
 
   // Refs to avoid re-registering the auth listener on view changes

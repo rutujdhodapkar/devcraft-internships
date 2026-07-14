@@ -303,7 +303,7 @@ export async function fetchCareerPaths() {
   });
   const result = { paths: mergedPaths, categories };
   _lsSet("careerPaths", result);
-  if (!version) _lsSet("cp_v", "");
+  if (!localVersion) _lsSet("cp_v", "");
   return result;
 }
 
