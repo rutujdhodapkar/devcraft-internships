@@ -74,7 +74,7 @@ function writeCache(key, data, version) {
 let _lastManifestFetch = 0;
 let _cachedSharedVersions = null;
 
-async function fetchSharedVersions() {
+export async function fetchSharedVersions() {
   try {
     const fs = getFs();
     const snap = await getDoc(doc(fs, "manifest", "shared-versions"));
