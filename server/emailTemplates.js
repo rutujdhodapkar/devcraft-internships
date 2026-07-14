@@ -20,7 +20,6 @@ const BASE_WRAPPER = `<!DOCTYPE html>
   .footer p{font-size:12px;color:#999;margin-bottom:4px}
   .footer a{color:#000;text-decoration:underline;font-size:12px}
   .divider{height:2px;background:#000;margin:18px 0}
-  .badge{display:inline-block;padding:3px 10px;font-size:11px;font-weight:700;background:#000;color:#fff;text-transform:uppercase;letter-spacing:0.5px}
   .highlight{font-weight:700;color:#000}
   table{border-collapse:collapse;width:100%;font-size:14px;color:#444;margin-bottom:14px}
   table td{padding:6px 0;border-bottom:1px solid #eee}
@@ -97,7 +96,6 @@ export const TEMPLATES = {
     build: (vars) => wrap(`
       <h2>Pending Tasks, ${vars.name || 'Intern'}</h2>
       <p>Your <strong>${vars.domain || 'internship'}</strong> has <span class="highlight">${vars.pendingTasks || 'some'}</span> project(s) awaiting submission.</p>
-      <div class="badge">Deadline: ${vars.deadline || 'Set'}</div>
       <p style="margin-top:14px">Submit your completed work to receive feedback from the review team.</p>
       <ul>
         ${(vars.taskList || []).map(t => `<li><strong>${t.title || 'Project'}</strong> — ${t.status || 'Pending'}</li>`).join('')}

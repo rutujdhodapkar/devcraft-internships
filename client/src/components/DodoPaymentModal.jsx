@@ -4,7 +4,7 @@ import { getFirebaseIdToken } from "../firebase";
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
 
-export default function DodoPaymentModal({ enrollmentId, amount, paymentStage, onSuccess, onClose, userEmail, userName }) {
+export default function DodoPaymentModal({ enrollmentId, amount, paymentStage, onSuccess, onClose, userEmail, userName, currencySymbol = "\u20B9", currency = "INR" }) {
   const [status, setStatus] = useState("creating");
   const [errorMessage, setErrorMessage] = useState("");
   const [checkoutAttempt, setCheckoutAttempt] = useState(0);
@@ -91,7 +91,7 @@ export default function DodoPaymentModal({ enrollmentId, amount, paymentStage, o
                 : "A secure payment window has opened. Complete payment there."}
             </p>
             <p style={{ fontSize: "0.78rem", color: "#999" }}>
-              Amount: <strong>{"\u20B9"}{amount}</strong>
+              Amount: <strong>{currencySymbol}{amount}</strong>
             </p>
             {status === "processing" && (
               <button onClick={onClose} className="btn-sharp" style={{ marginTop: "1rem", background: "#fff", color: "#000", border: "2px solid #000", padding: "0.5rem 1.5rem", fontSize: "0.82rem" }}>
@@ -106,7 +106,7 @@ export default function DodoPaymentModal({ enrollmentId, amount, paymentStage, o
               Payment Successful
             </h3>
             <p style={{ fontSize: "0.85rem", color: "#555", lineHeight: "1.6" }}>
-              Your payment of <strong>{"\u20B9"}{amount}</strong> has been confirmed.
+              Your payment of <strong>{currencySymbol}{amount}</strong> has been confirmed.
             </p>
             <button onClick={onSuccess} className="btn-sharp" style={{ marginTop: "1.5rem", padding: "0.75rem 2rem", fontWeight: 800 }}>
               Done

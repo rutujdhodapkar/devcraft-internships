@@ -131,8 +131,6 @@ const COLLECTIONS = {
   referralUsers: { desc: "Referral-linked users", scoped: false },
   siteConfig: { desc: "Site configuration", scoped: false },
   config: { desc: "App config (templates, etc.)", scoped: false },
-  badges: { desc: "Achievement badges", scoped: false },
-  userBadges: { desc: "User badge awards", scoped: false },
   adminMessages: { desc: "Admin broadcast messages", scoped: false },
   siteNotices: { desc: "Site notices", scoped: false },
   bannedUsers: { desc: "Banned users", scoped: false },

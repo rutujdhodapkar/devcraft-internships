@@ -46,7 +46,6 @@ const CATEGORY = {
   "careerPaths":                      { cat: "SHARED",  manifestKey: "careerPaths" },
   "howItWorks":                       { cat: "SHARED",  manifestKey: "howItWorks" },
   "faqs":                             { cat: "SHARED",  manifestKey: "faqs" },
-  "badges":                           { cat: "SHARED",  manifestKey: "badges" },
   "emailTemplates":                   { cat: "SHARED",  manifestKey: "emailTemplates" },
 
   // ── DOMAIN-SCOPED: per-domain task data ──
@@ -60,7 +59,6 @@ const CATEGORY = {
   // ── PERSONAL - externally-writable: mentor/cloud fn changes ──
   // enrollments: verification status, cert eligibility, payment status
   // users: ban status
-  // userBadges: badge awards
 };
 
 // Dynamic resolver for paths with variable segments (enrollments/{id}, users/{id}, etc.)
@@ -94,7 +92,6 @@ export function resolveCategory(collection, docId, docData) {
     }
   }
 
-  if (collection === "userBadges") return { cat: "EXTERNAL", manifestKey: `userBadge:${docId}` };
   if (collection === "referrals") return { cat: "SHARED", manifestKey: "referrals" };
   if (collection === "admins") return { cat: "SHARED", manifestKey: "admins" };
   if (collection === "bannedUsers") return { cat: "SHARED", manifestKey: "bannedUsers" };

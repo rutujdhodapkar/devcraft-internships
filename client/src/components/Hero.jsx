@@ -63,7 +63,6 @@ export default function Hero({ onApplyClick, onExploreClick }) {
 
   const c = content || {};
   const buttons = c.buttons || [];
-  const badges = c.badges || [];
   const features = Array.isArray(c.features) ? c.features : [];
 
   const handleButtonClick = (action) => {
@@ -75,17 +74,6 @@ export default function Hero({ onApplyClick, onExploreClick }) {
     <header className="section-padding hero-section" style={{ position: 'relative', overflow: 'hidden', borderBottom: '2px solid var(--border-primary)', backgroundColor: '#fff', padding: '7rem 0 5rem' }}>
       <div className="container">
         <div style={{ maxWidth: '1100px', margin: '0 auto', textAlign: 'center' }}>
-          {/* Badge Taglines */}
-          {badges.length > 0 && (
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '2rem' }}>
-              {badges.map((badge, idx) => (
-                <span key={idx} className="badge-sharp" style={{ fontSize: '0.85rem', fontWeight: 800, padding: '0.35rem 0.85rem', backgroundColor: idx % 2 === 1 ? '#000' : undefined, color: idx % 2 === 1 ? '#fff' : undefined }}>
-                  {badge.label}
-                </span>
-              ))}
-            </div>
-          )}
-
           <h1 style={{ fontSize: 'clamp(2.5rem, 6vw, 4.2rem)', marginBottom: '1.5rem', lineHeight: 1.05, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px' }}>
             {c.headline || "Kickstart Your Developer Career for free"}
           </h1>

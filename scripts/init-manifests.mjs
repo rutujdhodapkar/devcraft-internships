@@ -10,7 +10,7 @@ const SHARED_FIELDS = [
   "earnSettings", "earnDetails", "payoutConfig", "userTypes",
   "organization", "paymentMethods", "emailConfig", "rootAdmin", "revenueHistory",
   "templates", "aboutText",
-  "badges", "emailTemplates",
+  "emailTemplates",
   "admins", "bannedUsers", "adminMessages", "siteNotices", "agencies", "referrals",
 ];
 

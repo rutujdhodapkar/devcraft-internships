@@ -147,7 +147,7 @@ async function dbProxy(action, path, data, query, opts) {
   const body = { action, path, data, query };
   // Enrollment records contain student PII and payment state. Supply an
   // identity for reads as well as writes so the server can enforce ownership.
-  if (["enrollments", "userBadges"].includes(path.split("/")[0])) {
+  if (["enrollments"].includes(path.split("/")[0])) {
     const token = await getFirebaseIdToken().catch(() => null);
     if (token) body.idToken = token;
   }
@@ -1864,24 +1864,6 @@ export async function triggerManualEmailType(type, email = "", dryRun = false) {
   return apiFetch(`/api/email/trigger?${q}`, { method: "POST" });
 }
 
-// ─── Skill Badges & Micro-Certifications ───
-function normalizeBadgeList(value) {
-  const items = Array.isArray(value) ? value : (value && typeof value === "object" ? Object.values(value) : []);
-  return items
-    .filter((badge) => badge && typeof badge === "object")
-    .map((badge, index) => ({
-      ...badge,
-      id: String(badge.id || `badge_${index}`),
-      title: badge.title || "",
-      description: badge.description || "",
-      icon: badge.icon || "",
-      type: badge.type === "micro-cert" ? "micro-cert" : "badge",
-      criteriaType: badge.criteriaType === "auto" ? "auto" : "manual",
-      criteria: badge.criteria || "",
-      htmlTemplate: badge.htmlTemplate || "",
-    }));
-}
-
 export async function saveCourseProgress(enrollmentId, completedBlocks) {
   const data = await apiFetch(`/api/data/course-enroll/${encodeURIComponent(enrollmentId)}/progress`, {
     method: "PUT", body: JSON.stringify({ completedBlocks }),
@@ -1889,47 +1871,12 @@ export async function saveCourseProgress(enrollmentId, completedBlocks) {
   return data.data;
 }
 
-export async function fetchBadges(opts) {
-  const collectionBadges = await dbList("badges", opts);
-  if (collectionBadges.length) return normalizeBadgeList(collectionBadges);
-  // Compatibility for installations that stored definitions in siteConfig.
-  return normalizeBadgeList(await fetchSiteConfig("badges"));
-}
-
-export async function saveBadges(badges) {
-  _lsRemove("badges");
-  const now = new Date().toISOString();
-  const nextBadges = normalizeBadgeList(badges);
-  const nextIds = new Set(nextBadges.map((badge) => badge.id));
-  const currentBadges = await dbList("badges");
-  await Promise.all([
-    ...nextBadges.map((badge) => dbPut(`badges/${badge.id}`, { ...badge, updatedAt: now })),
-    ...currentBadges.filter((badge) => badge?.id && !nextIds.has(badge.id)).map((badge) => dbDelete(`badges/${badge.id}`)),
-  ]);
-  return nextBadges;
-}
-
-export async function awardBadge(userId, badgeId, awardedBy) {
-  const entry = { userId, badgeId, awardedAt: new Date().toISOString(), awardedBy };
-  return dbPost("userBadges", entry);
-}
-
-export async function fetchUserBadges(userId, opts) {
-  if (!userId) return [];
-  const badges = await dbQueryList("userBadges", "userId", userId, opts);
-  return Array.isArray(badges) ? badges.filter((badge) => badge && typeof badge === "object") : [];
-}
-
-export async function revokeBadge(entryId) {
-  return dbDelete(`userBadges/${entryId}`);
-}
-
 // ─── IndexedDB cache-sync wrappers ────────────────────────────────────────────
 // Serve unchanged data straight from IndexedDB (via ./cacheSync) when the server
 // bucket version is unchanged. The orchestrator (syncBuckets) decides per-bucket
-// whether to fetch from Cosmos. Consistency: certs + badges_combined reads use
-// Eventual (non-critical); tasks reads keep the default Session consistency and we
-// never touch consistency on the task-completion write path.
+// whether to fetch from Cosmos. Consistency: certs reads use Eventual (non-critical);
+// tasks reads keep the default Session consistency and we never touch consistency
+// on the task-completion write path.
 
 const EVENTUAL = { consistencyLevel: "Eventual" };
 
@@ -1968,41 +1915,6 @@ export async function fetchUserCertificatesCached(uid, email, { force = false } 
   return res.certs || [];
 }
 
-// Small/low-churn bucket: badges + streaks + ambassador flags + registered task
-// list merged into ONE bucket with ONE shared version key.
-export async function fetchUserBadgesCached(uid, { force = false } = {}) {
-  const res = await syncBuckets([
-    { bucket: "badges_combined", key: uid, fetcher: () => fetchBadgesCombined(uid), force },
-  ], { force, userId: uid });
-  const combined = res.badges_combined || {};
-  return {
-    badges: combined.badges || [],
-    userBadges: combined.userBadges || [],
-    streaks: combined.streaks || [],
-    flags: combined.flags || [],
-    registeredTaskIds: combined.registeredTaskIds || [],
-  };
-}
-
-// Merges all badge-related data into one object. Eventual consistency for all reads.
-async function fetchBadgesCombined(uid) {
-  const [badges, userBadges, streaks, flags, enrollments] = await Promise.all([
-    fetchBadges(EVENTUAL),
-    fetchUserBadges(uid, EVENTUAL),
-    dbList("userStreaks", EVENTUAL),
-    dbList("userFlags", EVENTUAL),
-    fetchUserEnrollments(uid, null),
-  ]);
-  const registeredTaskIds = (enrollments || []).map((e) => e.domainId || e.id).filter(Boolean);
-  return {
-    badges: normalizeBadgeList(badges),
-    userBadges: Array.isArray(userBadges) ? userBadges : [],
-    streaks: streaks || [],
-    flags: flags || [],
-    registeredTaskIds,
-  };
-}
-
 // Combined boot orchestrator used by App.jsx. Renders from cache first (via
 // loadCachedUserBuckets), then runs this in the background; onBucket lets the UI
 // re-render only the section that actually changed.
@@ -2018,67 +1930,11 @@ export async function syncUserCache(uid, email, { force = false, onBucket } = {}
           .map((e) => ({ id: e.id, domain: e.domain, domainId: e.domainId, status: e.status, completedAt: e.completedAt || e.updatedAt, name: e.name, email: e.email })),
       force,
     },
-    { bucket: "badges_combined", key: uid, fetcher: () => fetchBadgesCombined(uid), force },
   ], { force, userId: uid, email, onBucket });
   return {
     enrollments: res.tasks || [],
     certificates: res.certs || [],
-    badges: (res.badges_combined || {}).badges || [],
-    userBadges: (res.badges_combined || {}).userBadges || [],
-    streaks: (res.badges_combined || {}).streaks || [],
-    flags: (res.badges_combined || {}).flags || [],
-    registeredTaskIds: (res.badges_combined || {}).registeredTaskIds || [],
   };
-}
-
-// Manual escape hatch — bypass all cache + version checks for a full fetch.
-export async function forceRefreshUserCache(uid = "anon") {
-  await forceRefresh(uid);
-}
-
-export async function evaluateBadgeCriteriaAI(criteria, userData) {
-  try {
-    const res = await apiFetch("/api/ai/evaluate-badge-criteria", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ criteria, userData }),
-    });
-    return { qualifies: res?.qualifies || false, reason: res?.reason || "" };
-  } catch {
-    return { qualifies: false, reason: "AI evaluation failed" };
-  }
-}
-
-export async function checkAndAwardBadges(adminEmail) {
-  const [badges, allEnrollments] = await Promise.all([
-    fetchBadges().catch(() => []),
-    fetchAllEnrollments().catch(() => []),
-  ]);
-  const autoBadges = badges.filter(b => b.criteriaType === "auto" && b.criteria);
-  const results = [];
-  const userIds = [...new Set((allEnrollments || []).map(e => e.uid || e.userId).filter(Boolean))];
-  for (const uid of userIds) {
-    const userEnrollments = (allEnrollments || []).filter(e => (e.uid || e.userId) === uid);
-    const userBadges = await fetchUserBadges(uid).catch(() => []);
-    const earnedIds = new Set((userBadges || []).map(b => b.badgeId));
-    for (const badge of autoBadges) {
-      if (earnedIds.has(badge.id)) continue;
-      const { qualifies } = await evaluateBadgeCriteriaAI(badge.criteria, {
-        enrollments: userEnrollments,
-        completedCount: userEnrollments.filter(e => e.status === "Completed").length,
-        activeCount: userEnrollments.filter(e => e.status === "Active" || e.status === "In Progress").length,
-      });
-      if (qualifies) {
-        await awardBadge(uid, badge.id, adminEmail);
-        results.push({ userId: uid, badgeId: badge.id });
-      }
-    }
-  }
-  return results;
-}
-
-async function fetchAllEnrollments() {
-  return dbList("enrollments").catch(() => []);
 }
 
 // ─── Team / Agency Accounts ───

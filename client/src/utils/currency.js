@@ -1,4 +1,4 @@
-const countryToCurrency = {
+export const countryToCurrency = {
   IN: 'INR',
   US: 'USD',
   GB: 'GBP',
@@ -22,17 +22,17 @@ const countryToCurrency = {
   MX: 'MXN',
 };
 
-const currencySymbols = {
+export const currencySymbols = {
   USD: '$',
-  INR: 'Rs.',
-  EUR: 'EUR ',
-  GBP: 'GBP ',
+  INR: '₹',
+  EUR: '€',
+  GBP: '£',
   CAD: 'CA$',
   AUD: 'A$',
-  JPY: 'JPY ',
-  CNY: 'CNY ',
+  JPY: '¥',
+  CNY: 'CN¥',
   SGD: 'S$',
-  AED: 'AED ',
+  AED: 'د.إ',
   ZAR: 'R',
   NZD: 'NZ$',
   CHF: 'CHF ',
@@ -42,16 +42,61 @@ const currencySymbols = {
   MXN: 'Mex$',
 };
 
+const countryToDialCode = {
+  IN: '+91', US: '+1', GB: '+44', DE: '+49', FR: '+33',
+  IT: '+39', ES: '+34', NL: '+31', CA: '+1', AU: '+61',
+  JP: '+81', CN: '+86', SG: '+65', AE: '+971', ZA: '+27',
+  NZ: '+64', CH: '+41', SE: '+46', NO: '+47', BR: '+55',
+  MX: '+52', RU: '+7', KR: '+82', SA: '+966', NG: '+234',
+  KE: '+254', EG: '+20', PK: '+92', BD: '+880', LK: '+94',
+  NP: '+977', TH: '+66', VN: '+84', PH: '+63', MY: '+60',
+  ID: '+62',
+};
+
+let cachedGeo = null;
+
+async function fetchGeo() {
+  if (cachedGeo) return cachedGeo;
+  try {
+    const res = await fetch('https://ipapi.co/json/');
+    if (!res.ok) throw new Error('IP lookup failed');
+    const data = await res.json();
+    if (data.country_code) {
+      cachedGeo = data;
+      return data;
+    }
+  } catch (e) {
+    console.warn('IP geolocation failed:', e.message);
+  }
+  return null;
+}
+
+export async function detectUserCountry() {
+  const geo = await fetchGeo();
+  return geo?.country_code || null;
+}
+
 export async function detectUserCurrency() {
   try {
-    const response = await fetch('https://ipapi.co/json/');
-    if (!response.ok) throw new Error('IP lookup failed');
-    const data = await response.json();
-    return countryToCurrency[data.country_code] || 'USD';
+    const geo = await fetchGeo();
+    if (geo?.country_code && countryToCurrency[geo.country_code]) {
+      return countryToCurrency[geo.country_code];
+    }
+    return 'USD';
   } catch (error) {
-    console.warn('Geolocation detection failed, defaulting to USD:', error.message);
+    console.warn('Currency detection failed, defaulting to USD:', error.message);
     return 'USD';
   }
+}
+
+export async function detectDialCode() {
+  try {
+    const geo = await fetchGeo();
+    if (geo?.country_code && countryToDialCode[geo.country_code]) {
+      return countryToDialCode[geo.country_code];
+    }
+  } catch {}
+  return null;
 }
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");

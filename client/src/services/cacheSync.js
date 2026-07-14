@@ -25,8 +25,6 @@
 // Buckets:
 //   tasks            -> own version key (large, changes often)
 //   certs            -> own version key
-//   badges_combined  -> ONE version key merging badges + streaks + ambassador flags
-//                       + registered task list (small, low-churn)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
@@ -36,7 +34,7 @@ const DB_VERSION = 1;
 const STORE_DATA = "buckets"; // key: `${bucket}:${key}:${userId}`  value: { data, savedAt }
 const STORE_META = "versions"; // key: `${userId}:${bucket}`        value: version string
 
-export const SYNC_BUCKETS = ["tasks", "certs", "badges_combined"];
+export const SYNC_BUCKETS = ["tasks", "certs"];
 
 // In-memory fallback maps (used when IndexedDB is unavailable)
 const _mem = new Map();

@@ -89,9 +89,6 @@ import {
   fetchAiPendingEnrollments,
   adminUpdateEnrollment,
   adminDownloadDoc,
-  fetchBadges,
-  saveBadges,
-  checkAndAwardBadges,
   fetchAgencies,
   saveAgency,
   approveAgency,
@@ -170,7 +167,6 @@ const TAB_GROUPS = [
     highlight: true,
     tabs: [
       { id: "agencies", label: "Partners" },
-      { id: "badges", label: "Badges" },
       { id: "access-requests", label: "Access Requests" },
       { id: "mcp-proposals", label: "Proposals" },
       { id: "audit-log", label: "MCP Logs" },
@@ -206,7 +202,7 @@ const TAB_GROUPS = [
 const DEFAULT_HOMEPAGE = {
   headline: "",
   description: "",
-  badges: [],
+
   buttons: [],
   features: [],
   logoLoop: { enabled: true, heading: "", subheading: "", speed: 90, logoHeight: 40, gap: 64, logos: [] },
@@ -7345,20 +7341,6 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <textarea rows={3} value={homepageContent.description || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, description: e.target.value }))} style={{ ...s, resize: "vertical", fontSize: "0.95rem" }} />
                 </div>
 
-                {/* Badges */}
-                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Badge Tags</span>
-                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, badges: [...(p.badges || []), { label: "New Badge" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Badge</button>
-                  </div>
-                  {(homepageContent.badges || []).map((badge, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
-                      <input value={badge.label} onChange={(e) => { const u = [...homepageContent.badges]; u[idx] = { ...u[idx], label: e.target.value }; setHomepageContent((p) => ({ ...p, badges: u })); }} style={{ ...s, flex: 1 }} />
-                      <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, badges: p.badges.filter((_, i) => i !== idx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
-                    </div>
-                  ))}
-                </div>
-
                 {/* Buttons */}
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
@@ -8252,7 +8234,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
         {activeTab === "logged-in-users" && <LoggedInUsersSection />}
         {activeTab === "add-intern" && <AddInternSection />}
         {activeTab === "edit-interns" && <EditInternsSection />}
-        {activeTab === "badges" && <BadgesSection user={user} />}
+        
         {activeTab === "access-requests" && <AccessRequestsSection user={user} />}
         {activeTab === "mcp-proposals" && <ProposalsSection user={user} />}
         {activeTab === "audit-log" && <AuditLogSection user={user} />}
@@ -11327,94 +11309,6 @@ function AccessRequestsSection({ user }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ── Badges & Micro-Certifications ── */
-/* ── Skill Badges & Micro-Certifications (enhanced) ── */
-function BadgesSection({ user }) {
-  const [badges, setBadges] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [awarding, setAwarding] = useState(false);
-  const [awardResult, setAwardResult] = useState(null);
-
-  useEffect(() => {
-    // A newly installed site has no badge config yet.  Keep the editor usable
-    // when the API/cache represents that absence as null rather than an array.
-    fetchBadges()
-      .then((items) => setBadges(Array.isArray(items) ? items : []))
-      .catch(() => setBadges([]))
-      .finally(() => setLoading(false));
-  }, []);
-
-  const addBadge = () => setBadges(p => [...p, { id: "b_" + Date.now(), title: "", description: "", icon: "", type: "badge", criteriaType: "manual", criteria: "", htmlTemplate: "" }]);
-
-  const updateBadge = (idx, field, value) => setBadges(p => { const c = [...p]; c[idx] = { ...c[idx], [field]: value }; return c; });
-
-  const removeBadge = (idx) => setBadges(p => p.filter((_, i) => i !== idx));
-
-  const handleSave = async () => { setSaving(true); try { await saveBadges(badges); await logAdminAction("save-badges", { admin: user?.email || "admin" }); notify("Badges saved!", "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setSaving(false); } };
-
-  const handleCheckAndAward = async () => { setAwarding(true); setAwardResult(null); try { const r = await checkAndAwardBadges(user?.email || "admin"); setAwardResult(r); notify(`Badge check complete: ${r.length} badge(s) awarded!`, "success"); } catch (e) { notify("Error: " + e.message, "error"); } finally { setAwarding(false); } };
-
-  const s = { border: "2px solid #000", padding: "0.4rem 0.6rem", fontSize: "0.85rem", fontFamily: "inherit", outline: "none", width: "100%", boxSizing: "border-box" };
-
-  if (loading) return <div style={{ color: "#888" }}><LoadingText text="Loading..." /></div>;
-
-  return (
-    <div>
-      <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1rem", flexWrap: "wrap" }}>
-        <button onClick={handleCheckAndAward} disabled={awarding} className="btn-sharp" style={{ padding: "0.5rem 1.25rem", background: "#000", color: "#fff", fontSize: "0.82rem", fontWeight: 700, cursor: awarding ? "wait" : "pointer" }}>
-          {awarding ? "Checking..." : "Check & Award Badges"}
-        </button>
-        {awardResult && (
-          <span style={{ fontSize: "0.82rem", padding: "0.5rem 0", color: "#090", fontWeight: 700 }}>
-            {awardResult.length} badge(s) awarded to users
-          </span>
-        )}
-      </div>
-      <div style={{ border: "2px solid #000", padding: "1.25rem", boxShadow: "4px 4px 0 #000" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <span style={{ fontWeight: 800, textTransform: "uppercase" }}>Skill Badges & Micro-Certifications</span>
-          <button onClick={addBadge} style={{ border: "2px solid #000", background: "#000", color: "#fff", cursor: "pointer", fontWeight: 700, fontSize: "0.82rem", padding: "0.4rem 1rem" }}>+ Add Badge</button>
-        </div>
-        <p style={{ fontSize: "0.78rem", color: "#666", marginBottom: "1rem" }}>Create badges with AI-powered criteria. Set criteria as a sentence — AI will evaluate users automatically. Optionally provide an HTML template for badge display.</p>
-        {badges.map((b, i) => (
-          <div key={b.id} style={{ border: "2px solid #000", padding: "1rem", marginBottom: "0.75rem", background: "#fafafa" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "0.5rem", alignItems: "end" }}>
-              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Title</label><input value={b.title} onChange={e => updateBadge(i, "title", e.target.value)} placeholder="e.g. Fast Learner" style={s} /></div>
-              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Icon</label><input value={b.icon} onChange={e => updateBadge(i, "icon", e.target.value)} placeholder="" style={{ ...s, width: "60px" }} /></div>
-              <button onClick={() => removeBadge(i)} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.2rem 0.5rem", fontSize: "0.75rem" }}>Remove</button>
-            </div>
-            <div style={{ marginTop: "0.5rem" }}><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Description</label><textarea value={b.description} onChange={e => updateBadge(i, "description", e.target.value)} placeholder="What this badge represents..." rows={2} style={{ ...s, resize: "vertical" }} /></div>
-            <div style={{ marginTop: "0.5rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
-              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Type</label>
-                <select value={b.type} onChange={e => updateBadge(i, "type", e.target.value)} style={s}>
-                  <option value="badge">Badge</option>
-                  <option value="micro-cert">Micro-Certification</option>
-                </select>
-              </div>
-              <div><label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>Criteria Type</label>
-                <select value={b.criteriaType || "manual"} onChange={e => updateBadge(i, "criteriaType", e.target.value)} style={s}>
-                  <option value="manual">Manual Award</option>
-                  <option value="auto">Auto (AI-Powered)</option>
-                </select>
-              </div>
-            </div>
-            <div style={{ marginTop: "0.5rem" }}>
-              <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>AI Criteria (natural language sentence)</label>
-              <textarea value={b.criteria || ""} onChange={e => updateBadge(i, "criteria", e.target.value)} placeholder="e.g. User has completed at least 3 projects in any domain and has been enrolled for more than 30 days" rows={2} style={{ ...s, resize: "vertical", fontStyle: b.criteriaType === "auto" ? "normal" : "italic", color: b.criteriaType === "auto" ? "#000" : "#999" }} />
-            </div>
-            <div style={{ marginTop: "0.5rem" }}>
-              <label style={{ fontSize: "0.65rem", fontWeight: 700, display: "block", marginBottom: "0.15rem", textTransform: "uppercase" }}>HTML Template (optional — shown when displaying badge to user)</label>
-              <textarea value={b.htmlTemplate || ""} onChange={e => updateBadge(i, "htmlTemplate", e.target.value)} placeholder={'<div style="text-align:center"><h2>{{badge.title}}</h2><p>{{badge.description}}</p></div>'} rows={3} style={{ ...s, resize: "vertical", fontFamily: "monospace", fontSize: "0.78rem" }} />
-            </div>
-          </div>
-        ))}
-        <button onClick={handleSave} disabled={saving} className="btn-sharp" style={{ marginTop: "1rem" }}>{saving ? "Saving..." : "Save Badges"}</button>
-      </div>
     </div>
   );
 }

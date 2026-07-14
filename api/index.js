@@ -1792,12 +1792,9 @@ async function handleFirebaseProxy(req, res) {
     const { action, path, data, query } = req.body || {};
     if (!action || !path) return send(res, 400, { success: false, message: "action and path required" });
 
-    // Optional read consistency: clients pass consistencyLevel:"Eventual" for
-    // non-critical reads (badges/certs). Writes keep the default (Session+); we
-    // deliberately do NOT alter consistency on task-state change paths.
     const readOpts = req.body?.consistencyLevel ? { consistencyLevel: req.body.consistencyLevel } : undefined;
 
-    const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog", "badges", "userBadges"];
+    const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog"];
     const root = path.split("/")[0];
     const isWrite = ["set", "update", "push", "delete"].includes(action);
     let decoded = null;
@@ -1820,24 +1817,6 @@ async function handleFirebaseProxy(req, res) {
       if (action === "get" && pathParts[1] && !isAdmin) {
         const enrollment = await getDoc(db, "enrollments", pathParts[1], null);
         if (enrollment?.uid !== decoded.uid) return send(res, 403, { success: false, message: "You do not own this enrollment." });
-      }
-    }
-
-    // Badge awards are private to each student. Definition reads are public,
-    // but only administrators may create, revoke, or enumerate awards.
-    if (!isWrite && root === "userBadges") {
-      decoded = await verifyFirebaseToken(req.body?.idToken);
-      if (!decoded) return send(res, 401, { success: false, message: "Authentication required to read badge awards." });
-      const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
-      const adminDoc = email ? await getDoc(db, "admins", emailId(email), null) : null;
-      const isAdmin = email === ROOT_ADMIN_EMAIL || Boolean(adminDoc);
-      if (action === "list" && !isAdmin) return send(res, 403, { success: false, message: "Administrator access is required to list badge awards." });
-      if (action === "query" && !isAdmin && !(query?.orderBy === "userId" && query?.equalTo === decoded.uid)) {
-        return send(res, 403, { success: false, message: "You may only read your own badge awards." });
-      }
-      if (action === "get" && !isAdmin) {
-        const award = await getDoc(db, "userBadges", path.split("/")[1], null);
-        if (!award || award.userId !== decoded.uid) return send(res, 403, { success: false, message: "You do not own this badge award." });
       }
     }
 
@@ -2411,24 +2390,12 @@ async function handleAutoExpire(req, res) {
 // .read() — by id + partition key, never a cross-partition query. Per-user scoping
 // means a write by user A advances only A's stamp, so B's cache is never invalidated.
 //
-// Consistency: version reads use Eventual consistency (forwarded via the shim). Non-
-// critical badge/template data tolerates Eventual staleness; writes go through
-// set/update which default to Session+ so a read immediately after a user's own write
-// sees it.
-//
-// Buckets:
-//   tasks            -> enrollments (per user)
-//   certs            -> enrollments where allowedCertificate === "yes" (per user)
-//   badges_combined  -> userBadges + userStreaks + userFlags (+ global badge defs)
-const SYNC_BUCKETS = ["tasks", "certs", "badges_combined"];
+const SYNC_BUCKETS = ["tasks", "certs"];
 
 // Maps a written collection to the sync buckets whose stamp must advance.
 const BUCKET_FOR_COLLECTION = {
   enrollments: ["tasks", "certs"],
-  badges: ["badges_combined"],
-  userBadges: ["badges_combined"],
-  userStreaks: ["badges_combined"],
-  userFlags: ["badges_combined"],
+
 };
 
 // Advance the given user's stamps, scoped to that user (so only they re-fetch).

@@ -31,8 +31,6 @@ function bumpSyncVersions(buckets, userId) {
 
 // ── Mock bucket data sources (stand-ins for Cosmos containers) ───────────────
 let SERVER_TASKS = [{ id: "e1", domainId: "d1", uid: "u1", status: "active" }];
-let SERVER_BADGES = [{ id: "b1", name: "Helper" }];
-let SERVER_USERBADGES = [{ id: "ub1", userId: "u1", badgeId: "b1" }];
 const SERVER_FLAGS = [];
 const SERVER_STREAKS = [];
 
@@ -45,14 +43,10 @@ function fetchBucket(bucket) {
       return Promise.resolve(
         SERVER_TASKS.filter((e) => e.allowedCertificate === "yes").map((e) => ({ id: e.id, domain: e.domainId })),
       );
-    case "badges_combined":
-      return Promise.resolve({
-        badges: SERVER_BADGES.map((b) => ({ ...b })),
-        userBadges: SERVER_USERBADGES.map((b) => ({ ...b })),
-        streaks: SERVER_STREAKS,
-        flags: SERVER_FLAGS,
-        registeredTaskIds: SERVER_TASKS.map((e) => e.domainId),
-      });
+    case "flags":
+      return Promise.resolve(SERVER_FLAGS);
+    case "streaks":
+      return Promise.resolve(SERVER_STREAKS);
     default:
       return Promise.resolve(null);
   }
@@ -61,7 +55,7 @@ function fetchBucket(bucket) {
 // ── Mock /sync/versions endpoint (the single point read) ─────────────────────
 function handleSyncVersions(userId) {
   const doc = pointReadSyncVersion(userId);
-  const buckets = ["tasks", "certs", "badges_combined"];
+  const buckets = ["tasks", "certs"];
   const versions = doc && doc.computedAt
     ? Object.fromEntries(buckets.map((b) => [b, String(doc[b] ?? 0)]))
     : Object.fromEntries(buckets.map((b) => [b, String(Date.now())])); // first contact → full fetch
@@ -78,7 +72,7 @@ async function cacheSet(key, value) { idb.set(key, value); }
 async function cacheDel(key) { idb.delete(key); }
 
 // ── Mirror of cacheSync.js orchestration ─────────────────────────────────────
-const SYNC_BUCKETS = ["tasks", "certs", "badges_combined"];
+const SYNC_BUCKETS = ["tasks", "certs"];
 const metaKey = (userId, b) => `${userId}:${b}`;
 const dataKey = (b, userId) => `${b}:${userId}:${userId}`;
 
@@ -153,20 +147,20 @@ async function main() {
   await scenario("b) RELOAD, ZERO server changes", async () => {
     const cached = await loadCachedUserBuckets(userId);
     console.log("   STEP 1: IndexedDB has data → render immediately from cache");
-    console.log(`   rendered tasks=${cached.tasks?.length}, badges=${cached.badges_combined?.userBadges?.length}`);
+    console.log(`   rendered tasks=${cached.tasks?.length}, certs=${cached.certs?.length}`);
     await syncUserCache(userId);
     summary("reload no-change → 1 point-read, 0 bucket fetches");
   });
 
-  // (c) Reload after one bucket changed server-side (badge unlocked)
-  await scenario("c) RELOAD after badge unlocked (badges_combined changed)", async () => {
-    // Simulate server-side change: a new badge awarded → bump only badges_combined.
-    SERVER_USERBADGES.push({ id: "ub2", userId: "u1", badgeId: "b2" });
-    bumpSyncVersions(["badges_combined"], userId);
+  // (c) Reload after one bucket changed server-side (cert unlocked)
+  await scenario("c) RELOAD after cert unlocked (certs changed)", async () => {
+    // Simulate server-side change: a new cert unlocked → bump only certs.
+    SERVER_TASKS.push({ id: "e2", domainId: "d1", uid: "u1", status: "completed", allowedCertificate: "yes" });
+    bumpSyncVersions(["certs"], userId);
     const cached = await loadCachedUserBuckets(userId);
-    console.log("   STEP 1: render immediately from cache (old badge list)");
+    console.log("   STEP 1: render immediately from cache (old cert list)");
     await syncUserCache(userId);
-    summary("reload one-change → 1 point-read, ONLY badges_combined fetched");
+    summary("reload one-change → 1 point-read, ONLY certs fetched");
   });
 
   // (d) Bonus: failure handling — /sync/versions down keeps serving cache
@@ -183,7 +177,7 @@ async function main() {
       try { wrapped(userId); } catch (e) {
         console.log(`   version fetch failed (${e.message}) → keep serving cache, retry in background`);
       }
-      console.log(`   UI still shows ${cached.badges_combined?.userBadges?.length} badges (no blank, no error)`);
+      console.log(`   UI still shows ${cached.tasks?.length} tasks (no blank, no error)`);
     } finally { globalThis.__versionsDown = false; }
     summary("version-down → 0 fetches, cache served, no error");
   });

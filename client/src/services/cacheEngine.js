@@ -123,7 +123,6 @@ const CATEGORY_API_PATHS = {
   userTypes:         "/api/data/site-config?key=userTypes",
   templates:         "/api/data/site-config?key=templates",
   aboutText:         "/api/data/site-config?key=aboutText",
-  badges:            "/api/data/badges",
 };
 
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");

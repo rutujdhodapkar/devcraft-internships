@@ -3,12 +3,12 @@ import { fetchUPISettings, submitTransactionId } from "../services/data";
 
 const QR_API = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&margin=10&data=";
 
-function encodeUPI(upiId, name, amount, txnRef) {
+  function encodeUPI(upiId, name, amount, txnRef, currencyCode = "INR") {
   const params = new URLSearchParams();
   params.set("pa", upiId);
   if (name) params.set("pn", name);
   if (amount) params.set("am", amount.toString());
-  params.set("cu", "INR");
+  params.set("cu", currencyCode);
   if (txnRef) params.set("tn", txnRef);
   return `upi://pay?${params.toString()}`;
 }
@@ -19,7 +19,7 @@ function generateTxnRef() {
   return `DEVCRAFT${ts}${rand}`.toUpperCase();
 }
 
-export default function UPIPaymentModal({ enrollmentId, amount, onSuccess, onClose }) {
+export default function UPIPaymentModal({ enrollmentId, amount, onSuccess, onClose, currencySymbol = "\u20B9", currency = "INR" }) {
   const [upiSettings, setUpiSettings] = useState(null);
   const [txnRef, setTxnRef] = useState(generateTxnRef());
   const [transactionId, setTransactionId] = useState("");
@@ -44,7 +44,7 @@ export default function UPIPaymentModal({ enrollmentId, amount, onSuccess, onClo
   }, [countdown]);
 
   const upiLink = upiSettings?.upiId
-    ? encodeUPI(upiSettings.upiId, upiSettings.upiName || "DEVCRAFT", amount, txnRef)
+    ? encodeUPI(upiSettings.upiId, upiSettings.upiName || "DEVCRAFT", amount, txnRef, currency)
     : "";
   const qrUrl = upiLink ? `${QR_API}${encodeURIComponent(upiLink)}` : "";
 
@@ -77,7 +77,7 @@ export default function UPIPaymentModal({ enrollmentId, amount, onSuccess, onClo
               Pay via UPI
             </h3>
             <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>
-              Scan the QR code below to pay <strong>₹{amount}</strong> using any UPI app.
+              Scan the QR code below to pay <strong>{currencySymbol}{amount}</strong> using any UPI app.
             </p>
 
             {!upiSettings?.upiId ? (
@@ -102,7 +102,7 @@ export default function UPIPaymentModal({ enrollmentId, amount, onSuccess, onClo
                 <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: "0.75rem", padding: "0.75rem", background: "#f5f5f5", border: "1px solid #ddd" }}>
                   <div><strong>UPI ID:</strong> {upiSettings.upiId}</div>
                   <div><strong>Payee:</strong> {upiSettings.upiName || "DEVCRAFT"}</div>
-                  <div><strong>Amount:</strong> ₹{amount}</div>
+                  <div><strong>Amount:</strong> {currencySymbol}{amount}</div>
                 </div>
 
                 <div style={{ borderTop: "2px solid #eee", paddingTop: "1rem", marginTop: "0.5rem" }}>

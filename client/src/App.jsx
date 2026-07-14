@@ -30,6 +30,7 @@ import McpDashboard from "./components/McpDashboard";
 import UniversityOrgPage from "./components/UniversityOrgPage";
 import { notify } from "./services/notify";
 import { getDomainIconUrl } from "./utils/domainIcons";
+import { detectDialCode } from "./utils/currency";
 import { confirmAction } from "./services/confirm";
 import {
   processReferralFromUrl,
@@ -125,12 +126,12 @@ const COUNTRY_CODES = [
 
 const COUNTRY_NAMES = COUNTRY_CODES.map((c) => c.country).sort();
 
-/** Auto-detect country code from browser locale */
+/** Auto-detect country code from browser locale (synchronous fallback) */
 function detectCountryCode() {
   const lang = navigator.language || navigator.userLanguage || "";
   const region = lang.includes("-") ? lang.split("-")[1].toUpperCase() : "";
   const match = COUNTRY_CODES.find((c) => c.iso === region);
-  return match ? match.code : "+91";
+  return match ? match.code : "+1";
 }
 
 export default function App() {
@@ -181,6 +182,15 @@ export default function App() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [referralCodeInput, setReferralCodeInput] = useState("");
   const [referralCheckStatus, setReferralCheckStatus] = useState("idle"); // 'idle' | 'checking' | 'matched' | 'not_matched'
+
+  // Attempt IP-based country detection on mount to improve dial code
+  useEffect(() => {
+    detectDialCode().then((ipCode) => {
+      if (ipCode) {
+        setProfileForm((prev) => ({ ...prev, countryCode: ipCode }));
+      }
+    });
+  }, []);
 
   // Internship Enrollment Pipeline
   const [pendingEnrollmentDomain, setPendingEnrollmentDomain] = useState(null);
@@ -379,8 +389,9 @@ export default function App() {
               profile.city &&
               profile.country;
             if (!isComplete) {
+              const localCode = detectCountryCode();
               setProfileForm({
-                countryCode: profile.countryCode || detectCountryCode(),
+                countryCode: profile.countryCode || localCode,
                 phone: profile.phone || "",
                 college: profile.college || "",
                 city: profile.city || "",
@@ -450,8 +461,9 @@ export default function App() {
             }
           } else {
             // Profile does not exist yet
+            const localCode = detectCountryCode();
             setProfileForm({
-              countryCode: detectCountryCode(),
+              countryCode: localCode,
               phone: "",
               college: "",
               city: "",
@@ -479,7 +491,7 @@ export default function App() {
   // Sync URL with current view for deep-linking
   useEffect(() => {
     if (currentView === "certificate" || currentView === "verify") return;
-    const map = { tandp: "/tandp", privacy: "/privacy", refund: "/refund", earn: "/earn", mcp: "/mcp", university: "/university" };
+    const map = { tandp: "/tandp", privacy: "/privacy", refund: "/refund", earn: "/earn", mcp: "/mcp", university: "/university", skiper: "/skiper" };
     const targetPath = map[currentView] || "/";
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, "", targetPath);
@@ -498,7 +510,7 @@ export default function App() {
       else if (path === "/refund") setCurrentView("refund");
       else if (path === "/earn") setCurrentView("earn");
       else if (path === "/mcp") setCurrentView("mcp");
-      else if (path === "/university") setCurrentView("university");
+      else       if (path === "/university") setCurrentView("university");
       else if (["tandp", "privacy", "refund", "certificate", "earn", "mcp", "university", "verify"].includes(currentView)) setCurrentView("site");
     };
     window.addEventListener("popstate", handlePop);

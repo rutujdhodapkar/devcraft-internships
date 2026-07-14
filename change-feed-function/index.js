@@ -47,7 +47,6 @@ const CATEGORY = {
   "careerPaths":                      { cat: "SHARED",  key: "careerPaths" },
   "howItWorks":                       { cat: "SHARED",  key: "howItWorks" },
   "faqs":                             { cat: "SHARED",  key: "faqs" },
-  "badges":                           { cat: "SHARED",  key: "badges" },
   "emailTemplates":                   { cat: "SHARED",  key: "emailTemplates" },
   "admins":                           { cat: "SHARED",  key: "admins" },
   "bannedUsers":                      { cat: "SHARED",  key: "bannedUsers" },
@@ -95,7 +94,6 @@ function resolveCategory(collection, docId, docData) {
     if (isSelfEdit) return { cat: "SELF" };
     return { cat: "EXTERNAL", key: `user:${docId}` };
   }
-  if (collection === "userBadges") return { cat: "EXTERNAL", key: `userBadge:${docId}` };
   return { cat: "SELF" };
 }
 

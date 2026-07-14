@@ -21,8 +21,6 @@ import {
   hideEnrollmentFromUser,
   getHiddenEnrollments,
   unhideEnrollmentFromUser,
-  fetchBadges,
-  fetchUserBadges,
   loadCachedUserBuckets,
   syncUserCache,
   startSyncLoop,
@@ -31,6 +29,7 @@ import {
 import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
 import { getDomainIconUrl } from "../utils/domainIcons";
+import { detectUserCurrency, fetchExchangeRates, convertPrice, formatPrice, currencySymbols } from "../utils/currency";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
 import DodoPaymentModal from "./DodoPaymentModal";
@@ -81,6 +80,15 @@ export default function StudentDashboard({
   const [verifyEnrollment, setVerifyEnrollment] = useState(null);
   const [learnHereDocs, setLearnHereDocs] = useState(null);
   const [learnHereProjectName, setLearnHereProjectName] = useState("");
+
+  // User currency detection for payment display
+  const [userCurrency, setUserCurrency] = useState("INR");
+  const [currencyRates, setCurrencyRates] = useState(null);
+
+  useEffect(() => {
+    detectUserCurrency().then(setUserCurrency);
+    fetchExchangeRates().then(setCurrencyRates);
+  }, []);
 
   // Lock body scroll when payment or profile modals are open
   useEffect(() => {
@@ -567,7 +575,6 @@ export default function StudentDashboard({
               { id: "courses", label: "My Courses", icon: "" },
               { id: "completed", label: "Completed", icon: "\u2713" },
               { id: "referral", label: "Refer & Earn", icon: "\u2197" },
-              { id: "badges", label: "Badges", icon: "\u2606" },
               { id: "hidden", label: "Hidden", icon: "\u2716" },
             ].map((tab) => (
               <button
@@ -849,6 +856,8 @@ export default function StudentDashboard({
                     paymentTiming={enrollment.paymentTiming}
                     user={user}
                     onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
+                    userCurrency={userCurrency}
+                    currencyRates={currencyRates}
                   />
                   </>
                 );
@@ -908,6 +917,8 @@ export default function StudentDashboard({
                       paymentEndAmount={enrollment.paymentEndAmount}
                       user={user}
                       onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
+                      userCurrency={userCurrency}
+                      currencyRates={currencyRates}
                     />
                   );
                 })()}
@@ -955,9 +966,9 @@ export default function StudentDashboard({
                           </div>
                         )}
                         {needsStartPayment ? (
-                          <button onClick={() => handleOpenPayment(enr, paymentTiming === "both" ? "start" : "full")} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>Pay ₹{paymentTiming === "both" ? enr.paymentStartAmount : enr.paymentAmount} to Start</button>
+                          <button onClick={() => handleOpenPayment(enr, paymentTiming === "both" ? "start" : "full")} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>Pay {formatPrice(convertPrice(paymentTiming === "both" ? enr.paymentStartAmount : enr.paymentAmount, userCurrency, currencyRates, "INR"), userCurrency)} to Start</button>
                         ) : needsEndPayment ? (
-                          <button onClick={() => handleOpenPayment(enr, paymentTiming === "both" ? "end" : "full")} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>Pay ₹{enr.paymentEndAmount || enr.paymentAmount} to Unlock Certificate</button>
+                          <button onClick={() => handleOpenPayment(enr, paymentTiming === "both" ? "end" : "full")} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>Pay {formatPrice(convertPrice(enr.paymentEndAmount || enr.paymentAmount, userCurrency, currencyRates, "INR"), userCurrency)} to Unlock Certificate</button>
                         ) : (
                           <button onClick={() => setActiveCourseLearning(enr)} style={{ marginTop: "auto", background: "#000", color: "#fff", border: "none", padding: "0.5rem 1rem", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem", textTransform: "uppercase" }}>
                             {completedCount > 0 ? "Continue →" : "Start Course"}
@@ -1020,6 +1031,8 @@ export default function StudentDashboard({
                         paymentTiming={enrollment.paymentTiming}
                         user={user}
                         onLearnHere={(docs, name) => { setLearnHereDocs(docs); setLearnHereProjectName(name); }}
+                        userCurrency={userCurrency}
+                        currencyRates={currencyRates}
                       />
                     );
                   })}
@@ -1252,8 +1265,6 @@ export default function StudentDashboard({
               );
             })()}
           </div>
-        ) : activeTab === "badges" ? (
-          <BadgesTab user={user} fetchBadges={fetchBadges} fetchUserBadges={fetchUserBadges} />
         ) : enrollments.length === 0 ? (
           <div
             style={{
@@ -1436,18 +1447,18 @@ export default function StudentDashboard({
             <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.5rem" }}>Choose Payment Method</h3>
 
             <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1.5rem" }}>
-              Amount: <strong>₹{getFullAmount(paymentEnrollment)}</strong>
+              Amount: <strong>{formatPrice(convertPrice(getFullAmount(paymentEnrollment), userCurrency, currencyRates, "INR"), userCurrency)}</strong>
             </p>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {(paymentMethods?.upi !== false) && (
                 <button onClick={() => { setPaymentMethod("upi"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800 }}>
-                  Pay ₹{getFullAmount(paymentEnrollment)}
+                  Pay {formatPrice(convertPrice(getFullAmount(paymentEnrollment), userCurrency, currencyRates, "INR"), userCurrency)}
                 </button>
               )}
               {(paymentMethods?.dodo === true) && (
                 <button onClick={() => { setPaymentMethod("dodo"); setShowPaymentChoice(false); setShowPaymentModal(true); }} className="btn-sharp" style={{ padding: "0.85rem", fontSize: "1rem", fontWeight: 800, background: "#000", color: "#fff" }}>
-                  Pay ₹{getFullAmount(paymentEnrollment)}
+                  Pay {formatPrice(convertPrice(getFullAmount(paymentEnrollment), userCurrency, currencyRates, "INR"), userCurrency)}
                 </button>
               )}
             </div>
@@ -1464,6 +1475,8 @@ export default function StudentDashboard({
           paymentStage={paymentEnrollment._paymentStage}
           onSuccess={handlePaymentSuccess}
           onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
+          currencySymbol={currencySymbols[userCurrency] || "\u20B9"}
+          currency={userCurrency}
         />
       )}
       {showPaymentModal && paymentEnrollment && paymentMethod === "dodo" && (
@@ -1474,6 +1487,8 @@ export default function StudentDashboard({
           onClose={() => { setShowPaymentModal(false); setPaymentEnrollment(null); setPaymentMethod(null); }}
           userEmail={user?.email}
           userName={user?.displayName}
+          currencySymbol={currencySymbols[userCurrency] || "\u20B9"}
+          currency={userCurrency}
         />
       )}
 
@@ -1491,109 +1506,6 @@ export default function StudentDashboard({
 
 /* ── Badges & Micro-Certs Tab ── */
 /* ── Badges & Micro-Certs Tab (with HTML templates) ── */
-function BadgesTab({ user, fetchBadges, fetchUserBadges }) {
-  const [badges, setBadges] = useState([]);
-  const [userBadges, setUserBadges] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [previewBadge, setPreviewBadge] = useState(null);
-
-  useEffect(() => {
-    Promise.all([
-      fetchBadges().catch(() => []),
-      fetchUserBadges(user?.uid).catch(() => []),
-    ]).then(([b, ub]) => {
-      setBadges(Array.isArray(b) ? b.filter((badge) => badge && typeof badge === "object") : []);
-      setUserBadges(Array.isArray(ub) ? ub.filter((badge) => badge && typeof badge === "object") : []);
-    })
-      .finally(() => setLoading(false));
-  }, [user?.uid]);
-
-  if (loading) return <div style={{ color: "#888", padding: "2rem", textAlign: "center" }}><LoadingText text="Loading badges..." /></div>;
-
-  const earnedIds = new Set((userBadges || []).map(b => b.badgeId || b.id));
-
-  function renderHtmlTemplate(tpl, badge) {
-    if (!tpl) return null;
-    let html = tpl
-      .replace(/\{\{badge\.title\}\}/g, badge.title || "")
-      .replace(/\{\{badge\.icon\}\}/g, badge.icon || "")
-      .replace(/\{\{badge\.description\}\}/g, badge.description || "")
-      .replace(/\{\{badge\.type\}\}/g, badge.type || "");
-    return { __html: html };
-  }
-
-  return (
-    <div>
-      <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
-        <h3 style={{ fontSize: "1.1rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>My Badges & Certifications</h3>
-        <p style={{ color: "#666", fontSize: "0.85rem", marginBottom: "1rem" }}>Badges earned by completing projects, skills, and achievements.</p>
-        {badges.length === 0 ? (
-          <p style={{ color: "#888", fontStyle: "italic", fontSize: "0.9rem" }}>No badges available yet.</p>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem" }}>
-            {badges.map(b => {
-              const earned = earnedIds.has(b.id);
-              return (
-                <div key={b.id} style={{
-                  border: `2px solid ${earned ? "#34A853" : "#ddd"}`,
-                  padding: b.htmlTemplate ? "0" : "1rem",
-                  textAlign: "center",
-                  background: earned ? "#f0fdf4" : "#fafafa",
-                  opacity: earned ? 1 : 0.6,
-                  transition: "all 0.2s",
-                  overflow: "hidden",
-                  cursor: b.htmlTemplate ? "pointer" : "default",
-                }}
-                  onClick={() => { if (b.htmlTemplate) setPreviewBadge(previewBadge?.id === b.id ? null : b); }}
-                >
-                  {b.htmlTemplate && earned ? (
-                    <div dangerouslySetInnerHTML={renderHtmlTemplate(b.htmlTemplate, b)} />
-                  ) : (
-                    <>
-                      <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>{b.icon || ""}</div>
-                      <div style={{ fontWeight: 800, fontSize: "0.8rem", textTransform: "uppercase", marginBottom: "0.25rem" }}>{b.title}</div>
-                      <div style={{ fontSize: "0.7rem", color: "#888", marginBottom: "0.5rem" }}>{b.type === "micro-cert" ? "Micro-Certification" : "Badge"}</div>
-                      <div style={{
-                        display: "inline-block",
-                        padding: "0.15rem 0.6rem",
-                        fontSize: "0.65rem",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        background: earned ? "#34A853" : "#ccc",
-                        color: "#fff",
-                      }}>
-                        {earned ? "Earned" : "Locked"}
-                      </div>
-                      {b.description && <div style={{ fontSize: "0.7rem", color: "#666", marginTop: "0.4rem" }}>{b.description}</div>}
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {previewBadge && (
-        <div onClick={() => setPreviewBadge(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 2000, padding: "1.5rem" }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: "#fff", border: "3px solid #000", boxShadow: "10px 10px 0 #000", maxWidth: "500px", width: "100%", padding: "2rem", textAlign: "center" }}>
-            {previewBadge.htmlTemplate ? (
-              <div dangerouslySetInnerHTML={renderHtmlTemplate(previewBadge.htmlTemplate, previewBadge)} />
-            ) : (
-              <>
-                <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>{previewBadge.icon || ""}</div>
-                <h2 style={{ fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>{previewBadge.title}</h2>
-                <p style={{ color: "#666", marginBottom: "0.5rem" }}>{previewBadge.description}</p>
-              </>
-            )}
-            <button onClick={() => setPreviewBadge(null)} className="btn-sharp" style={{ marginTop: "1rem", padding: "0.5rem 1.5rem" }}>Close</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 function EnrollmentCard({
   enrollment,
   projects,
@@ -1624,6 +1536,8 @@ function EnrollmentCard({
   onBackClick,
   careerPaths,
   onVerifyInternship,
+  userCurrency = "INR",
+  currencyRates = null,
   onLearnHere,
 }) {
   const domainPath = careerPaths?.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain);
@@ -2050,7 +1964,7 @@ function EnrollmentCard({
                       Please complete the payment to unlock your internship projects.
                     </p>
                     <button className="btn-sharp" onClick={() => onOpenPayment("start")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                      Pay ₹{displayStartAmount || displayAmount || 99}
+                      Pay {formatPrice(convertPrice(displayStartAmount || displayAmount || 99, userCurrency, currencyRates, "INR"), userCurrency)}
                     </button>
                   </div>
                 )}
@@ -2078,7 +1992,7 @@ function EnrollmentCard({
                           All tasks submitted! Complete the payment to unlock your certificate.
                         </p>
                         <button className="btn-sharp" onClick={() => onOpenPayment("end")} style={{ padding: "0.75rem 2rem", fontWeight: 800 }}>
-                          Pay ₹{displayEndAmount || displayAmount || 99}
+                          Pay {formatPrice(convertPrice(displayEndAmount || displayAmount || 99, userCurrency, currencyRates, "INR"), userCurrency)}
                         </button>
                       </div>
                           )}
