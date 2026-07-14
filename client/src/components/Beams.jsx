@@ -57,11 +57,18 @@ function extendMaterial(BaseMaterial, cfg) {
   return mat;
 }
 
-const CanvasWrapper = ({ children }) => (
-  <Canvas dpr={[1, 2]} frameloop="always" className="beams-container">
-    {children}
-  </Canvas>
-);
+const CanvasWrapper = ({ children }) => {
+  const handleCreated = (state) => {
+    state.gl.domElement.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+    });
+  };
+  return (
+    <Canvas dpr={[1, 2]} frameloop="always" className="beams-container" onCreated={handleCreated}>
+      {children}
+    </Canvas>
+  );
+};
 
 const hexToNormalizedRGB = hex => {
   const clean = hex.replace('#', '');

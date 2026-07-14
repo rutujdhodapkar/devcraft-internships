@@ -227,6 +227,9 @@ export default function Lanyard({
         camera={{ position: [0, 0, cameraZ], fov: 28 }}
         style={{ background: 'transparent' }}
         gl={{ antialias: true, alpha: true }}
+        onCreated={({ gl }) => {
+          gl.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault());
+        }}
       >
         <ambientLight intensity={0.6} />
         <directionalLight position={[5, 8, 6]} intensity={0.8} />

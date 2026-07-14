@@ -276,6 +276,9 @@ export default function Dither({
       camera={{ position: [0, 0, 6] }}
       dpr={1}
       gl={{ antialias: true, preserveDrawingBuffer: true }}
+      onCreated={({ gl }) => {
+        gl.domElement.addEventListener('webglcontextlost', (e) => e.preventDefault());
+      }}
     >
       <DitheredWaves
         waveSpeed={waveSpeed}

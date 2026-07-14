@@ -6,6 +6,23 @@ import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cooki
 import { syncBuckets, loadCachedUserBuckets, startSyncLoop, stopSyncLoop } from "./cacheSync";
 export { loadCachedUserBuckets, startSyncLoop, stopSyncLoop };
 
+// ── Session cache for slow-changing auth data ──
+const _authCache = new Map();
+function _authCacheGet(key) {
+  const entry = _authCache.get(key);
+  if (entry && Date.now() < entry.expiresAt) return entry.data;
+  const ls = _lsGet("ac_" + key);
+  if (ls) { _authCache.set(key, { data: ls, expiresAt: Date.now() + 300000 }); return ls; }
+  return null;
+}
+function _authCacheSet(key, data, ttl) {
+  const expiresAt = Date.now() + (ttl || 300000);
+  _authCache.set(key, { data, expiresAt });
+  _lsSet("ac_" + key, data, ttl || 300000);
+}
+function _authCacheClear() { _authCache.clear(); }
+export function clearAuthCache() { _authCacheClear(); }
+
 async function _rtdbRead(path) {
   try { const s = await rtdbGet(ref(rtdb, path)); return s.val(); } catch { return null; }
 }
@@ -236,24 +253,32 @@ async function apiFetch(path, options = {}) {
 // Career Paths
 export async function fetchCareerPaths() {
   const cached = _lsGet("careerPaths");
-  const version = _lsGet("cp_v");
-  if (cached && version) {
-    try {
-      const resp = await fetch(`${API_BASE}/api/data/career-paths?_v=${encodeURIComponent(version)}`);
-      if (resp.status === 304) {
-        _lsSet("careerPaths", cached);
-        return cached;
-      }
-      if (resp.ok) {
-        const data = await resp.json();
-        const result = data.data || null;
-        if (result) {
-          _lsSet("careerPaths", result);
-          if (data._v) _lsSet("cp_v", data._v);
+  const localVersion = _lsGet("cp_v");
+  if (cached && localVersion) {
+    const vMap = await _ensureVersions().catch(() => null);
+    const remoteVersion = vMap?.careerPaths || null;
+    if (remoteVersion && localVersion === remoteVersion) {
+      _lsSet("careerPaths", cached);
+      return cached;
+    }
+    if (!remoteVersion) {
+      try {
+        const resp = await fetch(`${API_BASE}/api/data/career-paths?_v=${encodeURIComponent(localVersion)}`);
+        if (resp.status === 304) {
+          _lsSet("careerPaths", cached);
+          return cached;
         }
-        return result;
-      }
-    } catch {}
+        if (resp.ok) {
+          const data = await resp.json();
+          const result = data.data || null;
+          if (result) {
+            _lsSet("careerPaths", result);
+            if (data._v) _lsSet("cp_v", data._v);
+          }
+          return result;
+        }
+      } catch {}
+    }
   }
   const bundled = await fetchSiteConfig("careerPaths");
   let paths = bundled?.list || [];
@@ -476,7 +501,12 @@ export async function saveInquiry(inquiry) {
 // User Profile
 export async function fetchUserProfile(uid) {
   if (!uid) return null;
-  return dbGet(`users/${uid}`);
+  const key = "profile_" + uid;
+  const cached = _authCacheGet(key);
+  if (cached !== null) return cached;
+  const data = await dbGet(`users/${uid}`);
+  if (data) _authCacheSet(key, data, 300000);
+  return data;
 }
 
 export async function saveUserProfile(uid, profile) {
@@ -484,6 +514,7 @@ export async function saveUserProfile(uid, profile) {
     method: "POST",
     body: JSON.stringify({ profile }),
   });
+  _authCache.delete("profile_" + uid);
   return data;
 }
 
@@ -699,8 +730,14 @@ export async function fetchAdminData() {
 
 export async function isReferralCodeMatched(referralCode) {
   if (!referralCode) return false;
-  const data = await dbGet(`referrals/${referralCode.toUpperCase().trim()}`);
-  return !!data;
+  const code = referralCode.toUpperCase().trim();
+  const key = "refmatch_" + code;
+  const cached = _authCacheGet(key);
+  if (cached !== null) return cached;
+  const data = await dbGet(`referrals/${code}`);
+  const result = !!data;
+  _authCacheSet(key, result, 300000);
+  return result;
 }
 
 export async function deleteReferral(code) { await dbDelete(`referrals/${code.toUpperCase().trim()}`); }
@@ -814,9 +851,14 @@ export async function markReferralContacted(referralCode) {
 
 export async function checkAdminStatus(email) {
   const cleanEmail = (email || "").toLowerCase().trim();
+  const key = "admin_" + cleanEmail;
+  const cached = _authCacheGet(key);
+  if (cached !== null) return cached;
   const emailId = cleanEmail.replace(/\./g, ",");
   const data = await dbGet(`admins/${emailId}`);
-  return { isAdmin: !!data };
+  const result = { isAdmin: !!data };
+  _authCacheSet(key, result, 300000);
+  return result;
 }
 
 export async function fetchAdmins() {
@@ -856,8 +898,13 @@ export async function createSelfReferral(details, uid) {
 }
 
 export async function fetchSelfReferralCode(uid) {
+  const key = "selfref_" + uid;
+  const cached = _authCacheGet(key);
+  if (cached !== null) return cached;
   const data = await dbGet(`selfReferralOwners/${uid}`);
-  return data?.code || null;
+  const result = data?.code || null;
+  _authCacheSet(key, result, 300000);
+  return result;
 }
 
 export async function autoAssignReferralCode(uid, profile) {
@@ -875,6 +922,7 @@ export async function autoAssignReferralCode(uid, profile) {
   };
   try {
     const res = await createSelfReferral(payload, uid);
+    if (res?.data?.code) _authCache.delete("selfref_" + uid);
     return res?.data?.code || null;
   } catch (e) {
     console.warn("Auto-assign referral code failed:", e.message);
@@ -936,18 +984,24 @@ export async function fetchReferralDashboardData(uid) {
 }
 
 export async function fetchUserReferralStat(email) {
+  if (!email) return null;
+  const key = "refstat_" + email;
+  const cached = _authCacheGet(key);
+  if (cached !== null) return cached;
   const list = await dbQueryList("referrals", "email", email);
   if (!list.length) return null;
   const referral = list[0];
   const code = (referral.code || referral.id || "").toUpperCase().trim();
   const interns = await dbQueryList("enrollments", "referralCode", code);
   const completed = interns.filter(i => i.status === "Completed").length;
-  return {
+  const result = {
     referral, interns, internCount: interns.length, completed,
     visited: referral.visited || 0,
     assignedInternships: interns.length,
     completedInterns: completed,
   };
+  _authCacheSet(key, result, 300000);
+  return result;
 }
 
 export async function fetchAdminReferralUsersWithInterns() {
@@ -1006,8 +1060,14 @@ export async function saveEarnDetails(details) {
 export async function fetchBannedUsers() { return dbList("bannedUsers"); }
 
 export async function checkUserBan(email) {
-  const emailId = (email || "").toLowerCase().trim().replace(/\./g, ",");
-  return dbGet(`bannedUsers/${emailId}`);
+  const cleanEmail = (email || "").toLowerCase().trim();
+  const key = "ban_" + cleanEmail;
+  const cached = _authCacheGet(key);
+  if (cached !== null) return cached;
+  const emailId = cleanEmail.replace(/\./g, ",");
+  const result = await dbGet(`bannedUsers/${emailId}`);
+  _authCacheSet(key, result, 300000);
+  return result;
 }
 
 export async function banUser(email, banType, reason, bannedBy) {
@@ -1448,26 +1508,15 @@ export async function logAdminAction(action, details = {}) {
 export async function fetchSiteConfig(key) {
   const cached = _lsGet("sc_" + key);
   if (cached !== null) {
-    const version = _lsGet("sc_v_" + key);
-    if (version) {
-      try {
-        const resp = await fetch(`${API_BASE}/api/data/site-config?key=${encodeURIComponent(key)}&_v=${encodeURIComponent(version)}`);
-        if (resp.status === 304) {
-          _lsSet("sc_" + key, cached);
-          return cached;
-        }
-        if (resp.ok) {
-          const data = await resp.json();
-          const result = data.data || null;
-          if (result !== null) {
-            _lsSet("sc_" + key, result);
-            if (data._v) _lsSet("sc_v_" + key, data._v);
-          }
-          return result;
-        }
-      } catch {}
+    const localVersion = _lsGet("sc_v_" + key);
+    const vMap = await _ensureVersions().catch(() => null);
+    const remoteVersion = vMap?.[key] || null;
+    if (localVersion && remoteVersion && localVersion === remoteVersion) {
+      _lsSet("sc_" + key, cached);
+      return cached;
     }
-    return cached;
+    if (!remoteVersion) return cached;
+    // Fall through to re-fetch if version mismatch
   }
   const cachedCookie = getCookie(`sc_${key}`);
   if (cachedCookie !== null) return cachedCookie;
@@ -1506,25 +1555,26 @@ export async function saveCourses(list) {
 export async function fetchCourseContent(courseId) {
   const cacheKey = "cc_" + courseId;
   const cached = _lsGet(cacheKey);
-  const versionKey = "cc_v_" + courseId;
-  const version = _lsGet(versionKey);
-  if (cached && version) {
-    try {
-      const resp = await fetch(`${API_BASE}/api/data/courses/${encodeURIComponent(courseId)}/content?_v=${encodeURIComponent(version)}`);
-      if (resp.status === 304) {
-        _lsSet(cacheKey, cached);
-        return cached;
-      }
-      if (resp.ok) {
-        const data = await resp.json();
-        const result = data.data || null;
-        if (result) {
-          _lsSet(cacheKey, result);
-          if (data._v) _lsSet(versionKey, data._v);
+  const localVersion = _lsGet("cc_v_" + courseId);
+  if (cached && localVersion) {
+    const vMap = await _ensureVersions().catch(() => null);
+    const remoteVersion = vMap?.courses || null;
+    if (remoteVersion && localVersion === remoteVersion) {
+      _lsSet(cacheKey, cached);
+      return cached;
+    }
+    if (!remoteVersion) {
+      try {
+        const resp = await fetch(`${API_BASE}/api/data/courses/${encodeURIComponent(courseId)}/content?_v=${encodeURIComponent(localVersion)}`);
+        if (resp.status === 304) { _lsSet(cacheKey, cached); return cached; }
+        if (resp.ok) {
+          const data = await resp.json();
+          const result = data.data || null;
+          if (result) { _lsSet(cacheKey, result); if (data._v) _lsSet("cc_v_" + courseId, data._v); }
+          return result;
         }
-        return result;
-      }
-    } catch {}
+      } catch {}
+    }
   }
   try {
     const data = await apiFetch(`/api/data/courses/${encodeURIComponent(courseId)}/content`);
@@ -1993,9 +2043,14 @@ export async function deleteAgencyTemplate(templateId) {
 export async function checkAgencyStatus(email) {
   const clean = (email || "").toLowerCase().trim();
   if (!clean) return { isAgency: false, agencies: [] };
+  const key = "agency_" + clean;
+  const cached = _authCacheGet(key);
+  if (cached !== null) return cached;
   const all = await fetchAgencies().catch(() => []);
   const matched = all.filter(a => (a.emails || []).some(e => e.toLowerCase().trim() === clean) && a.approved);
-  return { isAgency: matched.length > 0, agencies: matched };
+  const result = { isAgency: matched.length > 0, agencies: matched };
+  _authCacheSet(key, result, 300000);
+  return result;
 }
 
 export async function fetchAgencyEnrollments(agencyId) {
