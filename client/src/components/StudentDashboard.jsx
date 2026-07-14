@@ -459,14 +459,14 @@ export default function StudentDashboard({
   };
 
   const handleDownloadFromTemplate = (enrollment, templateName, requireUnlock = false) => {
-    if (enrollment.allowedCertificate !== "yes") {
+    if (requireUnlock && enrollment.allowedCertificate !== "yes") {
       const projects = getProjectsForEnrollment(enrollment);
       const submissions = getSubmissions(enrollment);
       const allV = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
       const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
       let msg = "";
-      if (!allV && !isPaid) msg = "Complete all tasks and payment first.";
-      else if (!allV) msg = "Complete all tasks first.";
+      if (!allV && !isPaid) msg = "Complete your all assignments first";
+      else if (!allV) msg = "Complete your all assignments first";
       else if (!isPaid) msg = "Complete payment first.";
       notify(msg || "Document not yet available.", "warning");
       return;

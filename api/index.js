@@ -1116,7 +1116,12 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
         return send(res, 400, { success: false, message: "This task is already verified and cannot be resubmitted." });
       }
     }
-    if (extra2 === "submit") Object.assign(patch, { [base]: { text: req.body.submissionText || "", url: req.body.submissionUrl || "", submittedAt: now(), verified: false, rejected: false, resubmit: false } });
+    if (extra2 === "submit") {
+      const subText = (req.body.submissionText || "").trim();
+      const subUrl = (req.body.submissionUrl || "").trim();
+      if (!subText && !subUrl) return send(res, 400, { success: false, message: "Submission must include text or a URL." });
+      Object.assign(patch, { [base]: { text: subText, url: subUrl, submittedAt: now(), verified: false, rejected: false, resubmit: false } });
+    }
     if (extra2 === "quiz") {
       const quizAnswers = req.body.answers || {};
       const project = req.body.project || null;
