@@ -218,14 +218,12 @@ export default function App() {
 
   // Console greeting
   useEffect(() => {
-    console.log(
-      "%c  _____ _   _ ___ _   _  ___    ____  _____ _   _ ____\n / ___/| \\ | |_ _| \\ | |/ _ \\  |  _ \\| ____| \\ | |  _ \\\n| |  _ |  \\| || ||  \\| | | | | | |_) |  _| |  \\| | | | |\n| |_| || |\\  || || |\\  | |_| | |  __/| |___| |\\  | |_| |\n \\____||_| \\_|___|_| \\_|\\___/  |_|   |_____|_| \\_|____/\n",
-      "color:#888; font-size:11px; line-height:1.2; font-family:monospace;"
-    );
-    console.log(
-      "%c⚠️ Complete your Tasks Legally instead of this MF",
-      "color:#fff; background:#ff4444; font-size:14px; font-weight:bold; padding:4px 8px; border-radius:3px;"
-    );
+    console.log("  _____ _   _ ___ _   _  ___    ____  _____ _   _ ____");
+    console.log(" / ___/| \\ | |_ _| \\ | |/ _ \\  |  _ \\| ____| \\ | |  _ \\");
+    console.log("| |  _ |  \\| || ||  \\| | | | | | |_) |  _| |  \\| | | | |");
+    console.log("| |_| || |\\  || || |\\  | |_| | |  __/| |___| |\\  | |_| |");
+    console.log(" \\____||_| \\_|___|_| \\_|\\___/  |_|   |_____|_| \\_|____/");
+    console.log("%c⚠️ Complete your Tasks Legally instead of this MF", "color:#fff; background:#ff4444; font-size:14px; font-weight:bold; padding:4px 8px; border-radius:3px;");
     console.log("Contacts  : ceo@Fennark.xyz");
     console.log("Website   : https://www.fennark.xyz");
     console.log("Founder   : https://www.rutujdhodapkar.tech");
