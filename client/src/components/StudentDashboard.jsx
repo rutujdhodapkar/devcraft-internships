@@ -28,7 +28,7 @@ import {
 } from "../services/data";
 import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
-import { getDomainIconUrl } from "../utils/domainIcons";
+import { getDomainIconUrl, onIconError } from "../utils/domainIcons";
 import { detectUserCurrency, fetchExchangeRates, convertPrice, formatPrice, currencySymbols } from "../utils/currency";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
@@ -873,7 +873,7 @@ export default function StudentDashboard({
                       return (
                         <div key={e.id} style={{ display: "flex", alignItems: "stretch", border: "2px solid #000", background: selected ? "#000" : "#fff", color: selected ? "#fff" : "#000" }}>
                           <button type="button" onClick={() => setSelectedEnrollment(e)} aria-label={`Open ${name} tasks`} title={name} style={{ display: "flex", alignItems: "center", gap: "0.5rem", border: "none", background: "transparent", color: "inherit", padding: "0.5rem 0.8rem", fontWeight: 800, fontSize: "0.85rem", cursor: "pointer", maxWidth: "260px" }}>
-                            <img src={getEnrollmentIcon(e)} alt="" width="28" height="28" style={{ width: "28px", height: "28px", objectFit: "contain", flex: "0 0 auto" }} />
+                            <img src={getEnrollmentIcon(e)} alt="" width="28" height="28" style={{ width: "28px", height: "28px", objectFit: "contain", flex: "0 0 auto" }} onError={ev => onIconError(ev, e)} />
                             <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textTransform: "uppercase" }}>{name}</span>
                           </button>
                           <button type="button" aria-label={`Hide ${name}`} title="Hide internship" onClick={() => { hideEnrollmentFromUser(user.uid, e.id); if (selected) setSelectedEnrollment(null); loadAll(); notify("Internship moved to Hidden tab.", "info"); }} style={{ border: "none", borderLeft: `2px solid ${selected ? "#fff" : "#000"}`, background: "transparent", color: "inherit", padding: "0 0.65rem", fontWeight: 900, cursor: "pointer" }}>×</button>

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { fetchCourses, courseEnroll } from "../services/data";
 import { notify } from "../services/notify";
-import { getDomainIconUrl } from "../utils/domainIcons";
+import { getDomainIconUrl, onIconError } from "../utils/domainIcons";
 
 const styles = {
   wrapper: { maxWidth: 1200, margin: "0 auto", padding: "2rem 1rem", fontFamily: "system-ui, sans-serif" },
@@ -57,7 +57,7 @@ export default function CourseCatalog({ user, userProfile, onEnroll }) {
           return (
             <div key={c.id} style={styles.card(free)} onMouseEnter={e => e.currentTarget.style.transform = "translateY(-3px)"} onMouseLeave={e => e.currentTarget.style.transform = "none"}>
               <span style={styles.badge(free)}>{free ? "Free" : timingLabel}</span>
-              <img src={getDomainIconUrl(c)} alt="" width="52" height="52" style={{ ...styles.icon, width: "52px", height: "52px", objectFit: "contain" }} />
+              <img src={getDomainIconUrl(c)} alt="" width="52" height="52" style={{ ...styles.icon, width: "52px", height: "52px", objectFit: "contain" }} onError={e => onIconError(e, c)} />
               <h2 style={styles.title}>{c.title}</h2>
               <p style={styles.desc}>{c.description}</p>
               <div style={styles.meta}>
