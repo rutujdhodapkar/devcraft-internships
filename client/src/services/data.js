@@ -4,7 +4,6 @@ const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.x
 import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
 import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cookies";
 import { syncBuckets, loadCachedUserBuckets, startSyncLoop, stopSyncLoop } from "./cacheSync";
-import { fetchSharedVersions as firestoreFetchVersions } from "./cacheEngine";
 export { loadCachedUserBuckets, startSyncLoop, stopSyncLoop };
 
 // ── Session cache for slow-changing auth data ──
@@ -125,12 +124,6 @@ function _lsGetV(key) {
 }
 
 async function _fetchVersions() {
-  // Try Firebase Firestore first (free reads, no Azure RU cost)
-  try {
-    const fsv = await firestoreFetchVersions();
-    if (fsv && Object.keys(fsv).length > 0) return fsv;
-  } catch {}
-  // Fallback: Cosmos point read (costs RU)
   try {
     const resp = await fetch(`${API_BASE}/api/data/versions`);
     if (!resp.ok) return null;

@@ -218,11 +218,11 @@ export default function App() {
 
   // Console greeting
   useEffect(() => {
-    console.log("%c⚠️ Complete your Tasks Legally instead of this MF", "font-size:18px; font-weight:bold; color:#ff4444; background:#000; padding:8px 12px; border-radius:4px;");
-    console.log("Contacts : ceo@Fennark.xyz");
-    console.log("Main Website : https://www.fennark.xyz");
-    console.log("Founder : https://www.rutujdhodapkar.tech");
-    console.log("More Contact : https://contact.rutujdhodapkar.tech");
+    console.log("%c  _     ___ _   _ _   _ ___ _   _  ___    ____  _____ _   _ ____  \n / |   |_ _| \\ | | \\ | |_ _| \\ | |/ _ \\  |  _ \\| ____| \\ | |  _ \\ \n | |    | ||  \\| |  \\| || ||  \\| | | | | | |_) |  _| |  \\| | | | |\n | |_   | || |\\  | |\\  || || |\\  | |_| | |  __/| |___| |\\  | |_| |\n |_(_) |___|_| \\_|_| \\_|___|_| \\_|\\___/  |_|   |_____|_| \\_|____/ \n                                                                    \n%cComplete your Tasks Legally instead of this MF%c\n\nContacts  : ceo@Fennark.xyz\nWebsite   : https://www.fennark.xyz\nFounder   : https://www.rutujdhodapkar.tech\nContact   : https://contact.rutujdhodapkar.tech\n",
+      "color:#0aff0a; font-size:11px; line-height:1.2;",
+      "color:#fff; background:#ff4444; font-size:14px; font-weight:bold; padding:4px 8px; border-radius:3px;",
+      "color:#888; font-size:12px;"
+    );
   }, []);
 
   // Refs to avoid re-registering the auth listener on view changes

@@ -33,10 +33,14 @@ function getFs() {
   try {
     _app = initializeApp(firebaseConfig, "cacheEngine");
     _firestore = getFirestore(_app);
+    // Suppress Firestore SDK warnings (e.g. "Database not found")
+    try { _firestore.settings({ host: "firestore.googleapis.com", ssl: true }); } catch {}
   } catch {
     // Fallback to existing Firebase app
-    const { getFirestore: getExistingFs } = require("firebase/firestore");
-    _firestore = getExistingFs();
+    try {
+      const { getFirestore: getExistingFs } = require("firebase/firestore");
+      _firestore = getExistingFs();
+    } catch {}
   }
   return _firestore;
 }
@@ -83,8 +87,8 @@ export async function fetchSharedVersions() {
       _lastManifestFetch = Date.now();
       return _cachedSharedVersions;
     }
-  } catch (e) {
-    console.warn("[cacheEngine] Failed to fetch shared versions:", e.message);
+  } catch {
+    // Firestore unavailable — version manifest reads fall back to Cosmos
   }
   return _cachedSharedVersions || {};
 }
