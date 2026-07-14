@@ -9,5 +9,13 @@
     { "source": "/api/mcp-domains/:path*", "destination": "/api/mcp-domains" },
     { "source": "/api/:path*", "destination": "/api" },
     { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin-allow-popups" }
+      ]
+    }
   ]
 }

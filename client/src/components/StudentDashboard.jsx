@@ -459,17 +459,21 @@ export default function StudentDashboard({
   };
 
   const handleDownloadFromTemplate = (enrollment, templateName, requireUnlock = false) => {
-    if (requireUnlock && enrollment.allowedCertificate !== "yes") {
+    const isOfferLetter = templateName.toLowerCase().includes("offer");
+    const isCertificate = templateName.toLowerCase().includes("certificate");
+    const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
+    if (requireUnlock || isCertificate) {
       const projects = getProjectsForEnrollment(enrollment);
       const submissions = getSubmissions(enrollment);
       const allV = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
-      const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
       let msg = "";
       if (!allV && !isPaid) msg = "Complete your all assignments first";
       else if (!allV) msg = "Complete your all assignments first";
-      else if (!isPaid) msg = "Complete payment first.";
-      notify(msg || "Document not yet available.", "warning");
-      return;
+      else if (!isPaid && isCertificate) msg = "Complete payment first.";
+      if (msg) { notify(msg, "warning"); return; }
+    }
+    if (isOfferLetter && enrollment.status === "Active") {
+      notify("Opening Offer Letter...", "info");
     }
     openCertificateUrl(enrollment, templateName);
   };
