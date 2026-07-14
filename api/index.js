@@ -491,7 +491,10 @@ async function handleData(req, res, routeParts) {
       } catch {}
       try {
         const cosPaths = await getDoc(db, "siteConfig", "careerPaths", null);
-        paths = cosPaths?.value?.list || [];
+        paths = (cosPaths?.value?.list || []).map(p => ({
+          ...p,
+          projects: [{ title: "LinkedIn Post", description: "Create and share a LinkedIn post announcing your enrollment in the DEV/CRAFT internship program.", type: "text" }, ...(p.projects || [])],
+        }));
         const cosCats = await getDoc(db, "siteConfig", "domainCategories", null);
         categories = cosCats?.value || [];
       } catch {}
