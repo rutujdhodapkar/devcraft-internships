@@ -56,6 +56,7 @@ import {
   fetchPopupSettings,
   recordUserLogin,
   recordUserLogout,
+  saveAdminMessage,
 } from "./services/data";
 import {
   onGoogleAuthStateChanged,
@@ -216,14 +217,44 @@ export default function App() {
   const [showCourseAllModal, setShowCourseAllModal] = useState(false);
   const [exploreFilter, setExploreFilter] = useState("All");
 
-  // Console greeting
+  // Console greeting (shows after auth loads)
   useEffect(() => {
-    console.log("%c⚠️ Complete your Tasks Legally instead of this MF", "font-size:20px; font-weight:bold; color:#000; background:#fff; padding:10px 16px; border-radius:6px;");
-    console.log("Contacts  : ceo@Fennark.xyz");
-    console.log("Website   : https://www.fennark.xyz");
-    console.log("Founder   : https://www.rutujdhodapkar.tech");
-    console.log("Contact   : https://contact.rutujdhodapkar.tech");
-  }, []);
+    const name = user?.displayName || userProfile?.name || "User";
+    const id = user?.uid || "";
+    console.log(
+      "%c⚠️ Complete your Tasks Legally instead of this MF\n\nIntern  : " + id + "\nName    : " + name + "\nEmail   : " + (user?.email || "") + "\n\nContacts  : ceo@Fennark.xyz\nWebsite   : https://www.fennark.xyz\nFounder   : https://www.rutujdhodapkar.tech\nContact   : https://contact.rutujdhodapkar.tech",
+      "font-size:14px; font-weight:bold; color:#000; background:#fff; padding:12px 18px; border-radius:6px; line-height:1.6;"
+    );
+  }, [user, userProfile]);
+
+  // Monitor manual console commands and report to admin panel
+  useEffect(() => {
+    if (!user?.uid) return;
+    let sending = false;
+    const origin = window.location.origin;
+    const _orig = { log: console.log, warn: console.warn, error: console.error, info: console.info };
+    const wrap = (method, level) => {
+      console[method] = function () {
+        if (!sending) {
+          sending = true;
+          try {
+            const stack = new Error().stack;
+            if (stack && !stack.includes(origin) && !stack.includes("chrome-extension")) {
+              const msg = Array.from(arguments).map(a => typeof a === "object" ? JSON.stringify(a, null, 2) : String(a)).join(" ");
+              saveAdminMessage({ type: "console_" + level, uid: user.uid, email: user.email, name: user.displayName || "Unknown", message: msg, timestamp: new Date().toISOString() }).catch(() => {});
+            }
+          } catch {}
+          sending = false;
+        }
+        _orig[method].apply(console, arguments);
+      };
+    };
+    wrap("log", "log");
+    wrap("warn", "warn");
+    wrap("error", "error");
+    wrap("info", "info");
+    return () => { console.log = _orig.log; console.warn = _orig.warn; console.error = _orig.error; console.info = _orig.info; };
+  }, [user]);
 
   // Refs to avoid re-registering the auth listener on view changes
   const pendingEnrollmentRef = useRef(pendingEnrollmentDomain);
