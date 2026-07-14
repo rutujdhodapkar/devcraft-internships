@@ -217,15 +217,14 @@ export default function App() {
   const [showCourseAllModal, setShowCourseAllModal] = useState(false);
   const [exploreFilter, setExploreFilter] = useState("All");
 
-  // Console greeting (shows after auth loads)
+  // Console greeting
   useEffect(() => {
-    const name = user?.displayName || userProfile?.name || "User";
-    const id = user?.uid || "";
-    console.log(
-      "%c⚠️ Complete your Tasks Legally instead of this MF\n\nIntern  : " + id + "\nName    : " + name + "\nEmail   : " + (user?.email || "") + "\n\nContacts  : ceo@Fennark.xyz\nWebsite   : https://www.fennark.xyz\nFounder   : https://www.rutujdhodapkar.tech\nContact   : https://contact.rutujdhodapkar.tech",
-      "font-size:14px; font-weight:bold; color:#000; background:#fff; padding:12px 18px; border-radius:6px; line-height:1.6;"
-    );
-  }, [user, userProfile]);
+    console.log("%c⚠️ Complete your Tasks Legally instead of this MF", "font-size:16px; font-weight:bold; color:#000; background:#fff; padding:12px 18px; border-radius:6px; line-height:1.6;");
+    console.log("Contacts  : ceo@Fennark.xyz");
+    console.log("Website   : https://www.fennark.xyz");
+    console.log("Founder   : https://www.rutujdhodapkar.tech");
+    console.log("Contact   : https://contact.rutujdhodapkar.tech");
+  }, []);
 
   // Monitor manual console commands and report to admin panel
   useEffect(() => {
