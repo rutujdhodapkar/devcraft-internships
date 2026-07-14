@@ -95,6 +95,8 @@ async function bumpVersion(db, key) {
       const versions = vDoc?.value || {};
       versions[key] = now();
       await setDoc(db, "siteConfig", "configVersions", { value: versions, updatedAt: now() });
+      // Also write to Firebase Firestore manifest (cheap reads for client version checks)
+      try { await firestoreSetDoc("manifest", "shared-versions", { value: versions, updatedAt: now() }); } catch {}
       return;
     } catch (e) {
       // 412 Precondition Failed / 409 Conflict — concurrent write, retry
