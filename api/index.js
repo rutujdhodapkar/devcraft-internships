@@ -1,5 +1,5 @@
 import { initCosmosDb, getSyncVersion, putSyncVersion } from "../server/cosmos.js";
-import { firestoreGetDoc, firestoreSetDoc } from "../server/firestore.js";
+import { firestoreGetDoc, firestoreSetDoc, initFirestore as initFirestoreFs } from "../server/firestore.js";
 import { generateText, generateImage, buildPromoPrompt } from "../server/aiContent.js";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
@@ -1871,6 +1871,8 @@ async function handleFirebaseProxy(req, res) {
       } else if (action === "push") {
         const docRef = await colRef.add(data);
         result = { id: docRef.id, ...data };
+        // Mirror to Firestore (non-blocking)
+        firestoreSetDoc(collection, docRef.id, data).catch(() => {});
       } else if (action === "query") {
         let q = colRef;
         if (query?.orderBy && query?.equalTo !== undefined) q = q.where(query.orderBy, "==", query.equalTo);
@@ -1892,9 +1894,16 @@ async function handleFirebaseProxy(req, res) {
 
       switch (action) {
         case "get": {
-          const snap = await docRef.get(readOpts);
-          if (!snap.exists) { result = null; break; }
-          const docData = snap.data();
+          // Try Firebase Firestore first (free reads), fall back to Cosmos (costs RU)
+          let docData = null;
+          if (!fieldPath) {
+            try { const fs = await firestoreGetDoc(collection, docId); if (fs) docData = fs; } catch {}
+          }
+          if (!docData) {
+            const snap = await docRef.get(readOpts);
+            if (!snap.exists) { result = null; break; }
+            docData = snap.data();
+          }
           if (fieldPath) {
             const val = fieldPath.split(".").reduce((obj, key) => obj?.[key], docData);
             result = val !== undefined ? val : null;
@@ -1908,6 +1917,8 @@ async function handleFirebaseProxy(req, res) {
             await docRef.set({ [fieldPath]: data }, { merge: true });
           } else {
             await docRef.set(data);
+            // Mirror to Firestore (non-blocking)
+            firestoreSetDoc(collection, docId, data).catch(() => {});
           }
           result = data;
           break;
@@ -1921,12 +1932,16 @@ async function handleFirebaseProxy(req, res) {
             await docRef.set(updateData, { merge: true });
           } else {
             await docRef.set(data, { merge: true });
+            // Mirror to Firestore (non-blocking)
+            firestoreSetDoc(collection, docId, data).catch(() => {});
           }
           result = data;
           break;
         }
         case "delete": {
           await docRef.delete();
+          // Delete from Firestore too
+          try { const fdb = await initFirestoreFs(); if (fdb) await fdb.collection(collection).doc(docId).delete(); } catch {}
           result = true;
           break;
         }
