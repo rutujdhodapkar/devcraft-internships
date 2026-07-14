@@ -218,12 +218,24 @@ export default function App() {
 
   // Console greeting
   useEffect(() => {
-    console.log("  _____ _   _ ___ _   _  ___    ____  _____ _   _ ____");
-    console.log(" / ___/| \\ | |_ _| \\ | |/ _ \\  |  _ \\| ____| \\ | |  _ \\");
-    console.log("| |  _ |  \\| || ||  \\| | | | | | |_) |  _| |  \\| | | | |");
-    console.log("| |_| || |\\  || || |\\  | |_| | |  __/| |___| |\\  | |_| |");
-    console.log(" \\____||_| \\_|___|_| \\_|\\___/  |_|   |_____|_| \\_|____/");
-    console.log("%c⚠️ Complete your Tasks Legally instead of this MF", "color:#fff; background:#ff4444; font-size:14px; font-weight:bold; padding:4px 8px; border-radius:3px;");
+    console.log("%c   _____ ____  __  __ _____  _      ______ _______ ______  __     ______  _    _ _____  ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c  / ____/ __ \\|  \\/  |  __ \\| |    |  ____|__   __|  ____| \\ \\   / / __ \\| |  | |  __ \\ ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c | |   | |  | | \\  / | |__) | |    | |__     | |  | |__     \\ \\_/ / |  | | |  | | |__) |", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c | |   | |  | | |\\/| |  ___/| |    |  __|    | |  |  __|     \\   /| |  | | |  | |  _  / ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c | |___| |__| | |  | | |    | |____| |____   | |  | |____     | | | |__| | |__| | | \\ \\ ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c  \\_____\\____/|_|__|_|_|  __|______|______| _|_|__|______|    |_| _\\____/_\\____/|_|__\\_\\", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c |__   __|/\\    / ____| |/ // ____| | |    |  ____/ ____|   /\\   | |    | | \\ \\   / /   ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c    | |  /  \\  | (___ | ' /| (___   | |    | |__ | |  __   /  \\  | |    | |  \\ \\_/ /    ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c    | | / /\\ \\  \\___ \\|  <  \\___ \\  | |    |  __|| | |_ | / /\\ \\ | |    | |   \\   /     ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c    | |/ ____ \\ ____) | . \\ ____) | | |____| |___| |__| |/ ____ \\| |____| |____| |      ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c    |_/_/    \\_\\_____/|_|\\_\\_____/  |______|______\\_____/_/    \\_\\______|______|_|      ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c                                                                                        ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c                                                                                        ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c  _         _               _        __   _   _    _      __  __ ___ ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c (_)_ _  __| |_ ___ __ _ __| |  ___ / _| | |_| |_ (_)___ |  \\/  | __|", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c | | ' \\(_-<  _/ -_) _` / _` | / _ \\  _| |  _| ' \\| (_-< | |\\/| | _| ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c |_|_||_/__/\\__\\___\\__,_\\__,_| \\___/_|    \\__|_||_|_/__/ |_|  |_|_|  ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
+    console.log("%c                                                                     ", "color:#888; font-size:11px; line-height:1.2; font-family:monospace;");
     console.log("Contacts  : ceo@Fennark.xyz");
     console.log("Website   : https://www.fennark.xyz");
     console.log("Founder   : https://www.rutujdhodapkar.tech");
