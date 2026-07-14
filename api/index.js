@@ -1,5 +1,4 @@
 import { initCosmosDb, getSyncVersion, putSyncVersion } from "../server/cosmos.js";
-import { firestoreGetDoc, firestoreSetDoc, initFirestore as initFirestoreFs } from "../server/firestore.js";
 import { generateText, generateImage, buildPromoPrompt } from "../server/aiContent.js";
 
 const ROOT_ADMIN_EMAIL = "rutujdhodapkar@gmail.com";
@@ -98,8 +97,6 @@ async function bumpVersion(db, key) {
       const versions = vDoc?.value || {};
       versions[key] = now();
       await setDoc(db, "siteConfig", "configVersions", { value: versions, updatedAt: now() });
-      // Also write to Firebase Firestore manifest (cheap reads for client version checks)
-      try { await firestoreSetDoc("manifest", "shared-versions", { value: versions, updatedAt: now() }); } catch {}
       return;
     } catch (e) {
       // 412 Precondition Failed / 409 Conflict — concurrent write, retry
@@ -493,35 +490,20 @@ async function handleData(req, res, routeParts) {
         vers = vDoc?.value?.careerPaths || "";
       } catch {}
       try {
-        const fsPaths = await firestoreGetDoc("careerPaths", "_all");
-        if (fsPaths?.list) {
-          paths = fsPaths.list;
-          const fsCats = await firestoreGetDoc("siteConfig", "domainCategories");
-          categories = fsCats?.value || [];
-        } else {
-          throw new Error('no firestore data');
-        }
-      } catch {
         const cosPaths = await getDoc(db, "siteConfig", "careerPaths", null);
         paths = cosPaths?.value?.list || [];
         const cosCats = await getDoc(db, "siteConfig", "domainCategories", null);
         categories = cosCats?.value || [];
-      }
+      } catch {}
       return send(res, 200, { success: true, data: { paths, categories }, _v: vers }, 600);
     }
     const adminEmail = await requireAdmin(db, req, res);
     if (!adminEmail) return;
     const paths = req.body.paths || [];
-    try {
-      await firestoreSetDoc("careerPaths", "_all", { list: paths, updatedAt: now() });
-    } catch {}
     await replaceKeyedCollection(db, "careerPaths", paths, "path");
     await setDoc(db, "siteConfig", "careerPaths", { value: { list: paths }, updatedAt: now() });
     await bumpVersion(db, "careerPaths");
     if (req.body.categories) {
-      try {
-        await firestoreSetDoc("siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
-      } catch {}
       await setDoc(db, "siteConfig", "domainCategories", { value: req.body.categories, updatedAt: now() });
     }
     const ps = (await getDoc(db, "siteConfig", "paymentSettings", null))?.value || { defaultAmount: 200, defaultAmountReferral: 170, defaultTiming: "end" };
@@ -556,16 +538,11 @@ async function handleData(req, res, routeParts) {
             }
           } catch {}
         }
-        const fb = await firestoreGetDoc("courses", "_all");
-        if (fb?.list) {
-          return send(res, 200, { success: true, data: fb.list }, 600);
-        }
         const cos = await fallbackCourses(db);
         return send(res, 200, { success: true, data: cos }, 600);
       }
       return adminWrite(db, req, res, async () => {
         const list = req.body.list || [];
-        await firestoreSetDoc("courses", "_all", { list, updatedAt: now() });
         await setDoc(db, "siteConfig", "courses", { value: { list }, updatedAt: now() });
         await bumpVersion(db, "courses");
         return send(res, 200, { success: true, data: list });
@@ -587,14 +564,11 @@ async function handleData(req, res, routeParts) {
           const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
           vers = vDoc?.value?.courses || "";
         } catch {}
-        const fb = await firestoreGetDoc("courseContent", id);
-        if (fb) return send(res, 200, { success: true, data: fb, _v: vers });
         const cos = await fallbackContent(db, id);
         if (cos) return send(res, 200, { success: true, data: cos, _v: vers });
         return send(res, 404, { success: false, message: "Course content not found" });
       }
       return adminWrite(db, req, res, async () => {
-        await firestoreSetDoc("courseContent", id, { ...req.body, updatedAt: now() });
         await setDoc(db, "siteConfig", `courseContent_${id}`, { value: req.body, updatedAt: now() });
         return send(res, 200, { success: true, data: req.body });
       });
@@ -604,15 +578,12 @@ async function handleData(req, res, routeParts) {
   // ── Course Enrollment ──
   async function fetchCourseContentFromPaths(courseId) {
     try {
-      const fsPaths = await firestoreGetDoc("careerPaths", "_all");
-      const list = fsPaths?.list || [];
-      const path = list.find(p => p.id === courseId);
-      return path?.content || null;
-    } catch {
       const cosPaths = await getDoc(db, "siteConfig", "careerPaths", null);
       const list = cosPaths?.value?.list || [];
       const path = list.find(p => p.id === courseId);
       return path?.content || null;
+    } catch {
+      return null;
     }
   }
   if (resource === "course-enroll") {
@@ -621,8 +592,7 @@ async function handleData(req, res, routeParts) {
       const decoded = await verifyFirebaseToken(idToken);
       if (!decoded) return send(res, 401, { success: false, message: "Authentication required" });
       if (!courseId) return send(res, 400, { success: false, message: "courseId required" });
-      const firestorePaths = await firestoreGetDoc("careerPaths", "_all");
-      const paths = firestorePaths?.list || (await getDoc(db, "siteConfig", "careerPaths", null))?.value?.list || [];
+      const paths = (await getDoc(db, "siteConfig", "careerPaths", null))?.value?.list || [];
       const course = paths.find((path) => path?.id === courseId && path.type === "course");
       if (!course) return send(res, 404, { success: false, message: "Course not found" });
       const existing = await db.collection("enrollments").where("uid", "==", decoded.uid).get();
@@ -1871,8 +1841,6 @@ async function handleFirebaseProxy(req, res) {
       } else if (action === "push") {
         const docRef = await colRef.add(data);
         result = { id: docRef.id, ...data };
-        // Mirror to Firestore (non-blocking)
-        firestoreSetDoc(collection, docRef.id, data).catch(() => {});
       } else if (action === "query") {
         let q = colRef;
         if (query?.orderBy && query?.equalTo !== undefined) q = q.where(query.orderBy, "==", query.equalTo);
@@ -1894,16 +1862,10 @@ async function handleFirebaseProxy(req, res) {
 
       switch (action) {
         case "get": {
-          // Try Firebase Firestore first (free reads), fall back to Cosmos (costs RU)
           let docData = null;
-          if (!fieldPath) {
-            try { const fs = await firestoreGetDoc(collection, docId); if (fs) docData = fs; } catch {}
-          }
-          if (!docData) {
-            const snap = await docRef.get(readOpts);
-            if (!snap.exists) { result = null; break; }
-            docData = snap.data();
-          }
+          const snap = await docRef.get(readOpts);
+          if (!snap.exists) { result = null; break; }
+          docData = snap.data();
           if (fieldPath) {
             const val = fieldPath.split(".").reduce((obj, key) => obj?.[key], docData);
             result = val !== undefined ? val : null;
@@ -1917,8 +1879,6 @@ async function handleFirebaseProxy(req, res) {
             await docRef.set({ [fieldPath]: data }, { merge: true });
           } else {
             await docRef.set(data);
-            // Mirror to Firestore (non-blocking)
-            firestoreSetDoc(collection, docId, data).catch(() => {});
           }
           result = data;
           break;
@@ -1932,16 +1892,12 @@ async function handleFirebaseProxy(req, res) {
             await docRef.set(updateData, { merge: true });
           } else {
             await docRef.set(data, { merge: true });
-            // Mirror to Firestore (non-blocking)
-            firestoreSetDoc(collection, docId, data).catch(() => {});
           }
           result = data;
           break;
         }
         case "delete": {
           await docRef.delete();
-          // Delete from Firestore too
-          try { const fdb = await initFirestoreFs(); if (fdb) await fdb.collection(collection).doc(docId).delete(); } catch {}
           result = true;
           break;
         }
