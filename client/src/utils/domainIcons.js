@@ -34,6 +34,7 @@ const idIconMap = {
 
 export function getDomainIconUrl(domain) {
   if (domain?.iconUrl) return domain.iconUrl;
+  if (domain?.icon) return domain.icon;
 
   const domainId = domain?.id;
   if (domainId && idIconMap[domainId]) {
@@ -47,13 +48,6 @@ export function getDomainIconUrl(domain) {
   return `${PULSAR_COLOR_BASE}${match?.[1] || "development.png"}`;
 }
 
-const COLORS = ["#e74c3c","#3498db","#2ecc71","#f39c12","#9b59b6","#1abc9c","#e67e22","#34495e"];
-
-export function onIconError(e, domain) {
-  if (e.target.dataset.fallback) return;
-  e.target.dataset.fallback = "1";
-  const label = typeof domain === "string" ? domain : (domain?.title || domain?.name || domain?.id || "");
-  const char = label.trim().charAt(0).toUpperCase() || "?";
-  const color = COLORS[char.charCodeAt(0) % COLORS.length];
-  e.target.src = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="16" fill="${color}"/><text x="48" y="48" dominant-baseline="central" text-anchor="middle" font-family="system-ui,sans-serif" font-size="40" font-weight="700" fill="#fff">${char}</text></svg>`)}`;
+export function hideOnError(e) {
+  e.target.style.display = "none";
 }

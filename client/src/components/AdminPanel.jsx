@@ -2897,6 +2897,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       projects: [
                         { title: "Project 1", description: "", links: [] },
                       ],
+                      icon: "",
                       paymentQr: "",
                     },
                   ])
@@ -3025,6 +3026,22 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           style={s}
                         />
                       </div>
+                    </div>
+                    <div style={{ marginBottom: "0.75rem" }}>
+                      <label style={{ fontSize: "0.75rem", fontWeight: 700, display: "block", marginBottom: "0.25rem" }}>
+                        Icon URL <span style={{ fontWeight: 400, color: "#888" }}>(Icons8 CDN link, optional)</span>
+                      </label>
+                      <input
+                        className="input-sharp"
+                        value={path.icon || ""}
+                        onChange={(e) => {
+                          const u = [...careerPaths];
+                          u[idx].icon = e.target.value;
+                          setCareerPaths(u);
+                        }}
+                        placeholder="https://img.icons8.com/..."
+                        style={s}
+                      />
                     </div>
                     <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
                       <div>
