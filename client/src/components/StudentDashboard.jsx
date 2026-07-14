@@ -168,7 +168,7 @@ export default function StudentDashboard({
       const email = user.email;
       const hiddenIds = () => getHiddenEnrollments(uid);
       const applyEnrollments = (list) => {
-        const active = (list || []).filter((e) => !hiddenIds().includes(e.id));
+        const active = (list || []).filter((e) => !hiddenIds().includes(e.id) && e.status !== "Deleted");
         setAllData(list || []);
         setEnrollments(active);
         // Keep the selected internship when possible; otherwise show the first.
@@ -524,12 +524,12 @@ export default function StudentDashboard({
             <span style={{ display: "inline-block", backgroundColor: "#000", color: "#fff", fontSize: "0.7rem", fontWeight: 900, letterSpacing: "2px", padding: "0.3rem 0.75rem", marginBottom: "0.5rem", textTransform: "uppercase" }}>INTERN DASHBOARD</span>
             <h2 style={{ fontSize: "1.6rem", fontWeight: 900, textTransform: "uppercase", margin: 0 }}>Welcome, {user.displayName?.split(" ")[0] || "Intern"}</h2>
           </div>
-          {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length > 0 && (
+          {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed" && e.status !== "Deleted").length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "1rem", background: "#f5f5f5", padding: "0.75rem 1.25rem", border: "1px solid #ddd" }}>
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontSize: "1.5rem", fontWeight: 900, color: "#000" }}>
                   {(() => {
-                    const active = enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed");
+                    const active = enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed" && e.status !== "Deleted");
                     if (!active.length) return "0";
                     const earliest = active.reduce((min, e) => {
                       const d = e.deadline || e.createdAt;
@@ -547,7 +547,7 @@ export default function StudentDashboard({
                 <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.25rem" }}>Progress</div>
                 <div style={{ height: "8px", background: "#e0e0e0", border: "1px solid #000", borderRadius: "4px", overflow: "hidden" }}>
                   <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, (() => {
-                    const active = enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed");
+                    const active = enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed" && e.status !== "Deleted");
                     if (!active.length) return 0;
                     const earliest = active.reduce((min, e) => {
                       const d = e.deadline || e.createdAt;
@@ -748,7 +748,7 @@ export default function StudentDashboard({
             <div style={{ border: "2px solid #000", padding: "1.5rem", background: "#fff", boxShadow: "3px 3px 0 #000", marginBottom: "1.5rem" }}>
               <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", marginBottom: "0.5rem" }}>Welcome!</h3>
               <p style={{ color: "#555", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "1rem" }}>
-                You are enrolled in {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length} active internship{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length !== 1 ? "s" : ""}.
+                You are enrolled in {enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed" && e.status !== "Deleted").length} active internship{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed" && e.status !== "Deleted").length !== 1 ? "s" : ""}.
                 Complete your projects and get verified to earn your certificate.
               </p>
               {enrollments.length > 0 && (
@@ -783,7 +783,7 @@ export default function StudentDashboard({
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
               <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
-                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed").length}</div>
+                <div style={{ fontSize: "2rem", fontWeight: 900 }}>{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed" && e.status !== "Deleted").length}</div>
                 <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "#888" }}>Active Internships</div>
               </div>
               <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
@@ -799,7 +799,7 @@ export default function StudentDashboard({
         ) : activeTab === "tasks" ? (
           <div>
             {(() => {
-            const tasksEnrollments = enrollments.filter(e => e.status !== "Completed" && e.status !== "Archived");
+            const tasksEnrollments = enrollments.filter(e => e.status !== "Completed" && e.status !== "Archived" && e.status !== "Deleted");
             return (<>
             <div className="tasks-scroll-hint" style={{ display: "none", background: "#fffde7", border: "2px solid #f9a825", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", fontWeight: 600, borderRadius: 0, textAlign: "center" }}>
               On mobile? Please tap <strong>Open Dashboard</strong> above or scroll horizontally to view all tasks.
@@ -984,7 +984,7 @@ export default function StudentDashboard({
         ) : activeTab === "completed" ? (
           <div>
             {(() => {
-              const completedEnrollments = enrollments.filter(e => e.status === "Completed" || e.allowedCertificate === "yes");
+              const completedEnrollments = enrollments.filter(e => e.status !== "Deleted" && (e.status === "Completed" || e.allowedCertificate === "yes"));
               if (completedEnrollments.length === 0) {
                 return (
                   <div style={{ border: "2px solid #000", padding: "2rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>

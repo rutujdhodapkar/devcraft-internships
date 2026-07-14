@@ -571,7 +571,7 @@ export async function enrollStudent(uid, profile, domainObj) {
   const enrollment = {
     internId, uid, name: profile.name || profile.displayName || "Student", email: profile.email || "", photoURL: profile.photoURL || "",
     phone: profile.phone || "", college: profile.college || "", city: profile.city || "", country: profile.country || "", upiId: profile.upiId || "",
-    domain: domainObj.title || domainObj.name || "", domainId: domainObj.id || "", projects: domainObj.projects || [],
+    domain: domainObj.title || domainObj.name || "", domainId: domainObj.id || "", projects: [{ title: "LinkedIn Post", description: "Create and share a LinkedIn post announcing your enrollment in the DEV/CRAFT internship program.", type: "text" }, ...(domainObj.projects || [])],
     duration: domainObj.duration || "",
     referralCode: refCode, status: "Active", allowedCertificate: "no", submissions: {},
     deadline, createdAt, updatedAt: createdAt,

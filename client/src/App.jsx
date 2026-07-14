@@ -219,11 +219,11 @@ export default function App() {
 
   // Console greeting
   useEffect(() => {
-    console.log("%c⚠️ Complete your Tasks Legally instead of this MF", "font-size:16px; font-weight:bold; color:#000; background:#fff; padding:12px 18px; border-radius:6px; line-height:1.6;");
-    console.log("Contacts  : ceo@Fennark.xyz");
-    console.log("Website   : https://www.fennark.xyz");
-    console.log("Founder   : https://www.rutujdhodapkar.tech");
-    console.log("Contact   : https://contact.rutujdhodapkar.tech");
+    console.log("%c╔══════════════════════════════════════╗\n║  Complete your Tasks Legally          ║\n║  instead of this MF                   ║\n╚══════════════════════════════════════╝", "color:#fff; background:#555; padding:4px 8px; font-size:12px; font-family:monospace;");
+    console.log("Contacts : ceo@Fennark.xyz");
+    console.log("Website  : https://www.fennark.xyz");
+    console.log("Founder  : https://www.rutujdhodapkar.tech");
+    console.log("Contact  : https://contact.rutujdhodapkar.tech");
   }, []);
 
   // Monitor manual console commands and report to admin panel

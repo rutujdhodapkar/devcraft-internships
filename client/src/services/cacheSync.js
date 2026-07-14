@@ -293,7 +293,6 @@ export async function syncBuckets(items, opts = {}) {
     await markVersionChecked(userId).catch(() => {});
   } catch (e) {
     // Version endpoint down: keep serving cache silently, retry in background.
-    console.warn("[cacheSync] /sync/versions failed; serving cache, retrying:", e.message);
     scheduleRetry(`versions:${userId}`, attempt, (a) =>
       syncBuckets(items, { ...opts, _attempt: a })
     );
@@ -325,8 +324,7 @@ export async function syncBuckets(items, opts = {}) {
       results[bucket] = data;
       if (onBucket) onBucket(bucket, data, { changed: true });
     } catch (err) {
-      // Fetch failed: keep OLD cached version, log, retry with backoff. Never blank.
-      console.warn(`[cacheSync] fetch failed for "${bucket}" (keeping old cache, retrying):`, err.message);
+      // Fetch failed: keep OLD cached version, retry with backoff. Never blank.
       scheduleRetry(`bucket:${userId}:${bucket}`, 0, async () => {
         try {
           const data = await fetcher();
@@ -334,7 +332,6 @@ export async function syncBuckets(items, opts = {}) {
           await putLocalVersion(bucket, serverVer, userId);
           if (onBucket) onBucket(bucket, data, { changed: true });
         } catch (e2) {
-          console.warn(`[cacheSync] retry failed for "${bucket}":`, e2.message);
           throw e2; // re-thrown so scheduleRetry reschedules
         }
       });
@@ -395,7 +392,7 @@ export function startSyncLoop(userId, email, opts = {}) {
     if (now - last < minCheckInterval) return; // recently verified → skip point-read
     if (typeof onSync === "function") {
       try { await onSync(); }
-      catch (e) { console.warn("[cacheSync] loop sync failed:", e.message); }
+      catch (e) {}
     }
   };
 

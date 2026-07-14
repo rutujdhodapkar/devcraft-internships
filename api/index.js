@@ -1005,7 +1005,7 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
       upiId: profile.upiId || "",
       domain: domain.title || domain.name || "",
       domainId: domain.id || "",
-      projects: domain.projects || [],
+      projects: [{ title: "LinkedIn Post", description: "Create and share a LinkedIn post announcing your enrollment in the DEV/CRAFT internship program.", type: "text" }, ...(domain.projects || [])],
       referralCode: refCode,
       status: "Active",
       allowedCertificate: "no",
@@ -2275,7 +2275,7 @@ export default async function handler(req, res) {
     if (parts[0] === "payment-history" && parts[1]) return handlePaymentHistory(req, res, parts[1]);
     if (parts[0] === "auto-expire-enrollments") return handleAutoExpire(req, res);
     if (parts[0] === "sync" && parts[1] === "versions") return handleSyncVersions(req, res);
-    console.warn("Unmatched API route:", { url: rawUrl, method: req.method, path: reqPath, parts, first: parts[0] });
+    if (parts[0] === "rates") return send(res, 200, { success: true, rates: { USD: 1, INR: 83.5, EUR: 0.93, GBP: 0.79, CAD: 1.37, AUD: 1.51, JPY: 157.4 } });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {
     console.error("API error:", error);
