@@ -777,9 +777,6 @@ export default function StudentDashboard({
                 </div>
               )}
             </div>
-            <div style={{ border: "2px solid #000", padding: "0.75rem 1rem", background: "#fffde7", marginBottom: "1rem", fontSize: "0.82rem", fontWeight: 600, display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              Tip: Once you receive your certificate, share it on LinkedIn to showcase your achievement!
-            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
               <div style={{ border: "2px solid #000", padding: "1.25rem", background: "#fff", boxShadow: "3px 3px 0 #000", textAlign: "center" }}>
                 <div style={{ fontSize: "2rem", fontWeight: 900 }}>{enrollments.filter(e => e.status !== "Archived" && e.status !== "Completed" && e.status !== "Deleted").length}</div>
