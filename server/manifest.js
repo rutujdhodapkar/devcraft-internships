@@ -16,7 +16,7 @@ let _manifestCache = null;
 let _cacheTs = 0;
 
 function bumpTimestamp() {
-  return Date.now().toString(36);
+  return Math.floor(Date.now() / 86400000).toString(36);
 }
 
 // ── Public API ──

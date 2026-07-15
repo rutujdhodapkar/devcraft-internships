@@ -88,6 +88,10 @@ function now() {
   return new Date().toISOString();
 }
 
+function dailyVersion() {
+  return Math.floor(Date.now() / 86400000).toString(36);
+}
+
 async function bumpVersion(db, key) {
   let attempt = 0;
   const maxRetries = 4;
@@ -95,7 +99,7 @@ async function bumpVersion(db, key) {
     try {
       const vDoc = await getDoc(db, "siteConfig", "configVersions", null);
       const versions = vDoc?.value || {};
-      versions[key] = now();
+      versions[key] = dailyVersion();
       await setDoc(db, "siteConfig", "configVersions", { value: versions, updatedAt: now() });
       return;
     } catch (e) {
