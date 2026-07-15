@@ -34,7 +34,7 @@ const idIconMap = {
 
 export function getDomainIconUrl(domain) {
   if (domain?.iconUrl) return domain.iconUrl;
-  if (domain?.icon) return domain.icon;
+  if (domain?.icon && !domain.icon.includes("<a ")) return domain.icon;
 
   const domainId = domain?.id;
   if (domainId && idIconMap[domainId]) {

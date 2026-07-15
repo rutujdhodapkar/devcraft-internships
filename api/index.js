@@ -92,6 +92,38 @@ function dailyVersion() {
   return Math.floor(Date.now() / 86400000).toString(36);
 }
 
+// ── RTDB version manifest write (fire-and-forget) ──
+let _rtdbInit = false;
+let _rtdb = null;
+
+async function getRtdb() {
+  if (_rtdb) return _rtdb;
+  if (_rtdbInit) return null;
+  _rtdbInit = true;
+  try {
+    const { getApps, initializeApp, cert } = await import("firebase-admin/app");
+    const { getDatabase } = await import("firebase-admin/database");
+    if (!getApps().length) {
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+      if (!raw) { console.warn("[rtdb] FIREBASE_SERVICE_ACCOUNT not configured"); return null; }
+      initializeApp({ credential: cert(JSON.parse(raw)) });
+    }
+    _rtdb = getDatabase();
+    return _rtdb;
+  } catch (e) { console.warn("[rtdb] init failed:", e.message); return null; }
+}
+
+async function bumpRtdbVersion(key) {
+  const db = await getRtdb();
+  if (!db) return;
+  try {
+    const snap = await db.ref("manifest/versions").once("value");
+    const versions = snap.val() || {};
+    versions[key] = dailyVersion();
+    await db.ref("manifest/versions").set(versions);
+  } catch {}
+}
+
 async function bumpVersion(db, key) {
   let attempt = 0;
   const maxRetries = 4;
@@ -101,6 +133,8 @@ async function bumpVersion(db, key) {
       const versions = vDoc?.value || {};
       versions[key] = dailyVersion();
       await setDoc(db, "siteConfig", "configVersions", { value: versions, updatedAt: now() });
+      // Also write to Firebase RTDB (fire-and-forget)
+      bumpRtdbVersion(key);
       return;
     } catch (e) {
       // 412 Precondition Failed / 409 Conflict — concurrent write, retry
