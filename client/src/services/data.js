@@ -1253,7 +1253,10 @@ export async function verifyTaskWithAI(params) {
 }
 
 export async function fetchAiPendingEnrollments() {
-  return dbQueryList("enrollments", "status", "Active");
+  try {
+    const res = await apiFetch("/api/data/enrollments");
+    return (res.data || []).filter(e => e.status === "Active");
+  } catch { return []; }
 }
 
 export async function fetchUPISettings() {
