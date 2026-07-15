@@ -2,18 +2,16 @@ import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from 'react';
 import { fetchCareerPaths, fetchHomepageSettings } from '../services/data';
 import { getDomainIconUrl, hideOnError } from '../utils/domainIcons';
-import { enrichProject, getTotalXp } from '../utils/taskEnricher';
+import { enrichProject } from '../utils/taskEnricher';
 
 const COLS = 3;
 
 function PathCard({ path, onApply }) {
-  const totalXp = getTotalXp(path.projects);
   return (
     <div className="card-sharp card-interactive" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '2.25rem', border: '2px solid #000', boxShadow: '4px 4px 0 #000', backgroundColor: '#fff', transition: 'transform 0.2s, box-shadow 0.2s', position: 'relative' }}>
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <span className="badge-sharp" style={{ backgroundColor: '#000', color: '#fff', fontSize: '0.8rem' }}>{path.duration || '4 Weeks'}</span>
-          <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#fff', background: '#f59e0b', padding: '0.2rem 0.55rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>+{totalXp} XP</span>
         </div>
         <img src={getDomainIconUrl(path)} alt="" width="56" height="56" style={{ width: '56px', height: '56px', objectFit: 'contain', marginBottom: '1rem' }} onError={hideOnError} />
         <h3 style={{ fontSize: '1.4rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1rem' }}>{path.title}</h3>
@@ -40,7 +38,6 @@ function PathCard({ path, onApply }) {
                 return (
                   <span key={i} className="badge-sharp" style={{ backgroundColor: '#f5f5f5', color: '#333', fontSize: '0.72rem', border: '1px solid #ccc', padding: '0.2rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                     {enriched.title || `Task ${i + 1}`}
-                    <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#fff', background: '#f59e0b', padding: '0.05rem 0.3rem' }}>+{enriched.xp}</span>
                   </span>
                 );
               })}

@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { fetchSiteConfig } from '../services/data';
 
 const DEFAULT_REWARDS = [
-  { xp: 5000, label: 'Bronze Badge', desc: 'Complete 50 tasks' },
-  { xp: 10000, label: 'Silver Badge', desc: 'Complete 100 tasks' },
-  { xp: 25000, label: 'Gold Badge', desc: 'Complete 250 tasks' },
-  { xp: 50000, label: 'Platinum Badge', desc: 'Complete 500 tasks' },
-  { xp: 100000, label: 'Master Badge', desc: 'Complete 1000 tasks' },
+  { xp: 3000, label: 'Bronze Badge', desc: 'Complete 1 internship' },
+  { xp: 6000, label: 'Silver Badge', desc: 'Complete 2 internships' },
+  { xp: 12000, label: 'Gold Badge', desc: 'Complete 4 internships' },
+  { xp: 25000, label: 'Platinum Badge', desc: 'Complete 8 internships' },
+  { xp: 50000, label: 'Diamond Badge', desc: 'Complete 16 internships' },
+  { xp: 100000, label: 'Master Badge', desc: 'Complete 32 internships' },
 ];
 
 function XpDetailsModal({ show, onClose, xpConfig }) {
@@ -33,16 +34,8 @@ function XpDetailsModal({ show, onClose, xpConfig }) {
 
           <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", padding: "1rem", border: "2px solid #000", background: "#000", color: "#fff" }}>
             <div style={{ textAlign: "center", flex: 1 }}>
-              <div style={{ fontSize: "2rem", fontWeight: 900, color: "#f59e0b" }}>100</div>
-              <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#ccc" }}>Per Task</div>
-            </div>
-            <div style={{ textAlign: "center", flex: 1 }}>
-              <div style={{ fontSize: "2rem", fontWeight: 900, color: "#fff" }}>15</div>
-              <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#ccc" }}>Min / Task</div>
-            </div>
-            <div style={{ textAlign: "center", flex: 1 }}>
-              <div style={{ fontSize: "2rem", fontWeight: 900, color: "#fff" }}>Free</div>
-              <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#ccc" }}>Cost</div>
+              <div style={{ fontSize: "1.3rem", fontWeight: 900, color: "#f59e0b" }}>Your Gained XP: 0</div>
+              <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#ccc" }}>XP will be counted after payment</div>
             </div>
           </div>
 
@@ -52,8 +45,8 @@ function XpDetailsModal({ show, onClose, xpConfig }) {
               <div key={i} style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.75rem 1rem", border: "2px solid #000", background: "#fafafa", boxShadow: "2px 2px 0 #000" }}>
                 <div style={{ width: "70px", textAlign: "center", fontWeight: 900, fontSize: "0.85rem", color: "#f59e0b", flexShrink: 0 }}>{r.xp.toLocaleString()} XP</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 800, fontSize: "0.88rem", textTransform: "uppercase" }}>{r.label}</div>
-                  <div style={{ fontSize: "0.75rem", color: "#888" }}>{r.desc}</div>
+                  <div style={{ fontWeight: 800, fontSize: "0.88rem", textTransform: "uppercase" }}>Exclusive reward hidden</div>
+                  <div style={{ fontSize: "0.75rem", color: "#888" }}>Complete tasks to unlock</div>
                 </div>
               </div>
             ))}
@@ -105,14 +98,9 @@ export default function RewardsSection() {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
           <div className="card-sharp" style={{ padding: '2rem', textAlign: 'center', border: '2px solid #000', boxShadow: '4px 4px 0 #000', background: '#000', color: '#fff' }}>
-            <div style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '0.25rem', color: '#f59e0b' }}>100</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: '#ccc' }}>XP Per Task</div>
-            <div style={{ fontSize: '0.78rem', color: '#888', marginTop: '0.5rem' }}>Every task you complete earns 100 XP</div>
-          </div>
-          <div className="card-sharp" style={{ padding: '2rem', textAlign: 'center', border: '2px solid #000', boxShadow: '4px 4px 0 #000' }}>
-            <div style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '0.25rem' }}>{'\u2B50'}</div>
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase' }}>Level Up</div>
-            <div style={{ fontSize: '0.78rem', color: '#888', marginTop: '0.5rem' }}>Earn XP to level up and unlock new achievements</div>
+            <div style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '0.25rem', color: '#f59e0b' }}>{'\u2B50'}</div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: '#ccc' }}>Level Up</div>
+            <div style={{ fontSize: '0.78rem', color: '#888', marginTop: '0.5rem' }}>Unlock achievements as you progress</div>
           </div>
           <div className="card-sharp" style={{ padding: '2rem', textAlign: 'center', border: '2px solid #000', boxShadow: '4px 4px 0 #000' }}>
             <div style={{ fontSize: '3rem', fontWeight: 900, marginBottom: '0.25rem' }}>{'\uD83C\uDFC6'}</div>
@@ -129,8 +117,8 @@ export default function RewardsSection() {
                 {r.xp.toLocaleString()} XP
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, fontSize: '0.9rem', textTransform: 'uppercase' }}>{r.label}</div>
-                <div style={{ fontSize: '0.78rem', color: '#888' }}>{r.desc}</div>
+                <div style={{ fontWeight: 800, fontSize: '0.9rem', textTransform: 'uppercase' }}>Exclusive reward hidden</div>
+                <div style={{ fontSize: '0.78rem', color: '#888' }}>Complete tasks to unlock</div>
               </div>
               <div style={{ fontSize: '1.5rem' }}>{i < milestones.length - 1 ? '\u2192' : '\uD83C\uDFC6'}</div>
             </div>
@@ -149,13 +137,12 @@ export default function RewardsSection() {
         </div>
 
         <div style={{ textAlign: 'center', marginTop: '1.5rem', padding: '1.5rem', border: '2px solid #000', background: '#fffde7', maxWidth: '600px', margin: '1.5rem auto 0' }}>
-          <div style={{ fontSize: '1.1rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '0.5rem' }}>How XP Works</div>
+          <div style={{ fontSize: '1.1rem', fontWeight: 900, textTransform: 'uppercase', marginBottom: '0.5rem' }}>Progress Tracking</div>
           <div style={{ fontSize: '0.88rem', color: '#555', lineHeight: '1.6', textAlign: 'left' }}>
-            <div style={{ marginBottom: '0.4rem' }}>1. Enroll in any internship domain (free)</div>
-            <div style={{ marginBottom: '0.4rem' }}>2. Complete each task and submit your work</div>
-            <div style={{ marginBottom: '0.4rem' }}>3. Earn 100 XP per verified task</div>
-            <div style={{ marginBottom: '0.4rem' }}>4. Reach milestones to unlock badges</div>
-            <div style={{ marginBottom: '0.4rem' }}>5. Complete all tasks to get your certificate</div>
+            <div style={{ marginBottom: '0.4rem' }}>1. Complete tasks and submit your work</div>
+            <div style={{ marginBottom: '0.4rem' }}>2. Get verified by the team</div>
+            <div style={{ marginBottom: '0.4rem' }}>3. Reach milestones to unlock rewards</div>
+            <div style={{ marginBottom: '0.4rem' }}>4. Complete all tasks to get your certificate</div>
           </div>
         </div>
       </div>

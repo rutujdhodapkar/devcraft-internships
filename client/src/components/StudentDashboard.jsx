@@ -2287,10 +2287,7 @@ function ProjectBox({
                 ))}
               </div>
             )}
-            <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#fff', background: '#000', padding: '0.15rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{displayTime}</span>
-              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#fff', background: '#f59e0b', padding: '0.15rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>+{displayXp} XP</span>
-            </div>
+
             {documents && documents.length > 0 && (
               <button
                 onClick={() => onLearnHere && onLearnHere()}
