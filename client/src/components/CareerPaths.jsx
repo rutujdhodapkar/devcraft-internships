@@ -2,17 +2,18 @@ import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from 'react';
 import { fetchCareerPaths, fetchHomepageSettings } from '../services/data';
 import { getDomainIconUrl, hideOnError } from '../utils/domainIcons';
-import { enrichProject } from '../utils/taskEnricher';
+import { enrichProject, getTotalXp } from '../utils/taskEnricher';
 
 const COLS = 3;
 
 function PathCard({ path, onApply }) {
+  const totalXp = getTotalXp(path.projects);
   return (
     <div className="card-sharp card-interactive" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '2.25rem', border: '2px solid #000', boxShadow: '4px 4px 0 #000', backgroundColor: '#fff', transition: 'transform 0.2s, box-shadow 0.2s', position: 'relative' }}>
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <span className="badge-sharp" style={{ backgroundColor: '#000', color: '#fff', fontSize: '0.8rem' }}>{path.duration || '4 Weeks'}</span>
-          <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-secondary)' }}>100% Free</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 900, color: '#fff', background: '#f59e0b', padding: '0.2rem 0.55rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>+{totalXp} XP</span>
         </div>
         <img src={getDomainIconUrl(path)} alt="" width="56" height="56" style={{ width: '56px', height: '56px', objectFit: 'contain', marginBottom: '1rem' }} onError={hideOnError} />
         <h3 style={{ fontSize: '1.4rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '1rem' }}>{path.title}</h3>
@@ -32,18 +33,15 @@ function PathCard({ path, onApply }) {
         )}
         {Array.isArray(path.projects) && path.projects.length > 0 && (
           <div style={{ marginBottom: '2rem' }}>
-            <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px', marginBottom: '0.75rem', color: '#000' }}>Hands-on Projects:</h4>
+            <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px', marginBottom: '0.75rem', color: '#000' }}>Tasks ({path.projects.length}):</h4>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
               {path.projects.map((proj, i) => {
                 const enriched = enrichProject(proj, i);
                 return (
-                  <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', background: '#f5f5f5', border: '1px solid #ccc', padding: '0.35rem 0.6rem' }}>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#333' }}>{enriched.title || `Task ${i + 1}`}</span>
-                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#fff', background: '#000', padding: '0.1rem 0.35rem' }}>{enriched.timeToFinish}</span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#fff', background: '#f59e0b', padding: '0.1rem 0.35rem' }}>+{enriched.xp} XP</span>
-                    </div>
-                  </div>
+                  <span key={i} className="badge-sharp" style={{ backgroundColor: '#f5f5f5', color: '#333', fontSize: '0.72rem', border: '1px solid #ccc', padding: '0.2rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                    {enriched.title || `Task ${i + 1}`}
+                    <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#fff', background: '#f59e0b', padding: '0.05rem 0.3rem' }}>+{enriched.xp}</span>
+                  </span>
                 );
               })}
             </div>

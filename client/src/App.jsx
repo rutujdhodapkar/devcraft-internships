@@ -30,6 +30,7 @@ import McpDashboard from "./components/McpDashboard";
 import UniversityOrgPage from "./components/UniversityOrgPage";
 import RewardsSection from "./components/RewardsSection";
 import WelcomePopup from "./components/WelcomePopup";
+import XpRewardsPopup from "./components/XpRewardsPopup";
 import { notify } from "./services/notify";
 import { getDomainIconUrl, hideOnError } from "./utils/domainIcons";
 import { detectDialCode } from "./utils/currency";
@@ -214,6 +215,7 @@ export default function App() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupSettings, setPopupSettings] = useState(null);
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+  const [showXpPopup, setShowXpPopup] = useState(false);
   const [homeCourses, setHomeCourses] = useState([]);
   const [homeLayout, setHomeLayout] = useState(null);
   const [courseCategory, setCourseCategory] = useState("All");
@@ -1837,7 +1839,11 @@ export default function App() {
       />
       <WelcomePopup
         show={showWelcomePopup}
-        onClose={() => { setShowWelcomePopup(false); localStorage.setItem('welcomePopupSeen', '1'); }}
+        onClose={() => { setShowWelcomePopup(false); localStorage.setItem('welcomePopupSeen', '1'); setShowXpPopup(true); }}
+      />
+      <XpRewardsPopup
+        show={showXpPopup}
+        onClose={() => setShowXpPopup(false)}
       />
       <MessageBox />
       <ConfirmModal />
