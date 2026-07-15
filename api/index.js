@@ -868,6 +868,19 @@ async function handleData(req, res, routeParts) {
         paymentMethod: enr.paymentMethod || "UPI",
         transactionId: enr.transactionId || enr.dodoPaymentId || "",
         status: enr.paymentStatus || "",
+        college: enr.college || "",
+        city: enr.city || "",
+        country: enr.country || "",
+        phone: enr.phone || "",
+        duration: enr.duration || "",
+        internId: enr.internId || id,
+        paidAt: enr.paidAt || "",
+        paymentCurrency: enr.paymentCurrency || "INR",
+        paidAmount: enr.paidAmount || enr.paymentAmount || 0,
+        paymentGateway: enr.paymentGateway || "Dodo",
+        referralCode: enr.referralCode || "",
+        upiId: enr.upiId || "",
+        paymentStage: enr.paymentStage || "",
       }
     });
   }

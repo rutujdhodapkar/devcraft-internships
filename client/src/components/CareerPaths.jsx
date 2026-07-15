@@ -2,6 +2,7 @@ import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from 'react';
 import { fetchCareerPaths, fetchHomepageSettings } from '../services/data';
 import { getDomainIconUrl, hideOnError } from '../utils/domainIcons';
+import { enrichProject } from '../utils/taskEnricher';
 
 const COLS = 3;
 
@@ -33,9 +34,18 @@ function PathCard({ path, onApply }) {
           <div style={{ marginBottom: '2rem' }}>
             <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.5px', marginBottom: '0.75rem', color: '#000' }}>Hands-on Projects:</h4>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-              {path.projects.map((proj, i) => (
-                <span key={i} className="badge-sharp" style={{ backgroundColor: '#f5f5f5', color: '#333', fontSize: '0.72rem', border: '1px solid #ccc', padding: '0.2rem 0.5rem' }}>{typeof proj === 'object' && proj !== null ? (proj.title || proj.name || `Task ${i + 1}`) : proj}</span>
-              ))}
+              {path.projects.map((proj, i) => {
+                const enriched = enrichProject(proj, i);
+                return (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', background: '#f5f5f5', border: '1px solid #ccc', padding: '0.35rem 0.6rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#333' }}>{enriched.title || `Task ${i + 1}`}</span>
+                    <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#fff', background: '#000', padding: '0.1rem 0.35rem' }}>{enriched.timeToFinish}</span>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#fff', background: '#f59e0b', padding: '0.1rem 0.35rem' }}>+{enriched.xp} XP</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

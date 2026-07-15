@@ -28,6 +28,8 @@ import MessageBox from "./components/MessageBox";
 import ConfirmModal from "./components/ConfirmModal";
 import McpDashboard from "./components/McpDashboard";
 import UniversityOrgPage from "./components/UniversityOrgPage";
+import RewardsSection from "./components/RewardsSection";
+import WelcomePopup from "./components/WelcomePopup";
 import { notify } from "./services/notify";
 import { getDomainIconUrl, hideOnError } from "./utils/domainIcons";
 import { detectDialCode } from "./utils/currency";
@@ -211,6 +213,7 @@ export default function App() {
   const [headerSettings, setHeaderSettings] = useState({ animation: "slide-down", effect: "solid" });
   const [showPopup, setShowPopup] = useState(false);
   const [popupSettings, setPopupSettings] = useState(null);
+  const [showWelcomePopup, setShowWelcomePopup] = useState(false);
   const [homeCourses, setHomeCourses] = useState([]);
   const [homeLayout, setHomeLayout] = useState(null);
   const [courseCategory, setCourseCategory] = useState("All");
@@ -262,6 +265,14 @@ export default function App() {
   useEffect(() => { authRedirectRef.current = authRedirectTarget; }, [authRedirectTarget]);
   const currentViewRef = useRef(currentView);
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+
+  // Show welcome popup on first visit
+  useEffect(() => {
+    const seen = localStorage.getItem('welcomePopupSeen');
+    if (!seen) {
+      setShowWelcomePopup(true);
+    }
+  }, []);
 
   // Load header settings and popup settings from DB on mount
   useEffect(() => {
@@ -1134,6 +1145,7 @@ export default function App() {
             )}
             <HowItWorks />
             <WhatDoYouGet />
+            <RewardsSection />
             <FAQ />
             <UniversityCollab />
             <EarnSection
@@ -1822,6 +1834,10 @@ export default function App() {
         show={showPopup}
         onClose={() => { setShowPopup(false); }}
         settings={popupSettings}
+      />
+      <WelcomePopup
+        show={showWelcomePopup}
+        onClose={() => { setShowWelcomePopup(false); localStorage.setItem('welcomePopupSeen', '1'); }}
       />
       <MessageBox />
       <ConfirmModal />

@@ -31,6 +31,7 @@ import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
 import { getDomainIconUrl, hideOnError } from "../utils/domainIcons";
 import { detectUserCurrency, fetchExchangeRates, convertPrice, formatPrice, currencySymbols } from "../utils/currency";
+import { enrichProject } from "../utils/taskEnricher";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
 import DodoPaymentModal from "./DodoPaymentModal";
@@ -1852,6 +1853,7 @@ function EnrollmentCard({
 
                 const documents = typeof project === "object" && project !== null ? project.documents || [] : [];
 
+                const enriched = enrichProject(project, idx);
                 return (
                   <ProjectBox
                     key={idx}
@@ -1879,6 +1881,8 @@ function EnrollmentCard({
                     isSubmittingNow={isSubmittingNow}
                     showSuccessMsg={showSuccessMsg}
                     onLearnHere={() => onLearnHere && onLearnHere(documents, title)}
+                    timeToFinish={enriched.timeToFinish}
+                    xp={enriched.xp}
                   />
                 );
               })}
@@ -2018,12 +2022,13 @@ const DEFAULT_RECEIPT_TEMPLATE = `<!DOCTYPE html>
 <html>
 <head>
 <style>
-  body { font-family: monospace; padding: 2rem; max-width: 600px; margin: 0 auto; color: #000; }
+  body { font-family: monospace; padding: 2rem; max-width: 650px; margin: 0 auto; color: #000; }
   h1 { font-size: 1.5rem; border-bottom: 2px solid #000; padding-bottom: 0.5rem; text-align: center; }
-  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  h2 { font-size: 1rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; margin-top: 1.5rem; }
+  table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
   td, th { border: 1px solid #000; padding: 0.5rem; text-align: left; font-size: 0.85rem; }
-  th { background: #000; color: #fff; }
-  .label { color: #555; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; }
+  th { background: #000; color: #fff; text-align: center; }
+  .label { color: #555; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; width: 40%; }
   .paid { color: #34A853; font-weight: 700; }
   .footer { font-size: 0.7rem; color: #888; text-align: center; margin-top: 2rem; }
 </style>
@@ -2031,16 +2036,34 @@ const DEFAULT_RECEIPT_TEMPLATE = `<!DOCTYPE html>
 <body>
   <h1>Payment Receipt</h1>
   <table>
-    <tr><th colspan="2">Receipt Details</th></tr>
+    <tr><th colspan="2">Receipt Info</th></tr>
     <tr><td class="label">Receipt No</td><td>{{receiptNo}}</td></tr>
     <tr><td class="label">Date</td><td>{{date}}</td></tr>
+    <tr><td class="label">Status</td><td class="paid">{{status}}</td></tr>
+  </table>
+  <h2>Student Details</h2>
+  <table>
     <tr><td class="label">Name</td><td>{{name}}</td></tr>
     <tr><td class="label">Email</td><td>{{email}}</td></tr>
+    <tr><td class="label">Phone</td><td>{{phone}}</td></tr>
+    <tr><td class="label">College</td><td>{{college}}</td></tr>
+    <tr><td class="label">City</td><td>{{city}}</td></tr>
+    <tr><td class="label">Country</td><td>{{country}}</td></tr>
+  </table>
+  <h2>Payment Details</h2>
+  <table>
     <tr><td class="label">Domain</td><td>{{domain}}</td></tr>
+    <tr><td class="label">Duration</td><td>{{duration}}</td></tr>
     <tr><td class="label">Amount</td><td>{{amount}}</td></tr>
+    <tr><td class="label">Paid Amount</td><td>{{paidAmount}}</td></tr>
+    <tr><td class="label">Currency</td><td>{{paymentCurrency}}</td></tr>
     <tr><td class="label">Payment Method</td><td>{{paymentMethod}}</td></tr>
+    <tr><td class="label">Payment Gateway</td><td>{{paymentGateway}}</td></tr>
     <tr><td class="label">Transaction ID</td><td>{{transactionId}}</td></tr>
-    <tr><td class="label">Status</td><td class="paid">{{status}}</td></tr>
+    <tr><td class="label">Paid At</td><td>{{paidAt}}</td></tr>
+    <tr><td class="label">Intern ID</td><td>{{internId}}</td></tr>
+    <tr><td class="label">UPI ID</td><td>{{upiId}}</td></tr>
+    <tr><td class="label">Referral Code</td><td>{{referralCode}}</td></tr>
   </table>
   <div class="footer">DEV/CRAFT Virtual Internship</div>
 </body>
@@ -2055,16 +2078,30 @@ function ReceiptModal({ data, onClose }) {
       try {
         const { receipt, template } = data;
         const tpl = template || DEFAULT_RECEIPT_TEMPLATE;
+        const paidAtFormatted = receipt.paidAt ? new Date(receipt.paidAt).toLocaleString() : "";
         const vars = {
           receiptNo: receipt.receiptNo || "",
           date: receipt.date ? new Date(receipt.date).toLocaleDateString() : "",
           name: receipt.name || "",
           email: receipt.email || "",
+          phone: receipt.phone || "",
+          college: receipt.college || "",
+          city: receipt.city || "",
+          country: receipt.country || "",
           domain: receipt.domain || "",
+          duration: receipt.duration || "",
           amount: receipt.amount ? "\u20B9" + receipt.amount : "",
+          paidAmount: receipt.paidAmount ? "\u20B9" + receipt.paidAmount : "\u20B9" + (receipt.amount || 0),
+          paymentCurrency: receipt.paymentCurrency || "INR",
           paymentMethod: receipt.paymentMethod || "",
+          paymentGateway: receipt.paymentGateway || "",
           transactionId: receipt.transactionId || "",
           status: receipt.status || "",
+          paidAt: paidAtFormatted,
+          internId: receipt.internId || "",
+          upiId: receipt.upiId || "",
+          referralCode: receipt.referralCode || "",
+          paymentStage: receipt.paymentStage || "",
         };
         setHtml(fillTemplate(tpl, vars));
       } catch { setHtml("<p>Failed to render receipt.</p>"); }
@@ -2119,7 +2156,12 @@ function ProjectBox({
   isSubmittingNow,
   showSuccessMsg,
   onLearnHere,
+  timeToFinish,
+  xp,
 }) {
+  const enriched = enrichProject(project, idx);
+  const displayTime = timeToFinish || enriched.timeToFinish;
+  const displayXp = xp || enriched.xp;
   const quizType = project?.quizType || "text";
   const quizOptions = project?.quizOptions || [];
   const borderColor = isVerified
@@ -2242,6 +2284,10 @@ function ProjectBox({
                 ))}
               </div>
             )}
+            <div style={{ display: 'flex', gap: '0.35rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#fff', background: '#000', padding: '0.15rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{displayTime}</span>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#fff', background: '#f59e0b', padding: '0.15rem 0.4rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>+{displayXp} XP</span>
+            </div>
             {documents && documents.length > 0 && (
               <button
                 onClick={() => onLearnHere && onLearnHere()}
