@@ -1168,6 +1168,15 @@ async function handleEnrollments(db, req, res, id, sub, extra, extra2) {
   await db.collection("enrollments").doc(id).update(patch);
 
   // ── Version bumping ──
+  // Student submit/quiz = bump sync versions so cache refreshes on reload
+  if (sub === "projects" && (extra2 === "submit" || extra2 === "quiz")) {
+    try {
+      await db.collection("enrollments").doc(id).update({ taskVersion: now() });
+      const snap = await db.collection("enrollments").doc(id).get();
+      const enr = snap.data();
+      if (enr?.uid) await bumpSyncVersions(db, ["tasks", "certs"], enr.uid);
+    } catch {}
+  }
   // Admin task verification = bump taskVersion on enrollment
   if (sub === "projects" && ["verify", "unverify", "reject"].includes(extra2)) {
     try {
