@@ -617,7 +617,7 @@ export async function fetchUserEnrollments(uid, email, opts) {
 }
 
 export async function updateEnrollmentStatus(enrollmentId, status) {
-  await dbPatch(`enrollments/${enrollmentId}`, { status, updatedAt: new Date().toISOString() });
+  await apiFetch(`/api/data/enrollments/${encodeURIComponent(enrollmentId)}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
 }
 
 export async function submitTransactionId(enrollmentId, transactionId) {
@@ -742,7 +742,9 @@ export async function isReferralCodeMatched(referralCode) {
 
 export async function deleteReferral(code) { await dbDelete(`referrals/${code.toUpperCase().trim()}`); }
 
-export async function deleteEnrollment(enrollmentId) { await dbDelete(`enrollments/${enrollmentId}`); }
+export async function deleteEnrollment(enrollmentId) {
+  await apiFetch(`/api/data/enrollments/${encodeURIComponent(enrollmentId)}`, { method: "DELETE" });
+}
 
 export async function createReferral(details) {
   const namePart = (details.name || "REF").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5) || "REF";
