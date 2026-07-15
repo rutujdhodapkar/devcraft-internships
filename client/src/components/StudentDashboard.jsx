@@ -309,11 +309,6 @@ export default function StudentDashboard({
       (p) => p.id === enrollment.domainId || p.title === enrollment.domain,
     );
     const stored = enrollment.projects && Array.isArray(enrollment.projects) ? enrollment.projects : [];
-    // If enrollment already has LinkedIn Post in stored projects, prefer live career paths
-    // which will also have it once added there. Otherwise use stored to avoid index shifts.
-    if (stored.length > 0 && stored[0]?.title === "LinkedIn Post") {
-      return path?.projects?.length > 0 ? path.projects : stored;
-    }
     return stored.length > 0 ? stored : (path?.projects?.length > 0 ? path.projects : []);
   };
 
@@ -472,6 +467,9 @@ export default function StudentDashboard({
       notify("Opening Offer Letter...", "info");
     }
     openCertificateUrl(enrollment, templateName);
+    if (isCertificate) {
+      setTimeout(() => notify("Share your certificate on LinkedIn to showcase your achievement!", "info"), 1500);
+    }
   };
 
   const handleDownloadReceipt = async (enrollmentId) => {
