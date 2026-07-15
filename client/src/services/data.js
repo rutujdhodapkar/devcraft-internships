@@ -1,7 +1,7 @@
 const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.xyz").replace(/\/api\/?$/, "");
 
 // Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
-import { db as rtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
+import { getRtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
 import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cookies";
 import { syncBuckets, loadCachedUserBuckets, startSyncLoop, stopSyncLoop } from "./cacheSync";
 export { loadCachedUserBuckets, startSyncLoop, stopSyncLoop };
@@ -23,13 +23,14 @@ function _authCacheSet(key, data, ttl) {
 function _authCacheClear() { _authCache.clear(); }
 export function clearAuthCache() { _authCacheClear(); }
 
+function _rtdb() { return getRtdb(); }
+
 async function _rtdbRead(path) {
-  try { const s = await rtdbGet(ref(rtdb, path)); return s.val(); } catch { return null; }
+  try { const d = _rtdb(); if (!d) return null; const s = await rtdbGet(ref(d, path)); return s.val(); } catch { return null; }
 }
 
 async function _rtdbReadList(path) {
-  try {
-    const s = await rtdbGet(ref(rtdb, path));
+  try { const d = _rtdb(); if (!d) return []; const s = await rtdbGet(ref(d, path));
     if (!s.exists()) return [];
     const v = s.val();
     return Object.keys(v).map(k => ({ id: k, ...v[k] }));
@@ -37,23 +38,23 @@ async function _rtdbReadList(path) {
 }
 
 async function _rtdbAppend(path, data) {
-  try {
-    const newRef = rtdbPush(ref(rtdb, path));
+  try { const d = _rtdb(); if (!d) return null;
+    const newRef = rtdbPush(ref(d, path));
     await rtdbSet(newRef, { ...data, id: newRef.key, createdAt: new Date().toISOString() });
     return { id: newRef.key, ...data };
   } catch (e) { console.warn("rtdbAppend", path, e.message); return null; }
 }
 
 async function _rtdbPut(path, data) {
-  try { await rtdbSet(ref(rtdb, path), { ...data, updatedAt: new Date().toISOString() }); return data; } catch { return null; }
+  try { const d = _rtdb(); if (!d) return null; await rtdbSet(ref(d, path), { ...data, updatedAt: new Date().toISOString() }); return data; } catch { return null; }
 }
 
 async function _rtdbPatch(path, data) {
-  try { await rtdbUpdate(ref(rtdb, path), { ...data, updatedAt: new Date().toISOString() }); return data; } catch { return null; }
+  try { const d = _rtdb(); if (!d) return null; await rtdbUpdate(ref(d, path), { ...data, updatedAt: new Date().toISOString() }); return data; } catch { return null; }
 }
 
 async function _rtdbDelete(path) {
-  try { await rtdbRemove(ref(rtdb, path)); return true; } catch { return false; }
+  try { const d = _rtdb(); if (!d) return false; await rtdbRemove(ref(d, path)); return true; } catch { return false; }
 }
 
 // Simple in-memory cache with TTL to reduce redundant Firestore reads

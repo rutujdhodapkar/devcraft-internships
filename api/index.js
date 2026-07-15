@@ -1712,11 +1712,11 @@ async function handleCertificateData(req, res, enrollmentId) {
     const orgDoc = await getDoc(db, "siteConfig", "organization", null);
     const msmeId = orgDoc?.value?.msmeId || "";
 
-    // Date computations — use stored startDate/endDate if available, else calculate from createdAt + duration
+    // Date computations
     const start = enrollment.startDate ? new Date(enrollment.startDate) : new Date(enrollment.createdAt || Date.now());
     const end = enrollment.endDate ? new Date(enrollment.endDate) : new Date(start.getTime() + parseDuration(enrollment.duration) * 24 * 60 * 60 * 1000);
-    const certDate = enrollment.certificateDate ? new Date(enrollment.certificateDate) : start;
     const fmt = (d) => d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const generatedOn = fmt(new Date());
 
     const origin = req.headers["x-forwarded-host"] ? `https://${req.headers["x-forwarded-host"]}` : `${req.headers["x-forwarded-proto"] || "https"}://${req.headers.host || "devcraft.fennark.xyz"}`;
     const qrCodeUrl = `${origin}/api/qr/${encodeURIComponent(enrollment.id || enrollment.internId || enrollmentId)}`;
@@ -1730,7 +1730,8 @@ async function handleCertificateData(req, res, enrollmentId) {
       status,
       completed: eligible ? "Yes" : "No",
       msmeId,
-      date: fmt(certDate),
+      date: generatedOn,
+      generatedOn,
       startDate: fmt(start),
       endDate: fmt(end),
       qrCodeUrl,

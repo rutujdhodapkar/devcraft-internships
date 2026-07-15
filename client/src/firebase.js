@@ -13,18 +13,25 @@ const firebaseConfig = {
   measurementId: "G-01L51YR23L"
 };
 
-let app, auth, db, googleProvider;
+let app, auth, googleProvider;
+let _db = null;
 
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getDatabase(app);
   googleProvider = new GoogleAuthProvider();
 } catch (e) {
   console.warn("Firebase init failed:", e);
 }
 
-export { db, ref, get, set, push, update, remove, query, orderByChild, equalTo, auth };
+export function getRtdb() {
+  if (!_db && app) {
+    try { _db = getDatabase(app); } catch {}
+  }
+  return _db;
+}
+
+export { ref, get, set, push, update, remove, query, orderByChild, equalTo, auth };
 
 export async function getFirebaseIdToken() {
   if (!auth?.currentUser) return null;

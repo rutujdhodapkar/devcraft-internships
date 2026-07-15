@@ -18,7 +18,7 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Certificate of Completion - {{name}}</title>
 <style>
-  @page { size: landscape; margin: 0; }
+  @page { size: A4 landscape; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -30,67 +30,71 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
   }
   .certificate {
     width: 842px;
-    min-height: 595px;
+    height: 595px;
     background: #fff;
     border: 3px solid #000;
-    padding: 56px;
+    padding: 40px 56px;
     position: relative;
     box-shadow: 8px 8px 0 rgba(0,0,0,0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
   }
   .cert-badge {
     display: inline-block;
     background: #000;
     color: #fff;
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 800;
     letter-spacing: 3px;
-    padding: 6px 18px;
+    padding: 5px 16px;
     text-transform: uppercase;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
   h1 {
-    font-size: 15px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
     color: #555;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
   }
   h2 {
-    font-size: 32px;
+    font-size: 26px;
     font-weight: 900;
     letter-spacing: 1px;
     text-transform: uppercase;
-    margin: 16px 0 32px;
+    margin: 12px 0 20px;
   }
   .recipient {
-    font-size: 36px;
+    font-size: 30px;
     font-weight: 900;
-    margin: 24px 0;
+    margin: 16px 0;
     color: #000;
   }
   .body-text {
-    font-size: 15px;
-    line-height: 1.7;
+    font-size: 13px;
+    line-height: 1.5;
     color: #333;
     max-width: 600px;
-    margin: 0 auto 32px;
+    margin: 0 auto 20px;
   }
   .meta-row {
     display: flex;
     justify-content: space-between;
     border-top: 1px solid #000;
-    padding-top: 20px;
-    margin-top: 40px;
-    font-size: 12px;
+    padding-top: 14px;
+    margin-top: 0;
+    font-size: 11px;
   }
   .meta-item { text-align: center; }
-  .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #888; }
-  .meta-value { font-weight: 700; margin-top: 4px; }
+  .meta-label { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #888; }
+  .meta-value { font-weight: 700; margin-top: 3px; }
   .cert-status {
-    margin-top: 16px;
-    padding: 8px 16px;
-    font-size: 14px;
+    margin-top: 12px;
+    padding: 6px 14px;
+    font-size: 12px;
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 2px;
@@ -99,30 +103,30 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
   .cert-status.completed { background: #34A853; color: #fff; }
   .cert-status.pending { background: #FBBC05; color: #5a4000; }
   .footer-text {
-    margin-top: 24px;
-    font-size: 10px;
+    margin-top: 0;
+    font-size: 9px;
     color: #999;
     text-align: center;
     letter-spacing: 0.5px;
   }
   .qr-section {
-    margin-top: 20px;
+    margin-top: 12px;
     text-align: center;
   }
-  .qr-section img { width: 100px; height: 100px; }
-  .qr-label { font-size: 9px; color: #aaa; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
-  .msme-id { font-size: 10px; color: #888; margin-top: 12px; text-align: center; }
+  .qr-section img { width: 80px; height: 80px; }
+  .qr-label { font-size: 8px; color: #aaa; margin-top: 3px; text-transform: uppercase; letter-spacing: 1px; }
+  .msme-id { font-size: 9px; color: #888; margin-top: 8px; text-align: center; }
   .print-btn-wrap { text-align: center; margin: 20px 0; }
   .print-btn {
     background: #000; color: #fff; border: 1px solid #000;
-    padding: 12px 30px; font-size: 13px; font-weight: 600;
+    padding: 10px 24px; font-size: 12px; font-weight: 600;
     letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer;
   }
   .print-btn:hover { background: #fff; color: #000; }
   @media print {
     body { background: #fff; }
     .print-btn-wrap { display: none; }
-    .certificate { border: none; box-shadow: none; }
+    .certificate { border: none; box-shadow: none; width: 297mm; height: 210mm; padding: 15mm 20mm; overflow: hidden; }
   }
 </style>
 </head>
