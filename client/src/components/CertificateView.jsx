@@ -132,14 +132,14 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
 <body>
 <div class="certificate">
   <div class="cert-badge">DevCraft</div>
-  <h1>Virtual Internship Program</h1>
+  <h1>Virtual {{programLabel}} Program</h1>
   <h2>Certificate of Completion</h2>
   <div class="recipient">{{name}}</div>
   <div class="body-text">
-    for successfully completing the virtual internship in <strong>{{domain}}</strong>.
-    The candidate completed all assigned tasks and earned the required experience points.
+    for successfully completing the virtual {{programLabelLower}} in <strong>{{domain}}</strong>.
+    The candidate completed all requirements and earned the credential.
   </div>
-  <div class="xp-box">Total XP Earned: {{xp}}</div>
+  <div class="xp-box">{{xpLabel}}: {{xp}}</div>
   <div class="cert-status">{{status}}</div>
   <div class="meta-row">
     <div class="meta-item">
@@ -239,6 +239,7 @@ export default function CertificateView() {
           templateHtml = Object.values(templates).find((v) => v) || FALLBACK_CERTIFICATE;
         }
 
+        const isCourse = certData.type === "course";
         const taskCount = Array.isArray(enrollment?.projects) ? enrollment.projects.length : 0;
         const xpTotal = taskCount * 100;
 
@@ -257,7 +258,11 @@ export default function CertificateView() {
           endDate: certData.endDate,
           qrCodeUrl: certData.qrCodeUrl,
           _signature: certData._signature,
-          xp: String(xpTotal),
+          xp: isCourse ? String(enrollment.courseBlockCount || 0) + " Blocks" : String(xpTotal),
+          programType: isCourse ? "Course" : "Internship",
+          programLabel: isCourse ? "Course" : "Internship",
+          programLabelLower: isCourse ? "course" : "internship",
+          xpLabel: isCourse ? "Blocks Completed" : "Total XP Earned",
         };
 
         const filled = fillTemplate(templateHtml, vars);

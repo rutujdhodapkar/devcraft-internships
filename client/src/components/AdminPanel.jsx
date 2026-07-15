@@ -874,6 +874,13 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     return projects.filter((_, i) => subs[i]?.verified).length;
   };
   const isCertUnlocked = (enrollment) => {
+    if (enrollment.type === "course") {
+      const completed = enrollment.progress?.completedBlocks?.length || 0;
+      const total = enrollment.courseBlockCount || 0;
+      const allDone = total > 0 && completed >= total;
+      const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
+      return enrollment.allowedCertificate === "yes" || (allDone && (isPaid || enrollment.status === "Completed"));
+    }
     const projs = getProjectsForEnrollment(enrollment);
     const subs = getSubmissions(enrollment);
     const allV = projs.length > 0 && projs.every((_, i) => subs[i]?.verified);
@@ -1610,6 +1617,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           </td>
                           <td style={{ ...td, fontSize: "0.72rem" }}>
                             {(() => {
+                              if (row.type === "course" && (row.paymentAmount === 0 || row.paymentAmount === undefined)) {
+                                return <span style={{ fontWeight: 700, color: "#34A853" }}>Free</span>;
+                              }
                               const isPaid = row.paymentTiming === "both" ? row.paymentStage === "fully_paid" : row.paymentStatus === "paid";
                               const isPartial = row.paymentStage === "start_paid";
                               const amt = row.paymentAmount;
@@ -1618,7 +1628,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   <span style={{ fontWeight: 700, color: isPaid ? "#34A853" : isPartial ? "#FBBC05" : "#EA4335" }}>
                                     {isPaid ? "Paid" : isPartial ? "Partial" : "Not Paid"}
                                   </span>
-                                  {amt && <span style={{ marginLeft: "0.25rem" }}>₹{amt}</span>}
+                                  {amt > 0 && <span style={{ marginLeft: "0.25rem" }}>₹{amt}</span>}
                                 </>
                               );
                             })()}
@@ -10232,6 +10242,13 @@ function VerifyCompletionTab({ data, getProjectsForEnrollment, getSubmissions, m
   ];
 
   const isCertUnlocked = (enrollment) => {
+    if (enrollment.type === "course") {
+      const completed = enrollment.progress?.completedBlocks?.length || 0;
+      const total = enrollment.courseBlockCount || 0;
+      const allDone = total > 0 && completed >= total;
+      const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
+      return enrollment.allowedCertificate === "yes" || (allDone && (isPaid || enrollment.status === "Completed"));
+    }
     const projs = getProjectsForEnrollment(enrollment);
     const subs = getSubmissions(enrollment);
     const allV = projs.length > 0 && projs.every((_, i) => subs[i]?.verified);

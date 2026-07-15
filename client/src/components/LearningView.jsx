@@ -34,10 +34,11 @@ export default function LearningView({ enrollment, userId, onBack, onOpenPayment
     if (cp?.content) {
       setContent(cp.content);
     } else {
-      import("../services/data").then(({ fetchCareerPaths }) =>
+      import("../services/data").then(({ fetchCareerPaths, fetchCourseContent }) =>
         fetchCareerPaths().then(r => {
           const p = (r.paths || r || []).find(x => x.id === cid || x.title === enrollment.domain);
           if (p?.content) setContent(p.content);
+          else fetchCourseContent(cid).then(c => { if (c?.modules) setContent(c.modules); }).catch(() => {});
         }).catch(() => {})
       );
     }
@@ -105,7 +106,7 @@ export default function LearningView({ enrollment, userId, onBack, onOpenPayment
         <div style={s.resultBox(true)}>
           <h2 style={{ margin: 0 }}>Course Completed!</h2>
           <p>You have completed all content blocks.</p>
-          {certAllowed && <a style={s.certLink} href={`/certificate/${enrollment.id}/Certificate`} target="_blank" rel="noopener noreferrer">View Certificate</a>}
+          {certAllowed && <a style={s.certLink} href={`/certificate/${enrollment.id}/Course%20Certificate`} target="_blank" rel="noopener noreferrer">View Certificate</a>}
           {enrollment.paymentAmount > 0 && enrollment.paymentStatus !== "paid" && <p style={{ marginTop: "1rem", fontSize: "0.85rem" }}>Complete payment to receive your certificate.</p>}
           {enrollment.paymentAmount > 0 && enrollment.paymentStatus !== "paid" && onOpenPayment && <button style={s.btn} onClick={() => onOpenPayment(enrollment.paymentTiming === "both" ? "end" : "full")}>Complete Payment</button>}
         </div>

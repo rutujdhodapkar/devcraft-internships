@@ -774,7 +774,7 @@ export default function StudentDashboard({
         ) : activeTab === "tasks" ? (
           <div>
             {(() => {
-            const tasksEnrollments = enrollments.filter(e => e.status !== "Completed" && e.status !== "Archived" && e.status !== "Deleted");
+            const tasksEnrollments = enrollments.filter(e => e.type !== "course" && e.status !== "Completed" && e.status !== "Archived" && e.status !== "Deleted");
             return (<>
             <div className="tasks-scroll-hint" style={{ display: "none", background: "#fffde7", border: "2px solid #f9a825", padding: "0.75rem 1rem", marginBottom: "1rem", fontSize: "0.85rem", fontWeight: 600, borderRadius: 0, textAlign: "center" }}>
               On mobile? Please tap <strong>Open Dashboard</strong> above or scroll horizontally to view all tasks.

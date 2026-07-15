@@ -1764,6 +1764,7 @@ async function handleCertificateData(req, res, enrollmentId) {
       eligible,
       verifiedTasks: allVerified,
       paymentComplete: isPaid,
+      type: enrollment.type || "internship",
     };
 
     // HMAC signature
@@ -2358,6 +2359,7 @@ async function handleAutoExpire(req, res) {
     const batch = db.batch();
     snap.docs.forEach((doc) => {
       const data = doc.data();
+      if (data.type === "course") return;
       const deadline = data.deadline || data.createdAt;
       if (deadline && now > deadline) {
         const ref = db.collection("enrollments").doc(doc.id);
