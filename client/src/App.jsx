@@ -268,11 +268,15 @@ export default function App() {
   const currentViewRef = useRef(currentView);
   useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
 
-  // Show welcome popup on first visit
+  // Show welcome popup + xp rewards popup on first visit
   useEffect(() => {
     const seen = localStorage.getItem('welcomePopupSeen');
     if (!seen) {
       setShowWelcomePopup(true);
+    }
+    const xpSeen = localStorage.getItem('xpPopupSeen');
+    if (!xpSeen) {
+      setShowXpPopup(true);
     }
   }, []);
 
@@ -1839,11 +1843,11 @@ export default function App() {
       />
       <WelcomePopup
         show={showWelcomePopup}
-        onClose={() => { setShowWelcomePopup(false); localStorage.setItem('welcomePopupSeen', '1'); setShowXpPopup(true); }}
+        onClose={() => { setShowWelcomePopup(false); localStorage.setItem('welcomePopupSeen', '1'); }}
       />
       <XpRewardsPopup
         show={showXpPopup}
-        onClose={() => setShowXpPopup(false)}
+        onClose={() => { setShowXpPopup(false); localStorage.setItem('xpPopupSeen', '1'); }}
       />
       <MessageBox />
       <ConfirmModal />
