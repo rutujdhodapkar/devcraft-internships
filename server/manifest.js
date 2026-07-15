@@ -1,50 +1,72 @@
-// ── Firestore Manifest Writer ──
+// ── RTDB Manifest Writer ──
 // Called by:
 //   1. Azure Function (Cosmos Change Feed trigger)
 //   2. Server admin write paths (inline, for immediate consistency)
 //
-// Writes version bumps to Firestore manifests.
-// Firebase Firestore is used ONLY for these tiny manifest docs — no user data.
+// Writes version bumps to Firebase Realtime Database.
+// RTDB is used ONLY for these tiny version manifests — no user data.
 
-import { initFirestore, firestoreGetDoc, firestoreSetDoc } from "./firestore.js";
 import { resolveCategory, isShared, isExternal, isDomain } from "./categories.js";
 
-const SHARED_MANIFEST_DOC = "manifest/shared-versions";
-const DOMAIN_MANIFEST_COL = "manifest-domain-versions";
+const RTDB_PATH = "manifest/versions";
 
-let _manifestCache = null;
-let _cacheTs = 0;
+let _rtdb = null;
+let _rtdbInit = false;
+
+async function getRtdb() {
+  if (_rtdb) return _rtdb;
+  if (_rtdbInit) return null;
+  _rtdbInit = true;
+  try {
+    const { getApps, initializeApp, cert } = await import("firebase-admin/app");
+    const { getDatabase } = await import("firebase-admin/database");
+    if (!getApps().length) {
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+      if (!raw) { console.warn("[manifest] FIREBASE_SERVICE_ACCOUNT not configured"); return null; }
+      initializeApp({ credential: cert(JSON.parse(raw)) });
+    }
+    _rtdb = getDatabase();
+    console.log("[manifest] RTDB connected");
+    return _rtdb;
+  } catch (e) {
+    console.warn("[manifest] RTDB init failed:", e.message);
+    return null;
+  }
+}
 
 function bumpTimestamp() {
   return Math.floor(Date.now() / 86400000).toString(36);
 }
 
+async function readVersions() {
+  const db = await getRtdb();
+  if (!db) return null;
+  try {
+    const snap = await db.ref(RTDB_PATH).once("value");
+    return snap.val() || {};
+  } catch { return null; }
+}
+
+async function writeVersions(versions) {
+  const db = await getRtdb();
+  if (!db) return;
+  try { await db.ref(RTDB_PATH).set(versions); } catch {}
+}
+
 // ── Public API ──
 
 export async function bumpSharedVersion(manifestKey) {
-  const fs = await initFirestore();
-  if (!fs) return;
-  try {
-    const doc = await firestoreGetDoc("manifest", "shared-versions");
-    const versions = doc?.value || {};
-    versions[manifestKey] = bumpTimestamp();
-    await firestoreSetDoc("manifest", "shared-versions", { value: versions });
-    _manifestCache = null;
-  } catch (e) {
-    console.error("[manifest] bumpSharedVersion failed:", e.message);
-  }
+  const versions = await readVersions();
+  if (!versions) return;
+  versions[manifestKey] = bumpTimestamp();
+  await writeVersions(versions);
 }
 
 export async function bumpDomainVersion(domainId) {
-  const fs = await initFirestore();
-  if (!fs) return;
-  try {
-    const docRef = fs.collection("manifest-domain-versions").doc(domainId);
-    await docRef.set({ version: bumpTimestamp(), updatedAt: new Date().toISOString() }, { merge: true });
-    _manifestCache = null;
-  } catch (e) {
-    console.error("[manifest] bumpDomainVersion failed:", e.message);
-  }
+  const versions = await readVersions();
+  if (!versions) return;
+  versions[`domain:${domainId}`] = bumpTimestamp();
+  await writeVersions(versions);
 }
 
 // Called by the Change Feed Function when it detects a document change
@@ -62,43 +84,28 @@ export async function onDocumentChange(collection, docId, docData) {
     return;
   }
 
-  if (isExternal(info.cat) && info.manifestKey) {
-    // For external (admin/mentor) changes, bump per-user externalVersion
-    // Handled via the user's Cosmos doc externalUpdateVersion field
-    // No Firestore manifest needed — client reads the field directly
-  }
-
-  // SELF category: no version bump (optimistic local update)
+  // external & self: no RTDB version bump (handled via Cosmos field)
 }
 
-// ── Client-facing read helpers ──
+// ── Client-facing read helpers (used by cacheEngine / server) ──
 
 export async function fetchSharedVersions() {
-  const doc = await firestoreGetDoc("manifest", "shared-versions");
-  return doc?.value || {};
+  return (await readVersions()) || {};
 }
 
 export async function fetchDomainVersion(domainId) {
-  const doc = await firestoreGetDoc("manifest-domain-versions", domainId);
-  return doc?.version || null;
+  const versions = await readVersions();
+  return versions?.[`domain:${domainId}`] || null;
 }
 
 export async function fetchDomainVersions(domainIds) {
   if (!domainIds || domainIds.length === 0) return {};
-  const fs = await initFirestore();
-  if (!fs) return {};
+  const versions = await readVersions();
+  if (!versions) return {};
   const results = {};
-  const chunks = [];
-  for (let i = 0; i < domainIds.length; i += 30) {
-    chunks.push(domainIds.slice(i, i + 30));
-  }
-  for (const chunk of chunks) {
-    try {
-      const snap = await fs.collection("manifest-domain-versions")
-        .where("__name__", "in", chunk)
-        .get();
-      snap.forEach(d => { results[d.id] = d.data().version || null; });
-    } catch { /* fire in, skip */ }
+  for (const id of domainIds) {
+    const v = versions[`domain:${id}`];
+    if (v) results[id] = v;
   }
   return results;
 }

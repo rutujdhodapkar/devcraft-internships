@@ -125,6 +125,15 @@ function _lsGetV(key) {
 }
 
 async function _fetchVersions() {
+  // Read from Firebase RTDB (free, no Cosmos RU)
+  try {
+    const db = getRtdb();
+    if (db) {
+      const snap = await rtdbGet(ref(db, "manifest/versions"));
+      if (snap.exists()) return snap.val();
+    }
+  } catch { /* fallback to server */ }
+  // Fallback: server endpoint (Cosmos DB)
   try {
     const resp = await fetch(`${API_BASE}/api/data/versions`);
     if (!resp.ok) return null;
@@ -307,14 +316,26 @@ export async function saveCareerPaths(paths, categories) {
 }
 
 // How It Works
-// ── Session version map (fetched once, refreshed on triggers) ──
+// ── Session version map (in-memory, backed by localStorage) ──
 let _sessionVersions = null;
 let _sessionVersionsPromise = null;
+
+const _dailyStamp = () => Math.floor(Date.now() / 86400000).toString(36);
 
 async function _ensureVersions() {
   if (_sessionVersions) return _sessionVersions;
   if (_sessionVersionsPromise) return _sessionVersionsPromise;
-  _sessionVersionsPromise = _fetchVersions().then(v => { _sessionVersions = v || {}; return _sessionVersions; }).catch(() => { _sessionVersions = {}; return _sessionVersions; });
+  // Check localStorage for today's version map — zero server reads if fresh
+  const local = _lsGetV("_versions");
+  if (local?.data && local.version === _dailyStamp()) {
+    _sessionVersions = local.data;
+    return _sessionVersions;
+  }
+  _sessionVersionsPromise = _fetchVersions().then(v => {
+    _sessionVersions = v || {};
+    _lsSetV("_versions", _sessionVersions, _dailyStamp());
+    return _sessionVersions;
+  }).catch(() => { _sessionVersions = {}; return _sessionVersions; });
   return _sessionVersionsPromise;
 }
 
