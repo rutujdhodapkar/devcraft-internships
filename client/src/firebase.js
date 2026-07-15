@@ -33,22 +33,14 @@ export function getRtdb() {
 
 // Fix Firebase WebSocket "Back-Forward Cache" warning: reconnect on pageshow
 if (typeof window !== "undefined") {
-  let _bfcacheTimer = null;
   window.addEventListener("beforeunload", () => {
     if (_db) {
-      try { goOffline(_db); _db = null; } catch {}
+      try { goOffline(_db); } catch {}
     }
   });
   window.addEventListener("pageshow", (event) => {
-    if (event.persisted) {
-      if (_bfcacheTimer) clearTimeout(_bfcacheTimer);
-      _bfcacheTimer = setTimeout(() => {
-        try {
-          _db = getDatabase(app);
-          goOnline(_db);
-        } catch {}
-        _bfcacheTimer = null;
-      }, 200);
+    if (event.persisted && _db) {
+      try { goOnline(_db); } catch {}
     }
   });
 }

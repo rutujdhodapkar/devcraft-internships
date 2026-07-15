@@ -1776,13 +1776,18 @@ async function handleFirebaseProxy(req, res) {
     const readOpts = req.body?.consistencyLevel ? { consistencyLevel: req.body.consistencyLevel } : undefined;
 
     const adminCollections = ["admins", "siteConfig", "config", "careerPaths", "howItWorks", "faqs", "bannedUsers", "adminMessages", "siteNotices", "auditLog"];
+    const publicWriteCollections = ["siteVisits", "referralVisits"];
     const root = path.split("/")[0];
     const isWrite = ["set", "update", "push", "delete"].includes(action);
     let decoded = null;
 
+    // Allow unauthenticated writes to public collections (site visits, etc.)
+    if (isWrite && publicWriteCollections.includes(root)) {
+      // skip auth — public write allowed
+    }
     // Enrollment records include student identity, submissions, and payment
     // data. They are visible only to their owner or an administrator.
-    if (!isWrite && root === "enrollments") {
+    else if (!isWrite && root === "enrollments") {
       decoded = await verifyFirebaseToken(req.body?.idToken);
       if (!decoded) return send(res, 401, { success: false, message: "Authentication required to read enrollments." });
       const email = decoded.email ? cleanId(decoded.email).toLowerCase() : null;
@@ -1807,7 +1812,7 @@ async function handleFirebaseProxy(req, res) {
     }
 
     // Require auth on all non-admin writes (enrollments, referrals, users, etc.)
-    if (isWrite && !adminCollections.includes(root)) {
+    if (isWrite && !adminCollections.includes(root) && !publicWriteCollections.includes(root)) {
       decoded = await verifyFirebaseToken(req.body?.idToken);
       if (!decoded) return send(res, 401, { success: false, message: "Authentication required for writes." });
       // For enrollments: verify uid ownership or admin

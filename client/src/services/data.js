@@ -1218,7 +1218,7 @@ export async function trackSiteVisit() {
   let geo = null;
   try { geo = await geoPromise; } catch (e) { console.warn("geo fetch:", e.message); }
   const visit = { ...baseVisit, ...(geo || {}) };
-  if (typeof rtdb !== "undefined" && rtdb) {
+  if (_rtdb()) {
     const result = await _rtdbAppend("siteVisits", visit);
     if (result) {
       // If user is logged in, auto-associate this device
