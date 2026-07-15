@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { getDatabase, ref, get, set, push, update, remove, query, orderByChild, equalTo } from "firebase/database";
+import { getDatabase, ref, get, set, push, update, remove, query, orderByChild, equalTo, goOnline, goOffline } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCn_dJ21ga0CuErOdvnYxO7mwIm9elFie8",
@@ -29,6 +29,28 @@ export function getRtdb() {
     try { _db = getDatabase(app); } catch {}
   }
   return _db;
+}
+
+// Fix Firebase WebSocket "Back-Forward Cache" warning: reconnect on pageshow
+if (typeof window !== "undefined") {
+  let _bfcacheTimer = null;
+  window.addEventListener("beforeunload", () => {
+    if (_db) {
+      try { goOffline(_db); _db = null; } catch {}
+    }
+  });
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) {
+      if (_bfcacheTimer) clearTimeout(_bfcacheTimer);
+      _bfcacheTimer = setTimeout(() => {
+        try {
+          _db = getDatabase(app);
+          goOnline(_db);
+        } catch {}
+        _bfcacheTimer = null;
+      }, 200);
+    }
+  });
 }
 
 export { ref, get, set, push, update, remove, query, orderByChild, equalTo, auth };

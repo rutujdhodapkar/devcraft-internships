@@ -2,6 +2,8 @@ const API_BASE = (import.meta.env.VITE_SERVER_URL || "https://devcraft.fennark.x
 
 // Firebase Realtime Database — used ONLY for site visits, referral visits, and device-user mapping
 import { getRtdb, ref, get as rtdbGet, set as rtdbSet, push as rtdbPush, update as rtdbUpdate, remove as rtdbRemove, query as rtdbQuery, orderByChild, equalTo, getFirebaseIdToken } from "../firebase";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { getCookie, setCookie, removeCookie, clearCookies } from "../utils/cookies";
 import { syncBuckets, loadCachedUserBuckets, startSyncLoop, stopSyncLoop } from "./cacheSync";
 export { loadCachedUserBuckets, startSyncLoop, stopSyncLoop };
@@ -124,7 +126,34 @@ function _lsGetV(key) {
   try { const raw = localStorage.getItem("lsv_" + key); if (!raw) return null; const e = JSON.parse(raw); return { data: e.d, version: e.v }; } catch { return null; }
 }
 
+// Firebase Firestore instance for version manifest reads (fast/cheap)
+let _fsVersions = null;
+function _getFsVersions() {
+  if (_fsVersions) return _fsVersions;
+  try {
+    const app = initializeApp({
+      apiKey: "AIzaSyCn_dJ21ga0CuErOdvnYxO7mwIm9elFie8",
+      authDomain: "login-data-680b9.firebaseapp.com",
+      projectId: "login-data-680b9",
+    }, "versionManifest");
+    _fsVersions = getFirestore(app);
+  } catch { _fsVersions = null; }
+  return _fsVersions;
+}
+
 async function _fetchVersions() {
+  // Try Firebase Firestore manifest first (fast/cheap — 1 doc read)
+  try {
+    const fs = _getFsVersions();
+    if (fs) {
+      const snap = await getDoc(doc(fs, "manifest", "shared-versions"));
+      if (snap.exists()) {
+        const data = snap.data()?.value || {};
+        if (Object.keys(data).length > 0) return data;
+      }
+    }
+  } catch { /* fallback to server */ }
+  // Fallback: server endpoint (Cosmos DB)
   try {
     const resp = await fetch(`${API_BASE}/api/data/versions`);
     if (!resp.ok) return null;
@@ -251,36 +280,22 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
-// Career Paths
+// Career Paths — version-based cache (no TTL expiry, only re-fetches on version change)
 export async function fetchCareerPaths() {
-  const cached = _lsGet("careerPaths");
-  const localVersion = _lsGet("cp_v");
-  if (cached && localVersion) {
-    const vMap = await _ensureVersions().catch(() => null);
-    const remoteVersion = vMap?.careerPaths || null;
-    if (remoteVersion && localVersion === remoteVersion) {
-      _lsSet("careerPaths", cached);
-      return cached;
-    }
-    if (!remoteVersion) {
-      try {
-        const resp = await fetch(`${API_BASE}/api/data/career-paths?_v=${encodeURIComponent(localVersion)}`);
-        if (resp.status === 304) {
-          _lsSet("careerPaths", cached);
-          return cached;
-        }
-        if (resp.ok) {
-          const data = await resp.json();
-          const result = data.data || null;
-          if (result) {
-            _lsSet("careerPaths", result);
-            if (data._v) _lsSet("cp_v", data._v);
-          }
-          return result;
-        }
-      } catch {}
-    }
+  const cached = _lsGetV("careerPaths");
+  if (cached?.data) {
+    _ensureVersions().then(vMap => {
+      const remoteVersion = vMap?.careerPaths || null;
+      if (remoteVersion && cached.version !== remoteVersion) {
+        _fetchAndCacheCareerPaths().catch(() => {});
+      }
+    }).catch(() => {});
+    return cached.data;
   }
+  return _fetchAndCacheCareerPaths();
+}
+
+async function _fetchAndCacheCareerPaths() {
   const bundled = await fetchSiteConfig("careerPaths");
   let paths = bundled?.list || [];
   let categories = bundled?.categories || [];
@@ -303,8 +318,9 @@ export async function fetchCareerPaths() {
     return p;
   });
   const result = { paths: mergedPaths, categories };
-  _lsSet("careerPaths", result);
-  if (!localVersion) _lsSet("cp_v", "");
+  const vMap = await _ensureVersions().catch(() => null);
+  const version = vMap?.careerPaths || "";
+  _lsSetV("careerPaths", result, version);
   return result;
 }
 

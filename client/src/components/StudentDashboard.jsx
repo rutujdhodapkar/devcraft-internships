@@ -156,13 +156,11 @@ export default function StudentDashboard({
     try {
       await autoExpireEnrollments();
       let tmpl = getCache('templatesCache');
-      let cpResult = getCache('careerPathsCache');
       if (!tmpl) tmpl = await fetchTemplates();
-      if (!cpResult) cpResult = await fetchCareerPaths();
       setCache('templatesCache', tmpl);
-      setCache('careerPathsCache', cpResult);
       setTemplates(tmpl?.templates || tmpl || null);
-      setCareerPaths(cpResult.paths || []);
+      const cpResult = await fetchCareerPaths();
+      if (cpResult?.paths) setCareerPaths(cpResult.paths);
 
       const uid = user.uid;
       const email = user.email;
