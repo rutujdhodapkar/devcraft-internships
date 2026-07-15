@@ -2022,14 +2022,15 @@ const DEFAULT_RECEIPT_TEMPLATE = `<!DOCTYPE html>
 <html>
 <head>
 <style>
-  body { font-family: monospace; padding: 2rem; max-width: 650px; margin: 0 auto; color: #000; }
+  body { font-family: monospace; padding: 2rem; max-width: 650px; margin: 0 auto; color: #000; background: #EDE7D9; }
   h1 { font-size: 1.5rem; border-bottom: 2px solid #000; padding-bottom: 0.5rem; text-align: center; }
-  h2 { font-size: 1rem; border-bottom: 1px solid #ccc; padding-bottom: 0.3rem; margin-top: 1.5rem; }
+  h2 { font-size: 1rem; border-bottom: 1px solid #000; padding-bottom: 0.3rem; margin-top: 1.5rem; }
   table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
   td, th { border: 1px solid #000; padding: 0.5rem; text-align: left; font-size: 0.85rem; }
   th { background: #000; color: #fff; text-align: center; }
   .label { color: #555; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; width: 40%; }
   .paid { color: #34A853; font-weight: 700; }
+  .xp-badge { display: inline-block; background: #f59e0b; color: #fff; padding: 2px 8px; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; }
   .footer { font-size: 0.7rem; color: #888; text-align: center; margin-top: 2rem; }
 </style>
 </head>
@@ -2049,6 +2050,7 @@ const DEFAULT_RECEIPT_TEMPLATE = `<!DOCTYPE html>
     <tr><td class="label">College</td><td>{{college}}</td></tr>
     <tr><td class="label">City</td><td>{{city}}</td></tr>
     <tr><td class="label">Country</td><td>{{country}}</td></tr>
+    <tr><td class="label">XP Earned</td><td><span class="xp-badge">{{xp}} XP</span></td></tr>
   </table>
   <h2>Payment Details</h2>
   <table>
@@ -2090,6 +2092,7 @@ function ReceiptModal({ data, onClose }) {
           country: receipt.country || "",
           domain: receipt.domain || "",
           duration: receipt.duration || "",
+          xp: receipt.xp || "100",
           amount: receipt.amount ? "\u20B9" + receipt.amount : "",
           paidAmount: receipt.paidAmount ? "\u20B9" + receipt.paidAmount : "\u20B9" + (receipt.amount || 0),
           paymentCurrency: receipt.paymentCurrency || "INR",
@@ -2111,7 +2114,7 @@ function ReceiptModal({ data, onClose }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "flex-start", zIndex: 2000, overflowY: "auto", padding: "2rem 1rem" }}>
-      <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", width: "90%", maxWidth: "650px", boxShadow: "8px 8px 0 #000", marginTop: "2rem", marginBottom: "2rem" }}>
+      <div style={{ background: "#EDE7D9", border: "3px solid #000", padding: "2rem", width: "90%", maxWidth: "650px", boxShadow: "8px 8px 0 #000", marginTop: "2rem", marginBottom: "2rem" }}>
         <div style={{ height: "6px", background: "#000", marginBottom: "1.5rem", margin: "-2rem -2rem 1.5rem -2rem" }} />
         <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.5rem" }}>Payment Receipt</h3>
 

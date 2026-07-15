@@ -22,7 +22,7 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Helvetica Neue', Arial, sans-serif;
-    background: #f0f0f0;
+    background: #ede7d9;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -102,6 +102,17 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
   }
   .cert-status.completed { background: #34A853; color: #fff; }
   .cert-status.pending { background: #FBBC05; color: #5a4000; }
+  .xp-box {
+    margin-top: 8px;
+    display: inline-block;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
   .footer-text {
     margin-top: 0;
     font-size: 9px;
@@ -116,24 +127,9 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
   .qr-section img { width: 80px; height: 80px; }
   .qr-label { font-size: 8px; color: #aaa; margin-top: 3px; text-transform: uppercase; letter-spacing: 1px; }
   .msme-id { font-size: 9px; color: #888; margin-top: 8px; text-align: center; }
-  .print-btn-wrap { text-align: center; margin: 20px 0; }
-  .print-btn {
-    background: #000; color: #fff; border: 1px solid #000;
-    padding: 10px 24px; font-size: 12px; font-weight: 600;
-    letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer;
-  }
-  .print-btn:hover { background: #fff; color: #000; }
-  @media print {
-    body { background: #fff; }
-    .print-btn-wrap { display: none; }
-    .certificate { border: none; box-shadow: none; width: 297mm; height: 210mm; padding: 15mm 20mm; overflow: hidden; }
-  }
 </style>
 </head>
 <body>
-<div class="print-btn-wrap">
-  <button class="print-btn" onclick="window.print()">Print / Save Certificate</button>
-</div>
 <div class="certificate">
   <div class="cert-badge">DevCraft</div>
   <h1>Virtual Internship Program</h1>
@@ -141,9 +137,9 @@ const FALLBACK_CERTIFICATE = `<!DOCTYPE html>
   <div class="recipient">{{name}}</div>
   <div class="body-text">
     for successfully completing the virtual internship in <strong>{{domain}}</strong>.
-    The candidate demonstrated commitment, completed assigned project work,
-    and met the program completion criteria reviewed by DevCraft.
+    The candidate completed all assigned tasks and earned the required experience points.
   </div>
+  <div class="xp-box">Total XP Earned: {{xp}}</div>
   <div class="cert-status">{{status}}</div>
   <div class="meta-row">
     <div class="meta-item">
@@ -243,6 +239,9 @@ export default function CertificateView() {
           templateHtml = Object.values(templates).find((v) => v) || FALLBACK_CERTIFICATE;
         }
 
+        const taskCount = Array.isArray(enrollment?.projects) ? enrollment.projects.length : 0;
+        const xpTotal = taskCount * 100;
+
         // Fill template with server-signed data
         const vars = {
           ...enrollment,
@@ -258,6 +257,7 @@ export default function CertificateView() {
           endDate: certData.endDate,
           qrCodeUrl: certData.qrCodeUrl,
           _signature: certData._signature,
+          xp: String(xpTotal),
         };
 
         const filled = fillTemplate(templateHtml, vars);
