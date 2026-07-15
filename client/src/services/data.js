@@ -1744,6 +1744,14 @@ export async function fetchReceipt(enrollmentId) {
   return apiFetch(`/api/data/receipt/${enrollmentId}`);
 }
 
+export async function fetchReceiptTemplate() {
+  return fetchSiteConfig("receiptTemplate");
+}
+
+export async function saveReceiptTemplate(html) {
+  return saveSiteConfig("receiptTemplate", html);
+}
+
 // Leaderboard
 export async function fetchReferralLeaderboard() {
   const referrals = await dbList("referrals");

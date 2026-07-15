@@ -8,6 +8,7 @@ import {
   submitQuizAnswer,
   fetchEnrollmentById,
   fetchReceipt,
+  fetchReceiptTemplate,
   fetchCareerPaths,
   isReferralCodeMatched,
   fetchUserReferralStat,
@@ -80,6 +81,8 @@ export default function StudentDashboard({
   const [verifyEnrollment, setVerifyEnrollment] = useState(null);
   const [learnHereDocs, setLearnHereDocs] = useState(null);
   const [learnHereProjectName, setLearnHereProjectName] = useState("");
+
+  const [receiptModalData, setReceiptModalData] = useState(null); // { receipt, template }
 
   // User currency detection for payment display
   const [userCurrency, setUserCurrency] = useState("INR");
@@ -468,38 +471,15 @@ export default function StudentDashboard({
 
   };
 
-  const handleDownloadReceipt = async (enrollmentId) => {
+  const handleShowReceipt = async (enrollmentId) => {
     try {
-      const data = await fetchReceipt(enrollmentId);
+      const [data, template] = await Promise.all([
+        fetchReceipt(enrollmentId),
+        fetchReceiptTemplate().catch(() => null),
+      ]);
       if (!data?.success) { notify("Receipt not available.", "warning"); return; }
-      const r = data.data;
-      const lines = [
-        "═══════════════════════════════════════",
-        "         PAYMENT RECEIPT",
-        "═══════════════════════════════════════",
-        `Receipt No:    ${r.receiptNo}`,
-        `Date:         ${new Date(r.date).toLocaleDateString()}`,
-        `Name:         ${r.name}`,
-        `Email:        ${r.email}`,
-        `Domain:       ${r.domain}`,
-        `Amount:       ₹${r.amount}`,
-        `Method:       ${r.paymentMethod}`,
-        `Transaction:  ${r.transactionId}`,
-        `Status:       ${r.status}`,
-        "═══════════════════════════════════════",
-        "     DEV/CRAFT Virtual Internship",
-        "═══════════════════════════════════════",
-      ].join("\n");
-      const blob = new Blob([lines], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `receipt-${r.receiptNo || enrollmentId}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch { notify("Failed to download receipt.", "error"); }
+      setReceiptModalData({ receipt: data.data, template: template || "" });
+    } catch { notify("Failed to load receipt.", "error"); }
   };
 
   // ── Render ──────────────────────────────────────────────────────────────
@@ -838,7 +818,7 @@ export default function StudentDashboard({
                     onSubmitProject={handleSubmitProject}
                     onSubmitQuiz={handleSubmitQuiz}
                     onDownloadFromTemplate={handleDownloadFromTemplate}
-                    onDownloadReceipt={handleDownloadReceipt}
+                    onShowReceipt={handleShowReceipt}
                     domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
                     templates={templates}
                     onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
@@ -900,7 +880,7 @@ export default function StudentDashboard({
                       onSubmitProject={handleSubmitProject}
                       onSubmitQuiz={handleSubmitQuiz}
                       onDownloadFromTemplate={handleDownloadFromTemplate}
-                      onDownloadReceipt={handleDownloadReceipt}
+                      onShowReceipt={handleShowReceipt}
                       domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
                       templates={templates}
                       onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
@@ -1013,7 +993,7 @@ export default function StudentDashboard({
                         onSubmitProject={handleSubmitProject}
                         onSubmitQuiz={handleSubmitQuiz}
                         onDownloadFromTemplate={handleDownloadFromTemplate}
-                        onDownloadReceipt={handleDownloadReceipt}
+                        onShowReceipt={handleShowReceipt}
                         domainButtons={(careerPaths.find((cp) => cp.id === enrollment.domainId || cp.title === enrollment.domain) || {}).buttons || []}
                         templates={templates}
                         onOpenPayment={(stage) => handleOpenPayment(enrollment, stage)}
@@ -1494,6 +1474,12 @@ export default function StudentDashboard({
           onClose={() => setLearnHereDocs(null)}
         />
       )}
+      {receiptModalData && (
+        <ReceiptModal
+          data={receiptModalData}
+          onClose={() => setReceiptModalData(null)}
+        />
+      )}
     </section>
   );
 }
@@ -1515,7 +1501,7 @@ function EnrollmentCard({
   onSubmitProject,
   onSubmitQuiz,
   onDownloadFromTemplate,
-  onDownloadReceipt,
+  onShowReceipt,
   domainButtons,
   templates,
   onOpenPayment,
@@ -1976,8 +1962,8 @@ function EnrollmentCard({
                             <strong>Transaction ID:</strong> {enrollment.transactionId}
                           </p>
                         )}
-                        <button className="btn-sharp" onClick={() => onDownloadReceipt && onDownloadReceipt(enrollment.id)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", marginTop: "0.5rem", background: "#fff", color: "#000", border: "2px solid #34A853", cursor: "pointer", borderRadius: 0, fontWeight: 700 }}>
-                          Download Receipt
+                        <button className="btn-sharp" onClick={() => onShowReceipt && onShowReceipt(enrollment.id)} style={{ padding: "0.4rem 1rem", fontSize: "0.78rem", marginTop: "0.5rem", background: "#fff", color: "#000", border: "2px solid #34A853", cursor: "pointer", borderRadius: 0, fontWeight: 700 }}>
+                          View Receipt
                         </button>
                       </div>
                     ) : (
@@ -2014,6 +2000,100 @@ function EnrollmentCard({
             </div>
           )}
 
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function fillTemplate(html, vars) {
+  let result = html;
+  Object.entries(vars).forEach(([k, v]) => {
+    result = result.replace(new RegExp(`\\{\\{${k}\\}\\}`, "g"), v || "");
+  });
+  return result;
+}
+
+const DEFAULT_RECEIPT_TEMPLATE = `<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { font-family: monospace; padding: 2rem; max-width: 600px; margin: 0 auto; color: #000; }
+  h1 { font-size: 1.5rem; border-bottom: 2px solid #000; padding-bottom: 0.5rem; text-align: center; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  td, th { border: 1px solid #000; padding: 0.5rem; text-align: left; font-size: 0.85rem; }
+  th { background: #000; color: #fff; }
+  .label { color: #555; font-size: 0.75rem; text-transform: uppercase; font-weight: 700; }
+  .paid { color: #34A853; font-weight: 700; }
+  .footer { font-size: 0.7rem; color: #888; text-align: center; margin-top: 2rem; }
+</style>
+</head>
+<body>
+  <h1>Payment Receipt</h1>
+  <table>
+    <tr><th colspan="2">Receipt Details</th></tr>
+    <tr><td class="label">Receipt No</td><td>{{receiptNo}}</td></tr>
+    <tr><td class="label">Date</td><td>{{date}}</td></tr>
+    <tr><td class="label">Name</td><td>{{name}}</td></tr>
+    <tr><td class="label">Email</td><td>{{email}}</td></tr>
+    <tr><td class="label">Domain</td><td>{{domain}}</td></tr>
+    <tr><td class="label">Amount</td><td>{{amount}}</td></tr>
+    <tr><td class="label">Payment Method</td><td>{{paymentMethod}}</td></tr>
+    <tr><td class="label">Transaction ID</td><td>{{transactionId}}</td></tr>
+    <tr><td class="label">Status</td><td class="paid">{{status}}</td></tr>
+  </table>
+  <div class="footer">DEV/CRAFT Virtual Internship</div>
+</body>
+</html>`;
+
+function ReceiptModal({ data, onClose }) {
+  const [html, setHtml] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { receipt, template } = data;
+        const tpl = template || DEFAULT_RECEIPT_TEMPLATE;
+        const vars = {
+          receiptNo: receipt.receiptNo || "",
+          date: receipt.date ? new Date(receipt.date).toLocaleDateString() : "",
+          name: receipt.name || "",
+          email: receipt.email || "",
+          domain: receipt.domain || "",
+          amount: receipt.amount ? "\u20B9" + receipt.amount : "",
+          paymentMethod: receipt.paymentMethod || "",
+          transactionId: receipt.transactionId || "",
+          status: receipt.status || "",
+        };
+        setHtml(fillTemplate(tpl, vars));
+      } catch { setHtml("<p>Failed to render receipt.</p>"); }
+      finally { setLoading(false); }
+    })();
+  }, [data]);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", justifyContent: "center", alignItems: "flex-start", zIndex: 2000, overflowY: "auto", padding: "2rem 1rem" }}>
+      <div style={{ background: "#fff", border: "3px solid #000", padding: "2rem", width: "90%", maxWidth: "650px", boxShadow: "8px 8px 0 #000", marginTop: "2rem", marginBottom: "2rem" }}>
+        <div style={{ height: "6px", background: "#000", marginBottom: "1.5rem", margin: "-2rem -2rem 1.5rem -2rem" }} />
+        <h3 style={{ fontWeight: 900, textTransform: "uppercase", fontSize: "1.15rem", marginBottom: "0.5rem" }}>Payment Receipt</h3>
+
+        <div style={{ padding: "0.75rem", background: "#fff3cd", border: "2px solid #ffc107", marginBottom: "1rem", fontSize: "0.78rem", color: "#856404" }}>
+          <strong>&#9888; Important:</strong> This is a showcase receipt generated by DEV/CRAFT. 
+          If you paid via Dodo Payments, the official receipt has been sent to your email by Dodo. 
+          This receipt is for reference only and confirms your payment was processed.
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "2rem", color: "#888" }}><LoadingText text="Loading receipt…" /></div>
+        ) : (
+          <div style={{ maxHeight: "60vh", overflowY: "auto", border: "1px solid #eee", padding: "1rem" }} dangerouslySetInnerHTML={{ __html: html }} />
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+          <button onClick={onClose} className="btn-sharp" style={{ background: "#fff", color: "#000", border: "2px solid #000", padding: "0.65rem 2rem", fontSize: "0.88rem", fontWeight: 700 }}>
+            Close
+          </button>
         </div>
       </div>
     </div>

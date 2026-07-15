@@ -137,6 +137,7 @@ const TAB_GROUPS = [
       { id: "privacy", label: "Privacy" },
       { id: "refund", label: "Refund" },
       { id: "certificates", label: "Certificates" },
+      { id: "receipt", label: "Receipt" },
       { id: "html templates", label: "Templates" },
     ],
   },
@@ -388,6 +389,9 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [refundLoading, setRefundLoading] = useState(false);
   const [footerContent, setFooterContent] = useState("");
   const [popupContent, setPopupContent] = useState("");
+  const [receiptTemplate, setReceiptTemplate] = useState("");
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptSaving, setReceiptSaving] = useState(false);
 
   const [selectedIntern, setSelectedIntern] = useState(null); // for submission detail modal
   const [paymentHistory, setPaymentHistory] = useState([]);
@@ -590,6 +594,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           .then((data) => setRefundContent(typeof data === "string" ? data : ""))
           .catch(() => setRefundContent(""))
           .finally(() => setRefundLoading(false)),
+      );
+    }
+    if (activeTab === "receipt") {
+      setReceiptLoading(true);
+      import("../services/data").then(({ fetchReceiptTemplate }) =>
+        fetchReceiptTemplate()
+          .then((data) => setReceiptTemplate(typeof data === "string" ? data : ""))
+          .catch(() => setReceiptTemplate(""))
+          .finally(() => setReceiptLoading(false)),
       );
     }
     if (activeTab === "footer") {
@@ -7890,6 +7903,64 @@ export default function AdminPanel({ onClose, user, onLogout }) {
           </div>
         )}
 
+        {/* ── RECEIPT TEMPLATE EDITOR ── */}
+        {activeTab === "receipt" && (
+          <div style={{ maxWidth: "800px" }}>
+            <h3 style={{ fontSize: "1.2rem", fontWeight: 900, textTransform: "uppercase", letterSpacing: "1px", marginBottom: "1rem" }}>
+              Receipt Template Editor
+            </h3>
+            <p style={{ fontSize: "0.85rem", color: "#666", marginBottom: "1rem" }}>
+              Write HTML content for the receipt popup. Available variables:{" "}
+              <code>{"{{receiptNo}}"}</code> <code>{"{{date}}"}</code> <code>{"{{name}}"}</code>{" "}
+              <code>{"{{email}}"}</code> <code>{"{{domain}}"}</code> <code>{"{{amount}}"}</code>{" "}
+              <code>{"{{paymentMethod}}"}</code> <code>{"{{transactionId}}"}</code> <code>{"{{status}}"}</code>.
+              This receipt is shown as a popup to students — Dodo sends the official receipt by email.
+            </p>
+            {receiptLoading ? (
+              <div style={{ color: "#888" }}><LoadingText text="Loading…" /></div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <textarea
+                  value={receiptTemplate}
+                  onChange={(e) => setReceiptTemplate(e.target.value)}
+                  rows={30}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem",
+                    border: "2px solid #000",
+                    borderRadius: 0,
+                    fontFamily: "monospace",
+                    fontSize: "0.85rem",
+                    resize: "vertical",
+                    lineHeight: "1.6",
+                  }}
+                />
+                <button
+                  className="btn-sharp"
+                  disabled={receiptSaving}
+                  onClick={async () => {
+                    setReceiptSaving(true);
+                    try {
+                      const { saveReceiptTemplate } = await import("../services/data");
+                      await saveReceiptTemplate(receiptTemplate);
+                      await logAdminAction("save-receipt-template", { admin: user?.email || "admin" });
+                      setSuccessMsg("Receipt template saved!");
+                      setTimeout(() => setSuccessMsg(""), 3000);
+                    } catch (err) {
+                      setError("Failed to save: " + err.message);
+                    } finally {
+                      setReceiptSaving(false);
+                    }
+                  }}
+                  style={{ alignSelf: "flex-start", padding: "0.7rem 2rem" }}
+                >
+                  {receiptSaving ? "Saving…" : "Save Receipt Template"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── FOOTER SETTINGS EDITOR ── */}
         {activeTab === "footer" && (
           <div style={{ maxWidth: "800px" }}>
@@ -9242,11 +9313,55 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   type="button"
                   onClick={async () => {
                     try {
-                      const receipt = await fetchReceipt(selectedIntern.id);
+                      const [receipt, templateRaw] = await Promise.all([
+                        fetchReceipt(selectedIntern.id),
+                        import("../services/data").then((m) => m.fetchReceiptTemplate()).catch(() => null),
+                      ]);
+                      const r = receipt.data || receipt;
+                      const tpl = templateRaw || `<!DOCTYPE html>
+<html><head><title>Receipt</title>
+<style>body{font-family:monospace;padding:2rem;max-width:600px;margin:0 auto;color:#000}
+table{width:100%;border-collapse:collapse;margin:1rem 0}
+td,th{border:1px solid #000;padding:0.5rem;text-align:left;font-size:0.85rem}
+th{background:#000;color:#fff}
+.label{color:#555;font-size:0.75rem;text-transform:uppercase;font-weight:700}
+.paid{color:#34A853;font-weight:700}
+.footer{font-size:0.7rem;color:#888;text-align:center;margin-top:2rem}
+</style></head><body>
+<h1>Payment Receipt</h1>
+<table>
+<tr><th colspan="2">Receipt Details</th></tr>
+<tr><td class="label">Receipt No</td><td>{{receiptNo}}</td></tr>
+<tr><td class="label">Date</td><td>{{date}}</td></tr>
+<tr><td class="label">Name</td><td>{{name}}</td></tr>
+<tr><td class="label">Email</td><td>{{email}}</td></tr>
+<tr><td class="label">Domain</td><td>{{domain}}</td></tr>
+<tr><td class="label">Amount</td><td>{{amount}}</td></tr>
+<tr><td class="label">Payment Method</td><td>{{paymentMethod}}</td></tr>
+<tr><td class="label">Transaction ID</td><td>{{transactionId}}</td></tr>
+<tr><td class="label">Status</td><td class="paid">{{status}}</td></tr>
+</table>
+<div class="footer">DEV/CRAFT Virtual Internship</div>
+<p style="font-size:0.7rem;color:#888;margin-top:1rem;text-align:center">Generated by Admin Panel</p>
+</body></html>`;
+                      const vars = {
+                        receiptNo: r.receiptNo || r.id || selectedIntern.id,
+                        date: r.date ? new Date(r.date).toLocaleDateString() : new Date().toLocaleDateString(),
+                        name: r.name || selectedIntern.name || "",
+                        email: r.email || selectedIntern.email || "",
+                        domain: r.domain || selectedIntern.domain || "",
+                        amount: "\u20B9" + (r.amount || selectedIntern.paymentAmount || 0),
+                        paymentMethod: r.paymentMethod || "Online",
+                        transactionId: r.transactionId || selectedIntern.transactionId || "-",
+                        status: r.status || selectedIntern.paymentStatus || "N/A",
+                      };
+                      let filled = tpl;
+                      Object.entries(vars).forEach(([k, v]) => {
+                        filled = filled.replace(new RegExp("\\{\\{" + k + "\\}\\}", "g"), v || "");
+                      });
                       const win = window.open("", "_blank");
                       if (!win) { notify("Please allow pop-ups.", "warning"); return; }
-                      const r = receipt.data || receipt;
-                      win.document.write(`<!DOCTYPE html><html><head><title>Receipt</title><style>body{font-family:monospace;padding:2rem;max-width:600px;margin:0 auto;color:#000}table{width:100%;border-collapse:collapse;margin:1rem 0}td,th{border:1px solid #000;padding:0.5rem;text-align:left;font-size:0.85rem}th{background:#000;color:#fff}h1{font-size:1.5rem;border-bottom:2px solid #000;padding-bottom:0.5rem}.label{color:#555;font-size:0.75rem;text-transform:uppercase;font-weight:700}.paid{color:#34A853;font-weight:700}@media print{body{print-color-adjust:exact}}</style></head><body><h1>Payment Receipt</h1><table><tr><th colspan="2">Receipt Details</th></tr><tr><td class="label">Receipt No</td><td>${r.receiptNo || r.id || selectedIntern.id}</td></tr><tr><td class="label">Date</td><td>${r.date ? new Date(r.date).toLocaleDateString() : new Date().toLocaleDateString()}</td></tr><tr><td class="label">Name</td><td>${r.name || selectedIntern.name}</td></tr><tr><td class="label">Email</td><td>${r.email || selectedIntern.email}</td></tr><tr><td class="label">Domain</td><td>${r.domain || selectedIntern.domain}</td></tr><tr><td class="label">Amount</td><td>₹${r.amount || selectedIntern.paymentAmount || 0}</td></tr><tr><td class="label">Payment Method</td><td>${r.paymentMethod || "Online"}</td></tr><tr><td class="label">Transaction ID</td><td>${r.transactionId || selectedIntern.transactionId || "-"}</td></tr><tr><td class="label">Status</td><td class="paid">${r.status || selectedIntern.paymentStatus || "N/A"}</td></tr></table><p style="font-size:0.75rem;color:#888;margin-top:2rem">Generated by Admin Panel</p><script>setTimeout(function(){window.print()},500)</script></body></html>`);
+                      win.document.write('<!DOCTYPE html><html><head><title>Receipt</title></head><body>' + filled + '<script>setTimeout(function(){window.print()},500)<\/script><p style="font-size:0.7rem;color:#888;margin-top:1rem;text-align:center">Official receipt sent by Dodo via email. This is a showcase copy.</p></body></html>');
                       win.document.close();
                     } catch (err) { setError("Failed to load receipt"); }
                   }}
@@ -9261,7 +9376,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     borderRadius: 0,
                   }}
                 >
-                  Download Receipt
+                  View Receipt
                 </button>
               </div>
               <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginTop: "0.25rem" }}>
