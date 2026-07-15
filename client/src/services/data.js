@@ -125,15 +125,6 @@ function _lsGetV(key) {
 }
 
 async function _fetchVersions() {
-  // Read from Firebase RTDB (free, no Cosmos RU)
-  try {
-    const db = getRtdb();
-    if (db) {
-      const snap = await rtdbGet(ref(db, "manifest/versions"));
-      if (snap.exists()) return snap.val();
-    }
-  } catch { /* fallback to server */ }
-  // Fallback: server endpoint (Cosmos DB)
   try {
     const resp = await fetch(`${API_BASE}/api/data/versions`);
     if (!resp.ok) return null;
