@@ -31,7 +31,7 @@ import { notify } from "../services/notify";
 import { confirmAction } from "../services/confirm";
 import { getDomainIconUrl, hideOnError } from "../utils/domainIcons";
 import { detectUserCurrency, fetchExchangeRates, convertPrice, formatPrice, currencySymbols } from "../utils/currency";
-import { enrichProject } from "../utils/taskEnricher";
+import { enrichProject, getTotalXp } from "../utils/taskEnricher";
 import EarnSection from "./EarnSection";
 import UPIPaymentModal from "./UPIPayment";
 import DodoPaymentModal from "./DodoPaymentModal";
@@ -1804,6 +1804,21 @@ function EnrollmentCard({
               />
             </div>
           </div>
+
+          {/* Total XP */}
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            marginTop: "0.9rem", paddingTop: "0.9rem", borderTop: "1px solid #e8e8e8",
+            fontSize: "0.82rem", fontWeight: 700, color: "#000"
+          }}>
+            <span style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>Total XP</span>
+            <span style={{
+              background: "#f59e0b", color: "#fff",
+              padding: "0.2rem 0.75rem", fontSize: "0.82rem", fontWeight: 800
+            }}>
+              {getTotalXp(projects)} XP
+            </span>
+          </div>
         </div>
 
         {/* Projects Section */}
@@ -2274,6 +2289,14 @@ function ProjectBox({
             >
               {isQuiz ? `Quiz ${idx + 1}: ${projectName}` : `Project ${idx + 1}: ${projectName}`}
             </strong>
+            <span style={{
+              display: "inline-block", background: "#f59e0b", color: "#fff",
+              padding: "0.1rem 0.5rem", fontSize: "0.68rem", fontWeight: 800,
+              marginTop: "0.25rem", textTransform: "uppercase", letterSpacing: "0.5px",
+              alignSelf: "flex-start",
+            }}>
+              {displayXp} XP
+            </span>
             {description && (
               <p
                 style={{

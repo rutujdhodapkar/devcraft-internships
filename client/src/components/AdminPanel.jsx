@@ -496,7 +496,15 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   const [contentLoading, setContentLoading] = useState(false);
   const [contentSaving, setContentSaving] = useState(false);
 
-  useEffect(() => { loadData(); loadAdmins(); }, []);
+  useEffect(() => {
+    loadData();
+    loadAdmins();
+    import("../services/data").then(({ fetchCareerPaths }) =>
+      fetchCareerPaths().then((d) => {
+        if (d?.paths) setCareerPaths(d.paths);
+      }).catch(() => {})
+    );
+  }, []);
 
   useEffect(() => {
     if (activeTab === "earn-settings") {
@@ -857,7 +865,17 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   }, [data]);
 
   // Helpers
-  const getProjectsForEnrollment = (enrollment) => Array.isArray(enrollment.projects) ? enrollment.projects : [];
+  const getProjectsForEnrollment = (enrollment) => {
+    const stored = Array.isArray(enrollment.projects) ? enrollment.projects : [];
+    if (!careerPaths.length || !enrollment.domain) return stored;
+    const domain = careerPaths.find((p) => p.id === enrollment.domainId || p.title === enrollment.domain);
+    if (!domain || !Array.isArray(domain.projects) || domain.projects.length === 0) return stored;
+    // merge: use current domain project titles but preserve stored submission data
+    return domain.projects.map((cp, i) => {
+      const sp = stored[i] || {};
+      return { ...cp, ...sp, title: cp.title || sp.title || `Task ${i + 1}` };
+    });
+  };
   const getSubmissions = (enrollment) => enrollment.submissions || {};
   const getCompletionPct = (enrollment) => {
     const projects = getProjectsForEnrollment(enrollment);
@@ -5455,12 +5473,16 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                     <div style={{ fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", color: "#888", marginBottom: "0.2rem" }}>
                                       Submissions:
                                     </div>
-                                    {Object.entries(intern.submissions).map(([pIdx, sub]) => (
-                                      <div key={pIdx} style={{ fontSize: "0.65rem", color: "#666", marginBottom: "0.15rem" }}>
-                                        Task {parseInt(pIdx) + 1}: {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : "-"}
-                                        {sub.verified && " ✓"}
-                                      </div>
-                                    ))}
+                                    {(() => { const ip = getProjectsForEnrollment(intern); return Object.entries(intern.submissions).map(([pIdx, sub]) => {
+                                      const i = parseInt(pIdx);
+                                      const pTitle = ip[i]?.title || `Task ${i + 1}`;
+                                      return (
+                                        <div key={pIdx} style={{ fontSize: "0.65rem", color: "#666", marginBottom: "0.15rem" }}>
+                                          {pTitle}: {sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : "-"}
+                                          {sub.verified && " ✓"}
+                                        </div>
+                                      );
+                                    })})()}
                                   </div>
                                 )}
                               </div>

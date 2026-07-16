@@ -17,6 +17,14 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
   ];
   const copyright = s.copyright || `\u00A9 ${new Date().getFullYear()} DEV/CRAFT. All rights reserved.`;
 
+  function normalizeHref(href) {
+    if (!href || href === '#') return href;
+    if (href.includes('@') && !href.startsWith('mailto:') && !href.startsWith('http')) {
+      return `mailto:${href}`;
+    }
+    return href;
+  }
+
   return (
     <footer style={{ borderTop: "2px solid #000", background: "#000", position: "relative", overflow: "hidden", color: "#ccc" }}>
       <div className="container" style={{ padding: "5rem 1rem 2rem", position: "relative", zIndex: 1 }}>
@@ -41,7 +49,7 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
                 <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "0.85rem", display: "flex", flexDirection: "column", gap: "0.6rem" }}>
                   {col.links.map((link, li) => (
                     <li key={li}>
-                      <a href={link.href || "#"} style={{ color: "#999", textDecoration: "none", transition: "color 0.2s" }}
+                      <a href={normalizeHref(link.href) || "#"} style={{ color: "#999", textDecoration: "none", transition: "color 0.2s" }}
                         onMouseEnter={(e) => e.currentTarget.style.color = "#fff"}
                         onMouseLeave={(e) => e.currentTarget.style.color = "#999"}
                       >
@@ -60,7 +68,7 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
             <h4 style={{ fontSize: "0.8rem", textTransform: "uppercase", fontFamily: "Space Grotesk, sans-serif", marginBottom: "1.25rem", fontWeight: 800, color: "#fff", letterSpacing: "1.5px" }}>Contact</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
               {contactLinks.map((link, idx) => (
-                <a key={idx} href={link.href || "#"} target={link.href?.startsWith("http") ? "_blank" : undefined} rel={link.href?.startsWith("http") ? "noopener noreferrer" : undefined}
+                <a key={idx} href={normalizeHref(link.href) || "#"} target={link.href?.startsWith("http") ? "_blank" : undefined} rel={link.href?.startsWith("http") ? "noopener noreferrer" : undefined}
                   style={{ fontSize: "0.85rem", color: "#aaa", textDecoration: "none", fontWeight: 600, transition: "color 0.2s" }}
                   onMouseEnter={(e) => e.currentTarget.style.color = "#fff"}
                   onMouseLeave={(e) => e.currentTarget.style.color = "#aaa"}

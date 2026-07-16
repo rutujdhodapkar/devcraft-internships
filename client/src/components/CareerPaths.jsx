@@ -2,7 +2,7 @@ import LoadingText from "./LoadingText";
 import React, { useEffect, useState } from 'react';
 import { fetchCareerPaths, fetchHomepageSettings } from '../services/data';
 import { getDomainIconUrl, hideOnError } from '../utils/domainIcons';
-import { enrichProject } from '../utils/taskEnricher';
+import { enrichProject, getTotalXp } from '../utils/taskEnricher';
 
 const COLS = 3;
 
@@ -38,10 +38,17 @@ function PathCard({ path, onApply }) {
                 return (
                   <span key={i} className="badge-sharp" style={{ backgroundColor: '#f5f5f5', color: '#333', fontSize: '0.72rem', border: '1px solid #ccc', padding: '0.2rem 0.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                     {enriched.title || `Task ${i + 1}`}
+                    <span style={{ background: '#f59e0b', color: '#fff', padding: '0.05rem 0.35rem', fontSize: '0.62rem', fontWeight: 800, marginLeft: '0.2rem' }}>{enriched.xp}</span>
                   </span>
                 );
               })}
             </div>
+          </div>
+        )}
+        {Array.isArray(path.projects) && path.projects.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', fontSize: '0.82rem', fontWeight: 800 }}>
+            <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px', color: '#555' }}>Total XP</span>
+            <span style={{ background: '#f59e0b', color: '#fff', padding: '0.2rem 0.75rem', fontSize: '0.82rem', fontWeight: 800 }}>{getTotalXp(path.projects)} XP</span>
           </div>
         )}
       </div>
@@ -83,7 +90,13 @@ function ViewAllModal({ paths, categories, onClose, onApply }) {
                   <span className="badge-sharp" style={{ backgroundColor: "#000", color: "#fff", fontSize: "0.75rem", marginBottom: "0.75rem", display: "inline-block" }}>{path.duration || '4 Weeks'}</span>
                   <img src={getDomainIconUrl(path)} alt="" width="48" height="48" style={{ width: '48px', height: '48px', objectFit: 'contain', display: 'block', marginBottom: '0.75rem' }} onError={hideOnError} />
                   <h4 style={{ fontWeight: 800, textTransform: "uppercase", fontSize: "1.1rem", margin: "0.5rem 0" }}>{path.title}</h4>
-                  <p style={{ fontSize: "0.82rem", color: "#666", lineHeight: "1.5", marginBottom: "1rem" }}>{path.description}</p>
+                  <p style={{ fontSize: "0.82rem", color: "#666", lineHeight: "1.5", marginBottom: "0.75rem" }}>{path.description}</p>
+                  {Array.isArray(path.projects) && path.projects.length > 0 && (
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: "#000", marginBottom: "0.75rem" }}>
+                      <span>Total XP: </span>
+                      <span style={{ background: "#f59e0b", color: "#fff", padding: "0.1rem 0.5rem", fontSize: "0.72rem" }}>{getTotalXp(path.projects)} XP</span>
+                    </div>
+                  )}
                   <button type="button" className="btn-sharp" onClick={() => onApply(path)} style={{ width: "100%", padding: "0.6rem", fontWeight: 700, fontSize: "0.82rem" }}>Apply Now</button>
                 </div>
               ))}
