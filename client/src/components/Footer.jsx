@@ -59,7 +59,7 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
                   ))}
                 </ul>
               )}
-              {col.text && <p style={{ fontSize: "0.85rem", color: "#777", lineHeight: "1.6" }}>{col.text}</p>}
+              {col.text && <p style={{ fontSize: "0.85rem", color: "#777", lineHeight: "1.6" }} dangerouslySetInnerHTML={{ __html: col.text.replace(/<br\s*\/?>/gi, '<br>') }} />}
             </div>
           ))}
 
