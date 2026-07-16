@@ -8040,8 +8040,16 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                     </div>
                   </div>
                   <div style={{ marginBottom: "0.75rem" }}>
-                    <label style={{ fontSize: "0.72rem", fontWeight: 700, display: "block", marginBottom: "0.25rem", textTransform: "uppercase" }}>Description</label>
-                    <textarea rows={2} value={footerSettings?.description || ""} onChange={(e) => setFooterSettings((p) => ({ ...p, description: e.target.value }))} style={{ ...s, resize: "vertical" }} />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.4rem" }}>
+                      <label style={{ fontSize: "0.72rem", fontWeight: 700, textTransform: "uppercase" }}>Descriptions</label>
+                      <button type="button" onClick={() => setFooterSettings((p) => ({ ...p, descriptions: [...(Array.isArray(p.descriptions) ? p.descriptions : p.description ? [p.description] : []), ""] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.15rem 0.5rem", fontSize: "0.72rem", fontWeight: 700 }}>+ Add</button>
+                    </div>
+                    {(Array.isArray(footerSettings?.descriptions) ? footerSettings.descriptions : footerSettings?.description ? [footerSettings.description] : []).map((desc, dIdx) => (
+                      <div key={dIdx} style={{ display: "flex", gap: "0.4rem", marginBottom: "0.35rem" }}>
+                        <textarea rows={2} value={desc || ""} onChange={(e) => { const u = [...(Array.isArray(footerSettings?.descriptions) ? footerSettings.descriptions : footerSettings?.description ? [footerSettings.description] : [])]; u[dIdx] = e.target.value; setFooterSettings((p) => ({ ...p, descriptions: u })); }} style={{ ...s, resize: "vertical", flex: 1 }} />
+                        <button type="button" onClick={() => { const u = [...(Array.isArray(footerSettings?.descriptions) ? footerSettings.descriptions : footerSettings?.description ? [footerSettings.description] : [])]; setFooterSettings((p) => ({ ...p, descriptions: u.filter((_, i) => i !== dIdx) })); }} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem", alignSelf: "stretch" }}>X</button>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
