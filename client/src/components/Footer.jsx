@@ -40,7 +40,6 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
                 dangerouslySetInnerHTML={{ __html: (desc || "").replace(/<br\s*\/?>|<\/br>/gi, '<br>') }}
               />
             ))}
-            </p>
 
           </div>
 
