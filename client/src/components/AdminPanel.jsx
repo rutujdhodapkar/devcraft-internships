@@ -202,6 +202,7 @@ const TAB_GROUPS = [
 const DEFAULT_HOMEPAGE = {
   headline: "",
   description: "",
+  badges: [],
 
   buttons: [],
   features: [],
@@ -406,7 +407,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
   useEffect(() => {
     if (selectedIntern) {
       const inputs = {};
-      const projects = selectedIntern.projects || [];
+      const projects = Array.isArray(selectedIntern.projects) ? selectedIntern.projects : [];
       const submissions = selectedIntern.submissions || {};
       projects.forEach((_, idx) => {
         const sub = submissions[idx];
@@ -784,6 +785,8 @@ export default function AdminPanel({ onClose, user, onLogout }) {
 
   const noticeTimers = useRef({});
   const [autoNoticeSaving, setAutoNoticeSaving] = useState({});
+  const careerPathsRef = useRef(careerPaths);
+  useEffect(() => { careerPathsRef.current = careerPaths; }, [careerPaths]);
 
   const autoSaveNotice = (pathIdx, pIdx, notice) => {
     const key = `${pathIdx}_${pIdx}`;
@@ -791,7 +794,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     noticeTimers.current[key] = setTimeout(async () => {
       setAutoNoticeSaving((prev) => ({ ...prev, [key]: true }));
       try {
-        await saveCareerPaths(careerPaths);
+        await saveCareerPaths(careerPathsRef.current);
         setAutoNoticeSaving((prev) => ({ ...prev, [key]: false }));
       } catch (err) {
         setAutoNoticeSaving((prev) => ({ ...prev, [key]: false }));
@@ -1140,6 +1143,10 @@ export default function AdminPanel({ onClose, user, onLogout }) {
     setActionLoading((p) => ({ ...p, [key]: true }));
     try {
       await unverifyProject(enrollmentId, projectIdx);
+      const fresh = await fetchEnrollmentById(enrollmentId);
+      if (fresh && selectedIntern?.id === enrollmentId) {
+        setSelectedIntern(fresh);
+      }
       await loadData();
       setSuccessMsg(`Task #${+projectIdx + 1} unverified.`);
       setTimeout(() => setSuccessMsg(""), 3000);
@@ -3307,6 +3314,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "items" in raw[0]) return raw;
                                   if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "url" in raw[0]) return [{ title: "", items: raw }];
                                   if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "text" in raw[0]) return [{ title: "", items: raw.map((l) => ({ text: l.text, url: l.url })) }];
+                                  if (raw.length > 0 && typeof raw[0] === "string") return [{ title: "", items: raw.map((u) => ({ text: "Resource", url: u })) }];
                                   return raw;
                               }
                               if (typeof raw === "string" && raw.trim()) {
@@ -7331,6 +7339,20 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                   <textarea rows={3} value={homepageContent.description || ""} onChange={(e) => setHomepageContent((p) => ({ ...p, description: e.target.value }))} style={{ ...s, resize: "vertical", fontSize: "0.95rem" }} />
                 </div>
 
+                {/* Badges */}
+                <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <span style={{ fontWeight: 800, fontSize: "0.9rem", textTransform: "uppercase" }}>Badge Tags</span>
+                    <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, badges: [...(p.badges || []), { label: "New Badge" }] }))} style={{ border: "2px solid #000", background: "#fff", cursor: "pointer", padding: "0.2rem 0.6rem", fontSize: "0.78rem", fontWeight: 700 }}>+ Add Badge</button>
+                  </div>
+                  {(homepageContent.badges || []).map((badge, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem", alignItems: "center" }}>
+                      <input value={badge.label} onChange={(e) => { const u = [...(homepageContent.badges || [])]; u[idx] = { ...u[idx], label: e.target.value }; setHomepageContent((p) => ({ ...p, badges: u })); }} placeholder="Badge text" style={{ ...s, flex: 1 }} />
+                      <button type="button" onClick={() => setHomepageContent((p) => ({ ...p, badges: (p.badges || []).filter((_, i) => i !== idx) }))} style={{ border: "1px solid #EA4335", color: "#EA4335", background: "none", cursor: "pointer", padding: "0.15rem 0.4rem", fontSize: "0.75rem" }}>Remove</button>
+                    </div>
+                  ))}
+                </div>
+
                 {/* Buttons */}
                 <div style={{ border: "2px solid #000", padding: "1.5rem", boxShadow: "3px 3px 0 #000" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
@@ -8756,6 +8778,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                           if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "items" in raw[0]) return raw;
                           if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "url" in raw[0]) return [{ title: "", items: raw.map((l) => ({ text: l.text || "Resource", url: l.url })) }];
                           if (raw.length > 0 && typeof raw[0] === "object" && raw[0] !== null && "text" in raw[0]) return [{ title: "", items: raw }];
+                          if (raw.length > 0 && typeof raw[0] === "string") return [{ title: "", items: raw.map((u) => ({ text: "Resource", url: u })) }];
                           return raw;
                         }
                         if (typeof raw === "string" && raw.trim()) {
@@ -8930,7 +8953,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                                   </button>
                                 </>
                               )}
-                              {isResubmit && !isSubmitted && (
+                              {isResubmit && (
                                 <span
                                   style={{
                                     background: "#EA4335",

@@ -1767,6 +1767,10 @@ function EnrollmentCard({
 
         {/* Projects Section */}
         <div style={{ padding: "1.75rem 2rem" }}>
+          <div style={{ border: "2px solid #a00", padding: "1rem 1.25rem", background: "#2a0000", marginBottom: "1rem" }}>
+            <strong style={{ color: "#ff6666" }}>Upload offer letter on LinkedIn</strong>
+            <p style={{ fontSize: "0.85rem", color: "#cc6666", marginTop: "0.35rem" }}>Share your offer letter on LinkedIn to celebrate your internship and connect with professionals.</p>
+          </div>
           {isExpired && (
             <div style={{ border: "2px solid #a00", padding: "1rem 1.25rem", background: "#2a0000", marginBottom: "1rem" }}>
               <strong style={{ color: "#ff6666" }}>Internship Expired</strong>
