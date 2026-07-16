@@ -3,11 +3,13 @@ import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import crypto from 'crypto';
 import apiHandler from '../api/index.js';
 import { sendEmail, isConfigured } from './brevoClient.js';
 import { renderTemplate, TEMPLATES, getTemplate } from './emailTemplates.js';
 import { runDailyCron, getEmailStats, processEmailCampaign, processLifecycleTransitions, determineLifecycleStages, EMAIL_TYPES, EMAIL_CATEGORIES } from './emailEngine.js';
 import { initCosmosDb, FieldValue } from './cosmos.js';
+import { verifyFirebaseToken, isFirebaseAdmin } from './auth.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -60,17 +62,104 @@ app.use(cors({
 }));
 app.use(express.json());
 
-async function readJson(filePath, fallback = []) {
-  try {
-    const fileData = await fs.readFile(filePath, 'utf-8');
-    return JSON.parse(fileData);
-  } catch {
-    return fallback;
+// ── File-level mutex for atomic JSON operations ──
+const _fileLocks = new Map();
+async function withFileLock(filePath, fn) {
+  while (_fileLocks.get(filePath)) {
+    await _fileLocks.get(filePath);
   }
+  const lock = (async () => {
+    try { return await fn(); } finally { _fileLocks.delete(filePath); }
+  })();
+  _fileLocks.set(filePath, lock);
+  return lock;
 }
 
-async function writeJson(filePath, data) {
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+async function readJsonAtomic(filePath, fallback = []) {
+  return withFileLock(filePath, async () => {
+    try {
+      const fileData = await fs.readFile(filePath, 'utf-8');
+      return JSON.parse(fileData);
+    } catch {
+      return fallback;
+    }
+  });
+}
+
+async function writeJsonAtomic(filePath, data) {
+  const tmp = filePath + '.tmp';
+  await fs.writeFile(tmp, JSON.stringify(data, null, 2), 'utf-8');
+  await fs.rename(tmp, filePath);
+}
+
+// ── Rate limiter (in-memory, per-IP) ──
+const _rateLimitMap = new Map();
+function rateLimit(maxRequests = 60, windowMs = 60000) {
+  return (req, res, next) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const entry = _rateLimitMap.get(ip);
+    if (!entry || now - entry.windowStart > windowMs) {
+      _rateLimitMap.set(ip, { windowStart: now, count: 1 });
+      return next();
+    }
+    entry.count++;
+    if (entry.count > maxRequests) {
+      return res.status(429).json({ success: false, message: 'Too many requests. Please slow down.' });
+    }
+    return next();
+  };
+}
+
+// Apply global rate limiter
+app.use(rateLimit(120, 60000));
+
+// ── Auth middleware ──
+async function resolveAdmin(req) {
+  const idToken = req.body?.idToken || req.query?.idToken || req.headers['x-id-token'];
+  if (!idToken) return null;
+  const decoded = await verifyFirebaseToken(idToken);
+  if (!decoded?.email) return null;
+  if (decoded.email.toLowerCase() === 'rutujdhodapkar@gmail.com') return decoded.email;
+  const admin = await isFirebaseAdmin(decoded.email);
+  return admin ? decoded.email : null;
+}
+
+async function resolveAuth(req) {
+  const idToken = req.body?.idToken || req.query?.idToken || req.headers['x-id-token'];
+  if (!idToken) return null;
+  return verifyFirebaseToken(idToken);
+}
+
+function requireAdmin(handler) {
+  return async (req, res) => {
+    const email = await resolveAdmin(req);
+    if (!email) return res.status(401).json({ success: false, message: 'Admin authentication required.' });
+    req._adminEmail = email;
+    return handler(req, res);
+  };
+}
+
+function requireAuth(handler) {
+  return async (req, res) => {
+    const decoded = await resolveAuth(req);
+    if (!decoded) return res.status(401).json({ success: false, message: 'Authentication required.' });
+    req._authUser = decoded;
+    return handler(req, res);
+  };
+}
+
+// ── Input validation helper: whitelist fields ──
+const ALLOWED_INQUIRY_FIELDS = ['name', 'email', 'phone', 'projectType', 'planTier', 'customSpecs', 'estimatedPrice', 'currency', 'requirements', 'message', 'referralCode'];
+const ALLOWED_REFERRAL_FIELDS = ['code', 'name', 'email', 'phone', 'upiId', 'college', 'city', 'country'];
+const ALLOWED_VISIT_FIELDS = ['referralCode', 'visitedAt', 'action'];
+
+function pickAllowed(body, allowedFields) {
+  const result = {};
+  for (const field of allowedFields) {
+    if (body[field] !== undefined) result[field] = body[field];
+  }
+  return result;
 }
 
 // In-memory caching for currency exchange rates
@@ -116,19 +205,8 @@ app.get('/api/rates', async (req, res) => {
 
 // Route: Save design/development inquiry
 app.post('/api/inquire', async (req, res) => {
-  const {
-    name,
-    email,
-    phone,
-    projectType,
-    planTier,
-    customSpecs,
-    estimatedPrice,
-    currency,
-    requirements,
-    message,
-    referralCode,
-  } = req.body;
+  const body = pickAllowed(req.body, ALLOWED_INQUIRY_FIELDS);
+  const { name, email, phone, projectType, planTier } = body;
 
   if (!name || !email || !phone || !projectType || !planTier) {
     return res.status(400).json({ success: false, message: 'Please provide all required fields.' });
@@ -140,33 +218,21 @@ app.post('/api/inquire', async (req, res) => {
     name,
     email,
     phone,
-    ...req.body,
-    projectType, // 'software' or 'documentation'
-    planTier, // 'basic', 'advance', 'pro'
-    customSpecs: customSpecs || [],
-    estimatedPrice,
-    currency: currency || 'USD',
-    message: requirements || message || '',
-    referralCode: referralCode || '',
-    status: req.body.status || 'contacted',
-    progress: req.body.progress || 'New request',
+    projectType,
+    planTier,
+    customSpecs: Array.isArray(body.customSpecs) ? body.customSpecs : [],
+    estimatedPrice: body.estimatedPrice || null,
+    currency: body.currency || 'USD',
+    message: body.requirements || body.message || '',
+    referralCode: body.referralCode || '',
+    status: 'contacted',
+    progress: 'New request',
   };
 
   try {
-    const inquiries = await readJson(INQUIRIES_FILE);
-
+    const inquiries = await readJsonAtomic(INQUIRIES_FILE);
     inquiries.push(newInquiry);
-    await writeJson(INQUIRIES_FILE, inquiries);
-
-    console.log('\n--- NEW INQUIRY RECEIVED ---');
-    console.log(`ID: ${newInquiry.id}`);
-    console.log(`Client: ${newInquiry.name} (${newInquiry.email})`);
-    console.log(`Service: ${newInquiry.projectType.toUpperCase()} - ${newInquiry.planTier.toUpperCase()}`);
-    console.log(`Price Est: ${newInquiry.estimatedPrice} ${newInquiry.currency}`);
-    console.log(`Phone: ${newInquiry.phone}`);
-    console.log(`Specs: ${(newInquiry.customSpecs || []).join(', ') || 'None'}`);
-    console.log(`Message: ${newInquiry.message}`);
-    console.log('-----------------------------\n');
+    await writeJsonAtomic(INQUIRIES_FILE, inquiries);
 
     return res.status(201).json({ 
       success: true, 
@@ -179,99 +245,115 @@ app.post('/api/inquire', async (req, res) => {
   }
 });
 
-// Get all inquiries (simple dashboard read)
-app.get('/api/inquiries', async (req, res) => {
-  const inquiries = await readJson(INQUIRIES_FILE);
+// Get all inquiries (admin only)
+app.get('/api/inquiries', requireAdmin(async (req, res) => {
+  const inquiries = await readJsonAtomic(INQUIRIES_FILE);
   res.json({ success: true, data: inquiries });
-});
+}));
 
-app.get('/api/admin-data', async (req, res) => {
+app.get('/api/admin-data', requireAdmin(async (req, res) => {
   const [requests, referrals, visits] = await Promise.all([
-    readJson(INQUIRIES_FILE),
-    readJson(REFERRALS_FILE),
-    readJson(VISITS_FILE),
+    readJsonAtomic(INQUIRIES_FILE),
+    readJsonAtomic(REFERRALS_FILE),
+    readJsonAtomic(VISITS_FILE),
   ]);
 
-  // Sort requests descending by date
   const sortedRequests = [...requests].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  // Sort visits descending by date and limit to 100
   const sortedVisits = [...visits].sort((a, b) => new Date(b.visitedAt) - new Date(a.visitedAt)).slice(0, 100);
 
   res.json({ success: true, data: { requests: sortedRequests, referrals, visits: sortedVisits } });
-});
+}));
 
-app.post('/api/referrals', async (req, res) => {
-  const referrals = await readJson(REFERRALS_FILE);
+app.post('/api/referrals', requireAuth(async (req, res) => {
+  const body = pickAllowed(req.body, ALLOWED_REFERRAL_FIELDS);
+  const code = body.code || `REF-${Date.now().toString(36).toUpperCase()}`;
   const referral = {
-    id: req.body.code,
-    ...req.body,
-    code: req.body.code || `REF-${Date.now().toString(36).toUpperCase()}`,
-    visited: req.body.visited || 0,
-    contacted: req.body.contacted || 0,
-    createdAt: req.body.createdAt || new Date().toISOString(),
+    id: code,
+    code,
+    name: body.name || '',
+    email: body.email || '',
+    phone: body.phone || '',
+    upiId: body.upiId || '',
+    college: body.college || '',
+    city: body.city || '',
+    country: body.country || '',
+    visited: 0,
+    contacted: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
-
-  referrals.push(referral);
-  await writeJson(REFERRALS_FILE, referrals);
+  await withFileLock(REFERRALS_FILE, async () => {
+    const referrals = await readJsonAtomic(REFERRALS_FILE);
+    referrals.push(referral);
+    await writeJsonAtomic(REFERRALS_FILE, referrals);
+  });
   res.status(201).json({ success: true, data: referral });
-});
+}));
 
 app.post('/api/referral-visits', async (req, res) => {
-  const [referrals, visits] = await Promise.all([
-    readJson(REFERRALS_FILE),
-    readJson(VISITS_FILE),
-  ]);
-
-  const code = String(req.body.referralCode || '').toUpperCase();
-  const matchedReferral = referrals.find((item) => String(item.code).toUpperCase() === code);
+  const body = pickAllowed(req.body, ALLOWED_VISIT_FIELDS);
+  const code = String(body.referralCode || '').toUpperCase();
+  let matchedReferral = false;
+  await withFileLock(REFERRALS_FILE, async () => {
+    const referrals = await readJsonAtomic(REFERRALS_FILE);
+    const ref = referrals.find((item) => String(item.code).toUpperCase() === code);
+    if (ref) {
+      ref.visited = Number(ref.visited || 0) + 1;
+      ref.lastVisitedAt = new Date().toISOString();
+      await writeJsonAtomic(REFERRALS_FILE, referrals);
+      matchedReferral = true;
+    }
+  });
   const visit = {
     id: `VIS-${Date.now()}`,
-    ...req.body,
     referralCode: code,
-    matched: Boolean(matchedReferral),
-    visitedAt: req.body.visitedAt || new Date().toISOString(),
+    matched: matchedReferral,
+    visitedAt: body.visitedAt || new Date().toISOString(),
     action: 'visited',
   };
-
-  visits.push(visit);
-  if (matchedReferral) {
-    matchedReferral.visited = Number(matchedReferral.visited || 0) + 1;
-    matchedReferral.lastVisitedAt = visit.visitedAt;
-  }
-
-  await Promise.all([writeJson(VISITS_FILE, visits), writeJson(REFERRALS_FILE, referrals)]);
+  await withFileLock(VISITS_FILE, async () => {
+    const visits = await readJsonAtomic(VISITS_FILE);
+    visits.push(visit);
+    await writeJsonAtomic(VISITS_FILE, visits);
+  });
   res.status(201).json({ success: true, data: visit });
 });
 
-app.delete('/api/referrals/:code', async (req, res) => {
+app.delete('/api/referrals/:code', requireAuth(async (req, res) => {
   const code = String(req.params.code || '').toUpperCase();
-  const referrals = await readJson(REFERRALS_FILE);
-  const filtered = referrals.filter((item) => String(item.code).toUpperCase() !== code);
-  await writeJson(REFERRALS_FILE, filtered);
+  await withFileLock(REFERRALS_FILE, async () => {
+    const referrals = await readJsonAtomic(REFERRALS_FILE);
+    const filtered = referrals.filter((item) => String(item.code).toUpperCase() !== code);
+    await writeJsonAtomic(REFERRALS_FILE, filtered);
+  });
   res.json({ success: true, message: `Referral ${code} deleted.` });
-});
+}));
 
-app.delete('/api/inquiries/:id', async (req, res) => {
+app.delete('/api/inquiries/:id', requireAdmin(async (req, res) => {
   const { id } = req.params;
-  const inquiries = await readJson(INQUIRIES_FILE);
-  const filtered = inquiries.filter((item) => item.id !== id);
-  await writeJson(INQUIRIES_FILE, filtered);
+  await withFileLock(INQUIRIES_FILE, async () => {
+    const inquiries = await readJsonAtomic(INQUIRIES_FILE);
+    const filtered = inquiries.filter((item) => item.id !== id);
+    await writeJsonAtomic(INQUIRIES_FILE, filtered);
+  });
   res.json({ success: true, message: `Inquiry ${id} deleted.` });
-});
+}));
 
-app.post('/api/referrals/:code/contacted', async (req, res) => {
-  const referrals = await readJson(REFERRALS_FILE);
+app.post('/api/referrals/:code/contacted', requireAuth(async (req, res) => {
   const code = String(req.params.code || '').toUpperCase();
-  const matchedReferral = referrals.find((item) => String(item.code).toUpperCase() === code);
-
-  if (matchedReferral) {
-    matchedReferral.contacted = Number(matchedReferral.contacted || 0) + 1;
-    matchedReferral.lastContactedAt = new Date().toISOString();
-    await writeJson(REFERRALS_FILE, referrals);
-  }
-
+  let matchedReferral = null;
+  await withFileLock(REFERRALS_FILE, async () => {
+    const referrals = await readJsonAtomic(REFERRALS_FILE);
+    const ref = referrals.find((item) => String(item.code).toUpperCase() === code);
+    if (ref) {
+      ref.contacted = Number(ref.contacted || 0) + 1;
+      ref.lastContactedAt = new Date().toISOString();
+      await writeJsonAtomic(REFERRALS_FILE, referrals);
+      matchedReferral = ref;
+    }
+  });
   res.json({ success: true, data: matchedReferral || null });
-});
+}));
 
 // Admin management APIs
 app.post('/api/check-admin', async (req, res) => {
@@ -283,38 +365,42 @@ app.post('/api/check-admin', async (req, res) => {
   if (cleanEmail === 'rutujdhodapkar@gmail.com') {
     return res.json({ success: true, isAdmin: true });
   }
-  const admins = await readJson(ADMINS_FILE);
+  const admins = await readJsonAtomic(ADMINS_FILE);
   const isAdmin = admins.some(adminEmail => adminEmail.toLowerCase().trim() === cleanEmail);
   return res.json({ success: true, isAdmin });
 });
 
-app.get('/api/admins', async (req, res) => {
-  const admins = await readJson(ADMINS_FILE);
+app.get('/api/admins', requireAdmin(async (req, res) => {
+  const admins = await readJsonAtomic(ADMINS_FILE);
   return res.json({ success: true, data: admins });
-});
+}));
 
-app.post('/api/admins', async (req, res) => {
+app.post('/api/admins', requireAdmin(async (req, res) => {
   const { email } = req.body;
   if (!email) {
     return res.status(400).json({ success: false, message: 'Email required.' });
   }
   const cleanEmail = email.toLowerCase().trim();
-  const admins = await readJson(ADMINS_FILE);
-  if (!admins.includes(cleanEmail)) {
-    admins.push(cleanEmail);
-    await writeJson(ADMINS_FILE, admins);
-  }
-  return res.json({ success: true, data: admins });
-});
+  await withFileLock(ADMINS_FILE, async () => {
+    const admins = await readJsonAtomic(ADMINS_FILE);
+    if (!admins.includes(cleanEmail)) {
+      admins.push(cleanEmail);
+      await writeJsonAtomic(ADMINS_FILE, admins);
+    }
+  });
+  return res.json({ success: true, data: [cleanEmail] });
+}));
 
-app.delete('/api/admins/:email', async (req, res) => {
+app.delete('/api/admins/:email', requireAdmin(async (req, res) => {
   const { email } = req.params;
   const cleanEmail = email.toLowerCase().trim();
-  const admins = await readJson(ADMINS_FILE);
-  const updated = admins.filter(adminEmail => adminEmail.toLowerCase().trim() !== cleanEmail);
-  await writeJson(ADMINS_FILE, updated);
-  return res.json({ success: true, data: updated });
-});
+  await withFileLock(ADMINS_FILE, async () => {
+    const admins = await readJsonAtomic(ADMINS_FILE);
+    const updated = admins.filter(adminEmail => adminEmail.toLowerCase().trim() !== cleanEmail);
+    await writeJsonAtomic(ADMINS_FILE, updated);
+  });
+  return res.json({ success: true, message: `Admin ${cleanEmail} removed.` });
+}));
 
 // ─── AI Task Verification (NVIDIA API) ─────────────────────────────────────────
 app.post('/api/ai/verify-task', async (req, res) => {
@@ -504,6 +590,9 @@ app.post('/api/dodo/create-checkout-session', async (req, res) => {
   }
 });
 
+// ── Webhook idempotency store ──
+const _processedWebhooks = new Set();
+
 // Webhook: Handle payment events from Dodo
 app.post('/api/dodo/webhook', async (req, res) => {
   try {
@@ -515,18 +604,33 @@ app.post('/api/dodo/webhook', async (req, res) => {
     if (!webhookId || !webhookSignature || !webhookTimestamp) {
       return res.status(401).json({ received: false });
     }
-    const { createHmac, timingSafeEqual } = await import('crypto');
+
+    // Idempotency: skip already-processed webhooks
+    if (_processedWebhooks.has(webhookId)) {
+      return res.json({ received: true, idempotent: true });
+    }
+
     const signedContent = `${webhookId}.${webhookTimestamp}.${rawBody}`;
-    const computedSig = createHmac('sha256', DODO_WEBHOOK_SECRET).update(signedContent).digest('base64');
+    const computedSig = crypto.createHmac('sha256', DODO_WEBHOOK_SECRET).update(signedContent).digest('base64');
     const expectedSigs = webhookSignature.split(' ').map(s => {
       const p = s.split(',').find(x => x.trim().startsWith('v1='));
       return p ? p.trim().slice(3) : null;
     }).filter(Boolean);
     let valid = false;
     for (const sig of expectedSigs) {
-      try { if (timingSafeEqual(Buffer.from(computedSig), Buffer.from(sig))) { valid = true; break; } } catch {}
+      try {
+        if (crypto.timingSafeEqual(Buffer.from(computedSig), Buffer.from(sig))) {
+          valid = true;
+          break;
+        }
+      } catch {}
     }
     if (!valid) return res.status(401).json({ received: false });
+
+    // Mark as processed (prune after 1 hour to limit memory)
+    _processedWebhooks.add(webhookId);
+    setTimeout(() => _processedWebhooks.delete(webhookId), 3600000);
+
     const eventType = req.body.type || req.body.event_type || '';
     const payload = req.body.data || req.body;
     const metadata = payload.metadata || {};
@@ -553,7 +657,6 @@ app.post('/api/dodo/webhook', async (req, res) => {
             await enrRef.update({ allowedCertificate: 'yes', status: 'Completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
           }
         }
-        console.log(`Dodo: Payment succeeded for ${enrollmentId}`);
       } catch (fbErr) { console.error('Firebase update failed:', fbErr.message); }
     } else if (eventType === 'payment.failed' && enrollmentId) {
       try {
@@ -725,8 +828,8 @@ app.get('/api/data/audit-log', async (req, res) => {
 
 // ─── Email Automation Routes ────────────────────────────────────────────────
 
-// POST /api/email/trigger — Trigger a specific email type manually
-app.post('/api/email/trigger', async (req, res) => {
+// POST /api/email/trigger — Trigger a specific email type manually (admin only)
+app.post('/api/email/trigger', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -738,10 +841,10 @@ app.post('/api/email/trigger', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// POST /api/email/run — Trigger the daily cron manually (admin)
-app.post('/api/email/run', async (req, res) => {
+// POST /api/email/run — Trigger the daily cron manually (admin only)
+app.post('/api/email/run', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -750,10 +853,10 @@ app.post('/api/email/run', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// POST /api/email/dry-run — Preview what would be sent without sending
-app.post('/api/email/dry-run', async (req, res) => {
+// POST /api/email/dry-run — Preview what would be sent without sending (admin only)
+app.post('/api/email/dry-run', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -764,10 +867,10 @@ app.post('/api/email/dry-run', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// POST /api/email/send-test — Send a test email to a specific address
-app.post('/api/email/send-test', async (req, res) => {
+// POST /api/email/send-test — Send a test email to a specific address (admin only)
+app.post('/api/email/send-test', requireAdmin(async (req, res) => {
   try {
     const { email, type, name, domain } = req.body;
     if (!email || !type) return res.status(400).json({ success: false, message: 'email and type required' });
@@ -785,7 +888,7 @@ app.post('/api/email/send-test', async (req, res) => {
       totalProjects: '3',
       status: 'active',
       completedAt: '2026-07-01',
-      unsubscribeUrl: `https://devcraft.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(email)}`,
+      unsubscribeUrl: `https://devcraft.fennark.xyz/api/email/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(generateUnsubscribeToken(email))}`,
     });
     if (!rendered) return res.status(400).json({ success: false, message: `Unknown email type: ${type}` });
     const result = await sendEmail({ to: email, subject: rendered.subject, html: rendered.html, type });
@@ -793,7 +896,7 @@ app.post('/api/email/send-test', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
 // GET /api/email/templates — List all available templates
 app.get('/api/email/templates', (req, res) => {
@@ -845,8 +948,8 @@ app.get('/api/email/templates/:type', async (req, res) => {
   }
 });
 
-// PUT /api/email/templates/:type — Save custom template
-app.put('/api/email/templates/:type', async (req, res) => {
+// PUT /api/email/templates/:type — Save custom template (admin only)
+app.put('/api/email/templates/:type', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -861,10 +964,10 @@ app.put('/api/email/templates/:type', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// DELETE /api/email/templates/:type — Reset to default template
-app.delete('/api/email/templates/:type', async (req, res) => {
+// DELETE /api/email/templates/:type — Reset to default template (admin only)
+app.delete('/api/email/templates/:type', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -874,10 +977,10 @@ app.delete('/api/email/templates/:type', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
 // GET /api/email/config — Get email automation config
-app.get('/api/email/config', async (req, res) => {
+app.get('/api/email/config', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -887,10 +990,10 @@ app.get('/api/email/config', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// PUT /api/email/config — Save email automation config
-app.put('/api/email/config', async (req, res) => {
+// PUT /api/email/config — Save email automation config (admin only)
+app.put('/api/email/config', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -902,10 +1005,10 @@ app.put('/api/email/config', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// GET /api/email/stats — Email statistics
-app.get('/api/email/stats', async (req, res) => {
+// GET /api/email/stats — Email statistics (admin only)
+app.get('/api/email/stats', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -914,10 +1017,10 @@ app.get('/api/email/stats', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// GET /api/email/logs — View email logs (paginated)
-app.get('/api/email/logs', async (req, res) => {
+// GET /api/email/logs — View email logs (paginated, admin only)
+app.get('/api/email/logs', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -933,10 +1036,10 @@ app.get('/api/email/logs', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// GET /api/email/logs/stats — Aggregated log stats
-app.get('/api/email/logs/stats', async (req, res) => {
+// GET /api/email/logs/stats — Aggregated log stats (admin only)
+app.get('/api/email/logs/stats', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -945,7 +1048,7 @@ app.get('/api/email/logs/stats', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
 function prefPage(title, body) {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Email Preferences</title><style>
@@ -972,21 +1075,45 @@ function prefPage(title, body) {
   </div></body></html>`;
 }
 
+// ── Unsubscribe token helpers ──
+const UNSUBSCRIBE_SECRET = process.env.UNSUBSCRIBE_SECRET || (() => { const s = crypto.randomBytes(32).toString('hex'); process.env.UNSUBSCRIBE_SECRET = s; return s; })();
+
+function generateUnsubscribeToken(email) {
+  const ts = Math.floor(Date.now() / 1000);
+  const payload = `${email.toLowerCase()}:${ts}`;
+  const sig = crypto.createHmac('sha256', UNSUBSCRIBE_SECRET).update(payload).digest('hex').slice(0, 12);
+  return `${ts}-${sig}`;
+}
+
+function verifyUnsubscribeToken(email, token) {
+  if (!email || !token) return false;
+  const parts = token.split('-');
+  if (parts.length !== 2) return false;
+  const [ts, sig] = parts;
+  const tsNum = parseInt(ts, 10);
+  if (isNaN(tsNum)) return false;
+  const maxAge = 30 * 24 * 60 * 60;
+  if (Math.floor(Date.now() / 1000) - tsNum > maxAge) return false;
+  const payload = `${email.toLowerCase()}:${ts}`;
+  const expected = crypto.createHmac('sha256', UNSUBSCRIBE_SECRET).update(payload).digest('hex').slice(0, 12);
+  return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+}
+
 // GET /api/email/unsubscribe — Preference center (link in emails)
 app.get('/api/email/unsubscribe', async (req, res) => {
   try {
     const db = await initCosmosDb();
     const email = req.query.email;
+    const token = req.query.token;
     const done = req.query.done;
-    if (!email || !db) {
-      return res.status(400).send(prefPage('Error', '<p>Invalid unsubscribe link. Please check the link and try again.</p>'));
+    if (!email || !token || !verifyUnsubscribeToken(email, token) || !db) {
+      return res.status(400).send(prefPage('Error', '<p>Invalid or expired unsubscribe link. Please try again from your dashboard.</p>'));
     }
     const docId = email.toLowerCase().replace(/\./g, ',');
     const snap = await db.collection('emailSubscriptions').doc(docId).get();
     let sub = snap.exists ? snap.data() : null;
     const categories = {};
 
-    // Load all email types from config
     try {
       const cfgSnap = await db.collection('siteConfig').doc('emailConfig').get();
       if (cfgSnap.exists) {
@@ -1032,12 +1159,13 @@ app.get('/api/email/unsubscribe', async (req, res) => {
       <hr>
       <form method="POST" action="/api/email/unsubscribe" style="margin-bottom:16px">
         <input type="hidden" name="email" value="${email}">
+        <input type="hidden" name="token" value="${token}">
         <input type="hidden" name="action" value="preferences">
         ${catCheckboxes || '<p style="color:#888">No email categories available.</p>'}
         <hr>
         <button type="submit" class="btn" style="margin-top:4px">Save Preferences</button>
       </form>
-      <a href="/api/email/unsubscribe?email=${encodeURIComponent(email)}&done=all" class="btn btn-outline btn-sm" style="font-size:11px">Unsubscribe from All</a>
+      <a href="/api/email/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&done=all" class="btn btn-outline btn-sm" style="font-size:11px">Unsubscribe from All</a>
       `));
   } catch (error) {
     res.status(500).send(prefPage('Error', '<p>Something went wrong. Please try again later.</p>'));
@@ -1048,8 +1176,10 @@ app.get('/api/email/unsubscribe', async (req, res) => {
 app.post('/api/email/unsubscribe', express.urlencoded({ extended: true }), async (req, res) => {
   try {
     const db = await initCosmosDb();
-    const { email, action } = req.body;
-    if (!email || !db) return res.redirect('/api/email/unsubscribe?email=');
+    const { email, token, action } = req.body;
+    if (!email || !token || !verifyUnsubscribeToken(email, token) || !db) {
+      return res.status(400).send(prefPage('Error', '<p>Invalid request. Please use the link from your email.</p>'));
+    }
 
     const docId = email.toLowerCase().replace(/\./g, ',');
     const cats = req.body.cats;
@@ -1067,14 +1197,14 @@ app.post('/api/email/unsubscribe', express.urlencoded({ extended: true }), async
       lastUpdated: new Date().toISOString(),
     };
     await db.collection('emailSubscriptions').doc(docId).set(data, { merge: true });
-    res.redirect(`/api/email/unsubscribe?email=${encodeURIComponent(email)}&saved=1`);
+    res.redirect(`/api/email/unsubscribe?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&saved=1`);
   } catch (error) {
     res.status(500).send(prefPage('Error', '<p>Could not save preferences. Please try again.</p>'));
   }
 });
 
-// GET /api/email/subscriptions — List all subscriptions
-app.get('/api/email/subscriptions', async (req, res) => {
+// GET /api/email/subscriptions — List all subscriptions (admin only)
+app.get('/api/email/subscriptions', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -1084,10 +1214,10 @@ app.get('/api/email/subscriptions', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// POST /api/email/subscriptions/update — Update a user's subscription preferences
-app.post('/api/email/subscriptions/update', async (req, res) => {
+// POST /api/email/subscriptions/update — Update a user's subscription preferences (admin only)
+app.post('/api/email/subscriptions/update', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -1108,10 +1238,10 @@ app.post('/api/email/subscriptions/update', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+}));
 
-// GET /api/email/automation-log — View lifecycle transitions
-app.get('/api/email/automation-log', async (req, res) => {
+// GET /api/email/automation-log — View lifecycle transitions (admin only)
+app.get('/api/email/automation-log', requireAdmin(async (req, res) => {
   try {
     const db = await initCosmosDb();
     if (!db) return res.status(503).json({ success: false, message: 'Firebase not configured' });
@@ -1119,7 +1249,6 @@ app.get('/api/email/automation-log', async (req, res) => {
     const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     return res.json({ success: true, data: logs });
   } catch (error) {
-    // Fallback if no index exists
     try {
       const db = await initCosmosDb();
       const snap = await db.collection('emailAutomationLog').get();
@@ -1130,7 +1259,7 @@ app.get('/api/email/automation-log', async (req, res) => {
       return res.status(500).json({ success: false, message: e2.message });
     }
   }
-});
+}));
 
 // GET /api/email/types — List all email types and categories
 app.get('/api/email/types', (req, res) => {

@@ -135,7 +135,7 @@ export function verifyJwt(token) {
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   try {
     const body = JSON.parse(Buffer.from(p, "base64url").toString());
-    if (body.exp && Math.floor(Date.now() / 1000) > body.exp + 86400) return null;
+    if (body.exp && Math.floor(Date.now() / 1000) > body.exp) return null;
     return body;
   } catch {
     return null;
