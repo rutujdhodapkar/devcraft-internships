@@ -13,7 +13,7 @@ function PathCard({ path, onApply }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <span className="badge-sharp" style={{ backgroundColor: '#000', color: '#fff', fontSize: '0.8rem' }}>{path.duration || '4 Weeks'}</span>
           {Array.isArray(path.projects) && path.projects.length > 0 && (
-            <span style={{ background: '#f59e0b', color: '#fff', padding: '0.2rem 0.6rem', fontSize: '0.78rem', fontWeight: 800 }}>{getTotalXp(path.projects)}</span>
+            <span style={{ background: '#f59e0b', color: '#fff', padding: '0.2rem 0.6rem', fontSize: '0.78rem', fontWeight: 800 }}>{getTotalXp(path.projects)}XP</span>
           )}
         </div>
         <img src={getDomainIconUrl(path)} alt="" width="56" height="56" style={{ width: '56px', height: '56px', objectFit: 'contain', marginBottom: '1rem' }} onError={hideOnError} />
@@ -87,7 +87,7 @@ function ViewAllModal({ paths, categories, onClose, onApply }) {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                     <span className="badge-sharp" style={{ backgroundColor: "#000", color: "#fff", fontSize: "0.75rem", display: "inline-block" }}>{path.duration || '4 Weeks'}</span>
                     {Array.isArray(path.projects) && path.projects.length > 0 && (
-                      <span style={{ background: "#f59e0b", color: "#fff", padding: "0.15rem 0.5rem", fontSize: "0.72rem", fontWeight: 800 }}>{getTotalXp(path.projects)}</span>
+                      <span style={{ background: "#f59e0b", color: "#fff", padding: "0.15rem 0.5rem", fontSize: "0.72rem", fontWeight: 800 }}>{getTotalXp(path.projects)}XP</span>
                     )}
                   </div>
                   <img src={getDomainIconUrl(path)} alt="" width="48" height="48" style={{ width: '48px', height: '48px', objectFit: 'contain', display: 'block', marginBottom: '0.75rem' }} onError={hideOnError} />
