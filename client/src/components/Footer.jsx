@@ -35,8 +35,9 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
             <h3 style={{ fontSize: "1.8rem", fontFamily: "Space Grotesk, sans-serif", marginBottom: "1.25rem", fontWeight: 900, color: "#fff", letterSpacing: "-1px" }}>
               {s.brandName || "DEV/CRAFT"}
             </h3>
-            <p style={{ maxWidth: "320px", fontSize: "0.9rem", color: "#999", lineHeight: "1.7", marginBottom: "1.5rem" }}>
-              {s.description || "Premium 100% free virtual internships for university and college students. Gain verified work experience, finish structured projects, and get certified."}
+            <p style={{ maxWidth: "320px", fontSize: "0.9rem", color: "#999", lineHeight: "1.7", marginBottom: "1.5rem" }}
+              dangerouslySetInnerHTML={{ __html: (s.description || "Premium 100% free virtual internships for university and college students. Gain verified work experience, finish structured projects, and get certified.").replace(/<br\s*\/?>|<\/br>/gi, '<br>') }}
+            />
             </p>
 
           </div>
@@ -59,7 +60,7 @@ export default function Footer({ onTandpClick, onPrivacyClick, onRefundClick }) 
                   ))}
                 </ul>
               )}
-              {col.text && <p style={{ fontSize: "0.85rem", color: "#777", lineHeight: "1.6" }} dangerouslySetInnerHTML={{ __html: col.text.replace(/<br\s*\/?>/gi, '<br>') }} />}
+              {col.text && <p style={{ fontSize: "0.85rem", color: "#777", lineHeight: "1.6" }} dangerouslySetInnerHTML={{ __html: col.text.replace(/<br\s*\/?>|<\/br>/gi, '<br>') }} />}
             </div>
           ))}
 
