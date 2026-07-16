@@ -2311,12 +2311,61 @@ export default async function handler(req, res) {
     if (parts[0] === "payment-history" && parts[1]) return handlePaymentHistory(req, res, parts[1]);
     if (parts[0] === "auto-expire-enrollments") return handleAutoExpire(req, res);
     if (parts[0] === "sync" && parts[1] === "versions") return handleSyncVersions(req, res);
+    if (parts[0] === "action-tracker") return handleActionTracker(req, res, parts.slice(1));
     if (parts[0] === "rates") return send(res, 200, { success: true, rates: { USD: 1, INR: 83.5, EUR: 0.93, GBP: 0.79, CAD: 1.37, AUD: 1.51, JPY: 157.4 } });
     return send(res, 404, { success: false, message: `API route not found (${req.method} ${rawUrl})`, parts, first: parts[0] });
   } catch (error) {
     console.error("API error:", error);
     return send(res, 500, { success: false, message: error.message || "Server error." });
   }
+}
+
+const ACTION_CATEGORIES = [
+  'login', 'internship_application', 'task_completed',
+  'all_tasks_done_no_payment', 'all_done_with_payment',
+  'payment_pending', 'payment_success', 'certificate_issued',
+  'referral_signup', 'profile_updated', 'internship_expired',
+  'deadline_approaching', 'welcome', 'admin_notification',
+];
+
+async function handleActionTracker(req, res, parts) {
+  const sub = parts[0] || '';
+  if (sub === 'notify' && req.method === 'POST') {
+    const { category, userData, details } = req.body || {};
+    if (!category || !ACTION_CATEGORIES.includes(category)) {
+      return send(res, 400, { success: false, message: `Invalid category. Must be one of: ${ACTION_CATEGORIES.join(', ')}` });
+    }
+    if (!userData?.email) {
+      return send(res, 400, { success: false, message: 'userData.email is required' });
+    }
+    try {
+      const { processActionNotification } = await import('../server/actionTracker.js');
+      const result = await processActionNotification({ category, userData, details });
+      return send(res, 200, { success: true, data: result });
+    } catch (error) {
+      return send(res, 500, { success: false, message: error.message });
+    }
+  }
+  if (sub === 'batch' && req.method === 'POST') {
+    const { notifications } = req.body || {};
+    if (!Array.isArray(notifications) || notifications.length === 0) {
+      return send(res, 400, { success: false, message: 'notifications array required' });
+    }
+    try {
+      const { processActionNotification } = await import('../server/actionTracker.js');
+      const results = [];
+      for (const n of notifications) {
+        try { results.push(await processActionNotification(n)); } catch (e) { results.push({ success: false, error: e.message }); }
+      }
+      return send(res, 200, { success: true, data: results });
+    } catch (error) {
+      return send(res, 500, { success: false, message: error.message });
+    }
+  }
+  if (sub === 'categories' && req.method === 'GET') {
+    return send(res, 200, { success: true, data: ACTION_CATEGORIES });
+  }
+  return send(res, 404, { success: false, message: 'Action tracker route not found' });
 }
 
 async function handlePaymentHistory(req, res, enrollmentId) {
