@@ -1566,6 +1566,7 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                       }}
                     >
                       <th style={th}>Intern ID</th>
+                      <th style={th}>Credential ID</th>
                       <th style={th}>Referral</th>
                       <th style={th}>Name</th>
                       <th style={th}>Email</th>
@@ -1602,6 +1603,17 @@ export default function AdminPanel({ onClose, user, onLogout }) {
                               }}
                             >
                               {row.internId || row.id.slice(0, 8)}
+                            </code>
+                          </td>
+                          <td style={td}>
+                            <code
+                              style={{
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                                color: "#000",
+                              }}
+                            >
+                              {row.credentialId || row.id.slice(0, 12)}
                             </code>
                           </td>
                           <td style={td}>
@@ -11028,6 +11040,7 @@ function EditInternsSection() {
               <span style={{ fontWeight: 800, minWidth: "130px" }}>{intern.name || "—"}</span>
               <span style={{ color: "#888", minWidth: "150px" }}>{intern.email || "—"}</span>
               <span style={{ fontFamily: "monospace", color: "#aaa", fontSize: "0.72rem" }}>{intern.internId || intern.id}</span>
+              <span style={{ fontFamily: "monospace", color: "#666", fontSize: "0.72rem" }}>{intern.credentialId || "—"}</span>
               <span style={{ padding: "0.15rem 0.4rem", fontSize: "0.72rem", fontWeight: 700, background: intern.status === "Completed" ? "#E8F5E9" : intern.status === "Active" ? "#FFF8E1" : "#eee", border: "1px solid #ccc" }}>{intern.status || "Active"}</span>
               <span style={{ fontSize: "0.72rem", color: "#666" }}>{intern.domain || ""}</span>
               <button onClick={() => {
@@ -11043,6 +11056,7 @@ function EditInternsSection() {
                   deadline: intern.deadline ? intern.deadline.split("T")[0] : "",
                   completedAt: intern.completedAt ? intern.completedAt.split("T")[0] : "",
                   certificateDate: intern.certificateDate ? intern.certificateDate.split("T")[0] : "",
+                  credentialId: intern.credentialId || "",
                 });
                 setEditModal(intern);
               }} className="btn-sharp" style={{ padding: "0.3rem 0.75rem", fontSize: "0.72rem", borderRadius: 0 }}>Edit</button>
@@ -11055,6 +11069,7 @@ function EditInternsSection() {
         const fields = [
           { key: "name", label: "Name", type: "text" },
           { key: "email", label: "Email", type: "text" },
+          { key: "credentialId", label: "Credential ID", type: "text" },
           { key: "phone", label: "Phone", type: "text" },
           { key: "college", label: "College", type: "text" },
           { key: "city", label: "City", type: "text" },

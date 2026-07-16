@@ -249,7 +249,7 @@ export default function CertificateView() {
           name: certData.name,
           domain: certData.domain,
           internId: certData.internId,
-          id: certData.id,
+          id: certData.credentialId || certData.id,
           status: certData.status,
           completed: certData.completed,
           msmeId: certData.msmeId,

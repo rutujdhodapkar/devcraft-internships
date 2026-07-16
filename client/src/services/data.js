@@ -1338,6 +1338,8 @@ export async function adminDownloadDoc(enrollmentId, docType) {
 
 export async function createEnrollment(data) {
   const id = data.internId || `DEV-CRAFT-${Date.now().toString(36).toUpperCase().slice(-6).padStart(6, "0")}`;
+  // Generate a unique credential ID for certificate verification
+  const credentialId = data.credentialId || `CRED-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
   const isCompleted = data.status === "Completed";
   const projects = data.projects || [];
   // If status is Completed, auto-verify all submissions and set transactionId
@@ -1368,6 +1370,7 @@ export async function createEnrollment(data) {
   const enrollment = {
     id,
     internId: id,
+    credentialId,
     uid: data.uid || "",
     name: data.name || "Student",
     email: data.email || "",

@@ -926,7 +926,7 @@ async function handleData(req, res, routeParts) {
       "domain", "domainId", "uid", "status", "referralCode",
       "paymentStatus", "paymentStage", "paymentAmount", "paymentStartAmount",
       "paymentEndAmount", "paymentTiming", "paymentIntentId", "transactionId",
-      "allowedCertificate", "overrideCompleted", "duration",
+      "allowedCertificate", "overrideCompleted", "duration", "credentialId",
     ];
     const updates = {};
     for (const field of allowedFields) {
@@ -1752,6 +1752,7 @@ async function handleCertificateData(req, res, enrollmentId) {
       email: enrollment.email || "",
       domain: enrollment.domain || "",
       internId: enrollment.internId || enrollment.id || enrollmentId,
+      credentialId: enrollment.credentialId || enrollment.id || enrollmentId,
       id: enrollment.id || enrollmentId,
       status,
       completed: eligible ? "Yes" : "No",
