@@ -61,9 +61,21 @@ export const EMAIL_TYPES = [
 
 export const EMAIL_CATEGORIES = [
   { id: 'welcome', label: 'Welcome' },
+  { id: 'login', label: 'Login Activity' },
   { id: 'payment', label: 'Payment' },
+  { id: 'payment_pending', label: 'Payment Pending' },
+  { id: 'payment_success', label: 'Payment Success' },
   { id: 'task', label: 'Tasks' },
+  { id: 'task_completed', label: 'Task Completed' },
+  { id: 'internship_application', label: 'Internship Application' },
+  { id: 'all_tasks_done_no_payment', label: 'All Tasks Done (No Payment)' },
+  { id: 'all_done_with_payment', label: 'All Done with Payment' },
   { id: 'certificate', label: 'Certificate' },
+  { id: 'certificate_issued', label: 'Certificate Issued' },
+  { id: 'referral_signup', label: 'Referral Signup' },
+  { id: 'profile_updated', label: 'Profile Updated' },
+  { id: 'internship_expired', label: 'Internship Expired' },
+  { id: 'deadline_approaching', label: 'Deadline Approaching' },
   { id: 'updates', label: 'Updates' },
   { id: 'general', label: 'General' },
 ];

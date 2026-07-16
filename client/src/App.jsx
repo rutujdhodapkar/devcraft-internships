@@ -380,6 +380,12 @@ export default function App() {
         // Record this login for live active-users tracking
         recordUserLogin(currentUser.uid, currentUser);
 
+        // Track login event to action categories
+        (async () => {
+          const { trackLogin } = await import('./services/actionTracker');
+          await trackLogin(currentUser);
+        })();
+
         // Check if user has a self-created referral code
         fetchSelfReferralCode(currentUser.uid)
           .then((code) => {
@@ -473,12 +479,19 @@ export default function App() {
                   setPendingEnrollmentDomain(null);
                   setCurrentView("dashboard");
                 } else {
+                  let enrollmentResult = null;
                   try {
-                    await enrollStudent(
+                    enrollmentResult = await enrollStudent(
                       currentUser.uid,
                       profile,
                       penDomain,
                     );
+                    if (enrollmentResult) {
+                      (async () => {
+                        const { trackInternshipApplication } = await import('./services/actionTracker');
+                        await trackInternshipApplication(currentUser, enrollmentResult, penDomain);
+                      })();
+                    }
                   } catch (e) {
                     console.warn("Pending enrollment failed:", e);
                   }

@@ -10,6 +10,7 @@ import { renderTemplate, TEMPLATES, getTemplate } from './emailTemplates.js';
 import { runDailyCron, getEmailStats, processEmailCampaign, processLifecycleTransitions, determineLifecycleStages, EMAIL_TYPES, EMAIL_CATEGORIES } from './emailEngine.js';
 import { initCosmosDb, FieldValue } from './cosmos.js';
 import { verifyFirebaseToken, isFirebaseAdmin } from './auth.js';
+import { processActionNotification } from './actionTracker.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -656,6 +657,21 @@ app.post('/api/dodo/webhook', async (req, res) => {
           if (allVerified) {
             await enrRef.update({ allowedCertificate: 'yes', status: 'Completed', completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
           }
+          // Trigger action tracker notifications
+          try {
+            await processActionNotification({
+              category: 'payment_success',
+              userData: { email: enr.email, name: enr.name, uid: enr.uid },
+              details: { domain: enr.domain, amount: enr.paymentAmount, internId: enrollmentId },
+            });
+            if (allVerified) {
+              await processActionNotification({
+                category: 'all_done_with_payment',
+                userData: { email: enr.email, name: enr.name, uid: enr.uid },
+                details: { domain: enr.domain, amount: enr.paymentAmount, internId: enrollmentId },
+              });
+            }
+          } catch (e) { console.warn('[Webhook] Action notification failed:', e.message); }
         }
       } catch (fbErr) { console.error('Firebase update failed:', fbErr.message); }
     } else if (eventType === 'payment.failed' && enrollmentId) {
@@ -1269,5 +1285,59 @@ app.get('/api/email/types', (req, res) => {
 function emailDocId(email) {
   return email.toLowerCase().replace(/\./g, ',');
 }
+
+// ─── Action Tracker Routes (Email Notifications by Category) ──────────────
+
+const ACTION_CATEGORIES = [
+  'login', 'internship_application', 'task_completed',
+  'all_tasks_done_no_payment', 'all_done_with_payment',
+  'payment_pending', 'payment_success', 'certificate_issued',
+  'referral_signup', 'profile_updated', 'internship_expired',
+  'deadline_approaching', 'welcome', 'admin_notification',
+];
+
+// POST /api/action-tracker/notify — Trigger a categorized action email
+app.post('/api/action-tracker/notify', async (req, res) => {
+  try {
+    const { category, userData, details } = req.body;
+    if (!category || !ACTION_CATEGORIES.includes(category)) {
+      return res.status(400).json({ success: false, message: `Invalid category. Must be one of: ${ACTION_CATEGORIES.join(', ')}` });
+    }
+    if (!userData?.email) {
+      return res.status(400).json({ success: false, message: 'userData.email is required' });
+    }
+    const result = await processActionNotification({ category, userData, details });
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// POST /api/action-tracker/batch — Trigger multiple action notifications at once (admin use)
+app.post('/api/action-tracker/batch', async (req, res) => {
+  try {
+    const { notifications } = req.body;
+    if (!Array.isArray(notifications) || notifications.length === 0) {
+      return res.status(400).json({ success: false, message: 'notifications array required' });
+    }
+    const results = [];
+    for (const n of notifications) {
+      try {
+        const r = await processActionNotification(n);
+        results.push(r);
+      } catch (e) {
+        results.push({ success: false, error: e.message, category: n.category });
+      }
+    }
+    return res.json({ success: true, data: results });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// GET /api/action-tracker/categories — List all available action categories
+app.get('/api/action-tracker/categories', (req, res) => {
+  return res.json({ success: true, data: ACTION_CATEGORIES });
+});
 
 app.all('/api/*', apiHandler);

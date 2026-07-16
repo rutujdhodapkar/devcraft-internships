@@ -139,11 +139,29 @@ export default function StudentDashboard({
   };
 
   const handlePaymentSuccess = async () => {
+    const completedEnrollment = paymentEnrollment;
     setShowPaymentModal(false);
     setShowPaymentChoice(false);
     setPaymentEnrollment(null);
     setPaymentMethod(null);
     setCouponError("");
+
+    // Track payment success
+    if (completedEnrollment) {
+      (async () => {
+        const { trackPaymentSuccess, trackAllDoneWithPayment, trackAllTasksDoneNoPayment } = await import("../services/actionTracker");
+        await trackPaymentSuccess(user || completedEnrollment, completedEnrollment);
+        const projects = getProjectsForEnrollment(completedEnrollment);
+        const submissions = getSubmissions(completedEnrollment);
+        const allVerified = projects.length > 0 && projects.every((_, i) => submissions[i]?.verified);
+        if (allVerified) {
+          await trackAllDoneWithPayment(user || completedEnrollment, completedEnrollment);
+        } else {
+          await trackAllTasksDoneNoPayment(user || completedEnrollment, completedEnrollment);
+        }
+      })();
+    }
+
     loadAll();
   };
 
@@ -388,6 +406,29 @@ export default function StudentDashboard({
       await refreshEnrollment(enrollment.id);
       setSubmitSuccess((prev) => ({ ...prev, [key]: true }));
       setSubmissionInputs((prev) => ({ ...prev, [key]: "" }));
+
+      // Track task completion
+      (async () => {
+        const { trackTaskCompleted } = await import("../services/actionTracker");
+        const project = getProjectsForEnrollment(enrollment)[projectIdx];
+        const title = typeof project === "object" ? (project.title || project.name || `Task ${projectIdx + 1}`) : project;
+        await trackTaskCompleted(user || enrollment, enrollment, projectIdx, title);
+
+        // Check if all tasks are now done but no payment
+        const projects = getProjectsForEnrollment(enrollment);
+        const submissions = getSubmissions(enrollment);
+        const allSubmitted = projects.every((_, i) => submissions[i]?.submittedAt);
+        const allVerified = projects.every((_, i) => submissions[i]?.verified);
+        const isPaid = enrollment.paymentTiming === "both" ? enrollment.paymentStage === "fully_paid" : enrollment.paymentStatus === "paid";
+        if (allVerified && !isPaid) {
+          const { trackAllTasksDoneNoPayment } = await import("../services/actionTracker");
+          await trackAllTasksDoneNoPayment(user || enrollment, enrollment);
+        } else if (allVerified && isPaid) {
+          const { trackAllDoneWithPayment } = await import("../services/actionTracker");
+          await trackAllDoneWithPayment(user || enrollment, enrollment);
+        }
+      })();
+
       setTimeout(
         () => setSubmitSuccess((prev) => ({ ...prev, [key]: false })),
         6000,
@@ -1767,10 +1808,7 @@ function EnrollmentCard({
 
         {/* Projects Section */}
         <div style={{ padding: "1.75rem 2rem" }}>
-          <div style={{ border: "2px solid #a00", padding: "1rem 1.25rem", background: "#2a0000", marginBottom: "1rem" }}>
-            <strong style={{ color: "#ff6666" }}>Upload offer letter on LinkedIn</strong>
-            <p style={{ fontSize: "0.85rem", color: "#cc6666", marginTop: "0.35rem" }}>Share your offer letter on LinkedIn to celebrate your internship and connect with professionals.</p>
-          </div>
+
           {isExpired && (
             <div style={{ border: "2px solid #a00", padding: "1rem 1.25rem", background: "#2a0000", marginBottom: "1rem" }}>
               <strong style={{ color: "#ff6666" }}>Internship Expired</strong>
