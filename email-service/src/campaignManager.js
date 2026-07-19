@@ -34,7 +34,8 @@ async function processCampaign(campaignId, campaign) {
     return true;
   }
 
-  if (!campaign.requiresApproval) {
+  // status === 'pending' (no schedule set, ready to send)
+  if (campaign.requiresApproval) {
     if (campaign.template === 'promo' || campaign.category === 'promo') {
       const approvalId = await requestApproval(campaign.template, {
         recipientCount: campaign.estimatedRecipients || 0,
@@ -47,12 +48,15 @@ async function processCampaign(campaignId, campaign) {
       }
       return false;
     }
-
+    // Non-promo, approval-required campaigns execute immediately
+    await rtdbSet(`campaigns/${campaignId}/status`, 'approved');
     await executeCampaign(campaignId, campaign);
     return true;
   }
 
-  return false;
+  // No approval needed — execute directly
+  await executeCampaign(campaignId, campaign);
+  return true;
 }
 
 async function executeCampaign(campaignId, campaign) {

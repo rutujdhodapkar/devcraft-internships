@@ -1,4 +1,4 @@
-const CLIENT_ID = "777c3ev3udb0o2";
+const CLIENT_ID = process.env.LINKEDIN_CLIENT_ID || "777c3ev3udb0o2";
 const CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.LINKEDIN_REFRESH_TOKEN;
 const PERSON_ID = process.env.LINKEDIN_PERSON_ID;
@@ -12,7 +12,7 @@ const TEMPLATES = [
   "The future of work is remote. DEV/CRAFT prepares you with virtual internships that mirror real-world workflows. Gain experience from anywhere.\n\n#RemoteWork #DEVRAFT #VirtualInternship #FutureOfWork #TechCareers",
   "Employers don't just want degrees — they want proof of skills. DEV/CRAFT's virtual internships give you portfolio-ready projects and verified certificates.\n\n#DEVRAFT #SkillsOverDegrees #TechCareers #Portfolio #Internships",
   "Transform your career with DEV/CRAFT. Our alumni have gone on to work at top tech companies — all starting with a free virtual internship.\n\n#DEVRAFT #CareerTransformation #TechInternships #SuccessStory #LearnTech",
-  "🔥 New month, new opportunities! DEV/CRAFT has fresh internship projects waiting for you. Web dev, AI, data science & more — all free with verified certificates.\n\n#DEVRAFT #NewOpportunities #TechInternships #LearnToCode #CareerGoals",
+  "New month, new opportunities! DEV/CRAFT has fresh internship projects waiting for you. Web dev, AI, data science & more — all free with verified certificates.\n\n#DEVRAFT #NewOpportunities #TechInternships #LearnToCode #CareerGoals",
 ];
 
 let accessToken = process.env.LINKEDIN_ACCESS_TOKEN;
@@ -40,56 +40,95 @@ async function refreshAccessToken() {
   if (newRefresh) {
     console.log(`[DailyPost] NOTE: New refresh token received. Update secret:`);
     console.log(`  gh secret set LINKEDIN_REFRESH_TOKEN --body "${newRefresh}"`);
+    try {
+      const { execSync } = await import("child_process");
+      execSync(`gh secret set LINKEDIN_REFRESH_TOKEN --body "${newRefresh}"`, { stdio: "pipe" });
+      console.log("[DailyPost] GitHub secret updated automatically.");
+    } catch {
+      console.log("[DailyPost] Could not auto-update GitHub secret (not running in Actions?). Update manually.");
+    }
   }
 }
 
-async function postToLinkedIn(text) {
-  console.log(`[DailyPost] Posting to LinkedIn...`);
+function mapVisibility(v) {
+  if (v === "CONNECTIONS") return "CONNECTIONS_ONLY";
+  return "PUBLIC";
+}
 
-  let author;
-  if (PERSON_ID) {
-    author = `urn:li:person:${PERSON_ID}`;
-  } else {
-    const me = await fetch("https://api.linkedin.com/v2/userinfo", {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    const meData = await me.json();
-    if (!me.ok) throw new Error(`LinkedIn auth: ${meData.message || meData.error_description}`);
-    author = `urn:li:person:${meData.sub}`;
-  }
-
-  const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "X-Restli-Protocol-Version": "2.0.0",
-    },
-    body: JSON.stringify({
-      author,
-      lifecycleState: "PUBLISHED",
-      specificContent: {
-        "com.linkedin.ugc.ShareContent": {
-          shareCommentary: { text },
-          shareMediaCategory: "NONE",
-        },
-      },
-      visibility: {
-        "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC",
-      },
-    }),
+async function getAuthor() {
+  if (PERSON_ID) return `urn:li:person:${PERSON_ID}`;
+  const me = await fetch("https://api.linkedin.com/v2/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
+  const meData = await me.json();
+  if (!me.ok) throw new Error(`LinkedIn auth: ${meData.message || meData.error_description}`);
+  return `urn:li:person:${meData.sub}`;
+}
 
+async function callLinkedInApi(url, body, headers) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", ...headers },
+    body: JSON.stringify(body),
+  });
   if (res.status === 401) {
     console.log("[DailyPost] Token expired, refreshing and retrying...");
     await refreshAccessToken();
-    return await postToLinkedIn(text);
+    return callLinkedInApi(url, body, headers);
   }
-
-  const data = await res.json();
-  if (!res.ok) throw new Error(`LinkedIn API error: ${data.message || JSON.stringify(data)}`);
-  console.log(`[DailyPost] Posted! ID: ${data.id}`);
+  const data = res.status === 201 || res.status === 200 ? await res.json().catch(() => ({})) : await res.json().catch(() => null);
+  if (!res.ok) throw new Error(`LinkedIn API error: ${data?.message || data?.error_description || JSON.stringify(data) || `HTTP ${res.status}`}`);
   return data;
+}
+
+async function postWithNewApi(author, text, visibility) {
+  console.log("[DailyPost] Trying new Posts API (/rest/posts)...");
+  return callLinkedInApi("https://api.linkedin.com/rest/posts", {
+    author,
+    lifecycleState: "PUBLISHED",
+    visibility: mapVisibility(visibility),
+    commentary: text,
+    distribution: {
+      feedDistribution: "MAIN_FEED",
+      targetEntities: [],
+      thirdPartyDistributionChannels: []
+    },
+    isReshareDisabledByAuthor: false,
+  }, { "LinkedIn-Version": "202401" });
+}
+
+async function postWithOldApi(author, text, visibility) {
+  console.log("[DailyPost] Falling back to legacy API (/v2/ugcPosts)...");
+  return callLinkedInApi("https://api.linkedin.com/v2/ugcPosts", {
+    author,
+    lifecycleState: "PUBLISHED",
+    specificContent: {
+      "com.linkedin.ugc.ShareContent": {
+        shareCommentary: { text },
+        shareMediaCategory: "NONE",
+      },
+    },
+    visibility: {
+      "com.linkedin.ugc.MemberNetworkVisibility": visibility === "CONNECTIONS" ? "CONNECTIONS_ONLY" : "PUBLIC",
+    },
+  }, { "X-Restli-Protocol-Version": "2.0.0" });
+}
+
+async function postToLinkedIn(text) {
+  console.log("[DailyPost] Posting to LinkedIn...");
+  const author = await getAuthor();
+
+  try {
+    const data = await postWithNewApi(author, text, "PUBLIC");
+    console.log(`[DailyPost] Posted! ID: ${data.id || "ok"}`);
+    return data;
+  } catch (err) {
+    console.log(`[DailyPost] New API failed: ${err.message}`);
+    console.log("[DailyPost] Falling back to legacy API...");
+    const data = await postWithOldApi(author, text, "PUBLIC");
+    console.log(`[DailyPost] Posted via legacy API! ID: ${data.id}`);
+    return data;
+  }
 }
 
 async function generateWithNVIDIA() {
@@ -101,10 +140,11 @@ async function generateWithNVIDIA() {
   ];
   const prompt = topics[new Date().getDay() % topics.length];
   try {
-    const res = await fetch("https://api.nvcf.nvidia.com/v2/nvcf/pexec/functions/df0415a4-069e-4022-a9d3-88a0cf2f0016", {
+    const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${NVDIA_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
+        model: "meta/llama-3.3-70b-instruct",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.8, max_tokens: 500,
       }),
@@ -117,7 +157,7 @@ async function generateWithNVIDIA() {
 
 async function getContent() {
   const ai = await generateWithNVIDIA();
-  if (ai) { console.log(`[DailyPost] Generated with NVIDIA AI`); return ai; }
+  if (ai) { console.log("[DailyPost] Generated with NVIDIA AI"); return ai; }
   const idx = new Date().getDate() % TEMPLATES.length;
   console.log(`[DailyPost] Using template #${idx}`);
   return TEMPLATES[idx];
@@ -132,7 +172,7 @@ async function main() {
   const content = await getContent();
   console.log(`[DailyPost] Content:\n${content}\n`);
   await postToLinkedIn(content);
-  console.log(`[DailyPost] Done!`);
+  console.log("[DailyPost] Done!");
 }
 
 main().catch((err) => {

@@ -69,7 +69,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
-    // Every social tool requires an authenticated admin/service identity.
+    // generate_linkedin_post doesn't post to any platform — no auth needed
+    if (name === "generate_linkedin_post") {
+      const idx = new Date().getDate() % TEMPLATES.length;
+      return { content: [{ type: "text", text: TEMPLATES[idx] }] };
+    }
+
+    // Every other social tool requires an authenticated admin/service identity.
     // Local opencode runs set MCP_LOCAL_TRUSTED=1; remote callers must pass a
     // Bearer JWT or MCP_API_KEY.
     const idn = await resolveIdentity({ bearer: args?.bearer, api_key: args?.api_key });
@@ -96,29 +102,60 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           author = `urn:li:person:${meData.sub}`;
         }
 
-        const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            "X-Restli-Protocol-Version": "2.0.0",
-          },
-          body: JSON.stringify({
-            author,
-            lifecycleState: "PUBLISHED",
-            specificContent: {
-              "com.linkedin.ugc.ShareContent": {
-                shareCommentary: { text },
-                shareMediaCategory: "NONE",
+        const linkedinVisibility = visibility === "CONNECTIONS" ? "CONNECTIONS_ONLY" : "PUBLIC";
+        let data;
+
+        // Try new Posts API first
+        try {
+          const res = await fetch("https://api.linkedin.com/rest/posts", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "LinkedIn-Version": "202401",
+            },
+            body: JSON.stringify({
+              author,
+              lifecycleState: "PUBLISHED",
+              visibility: linkedinVisibility,
+              commentary: text,
+              distribution: {
+                feedDistribution: "MAIN_FEED",
+                targetEntities: [],
+                thirdPartyDistributionChannels: []
               },
+              isReshareDisabledByAuthor: false,
+            }),
+          });
+          data = await res.json();
+          if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+        } catch (newApiErr) {
+          // Fall back to legacy Shares API
+          const res = await fetch("https://api.linkedin.com/v2/ugcPosts", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "X-Restli-Protocol-Version": "2.0.0",
             },
-            visibility: {
-              "com.linkedin.ugc.MemberNetworkVisibility": visibility,
-            },
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+            body: JSON.stringify({
+              author,
+              lifecycleState: "PUBLISHED",
+              specificContent: {
+                "com.linkedin.ugc.ShareContent": {
+                  shareCommentary: { text },
+                  shareMediaCategory: "NONE",
+                },
+              },
+              visibility: {
+                "com.linkedin.ugc.MemberNetworkVisibility": linkedinVisibility,
+              },
+            }),
+          });
+          data = await res.json();
+          if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+        }
+
         return { content: [{ type: "text", text: `LinkedIn post published! ID: ${data.id}` }] };
       }
 
@@ -137,8 +174,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case "generate_linkedin_post": {
-        const idx = new Date().getDate() % TEMPLATES.length;
-        return { content: [{ type: "text", text: TEMPLATES[idx] }] };
+        // handled before auth check above
+        throw new Error("Unexpected: generate_linkedin_post should not reach here");
       }
 
       default:

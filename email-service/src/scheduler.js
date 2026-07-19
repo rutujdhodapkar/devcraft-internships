@@ -1,4 +1,4 @@
-import { rtdbGet, rtdbSet, rtdbUpdate, getRTDB } from './db.js';
+import { rtdbGet, getRTDB } from './db.js';
 import { STATUS, CONFIG, SEND_ONCE_CATEGORIES } from './config.js';
 import { enqueue, cancelPending } from './queueManager.js';
 import { now, addDays, daysSince, isBefore } from './utils.js';
@@ -10,12 +10,12 @@ export async function runScheduler() {
   const apps = appsSnap.val() || {};
   let processedCount = 0;
 
-  for (const [appId, app] of Object.entries(apps)) {
+  for (const [rtdbKey, app] of Object.entries(apps)) {
     try {
-      const result = await processApplicationLifecycle(app);
+      const result = await processApplicationLifecycle(app, rtdbKey);
       if (result) processedCount++;
     } catch (err) {
-      console.error(`[Scheduler] Error ${appId}:`, err.message);
+      console.error(`[Scheduler] Error ${rtdbKey}:`, err.message);
     }
   }
 
@@ -24,8 +24,8 @@ export async function runScheduler() {
   return processedCount;
 }
 
-async function processApplicationLifecycle(app) {
-  const appId = app.applicationId || app.id;
+async function processApplicationLifecycle(app, rtdbKey) {
+  const appId = rtdbKey || app.applicationId || app.id;
   if (!appId || !app.email) return false;
 
   let changed = false;
@@ -140,7 +140,7 @@ async function processApplicationLifecycle(app) {
 
   if (changed) {
     const db = getRTDB();
-    await db.ref(`email_queue_applications/${key(appId)}`).update({
+    await db.ref(`email_queue_applications/${appId}`).update({
       currentState: nextState,
       lastProcessedAt: now(),
     });
@@ -199,6 +199,4 @@ async function getLastSentDate(applicationId, template, email) {
   return latest;
 }
 
-function key(s) {
-  return (s || '').replace(/[.#$\[\]\/]/g, '_');
-}
+

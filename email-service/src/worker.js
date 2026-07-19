@@ -28,7 +28,11 @@ export async function runWorker() {
   }
 
   // Phase 2: Lifecycle Scheduler (state transitions)
-  await runScheduler();
+  try {
+    await runScheduler();
+  } catch (err) {
+    console.error('[Worker] Scheduler error (continuing):', err.message);
+  }
 
   // Phase 3: Campaign Manager (scheduled campaigns)
   if (flags.campaignScheduling?.enabled !== false) {
@@ -36,7 +40,12 @@ export async function runWorker() {
   }
 
   // Phase 4: Process email queue
-  const results = await processQueue(flags);
+  let results = { sent: 0, failed: 0, skipped: 0 };
+  try {
+    results = await processQueue(flags);
+  } catch (err) {
+    console.error('[Worker] Queue processing error (continuing):', err.message);
+  }
 
   // Phase 5: Compute analytics
   if (flags.aiInsights?.enabled !== false) {
