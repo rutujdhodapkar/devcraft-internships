@@ -65,18 +65,21 @@ async function getAuthor() {
   return `urn:li:person:${meData.sub}`;
 }
 
-async function callLinkedInApi(url, body, headers) {
+async function callLinkedInApi(url, body, headers, retries = 1) {
   const res = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json", ...headers },
     body: JSON.stringify(body),
   });
-  if (res.status === 401) {
+  if (res.status === 401 && retries > 0) {
     console.log("[DailyPost] Token expired, refreshing and retrying...");
     await refreshAccessToken();
-    return callLinkedInApi(url, body, headers);
+    return callLinkedInApi(url, body, headers, 0);
   }
-  const data = res.status === 201 || res.status === 200 ? await res.json().catch(() => ({})) : await res.json().catch(() => null);
+  const data = res.ok ? await res.json().catch(() => {
+    const id = res.headers.get("x-restli-id") || res.headers.get("id") || "";
+    return id ? { id } : {};
+  }) : await res.json().catch(() => null);
   if (!res.ok) throw new Error(`LinkedIn API error: ${data?.message || data?.error_description || JSON.stringify(data) || `HTTP ${res.status}`}`);
   return data;
 }
@@ -139,6 +142,7 @@ async function generateWithNVIDIA() {
     "Write a LinkedIn post encouraging students to try free virtual internships at DEV/CRAFT. 3-4 sentences. Add 3-5 hashtags.",
   ];
   const prompt = topics[new Date().getDay() % topics.length];
+  // Try OpenAI-compatible endpoint first (NVIDIA API), fall back to NVCF
   try {
     const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
@@ -149,10 +153,29 @@ async function generateWithNVIDIA() {
         temperature: 0.8, max_tokens: 500,
       }),
     });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json.choices?.[0]?.message?.content || null;
-  } catch { return null; }
+    if (res.ok) {
+      const json = await res.json();
+      const text = json.choices?.[0]?.message?.content;
+      if (text) return text;
+    }
+  } catch {}
+  // Fall back to NVCF
+  try {
+    const res = await fetch("https://api.nvcf.nvidia.com/v2/nvcf/pexec/functions/df0415a4-069e-4022-a9d3-88a0cf2f0016", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${NVDIA_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.8, max_tokens: 500,
+      }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const text = json.choices?.[0]?.message?.content || json.response || json.text || json.content;
+      if (text) return text;
+    }
+  } catch {}
+  return null;
 }
 
 async function getContent() {
